@@ -120,6 +120,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .field textarea{resize:vertical;}
 .form-row{display:flex; gap:12px; flex-wrap:wrap;}
 .form-row > *{flex:1; min-width:140px;}
+.dlg-section{display:flex; flex-direction:column; gap:10px; padding-top:14px; border-top:1px solid var(--rule);}
+.dlg-section:first-child{padding-top:0; border-top:none;}
+.dlg-section-title{font-family:"Archivo",sans-serif; font-size:13px; font-weight:700;}
+.empty-mini{font-size:12px; color:var(--ink-3); padding:2px 0;}
 .dlg-close{margin-left:auto;}
 
 /* ============ módulos ============ */
@@ -139,6 +143,33 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .card:hover .card-fav,.card:focus-within .card-fav,.card:hover .card-edit,.card:focus-within .card-edit{opacity:.7;}
 .card-fav:hover,.card-edit:hover{opacity:1!important;}
 .modules-empty{grid-column:1/-1; text-align:center; padding:40px 20px; color:var(--ink-3);}
+
+/* ============ módulo DP ============ */
+dialog.dlg-full{width:min(1180px, calc(100vw - 32px)); height:calc(100vh - 48px); height:calc(100dvh - 48px); max-height:calc(100vh - 48px); display:flex; flex-direction:column;}
+dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
+.dp-toolbar{flex:none; display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; padding:0 22px 16px;}
+.dp-toolbar input[type="search"]{flex:1 1 220px; min-width:0;}
+.dp-toolbar select{flex:0 0 auto;}
+.dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap;}
+.dp-listhead{flex:none; display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; padding:8px 22px; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); background:var(--surface-2); font-size:11.5px; font-weight:600; color:var(--ink-3);}
+@media (max-width:760px){ .dp-listhead{display:none;} }
+.dp-list{flex:1; overflow-y:auto; padding-bottom:12px;}
+.dp-row{display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; align-items:center; padding:10px 22px; border-bottom:1px solid var(--rule); cursor:pointer;}
+.dp-row:hover{background:var(--surface-2);}
+@media (max-width:760px){ .dp-row{grid-template-columns:1fr; gap:4px;} }
+.dp-nome{font-weight:600; font-size:13.5px; display:flex; align-items:center; gap:6px;}
+.dp-cnpj{font-size:11px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace; margin-top:1px;}
+.dp-dot{width:7px; height:7px; border-radius:50%; background:var(--blue-deep); flex:none;}
+.dp-empty{text-align:center; padding:50px 20px; color:var(--ink-3);}
+.dp-field-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px;}
+.dp-section-rows{display:flex; flex-direction:column; gap:6px;}
+.dp-section-row{display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; padding:8px 10px; background:var(--surface-2); border-radius:var(--r);}
+.dp-section-cell{display:flex; flex-direction:column; gap:2px; min-width:80px;}
+.dp-section-cell-label{font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:var(--ink-3);}
+.dp-section-cell-val{font-size:12.5px; word-break:break-word;}
+.dp-section-del{margin-left:auto; flex:none;}
+.dp-add-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:8px;}
+.dp-add-row input{min-width:100px;}
 
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px;}
 .toast.show{opacity:1; transform:translate(-50%,0);}
@@ -203,6 +234,80 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   </form>
 </dialog>
 
+<!-- ===== módulo: DP (lista) ===== -->
+<dialog id="dlg-dp" class="dlg dlg-full">
+  <div class="dlg-head">
+    <h2>Departamento Pessoal</h2>
+    <span class="dp-count" id="dp-count"></span>
+    <button type="button" class="icon-btn dlg-close" id="dlg-dp-close" aria-label="Fechar">✕</button>
+  </div>
+  <div class="dp-toolbar">
+    <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
+    <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
+  </div>
+  <div class="dp-listhead">
+    <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
+  </div>
+  <div class="dp-list" id="dp-list"></div>
+</dialog>
+
+<!-- ===== módulo: DP (detalhe da empresa) ===== -->
+<dialog id="dlg-dp-detail" class="dlg dlg-lg">
+  <div class="dlg-head">
+    <h2 id="dp-detail-title">Empresa</h2>
+    <button type="button" class="icon-btn dlg-close" id="dlg-dp-detail-close" aria-label="Fechar">✕</button>
+  </div>
+  <div class="dlg-body">
+    <input type="hidden" id="dp-id">
+    <div class="dlg-section">
+      <div class="dlg-section-title">Dados gerais</div>
+      <div class="dp-field-grid">
+        <label class="field">Razão social / nome<input id="dp-nome"></label>
+        <label class="field">CNPJ<input id="dp-cnpj"></label>
+        <label class="field">Código Domínio<input id="dp-codigo-dominio"></label>
+        <label class="field">Tributação
+          <select id="dp-tributacao">
+            <option value="">—</option>
+            <option>SIMPLES NACIONAL</option>
+            <option>LUCRO PRESUMIDO</option>
+            <option>LUCRO REAL</option>
+            <option>MEI</option>
+          </select>
+        </label>
+        <label class="field">Responsável<input id="dp-responsavel" placeholder="Analista"></label>
+        <label class="field">Cidade / UF<input id="dp-uf"></label>
+        <label class="field">Data-base<input id="dp-data-base" placeholder="Ex.: Novembro"></label>
+        <label class="field">Contato do cliente<input id="dp-contato"></label>
+        <label class="field">Adiantamento salarial<input id="dp-adiantamento" placeholder="Ex.: Não possui"></label>
+      </div>
+    </div>
+
+    <div class="dlg-section" id="dp-section-estabelecimentos"></div>
+
+    <div class="dlg-section">
+      <div class="dlg-section-title">Fechamento da folha — procedimento</div>
+      <textarea class="field" id="dp-fechamento" rows="4" style="width:100%"></textarea>
+    </div>
+
+    <div class="dlg-section" id="dp-section-rubricas"></div>
+    <div class="dlg-section" id="dp-section-rpa"></div>
+    <div class="dlg-section" id="dp-section-pensao"></div>
+    <div class="dlg-section" id="dp-section-prazos"></div>
+    <div class="dlg-section" id="dp-section-historico"></div>
+
+    <div class="dlg-section">
+      <div class="dlg-section-title">Observações gerais</div>
+      <textarea class="field" id="dp-observacoes" rows="3" style="width:100%"></textarea>
+    </div>
+
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-danger" id="btn-dp-excluir">Excluir empresa</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-dp-fechar">Fechar</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- ===== confirmação genérica ===== -->
 <dialog id="dlg-ask" class="dlg" style="width:min(420px, calc(100vw - 32px))">
   <div class="dlg-body">
@@ -265,6 +370,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     readOnly: false,
     toolsQuery: '',
     prefs: { theme: null },
+    dpEmpresas: [], dpLoaded: false,
+    dpQuery: '', dpResponsavel: '',
   };
 
   let db = null, downloads = null;
@@ -279,7 +386,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const DEFAULT_TOOLS = [
     { id:'gestta', name:'Gestta', url:'https://app.gestta.com.br', icon:'📈', category:'Acompanhamento', color:'#0F7A55', description:'Andamento das empresas.', tags:['empresas'] },
     { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['cliente'] },
-    { id:'planilha-dp', name:'Planilha DP', url:'', icon:'👥', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','dp'] },
+    { id:'planilha-dp', name:'DP', url:'', icon:'👥', category:'Atalhos', color:'#9A6B00', description:'Particularidades de folha por empresa.', tags:['dp','folha'], moduleKey:'dp' },
     { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','fiscal'] },
     { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','contábil'] },
     { id:'zappy', name:'Zappy', url:'', icon:'💬', category:'Comunicação', color:'#167A45', description:'Só os contatos.', tags:['whatsapp','contatos'] },
@@ -300,6 +407,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       notes: t.notes || '',
       favorite: !!t.favorite,
       newTab: t.newTab !== false,
+      moduleKey: t.moduleKey || '',
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
       lastUsed: t.lastUsed || null,
@@ -329,6 +437,82 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   let toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
   const toolsDbStore = makeDbStore('tools');
+
+  // ---------- módulo DP: modelo de dados ----------
+  const DP_SECTIONS = {
+    estabelecimentos: { title:'Estabelecimentos, data-base e sindicatos', addLabel:'Adicionar estabelecimento', fields:[
+      {key:'tipo', label:'Tipo', width:1},
+      {key:'cnpj', label:'CNPJ', width:1.4},
+      {key:'cidadeUf', label:'Cidade / UF', width:1.4},
+      {key:'dataBase', label:'Data-base', width:1},
+      {key:'codSind', label:'Cód. sind.', width:0.8},
+      {key:'sindicato', label:'Sindicato / CCT', width:2.4},
+    ]},
+    rubricas: { title:'Rubricas utilizadas', addLabel:'Adicionar rubrica', fields:[
+      {key:'rubrica', label:'Rubrica', width:0.8},
+      {key:'descricao', label:'Descrição', width:1.6},
+      {key:'obs', label:'Observação', width:2},
+    ]},
+    rpa: { title:'RPA / Autônomos', addLabel:'Adicionar RPA', fields:[
+      {key:'tipo', label:'Tipo', width:1},
+      {key:'estab', label:'Estab.', width:1},
+      {key:'nome', label:'Nome', width:1.6},
+      {key:'valor', label:'Valor', width:1},
+      {key:'iss', label:'ISS', width:0.8},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
+    pensao: { title:'Pensão alimentícia', addLabel:'Adicionar', fields:[
+      {key:'funcionario', label:'Funcionário', width:1.2},
+      {key:'base', label:'Base / ofício', width:1.6},
+      {key:'procedimento', label:'Procedimento', width:2},
+    ]},
+    prazos: { title:'Prazos e rotinas mensais', addLabel:'Adicionar prazo', fields:[
+      {key:'dia', label:'Dia', width:0.6},
+      {key:'tarefa', label:'Tarefa / rotina', width:2.4},
+      {key:'caminho', label:'Caminho no sistema', width:2},
+    ]},
+    historico: { title:'Histórico de alterações', addLabel:'Adicionar registro', fields:[
+      {key:'data', label:'Data', width:0.8},
+      {key:'alteracao', label:'Alteração', width:3},
+    ]},
+  };
+
+  function normalizeDpRow(row, fields) {
+    if (!row) return null;
+    const out = {};
+    let hasAny = false;
+    fields.forEach(f => { const v = String(row[f.key]||'').trim(); out[f.key] = v; if (v) hasAny = true; });
+    return hasAny ? out : null;
+  }
+
+  function normalizeDpEmpresa(e, i=0) {
+    const rows = (key) => Array.isArray(e[key]) ? e[key].map(r => normalizeDpRow(r, DP_SECTIONS[key].fields)).filter(Boolean) : [];
+    return {
+      id: validId(e.id) ? e.id : uid(),
+      cod: e.cod || '',
+      nome: String(e.nome || 'Sem nome').slice(0,140),
+      cnpj: String(e.cnpj || ''),
+      tributacao: String(e.tributacao || ''),
+      responsavel: String(e.responsavel || ''),
+      uf: String(e.uf || ''),
+      dataBase: String(e.dataBase || ''),
+      contato: String(e.contato || ''),
+      codigoDominio: String(e.codigoDominio || ''),
+      adiantamento: String(e.adiantamento || ''),
+      estabelecimentos: rows('estabelecimentos'),
+      fechamento: String(e.fechamento || ''),
+      rubricas: rows('rubricas'),
+      rpa: rows('rpa'),
+      pensao: rows('pensao'),
+      prazos: rows('prazos'),
+      historico: rows('historico'),
+      observacoes: String(e.observacoes || ''),
+      order: Number.isFinite(e.order) ? e.order : i,
+    };
+  }
+
+  let dpStore = makeLocalStore('control-hub:dp', () => []);
+  const dpDbStore = makeDbStore('dp_empresas');
 
   async function persist(fn) {
     try { await fn(); }
@@ -369,7 +553,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
     const tiles = list.map(t => {
       const target = t.newTab || HOSTED ? ' target="_blank" rel="noopener noreferrer"' : '';
-      const stretch = t.url
+      const stretch = t.moduleKey
+        ? `<button type="button" class="card-stretch" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}" aria-label="Abrir ${escapeHtml(t.name)}"></button>`
+        : t.url
         ? `<a class="card-stretch" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}"${target} aria-label="Abrir ${escapeHtml(t.name)}"></a>`
         : `<button type="button" class="card-stretch" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Configurar ${escapeHtml(t.name)}"></button>`;
       return `
@@ -435,6 +621,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#ferramentas-tools').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
+    if (btn.dataset.action === 'module') { e.preventDefault(); openModule(btn.dataset.module); return; }
     const t = findTool(btn.dataset.id);
     if (!t) return;
     const action = btn.dataset.action;
@@ -442,6 +629,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     else if (action === 'edit') { e.preventDefault(); openFerramentaDialog(t); }
     else if (action === 'fav' && !state.readOnly) { e.preventDefault(); t.favorite = !t.favorite; persist(() => toolsStore.saveOne(t)); renderFerramentas(); }
   });
+
+  function openModule(key) {
+    if (key === 'dp') openDpModule();
+  }
 
   let dragId = null;
   $('#ferramentas-tools').addEventListener('dragstart', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id) return; dragId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -460,6 +651,154 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     renderFerramentas();
   });
 
+  // ---------- módulo DP ----------
+  const findDpEmpresa = (id) => state.dpEmpresas.find(e => e.id === id);
+  function dpResponsaveis() { return [...new Set(state.dpEmpresas.map(e => e.responsavel).filter(Boolean))].sort((a,b) => a.localeCompare(b,'pt-BR')); }
+  function matchesDpQuery(e,q) {
+    if (!q) return true;
+    const hay = [e.nome, e.cnpj, e.responsavel, e.tributacao].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  }
+  function dpHasParticularidades(e) {
+    return !!(e.fechamento || e.observacoes || e.rubricas.length || e.rpa.length || e.pensao.length || e.prazos.length || e.historico.length);
+  }
+  function visibleDpEmpresas() {
+    return state.dpEmpresas
+      .filter(e => (!state.dpResponsavel || e.responsavel === state.dpResponsavel) && matchesDpQuery(e, state.dpQuery))
+      .sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'));
+  }
+
+  function openDpModule() {
+    const sel = $('#dp-filtro-responsavel');
+    const cur = state.dpResponsavel;
+    sel.innerHTML = '<option value="">Todos os responsáveis</option>' + dpResponsaveis().map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    sel.value = cur;
+    $('#dlg-dp').showModal();
+    renderDp();
+    $('#dp-search').focus();
+  }
+  function renderDp() {
+    const list = visibleDpEmpresas();
+    $('#dp-count').textContent = `${state.dpEmpresas.length} empresa(s)`;
+    const container = $('#dp-list');
+    if (!state.dpLoaded) { container.innerHTML = ''; return; }
+    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada.</div>'; return; }
+    container.innerHTML = list.map(e => `
+      <div class="dp-row" data-id="${escapeHtml(e.id)}">
+        <div><div class="dp-nome">${dpHasParticularidades(e) ? '<span class="dp-dot" title="Tem particularidades registradas"></span>' : ''}${escapeHtml(e.nome)}</div>${e.cnpj ? `<div class="dp-cnpj">${escapeHtml(e.cnpj)}</div>` : ''}</div>
+        <div>${escapeHtml(e.tributacao || '—')}</div>
+        <div>${escapeHtml(e.responsavel || '—')}</div>
+        <div>${escapeHtml(e.dataBase || '—')}</div>
+        <div>${escapeHtml(e.uf || '—')}</div>
+      </div>`).join('');
+    $$('.dp-row', container).forEach(row => row.addEventListener('click', () => {
+      const e = findDpEmpresa(row.dataset.id);
+      if (e) openDpDetail(e);
+    }));
+  }
+  $('#dp-search').addEventListener('input', (e) => { state.dpQuery = e.target.value.trim(); renderDp(); });
+  $('#dp-filtro-responsavel').addEventListener('change', (e) => { state.dpResponsavel = e.target.value; renderDp(); });
+  $('#dlg-dp-close').addEventListener('click', () => $('#dlg-dp').close());
+
+  let dpAtual = null;
+  function renderDpSection(key) {
+    const cfg = DP_SECTIONS[key];
+    const items = dpAtual[key];
+    const rows = items.map((row, i) => `
+      <div class="dp-section-row">
+        ${cfg.fields.map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${escapeHtml(row[f.key]) || '—'}</span></div>`).join('')}
+        <button type="button" class="icon-btn dp-section-del" data-dp-del-section="${key}" data-idx="${i}" aria-label="Remover">🗑️</button>
+      </div>`).join('');
+    return `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>
+      <div class="dp-section-rows">${rows || '<div class="empty-mini">Nenhum registro.</div>'}</div>
+      <div class="dp-add-row" data-dp-add-row="${key}">
+        ${cfg.fields.map(f => `<input data-field="${f.key}" placeholder="${escapeHtml(f.label)}" style="flex:${f.width}">`).join('')}
+        <button type="button" class="btn btn-sm" data-dp-add-btn="${key}">＋ ${escapeHtml(cfg.addLabel)}</button>
+      </div>`;
+  }
+  function renderDpDetailSections() {
+    Object.keys(DP_SECTIONS).forEach(key => { $(`#dp-section-${key}`).innerHTML = renderDpSection(key); });
+  }
+
+  function openDpDetail(empresa) {
+    dpAtual = empresa;
+    $('#dp-detail-title').textContent = empresa.nome;
+    $('#dp-id').value = empresa.id;
+    $('#dp-nome').value = empresa.nome;
+    $('#dp-cnpj').value = empresa.cnpj;
+    $('#dp-codigo-dominio').value = empresa.codigoDominio;
+    $('#dp-tributacao').value = empresa.tributacao;
+    $('#dp-responsavel').value = empresa.responsavel;
+    $('#dp-uf').value = empresa.uf;
+    $('#dp-data-base').value = empresa.dataBase;
+    $('#dp-contato').value = empresa.contato;
+    $('#dp-adiantamento').value = empresa.adiantamento;
+    $('#dp-fechamento').value = empresa.fechamento;
+    $('#dp-observacoes').value = empresa.observacoes;
+    renderDpDetailSections();
+    $('#dlg-dp-detail').showModal();
+  }
+
+  function saveDpEmpresa(empresa) { persist(() => dpStore.saveOne(empresa)); }
+
+  function commitDpMainFields() {
+    if (!dpAtual) return;
+    dpAtual.nome = $('#dp-nome').value.trim() || 'Sem nome';
+    dpAtual.cnpj = $('#dp-cnpj').value.trim();
+    dpAtual.codigoDominio = $('#dp-codigo-dominio').value.trim();
+    dpAtual.tributacao = $('#dp-tributacao').value;
+    dpAtual.responsavel = $('#dp-responsavel').value.trim();
+    dpAtual.uf = $('#dp-uf').value.trim();
+    dpAtual.dataBase = $('#dp-data-base').value.trim();
+    dpAtual.contato = $('#dp-contato').value.trim();
+    dpAtual.adiantamento = $('#dp-adiantamento').value.trim();
+    dpAtual.fechamento = $('#dp-fechamento').value.trim();
+    dpAtual.observacoes = $('#dp-observacoes').value.trim();
+    $('#dp-detail-title').textContent = dpAtual.nome;
+    saveDpEmpresa(dpAtual);
+    renderDp();
+  }
+  ['dp-nome','dp-cnpj','dp-codigo-dominio','dp-tributacao','dp-responsavel','dp-uf','dp-data-base','dp-contato','dp-adiantamento','dp-fechamento','dp-observacoes']
+    .forEach(id => $('#'+id).addEventListener('change', commitDpMainFields));
+
+  $('#dlg-dp-detail').addEventListener('click', (e) => {
+    const addBtn = e.target.closest('[data-dp-add-btn]');
+    if (addBtn) {
+      const key = addBtn.dataset.dpAddBtn;
+      const wrap = addBtn.closest('[data-dp-add-row]');
+      const row = {};
+      $$('input[data-field]', wrap).forEach(inp => { row[inp.dataset.field] = inp.value; });
+      const normalized = normalizeDpRow(row, DP_SECTIONS[key].fields);
+      if (!normalized) { toast('Preencha ao menos um campo.'); return; }
+      dpAtual[key].push(normalized);
+      saveDpEmpresa(dpAtual);
+      renderDpDetailSections();
+      renderDp();
+      return;
+    }
+    const delBtn = e.target.closest('[data-dp-del-section]');
+    if (delBtn) {
+      const key = delBtn.dataset.dpDelSection;
+      dpAtual[key].splice(Number(delBtn.dataset.idx), 1);
+      saveDpEmpresa(dpAtual);
+      renderDpDetailSections();
+      renderDp();
+    }
+  });
+
+  $('#dlg-dp-detail-close').addEventListener('click', () => $('#dlg-dp-detail').close());
+  $('#btn-dp-fechar').addEventListener('click', () => $('#dlg-dp-detail').close());
+  $('#btn-dp-excluir').addEventListener('click', async () => {
+    if (!dpAtual) return;
+    const ok = await ask(`Excluir "${dpAtual.nome}" do módulo DP? Isso remove todos os registros dessa empresa.`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
+    if (!ok) return;
+    state.dpEmpresas = state.dpEmpresas.filter(e => e.id !== dpAtual.id);
+    persist(() => dpStore.deleteOne(dpAtual.id));
+    $('#dlg-dp-detail').close();
+    renderDp();
+    toast('Empresa excluída.');
+  });
+
   // ---------- navegação / busca global / tema ----------
   $('#global-search').addEventListener('input', (e) => { state.toolsQuery = e.target.value.trim(); renderFerramentas(); });
   $('#btn-theme').addEventListener('click', () => { state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs(); });
@@ -467,8 +806,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   // ---------- inicialização ----------
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
+    dpStore = makeLocalStore('control-hub:dp', () => []);
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
+    state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
+    state.dpLoaded = true;
     render();
   }
 
@@ -479,12 +821,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (!dbNs) { startLocal(); return; }
     db = dbNs;
     toolsStore = toolsDbStore;
+    dpStore = dpDbStore;
     if (user && (await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
 
     db.collection('tools').onSnapshot((snap) => {
       state.tools = snap.docs.map((d,i) => normalizeTool({ ...d.data(), id:d.id }, i));
       state.toolsLoaded = true;
       render();
+    }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
+
+    db.collection('dp_empresas').onSnapshot((snap) => {
+      state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i));
+      state.dpLoaded = true;
+      if ($('#dlg-dp').open) renderDp();
     }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
   }
 
