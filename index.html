@@ -1,0 +1,1235 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Control Hub</title>
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f8;
+  --border: #dde2ee;
+  --text: #1b2233;
+  --muted: #667089;
+  --primary: #4f7cff;
+  --primary-contrast: #ffffff;
+  --danger: #e5484d;
+  --ok: #2fb36b;
+  --warn: #f5a524;
+  --shadow: 0 1px 2px rgba(20, 30, 60, .06), 0 4px 16px rgba(20, 30, 60, .06);
+  --radius: 12px;
+  color-scheme: light;
+}
+
+/* Sem data-theme: segue o sistema. data-theme="light|dark" (escolha explícita) sempre vence. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131c;
+    --surface: #171c28;
+    --surface-2: #1f2635;
+    --border: #2a3345;
+    --text: #e6e9f2;
+    --muted: #8b95ad;
+    --primary: #6b8fff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f131c;
+  --surface: #171c28;
+  --surface-2: #1f2635;
+  --border: #2a3345;
+  --text: #e6e9f2;
+  --muted: #8b95ad;
+  --primary: #6b8fff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.app {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px; }
+.brand-logo { font-size: 26px; }
+.brand-name { font-weight: 700; font-size: 18px; }
+
+.nav { flex: 1; }
+.nav ul { list-style: none; margin: 0 0 12px; padding: 0; }
+.nav-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin: 12px 8px 6px;
+}
+
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item.active { background: var(--primary); color: var(--primary-contrast); }
+.nav-item .count { margin-left: auto; font-size: 12px; opacity: .7; }
+.nav-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+.sidebar-footer { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border); padding-top: 12px; }
+
+/* Main */
+.main { display: flex; flex-direction: column; min-width: 0; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 5;
+}
+
+#btn-menu { display: none; }
+
+.search { position: relative; flex: 1; max-width: 520px; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: .6; }
+.search input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  outline: none;
+}
+.search input:focus { border-color: var(--primary); }
+
+.topbar-actions { display: flex; gap: 8px; margin-left: auto; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  background: var(--surface-2);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover { filter: brightness(.97); }
+.btn-primary { background: var(--primary); color: var(--primary-contrast); }
+.btn-ghost { background: transparent; border-color: var(--border); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 6px 10px; font-size: 13px; }
+.icon-only { padding: 9px 11px; }
+.btn:disabled { opacity: .6; cursor: progress; }
+.btn:focus-visible, .icon-btn:focus-visible, .nav-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Aviso de modo */
+.banner {
+  margin: 16px 24px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  font-size: 14px;
+}
+.banner.info {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+
+/* Stats */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+  padding: 20px 24px 0;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.stat-label { color: var(--muted); font-size: 13px; }
+.stat-value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+/* Content */
+.content { padding: 20px 24px 40px; }
+.content-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.content-header h1 { font-size: 20px; margin: 0; }
+.select {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.tools.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+.tools.list { display: flex; flex-direction: column; gap: 8px; }
+
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 4px solid var(--accent, var(--primary));
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.card:hover { transform: translateY(-2px); }
+.card.dragging { opacity: .4; }
+.card.drag-over { outline: 2px dashed var(--primary); outline-offset: 2px; }
+
+.card-head { display: flex; align-items: center; gap: 10px; }
+.card-icon {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  font-size: 22px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent, var(--primary)) 16%, transparent);
+  flex: none;
+}
+.card-title { font-weight: 600; font-size: 16px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-host { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-titles { min-width: 0; flex: 1; }
+.card-desc { color: var(--muted); font-size: 14px; margin: 0; min-height: 1.2em; }
+.card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.card-foot { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.card-meta { color: var(--muted); font-size: 12px; margin-right: auto; }
+
+.icon-btn {
+  border: 0; background: none; cursor: pointer;
+  padding: 6px; border-radius: 8px; font-size: 15px; line-height: 1;
+}
+.icon-btn:hover { background: var(--surface-2); }
+.fav-btn { opacity: .35; }
+.fav-btn.on { opacity: 1; }
+
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+.status.online .status-dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.status.offline .status-dot { background: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent); }
+.status.checking .status-dot { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+
+/* List layout */
+.tools.list .card { flex-direction: row; align-items: center; border-top: 1px solid var(--border); border-left: 4px solid var(--accent, var(--primary)); padding: 10px 14px; }
+.tools.list .card:hover { transform: none; }
+.tools.list .card-head { flex: 0 0 260px; }
+.tools.list .card-desc { flex: 1; min-height: 0; }
+.tools.list .card-tags { display: none; }
+.tools.list .card-foot { margin-top: 0; }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty-icon { font-size: 48px; margin: 0; }
+
+/* Dialog */
+.dialog {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .3);
+}
+.dialog-sm { width: min(420px, calc(100vw - 32px)); }
+.ask-message { margin: 0; font-size: 15px; line-height: 1.5; white-space: pre-line; }
+.dialog::backdrop { background: rgba(10, 15, 30, .5); backdrop-filter: blur(2px); }
+.dialog-body { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.dialog-body h2 { margin: 0 0 4px; font-size: 18px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field textarea {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+  font-size: 15px;
+}
+.field input:focus, .field textarea:focus { border-color: var(--primary); }
+.field textarea { resize: vertical; }
+.field-icon { width: 80px; }
+.field-icon input { text-align: center; font-size: 20px; padding: 5px; }
+.field-color input { width: 56px; height: 40px; padding: 3px; }
+.form-row { display: flex; gap: 12px; }
+.grow { flex: 1; }
+.checks { flex-wrap: wrap; gap: 16px; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.dialog-actions { display: flex; gap: 8px; margin-top: 8px; }
+.spacer { flex: 1; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translate(-50%, 20px);
+  background: var(--text);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+  z-index: 50;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Responsive */
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 260px; z-index: 20;
+    transform: translateX(-100%); transition: transform .2s;
+    box-shadow: var(--shadow);
+  }
+  .sidebar.open { transform: none; }
+  #btn-menu { display: inline-flex; }
+  .topbar { padding: 12px 16px; flex-wrap: wrap; }
+  .search { order: 3; flex-basis: 100%; max-width: none; }
+  #btn-check .label, #btn-add .label { display: none; }
+  .stats, .content { padding-left: 16px; padding-right: 16px; }
+  .banner { margin-left: 16px; margin-right: 16px; }
+  .tools.list .card { flex-wrap: wrap; }
+  .tools.list .card-head { flex: 1 1 100%; }
+  .tools.list .card-desc { display: none; }
+  .tools.list .card-foot { flex: 1 1 100%; }
+}
+
+.card.no-link .card-host { font-style: italic; color: var(--warn); }
+</style>
+<div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand-logo">🎛️</span>
+        <span class="brand-name">Control Hub</span>
+      </div>
+
+      <nav class="nav">
+        <p class="nav-title">Visões</p>
+        <ul id="view-list">
+          <li><button class="nav-item active" data-view="all">📋 Todas <span class="count" data-count="all"></span></button></li>
+          <li><button class="nav-item" data-view="favorites">⭐ Favoritas <span class="count" data-count="favorites"></span></button></li>
+          <li><button class="nav-item" data-view="recent">🕒 Recentes <span class="count" data-count="recent"></span></button></li>
+          <li><button class="nav-item" data-view="offline">🔴 Com problema <span class="count" data-count="offline"></span></button></li>
+        </ul>
+
+        <p class="nav-title">Categorias</p>
+        <ul id="category-list"></ul>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-sm" id="btn-export" title="Exportar configuração">⬇️ Exportar</button>
+        <label class="btn btn-ghost btn-sm" title="Importar configuração">
+          ⬆️ Importar
+          <input type="file" id="input-import" accept="application/json" hidden />
+        </label>
+        <button class="btn btn-ghost btn-sm" id="btn-reset" title="Restaurar ferramentas de exemplo">↺ Restaurar</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="btn btn-ghost icon-only" id="btn-menu" aria-label="Abrir menu">☰</button>
+        <div class="search">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="search" placeholder="Buscar ferramentas…  ( / )" autocomplete="off" />
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-ghost" id="btn-check" title="Verificar status de todas">📡 <span class="label">Verificar status</span></button>
+          <button class="btn btn-ghost icon-only" id="btn-layout" title="Alternar grade/lista" aria-label="Alternar grade/lista">▦</button>
+          <button class="btn btn-ghost icon-only" id="btn-theme" title="Alternar tema" aria-label="Alternar tema">🌓</button>
+          <button class="btn btn-primary" id="btn-add">＋ <span class="label">Nova ferramenta</span></button>
+        </div>
+      </header>
+
+      <div class="banner" id="banner" hidden></div>
+
+      <section class="stats" id="stats"></section>
+
+      <section class="content">
+        <div class="content-header">
+          <h1 id="view-title">Todas as ferramentas</h1>
+          <select id="sort" class="select" aria-label="Ordenar">
+            <option value="manual">Ordem manual</option>
+            <option value="name">Nome (A–Z)</option>
+            <option value="usage">Mais usadas</option>
+            <option value="recent">Usadas recentemente</option>
+          </select>
+        </div>
+        <div id="tools" class="tools grid"></div>
+        <div id="empty" class="empty" hidden>
+          <p class="empty-icon">🧰</p>
+          <p>Nenhuma ferramenta encontrada.</p>
+          <button class="btn btn-primary" id="btn-add-empty">＋ Adicionar ferramenta</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal de ferramenta -->
+  <dialog id="tool-dialog" class="dialog">
+    <form method="dialog" id="tool-form" class="dialog-body">
+      <h2 id="dialog-title">Nova ferramenta</h2>
+      <input type="hidden" name="id" />
+      <div class="form-row">
+        <label class="field field-icon">
+          <span>Ícone</span>
+          <input name="icon" maxlength="4" placeholder="🔧" />
+        </label>
+        <label class="field grow">
+          <span>Nome *</span>
+          <input name="name" required maxlength="60" placeholder="Ex.: Jira" />
+        </label>
+      </div>
+      <label class="field">
+        <span>URL</span>
+        <input name="url" type="url" placeholder="https://… (pode deixar em branco)" />
+      </label>
+      <label class="field">
+        <span>Descrição</span>
+        <input name="description" maxlength="140" placeholder="Para que serve esta ferramenta" />
+      </label>
+      <div class="form-row">
+        <label class="field grow">
+          <span>Categoria</span>
+          <input name="category" list="category-options" maxlength="40" placeholder="Ex.: Desenvolvimento" />
+          <datalist id="category-options"></datalist>
+        </label>
+        <label class="field field-color">
+          <span>Cor</span>
+          <input name="color" type="color" value="#4f7cff" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Tags (separadas por vírgula)</span>
+        <input name="tags" placeholder="interno, produção" />
+      </label>
+      <label class="field">
+        <span>Notas</span>
+        <textarea name="notes" rows="3" placeholder="Credenciais ficam no cofre, não aqui 🙂"></textarea>
+      </label>
+      <div class="form-row checks">
+        <label class="check"><input type="checkbox" name="favorite" /> Favorita</label>
+        <label class="check"><input type="checkbox" name="monitor" checked /> Monitorar status</label>
+        <label class="check"><input type="checkbox" name="newTab" checked /> Abrir em nova aba</label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-danger" id="btn-delete" hidden>Excluir</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirmação (confirm() nativo não funciona dentro de artefatos) -->
+  <dialog id="ask-dialog" class="dialog dialog-sm">
+    <form method="dialog" class="dialog-body">
+      <p id="ask-message" class="ask-message"></p>
+      <div class="dialog-actions" id="ask-actions"></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'control-hub:v1';
+  const PREFS_KEY = 'control-hub:prefs';
+  const STATUS_TIMEOUT_MS = 8000;
+  const RECENT_LIMIT = 12;
+  const DB_COLLECTION = 'tools';
+
+  // Rodando como artefato do claude.ai? Lá a lista fica num banco compartilhado entre as contas.
+  const HOSTED = typeof window.claude?.use === 'function';
+
+  // Ferramentas iniciais do modo local. No artefato, a lista vem do banco compartilhado.
+  const DEFAULT_TOOLS = [
+    { id: 'gestta', name: 'Gestta', url: 'https://app.gestta.com.br', icon: '📈', category: 'Acompanhamento', color: '#6b7280', description: 'Andamento das empresas.', tags: ['empresas'] },
+    { id: 'portal-cliente', name: 'Portal do Cliente', url: '', icon: '🧑‍💼', category: 'Atalhos', color: '#6b7280', description: 'Acesso rápido pelo app.', tags: ['cliente'] },
+    { id: 'planilha-dp', name: 'Planilha DP', url: '', icon: '👥', category: 'Atalhos', color: '#6b7280', description: 'Acesso rápido pelo app.', tags: ['planilha', 'dp'] },
+    { id: 'planilha-fiscal', name: 'Planilha Fiscal', url: '', icon: '🧾', category: 'Atalhos', color: '#6b7280', description: 'Acesso rápido pelo app.', tags: ['planilha', 'fiscal'] },
+    { id: 'planilha-contabil', name: 'Planilha Contábil', url: '', icon: '📒', category: 'Atalhos', color: '#6b7280', description: 'Acesso rápido pelo app.', tags: ['planilha', 'contábil'] },
+    { id: 'zappy', name: 'Zappy', url: '', icon: '💬', category: 'Comunicação', color: '#22a55b', description: 'Só os contatos.', tags: ['whatsapp', 'contatos'] },
+    { id: 'zimbra', name: 'Zimbra', url: '', icon: '✉️', category: 'Comunicação', color: '#22a55b', description: 'Agendamento das salas e monitoramento das comunicações.', tags: ['e-mail', 'salas'], notes: 'Monitorar ao máximo as comunicações — tanto no e-mail quanto no WhatsApp.' },
+    { id: 'pasta-servidor', name: 'Pasta Servidor', url: '', icon: '🗄️', category: 'Monitoramento', color: '#22a55b', description: 'Arquivos fora do padrão ou salvos no local errado.', tags: ['servidor', 'arquivos'], notes: 'Monitorar arquivos fora do padrão e salvos em local errado. Como diagnosticar quando um arquivo não for salvo?', monitor: false },
+    { id: 'cardapio', name: 'Cardápio', url: '', icon: '🍽️', category: 'Outros', color: '#4f7cff', description: '', tags: [] },
+  ];
+
+  // ---------- Estado ----------
+  const state = {
+    tools: [],
+    loaded: false,
+    status: {},            // id -> 'online' | 'offline' | 'checking'
+    view: 'all',           // all | favorites | recent | offline | cat:<nome>
+    query: '',
+    readOnly: false,
+    // O artefato bloqueia requisições a outros sites, então a checagem de status só existe no modo local.
+    canCheck: !HOSTED,
+    prefs: { theme: null, layout: 'grid', sort: 'manual' },
+  };
+
+  let db = null;          // namespace do banco compartilhado (modo artefato)
+  let downloads = null;   // namespace de downloads (modo artefato)
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+  const escapeHtml = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function safeUrl(url) {
+    try {
+      const u = new URL(url);
+      return ['http:', 'https:'].includes(u.protocol) ? u.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function hostOf(url) {
+    if (!url) return 'Link não configurado';
+    try { return new URL(url).host; } catch { return url; }
+  }
+
+  const validId = (id) => typeof id === 'string' && /^[A-Za-z0-9_\-.~:@+]{1,120}$/.test(id) && id !== '.' && id !== '..';
+
+  function normalizeTool(t, i = 0) {
+    return {
+      id: validId(t.id) ? t.id : uid(),
+      name: String(t.name || 'Sem nome').slice(0, 60),
+      url: safeUrl(t.url) || '',
+      icon: t.icon || '🔧',
+      category: String(t.category || 'Geral').trim() || 'Geral',
+      color: /^#[0-9a-f]{6}$/i.test(t.color || '') ? t.color : '#4f7cff',
+      description: t.description || '',
+      tags: Array.isArray(t.tags) ? t.tags.filter(Boolean).map(String) : [],
+      notes: t.notes || '',
+      favorite: !!t.favorite,
+      monitor: t.monitor !== false,
+      newTab: t.newTab !== false,
+      order: Number.isFinite(t.order) ? t.order : i,
+      uses: Number(t.uses) || 0,
+      lastUsed: t.lastUsed || null,
+      createdAt: t.createdAt || Date.now(),
+    };
+  }
+
+  // ---------- Persistência ----------
+  // Duas implementações com a mesma interface: banco compartilhado (artefato) e localStorage (local).
+  const localStore = {
+    shared: false,
+    load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw).map(normalizeTool) : DEFAULT_TOOLS.map(normalizeTool);
+      } catch {
+        return DEFAULT_TOOLS.map(normalizeTool);
+      }
+    },
+    persistAll() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.tools)); } catch { toast('Não foi possível salvar no navegador.'); }
+    },
+    async saveTool() { this.persistAll(); },
+    async saveTools() { this.persistAll(); },
+    async deleteTool() { this.persistAll(); },
+  };
+
+  const dbStore = {
+    shared: true,
+    async saveTool(t) {
+      const { id, ...body } = t;
+      await db.doc(`${DB_COLLECTION}/${id}`).set(body);
+    },
+    async saveTools(list) {
+      // Uma escrita por vez: o banco pede que escritas no mesmo documento não se sobreponham.
+      for (const t of list) await this.saveTool(t);
+    },
+    async deleteTool(id) {
+      await db.doc(`${DB_COLLECTION}/${id}`).delete();
+    },
+  };
+
+  let store = localStore;
+
+  // Aplica a mudança na tela na hora e grava em seguida; avisa se a gravação falhar.
+  async function persist(fn) {
+    try {
+      await fn();
+    } catch (e) {
+      if (e?.code === 'invalid_argument' && store.shared) {
+        setReadOnly(true);
+        toast('Você não tem permissão para editar esta lista.');
+      } else if (e?.code === 'quota_exceeded') {
+        toast('Limite de ferramentas atingido. Exclua alguma para adicionar novas.');
+      } else {
+        toast('Não foi possível salvar. Tente de novo em instantes.');
+      }
+    }
+  }
+
+  function loadPrefs() {
+    try {
+      Object.assign(state.prefs, JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'));
+    } catch { /* usa padrões */ }
+  }
+
+  function savePrefs() {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(state.prefs)); } catch { /* ignora */ }
+  }
+
+  // ---------- Consultas ----------
+  const categories = () => [...new Set(state.tools.map((t) => t.category))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  function matchesQuery(t, q) {
+    if (!q) return true;
+    const hay = [t.name, t.description, t.category, t.url, t.notes, ...t.tags].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).every((w) => hay.includes(w));
+  }
+
+  function inView(t, view) {
+    if (view === 'favorites') return t.favorite;
+    if (view === 'recent') return !!t.lastUsed;
+    if (view === 'offline') return state.status[t.id] === 'offline';
+    if (view.startsWith('cat:')) return t.category === view.slice(4);
+    return true;
+  }
+
+  function visibleTools() {
+    let list = state.tools.filter((t) => inView(t, state.view) && matchesQuery(t, state.query));
+    const sort = state.view === 'recent' ? 'recent' : state.prefs.sort;
+    const by = {
+      manual: (a, b) => a.order - b.order,
+      name: (a, b) => a.name.localeCompare(b.name, 'pt-BR'),
+      usage: (a, b) => b.uses - a.uses || a.order - b.order,
+      recent: (a, b) => (b.lastUsed || 0) - (a.lastUsed || 0),
+    }[sort];
+    list.sort(by);
+    if (state.view === 'recent') list = list.slice(0, RECENT_LIMIT);
+    // favoritas primeiro na visão geral com ordem manual
+    if (state.view === 'all' && sort === 'manual') list.sort((a, b) => b.favorite - a.favorite);
+    return list;
+  }
+
+  // ---------- Renderização ----------
+  function render() {
+    renderChrome();
+    renderSidebar();
+    renderStats();
+    renderTools();
+  }
+
+  function renderChrome() {
+    $('#btn-check').hidden = !state.canCheck;
+    $('[data-view="offline"]').parentElement.hidden = !state.canCheck;
+    $('#btn-reset').hidden = store.shared;
+    $('#btn-add').hidden = state.readOnly;
+    $('#btn-add-empty').hidden = state.readOnly;
+    $('#input-import').closest('label').hidden = state.readOnly;
+  }
+
+  function showBanner(text, kind = 'warn') {
+    const el = $('#banner');
+    el.textContent = text;
+    el.className = `banner ${kind}`;
+    el.hidden = !text;
+  }
+
+  function renderSidebar() {
+    const counts = {
+      all: state.tools.length,
+      favorites: state.tools.filter((t) => t.favorite).length,
+      recent: Math.min(state.tools.filter((t) => t.lastUsed).length, RECENT_LIMIT),
+      offline: state.tools.filter((t) => state.status[t.id] === 'offline').length,
+    };
+    $$('[data-count]').forEach((el) => { el.textContent = counts[el.dataset.count] || ''; });
+
+    const catList = $('#category-list');
+    catList.innerHTML = categories().map((c) => {
+      const tools = state.tools.filter((t) => t.category === c);
+      const color = tools[0]?.color || 'var(--primary)';
+      return `<li><button class="nav-item" data-view="cat:${escapeHtml(c)}">
+        <span class="nav-dot" style="background:${color}"></span>${escapeHtml(c)}
+        <span class="count">${tools.length}</span></button></li>`;
+    }).join('');
+
+    $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.view === state.view));
+    $('#category-options').innerHTML = categories().map((c) => `<option value="${escapeHtml(c)}">`).join('');
+  }
+
+  function renderStats() {
+    const stats = [
+      ['Ferramentas', state.tools.length],
+      ['Categorias', categories().length],
+    ];
+    if (state.canCheck) {
+      const monitored = state.tools.filter((t) => t.monitor && t.url);
+      const online = monitored.filter((t) => state.status[t.id] === 'online').length;
+      const offline = monitored.filter((t) => state.status[t.id] === 'offline').length;
+      const checked = online + offline;
+      stats.push(['Online', checked ? `${online}/${checked}` : '—'], ['Com problema', checked ? offline : '—']);
+    }
+    stats.push(
+      ['Sem link', state.tools.filter((t) => !t.url).length],
+      ['Acessos', state.tools.reduce((s, t) => s + t.uses, 0)],
+    );
+    $('#stats').innerHTML = stats.map(([label, value]) =>
+      `<div class="stat"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`).join('');
+  }
+
+  const STATUS_LABEL = { online: 'Online', offline: 'Fora do ar', checking: 'Verificando…' };
+
+  function renderTools() {
+    const list = visibleTools();
+    const container = $('#tools');
+    container.className = `tools ${state.prefs.layout}`;
+    $('#sort').value = state.prefs.sort;
+    $('#btn-layout').textContent = state.prefs.layout === 'grid' ? '☰' : '▦';
+
+    const titles = { all: 'Todas as ferramentas', favorites: 'Favoritas', recent: 'Usadas recentemente', offline: 'Com problema' };
+    $('#view-title').textContent = titles[state.view] || state.view.slice(4);
+
+    if (!state.loaded) {
+      container.innerHTML = '';
+      $('#empty').hidden = true;
+      showBanner('Carregando ferramentas…', 'info');
+      return;
+    }
+    $('#empty').hidden = list.length > 0;
+
+    const draggable = !state.readOnly && state.prefs.sort === 'manual' && state.view !== 'recent' && !state.query;
+    const ro = state.readOnly;
+
+    container.innerHTML = list.map((t) => {
+      const st = state.canCheck && t.monitor && t.url ? state.status[t.id] : null;
+      const used = t.lastUsed ? `Usada ${timeAgo(t.lastUsed)}` : 'Nunca usada';
+      // Links reais (<a>): dentro do artefato, window.open não funciona para todos.
+      const target = t.newTab || HOSTED ? ' target="_blank" rel="noopener noreferrer"' : '';
+      return `
+      <article class="card${t.url ? '' : ' no-link'}" data-id="${escapeHtml(t.id)}" style="--accent:${t.color}" ${draggable ? 'draggable="true"' : ''}>
+        <div class="card-head">
+          <div class="card-icon">${escapeHtml(t.icon)}</div>
+          <div class="card-titles">
+            <h3 class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</h3>
+            <div class="card-host">${escapeHtml(hostOf(t.url))}</div>
+          </div>
+          <button class="icon-btn fav-btn ${t.favorite ? 'on' : ''}" data-action="fav" title="Favoritar" aria-label="Favoritar" ${ro ? 'disabled' : ''}>⭐</button>
+        </div>
+        <p class="card-desc">${escapeHtml(t.description)}</p>
+        ${t.tags.length ? `<div class="card-tags">${t.tags.map((g) => `<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
+        <div class="card-foot">
+          ${st ? `<span class="status ${st}"><span class="status-dot"></span>${STATUS_LABEL[st]}</span><span class="card-meta"></span>` : `<span class="card-meta">${used}</span>`}
+          ${state.canCheck && t.monitor && t.url ? `<button class="icon-btn" data-action="check" title="Verificar status" aria-label="Verificar status">📡</button>` : ''}
+          ${t.url ? `<button class="icon-btn" data-action="copy" title="Copiar link" aria-label="Copiar link">🔗</button>` : ''}
+          ${ro ? '' : `<button class="icon-btn" data-action="edit" title="Editar" aria-label="Editar">✏️</button>`}
+          ${t.url
+            ? `<a class="btn btn-primary btn-sm" data-action="open" href="${escapeHtml(t.url)}"${target}>Abrir ↗</a>`
+            : (ro ? '' : `<button class="btn btn-ghost btn-sm" data-action="edit">Definir link</button>`)}
+        </div>
+      </article>`;
+    }).join('');
+  }
+
+  function timeAgo(ts) {
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 60) return 'agora';
+    const m = Math.round(s / 60);
+    if (m < 60) return `há ${m} min`;
+    const h = Math.round(m / 60);
+    if (h < 24) return `há ${h} h`;
+    const d = Math.round(h / 24);
+    return `há ${d} dia${d > 1 ? 's' : ''}`;
+  }
+
+  // ---------- Ações ----------
+  const findTool = (id) => state.tools.find((t) => t.id === id);
+
+  // Chamado quando o link "Abrir" é seguido: só registra o uso, a navegação é do próprio <a>.
+  function recordUse(t) {
+    t.uses += 1;
+    t.lastUsed = Date.now();
+    if (!state.readOnly) persist(() => store.saveTool(t));
+    setTimeout(render, 0);
+  }
+
+  function openTool(t) {
+    if (!t.url) {
+      if (!state.readOnly) {
+        openDialog(t);
+        toast('Defina o link desta ferramenta.');
+      }
+      return;
+    }
+    const link = $(`.card[data-id="${CSS.escape(t.id)}"] a[data-action="open"]`);
+    if (link) link.click();
+  }
+
+  async function checkStatus(t) {
+    if (!t.url || !state.canCheck) return;
+    state.status[t.id] = 'checking';
+    renderTools();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), STATUS_TIMEOUT_MS);
+    try {
+      // no-cors: a resposta é opaca, mas a promessa só resolve se o host respondeu.
+      await fetch(t.url, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+      state.status[t.id] = 'online';
+    } catch {
+      state.status[t.id] = 'offline';
+    } finally {
+      clearTimeout(timer);
+    }
+    render();
+  }
+
+  async function checkAll() {
+    const btn = $('#btn-check');
+    btn.disabled = true;
+    const monitored = state.tools.filter((t) => t.monitor && t.url);
+    await Promise.all(monitored.map(checkStatus));
+    btn.disabled = false;
+    const off = monitored.filter((t) => state.status[t.id] === 'offline').length;
+    toast(off ? `${off} ferramenta(s) com problema.` : 'Tudo online ✅');
+  }
+
+  async function copyLink(t) {
+    if (!t.url) return toast('Link não configurado.');
+    try {
+      await navigator.clipboard.writeText(t.url);
+      toast('Link copiado.');
+    } catch {
+      toast(t.url);
+    }
+  }
+
+  function setReadOnly(value) {
+    state.readOnly = value;
+    if (value && store.shared) showBanner('Você está vendo a lista em modo leitura. Peça acesso de Colaborador (Contributor) para editar.');
+    render();
+  }
+
+  // ---------- Confirmação na página ----------
+  // confirm() não aparece dentro de artefatos, então a página usa um diálogo próprio.
+  function ask(message, buttons) {
+    const dlg = $('#ask-dialog');
+    $('#ask-message').textContent = message;
+    const actions = $('#ask-actions');
+    actions.innerHTML = '<span class="spacer"></span>' + buttons.map((b, i) =>
+      `<button type="button" class="btn ${b.kind || 'btn-ghost'}" data-i="${i}">${escapeHtml(b.label)}</button>`).join('');
+    return new Promise((resolve) => {
+      const done = (value) => {
+        dlg.removeEventListener('close', onClose);
+        actions.onclick = null;
+        if (dlg.open) dlg.close();
+        resolve(value);
+      };
+      const onClose = () => done(null);
+      actions.onclick = (e) => {
+        const btn = e.target.closest('[data-i]');
+        if (btn) done(buttons[btn.dataset.i].value);
+      };
+      dlg.addEventListener('close', onClose);
+      dlg.showModal();
+    });
+  }
+
+  // ---------- Modal de ferramenta ----------
+  const dialog = $('#tool-dialog');
+  const form = $('#tool-form');
+
+  function openDialog(tool) {
+    if (state.readOnly) return;
+    form.reset();
+    $('#dialog-title').textContent = tool ? 'Editar ferramenta' : 'Nova ferramenta';
+    $('#btn-delete').hidden = !tool;
+    const t = tool || {
+      icon: '🔧', color: '#4f7cff', monitor: true, newTab: true,
+      category: state.view.startsWith('cat:') ? state.view.slice(4) : '',
+    };
+    form.elements.id.value = t.id || '';
+    form.elements.name.value = t.name || '';
+    form.elements.url.value = t.url || '';
+    form.elements.icon.value = t.icon || '';
+    form.elements.description.value = t.description || '';
+    form.elements.category.value = t.category || '';
+    form.elements.color.value = t.color || '#4f7cff';
+    form.elements.tags.value = (t.tags || []).join(', ');
+    form.elements.notes.value = t.notes || '';
+    form.elements.favorite.checked = !!t.favorite;
+    form.elements.monitor.checked = t.monitor !== false;
+    form.elements.newTab.checked = t.newTab !== false;
+    dialog.showModal();
+    form.elements.name.focus();
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = form.elements;
+    const rawUrl = f.url.value.trim();
+    const url = rawUrl ? safeUrl(rawUrl) : '';
+    if (url === null) {
+      toast('Informe uma URL http(s) válida.');
+      f.url.focus();
+      return;
+    }
+    const data = {
+      name: f.name.value.trim(),
+      url,
+      icon: f.icon.value.trim() || '🔧',
+      description: f.description.value.trim(),
+      category: f.category.value.trim() || 'Geral',
+      color: f.color.value,
+      tags: f.tags.value.split(',').map((s) => s.trim()).filter(Boolean),
+      notes: f.notes.value.trim(),
+      favorite: f.favorite.checked,
+      monitor: f.monitor.checked,
+      newTab: f.newTab.checked,
+    };
+    let tool = findTool(f.id.value);
+    if (tool) {
+      Object.assign(tool, data);
+      toast('Ferramenta atualizada.');
+    } else {
+      const order = Math.max(-1, ...state.tools.map((t) => t.order)) + 1;
+      tool = normalizeTool({ ...data, order });
+      state.tools.push(tool);
+      toast('Ferramenta adicionada.');
+    }
+    persist(() => store.saveTool(tool));
+    dialog.close();
+    render();
+  });
+
+  $('#btn-cancel').addEventListener('click', () => dialog.close());
+
+  $('#btn-delete').addEventListener('click', async () => {
+    const t = findTool(form.elements.id.value);
+    if (!t) return;
+    dialog.close();
+    const ok = await ask(`Excluir "${t.name}"?${store.shared ? '\nA ferramenta some para todos que usam esta lista.' : ''}`, [
+      { label: 'Cancelar', value: false },
+      { label: 'Excluir', value: true, kind: 'btn-danger' },
+    ]);
+    if (!ok) return;
+    state.tools = state.tools.filter((x) => x.id !== t.id);
+    delete state.status[t.id];
+    persist(() => store.deleteTool(t.id));
+    if (state.view.startsWith('cat:') && !categories().includes(state.view.slice(4))) state.view = 'all';
+    render();
+    toast('Ferramenta excluída.');
+  });
+
+  // ---------- Import / Export ----------
+  async function exportData() {
+    const filename = `control-hub-${new Date().toISOString().slice(0, 10)}.json`;
+    const json = JSON.stringify({ app: 'control-hub', version: 1, exportedAt: new Date().toISOString(), tools: state.tools }, null, 2);
+    if (downloads) {
+      try {
+        await downloads.save({ filename, data: json });
+      } catch (e) {
+        if (e?.code !== 'declined') toast('Não foi possível gerar o arquivo aqui.');
+      }
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importData(file) {
+    let tools;
+    try {
+      const json = JSON.parse(await file.text());
+      tools = Array.isArray(json) ? json : json.tools;
+      if (!Array.isArray(tools)) throw new Error('formato');
+    } catch {
+      toast('Arquivo inválido: use um JSON exportado pelo Control Hub.');
+      return;
+    }
+    const mode = await ask(`Importar ${tools.length} ferramenta(s).\nSubstituir a lista atual ou juntar com ela?`, [
+      { label: 'Cancelar', value: null },
+      { label: 'Juntar', value: 'merge' },
+      { label: 'Substituir', value: 'replace', kind: 'btn-danger' },
+    ]);
+    if (!mode) return;
+    const incoming = tools.map(normalizeTool);
+    let removed = [];
+    if (mode === 'replace') {
+      const keep = new Set(incoming.map((t) => t.id));
+      removed = state.tools.filter((t) => !keep.has(t.id)).map((t) => t.id);
+      state.tools = incoming;
+    } else {
+      const ids = new Set(state.tools.map((t) => t.id));
+      const base = Math.max(-1, ...state.tools.map((t) => t.order)) + 1;
+      incoming.forEach((t, i) => {
+        if (ids.has(t.id)) t.id = uid();
+        t.order = base + i;
+        state.tools.push(t);
+      });
+    }
+    state.status = {};
+    render();
+    await persist(async () => {
+      await store.saveTools(incoming);
+      for (const id of removed) await store.deleteTool(id);
+    });
+    toast(`${incoming.length} ferramenta(s) importada(s).`);
+  }
+
+  // ---------- Arrastar e soltar (ordem manual) ----------
+  let dragId = null;
+  const tools = $('#tools');
+
+  tools.addEventListener('dragstart', (e) => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    dragId = card.dataset.id;
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  tools.addEventListener('dragend', (e) => {
+    e.target.closest('.card')?.classList.remove('dragging');
+    $$('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+  });
+  tools.addEventListener('dragover', (e) => {
+    const card = e.target.closest('.card');
+    if (!card || !dragId) return;
+    e.preventDefault();
+    $$('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+    if (card.dataset.id !== dragId) card.classList.add('drag-over');
+  });
+  tools.addEventListener('drop', (e) => {
+    const card = e.target.closest('.card');
+    if (!card || !dragId || card.dataset.id === dragId) return;
+    e.preventDefault();
+    const ordered = [...state.tools].sort((a, b) => a.order - b.order);
+    const from = ordered.findIndex((t) => t.id === dragId);
+    const to = ordered.findIndex((t) => t.id === card.dataset.id);
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+    const changed = ordered.filter((t, i) => t.order !== i);
+    ordered.forEach((t, i) => { t.order = i; });
+    dragId = null;
+    persist(() => store.saveTools(changed));
+    renderTools();
+  });
+
+  // ---------- Eventos ----------
+  tools.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    const card = e.target.closest('.card');
+    if (!card || !btn) return;
+    const t = findTool(card.dataset.id);
+    if (!t) return;
+    const action = btn.dataset.action;
+    if (action === 'open') recordUse(t);
+    else if (action === 'edit') openDialog(t);
+    else if (action === 'copy') copyLink(t);
+    else if (action === 'check') checkStatus(t);
+    else if (action === 'fav' && !state.readOnly) {
+      t.favorite = !t.favorite;
+      persist(() => store.saveTool(t));
+      render();
+    }
+  });
+
+  tools.addEventListener('dblclick', (e) => {
+    const card = e.target.closest('.card');
+    if (card && !e.target.closest('button, a')) openTool(findTool(card.dataset.id));
+  });
+
+  $('#sidebar').addEventListener('click', (e) => {
+    const item = e.target.closest('.nav-item');
+    if (!item) return;
+    state.view = item.dataset.view;
+    $('#sidebar').classList.remove('open');
+    render();
+  });
+
+  $('#search').addEventListener('input', (e) => { state.query = e.target.value.trim(); renderTools(); });
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = visibleTools()[0];
+      if (first) openTool(first);
+    } else if (e.key === 'Escape') {
+      e.target.value = '';
+      state.query = '';
+      renderTools();
+    }
+  });
+
+  $('#sort').addEventListener('change', (e) => { state.prefs.sort = e.target.value; savePrefs(); renderTools(); });
+  $('#btn-layout').addEventListener('click', () => {
+    state.prefs.layout = state.prefs.layout === 'grid' ? 'list' : 'grid';
+    savePrefs();
+    renderTools();
+  });
+  $('#btn-theme').addEventListener('click', () => {
+    state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark';
+    applyTheme();
+    savePrefs();
+  });
+  $('#btn-add').addEventListener('click', () => openDialog());
+  $('#btn-add-empty').addEventListener('click', () => openDialog());
+  $('#btn-check').addEventListener('click', checkAll);
+  $('#btn-menu').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+  $('#btn-export').addEventListener('click', exportData);
+  $('#input-import').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) importData(file);
+    e.target.value = '';
+  });
+  $('#btn-reset').addEventListener('click', async () => {
+    const ok = await ask('Restaurar as ferramentas iniciais? As ferramentas atuais serão substituídas.', [
+      { label: 'Cancelar', value: false },
+      { label: 'Restaurar', value: true, kind: 'btn-danger' },
+    ]);
+    if (!ok) return;
+    state.tools = DEFAULT_TOOLS.map(normalizeTool);
+    state.status = {};
+    state.view = 'all';
+    store.persistAll();
+    render();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+    const modal = dialog.open || $('#ask-dialog').open;
+    if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
+      e.preventDefault();
+      $('#search').focus();
+    } else if (e.key.toLowerCase() === 'n' && !typing && !modal && !e.ctrlKey && !e.metaKey && !state.readOnly) {
+      e.preventDefault();
+      openDialog();
+    }
+  });
+
+  // ---------- Utilidades ----------
+  let toastTimer;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  const systemDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  function currentTheme() {
+    return document.documentElement.dataset.theme || state.prefs.theme || (systemDark() ? 'dark' : 'light');
+  }
+
+  // Sem escolha explícita, não marca data-theme: o CSS segue o sistema (e o tema do visualizador no artefato).
+  function applyTheme() {
+    if (state.prefs.theme) document.documentElement.dataset.theme = state.prefs.theme;
+  }
+
+  // ---------- Início ----------
+  function startLocal(banner) {
+    store = localStore;
+    state.tools = localStore.load();
+    state.loaded = true;
+    showBanner(banner || '');
+    render();
+  }
+
+  async function startShared() {
+    render(); // estado "carregando"
+    const [dbNs, dl, user] = await Promise.all([
+      window.claude.use('db'),
+      window.claude.use('downloads'),
+      window.claude.use('user'),
+    ]);
+    downloads = dl;
+    if (!dbNs) {
+      startLocal('A lista compartilhada não está disponível nesta visualização. As alterações ficam só neste navegador.');
+      return;
+    }
+    db = dbNs;
+    store = dbStore;
+    // can() === null: a plataforma não informou; mantém a edição e decide pela primeira escrita recusada.
+    if (user && (await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
+
+    db.collection(DB_COLLECTION).onSnapshot((snap) => {
+      state.tools = snap.docs.map((d, i) => normalizeTool({ ...d.data(), id: d.id }, i));
+      if (!state.loaded) {
+        state.loaded = true;
+        showBanner(state.readOnly ? 'Você está vendo a lista em modo leitura. Peça acesso de Colaborador (Contributor) para editar.' : '');
+      }
+      render();
+    }, () => {
+      showBanner('A conexão com a lista compartilhada caiu. Recarregue a página para continuar.');
+    });
+  }
+
+  loadPrefs();
+  applyTheme();
+  if (HOSTED) startShared();
+  else startLocal();
+})();
+</script>
+
+</body></html>
