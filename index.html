@@ -221,6 +221,12 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     </div>
     <label class="field">Tags (separadas por vírgula)<input name="tags" placeholder="interno, produção"></label>
     <label class="field">Notas<textarea name="notes" rows="2" placeholder="Credenciais ficam no cofre, não aqui"></textarea></label>
+    <label class="field">Módulo vinculado
+      <select name="moduleKey">
+        <option value="">— nenhum (link normal) —</option>
+        <option value="dp">DP — particularidades de folha</option>
+      </select>
+    </label>
     <div class="form-row">
       <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" name="favorite"> Favorita</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" name="newTab" checked> Nova aba</label>
@@ -588,7 +594,7 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     const f = formFerramenta.elements;
     f.id.value = t.id||''; f.name.value = t.name||''; f.url.value = t.url||''; f.icon.value = t.icon||''; f.description.value = t.description||'';
     f.category.value = t.category||''; f.color.value = t.color||'#3C659B'; f.tags.value = (t.tags||[]).join(', '); f.notes.value = t.notes||'';
-    f.favorite.checked = !!t.favorite; f.newTab.checked = t.newTab !== false;
+    f.favorite.checked = !!t.favorite; f.newTab.checked = t.newTab !== false; f.moduleKey.value = t.moduleKey || '';
     $('#ferramenta-cat-options').innerHTML = categories().map(c => `<option value="${escapeHtml(c)}">`).join('');
     dlgFerramenta.showModal(); f.name.focus();
   }
@@ -598,7 +604,7 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     const rawUrl = f.url.value.trim();
     const url = rawUrl ? safeUrl(rawUrl) : '';
     if (url === null) { toast('Informe uma URL http(s) válida.'); f.url.focus(); return; }
-    const data = { name:f.name.value.trim(), url, icon:f.icon.value.trim()||'🔧', description:f.description.value.trim(), category:f.category.value.trim()||'Geral', color:f.color.value, tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean), notes:f.notes.value.trim(), favorite:f.favorite.checked, newTab:f.newTab.checked };
+    const data = { name:f.name.value.trim(), url, icon:f.icon.value.trim()||'🔧', description:f.description.value.trim(), category:f.category.value.trim()||'Geral', color:f.color.value, tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean), notes:f.notes.value.trim(), favorite:f.favorite.checked, newTab:f.newTab.checked, moduleKey:f.moduleKey.value };
     let tool = findTool(f.id.value);
     if (tool) { Object.assign(tool, data); toast('Ferramenta atualizada.'); }
     else { const order = Math.max(-1, ...state.tools.map(t=>t.order)) + 1; tool = normalizeTool({...data, order}); state.tools.push(tool); toast('Ferramenta adicionada.'); }
