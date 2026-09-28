@@ -244,6 +244,8 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
   <div class="dp-toolbar">
     <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
     <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
+    <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
+    <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
   </div>
   <div class="dp-listhead">
     <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
@@ -699,6 +701,29 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
   $('#dp-search').addEventListener('input', (e) => { state.dpQuery = e.target.value.trim(); renderDp(); });
   $('#dp-filtro-responsavel').addEventListener('change', (e) => { state.dpResponsavel = e.target.value; renderDp(); });
   $('#dlg-dp-close').addEventListener('click', () => $('#dlg-dp').close());
+
+  $('#dp-btn-export').addEventListener('click', async () => {
+    const filename = `control-hub-dp-${new Date().toISOString().slice(0,10)}.json`;
+    const json = JSON.stringify({ app:'control-hub', kind:'dp_empresas', exportedAt:new Date().toISOString(), empresas: state.dpEmpresas }, null, 2);
+    if (downloads) { try { await downloads.save({ filename, data: json }); } catch (e) { if (e?.code !== 'declined') toast('Não foi possível gerar o arquivo aqui.'); } return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+  });
+  $('#dp-import-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    let empresas;
+    try { const json = JSON.parse(await file.text()); empresas = Array.isArray(json) ? json : json.empresas; if (!Array.isArray(empresas)) throw new Error(); }
+    catch { toast('Arquivo inválido: use um JSON exportado pelo Control Hub.'); return; }
+    const mode = await ask(`Importar ${empresas.length} empresa(s) no módulo DP.\nSubstituir a lista atual ou juntar com ela?`, [{label:'Cancelar',value:null},{label:'Juntar',value:'merge'},{label:'Substituir',value:'replace',kind:'btn-danger'}]);
+    if (!mode) return;
+    const incoming = empresas.map(normalizeDpEmpresa);
+    let removed = [];
+    if (mode === 'replace') { const keep = new Set(incoming.map(e=>e.id)); removed = state.dpEmpresas.filter(e=>!keep.has(e.id)).map(e=>e.id); state.dpEmpresas = incoming; }
+    else { const ids = new Set(state.dpEmpresas.map(e=>e.id)); const base = Math.max(-1, ...state.dpEmpresas.map(e=>e.order))+1; incoming.forEach((e,i) => { if (ids.has(e.id)) e.id = uid(); e.order = base+i; state.dpEmpresas.push(e); }); }
+    renderDp();
+    await persist(async () => { await dpStore.saveMany(incoming); for (const id of removed) await dpStore.deleteOne(id); });
+    toast(`${incoming.length} empresa(s) importada(s).`);
+  });
 
   let dpAtual = null;
   function renderDpSection(key) {
