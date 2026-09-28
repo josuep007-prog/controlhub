@@ -94,16 +94,17 @@ main{padding-block:40px 90px;}
 .side-rail{position:fixed; top:var(--header-h, 64px); bottom:0; left:0; width:14px; z-index:25; background:var(--surface); border-right:1px solid var(--rule); overflow:hidden; transition:width .16s ease, box-shadow .16s ease;}
 .side-rail-edge{position:absolute; left:0; top:50%; width:14px; height:72px; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; cursor:pointer;}
 .side-rail-edge span{width:4px; height:64px; border-radius:3px; background:var(--brand-red); opacity:.55; transition:opacity .16s ease;}
-.side-rail-panel{width:240px; padding:18px 10px; opacity:0; pointer-events:none; transition:opacity .12s ease;}
-.side-rail:focus-within, .side-rail.open{width:240px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
+.side-rail-panel{width:272px; padding:20px 10px; opacity:0; pointer-events:none; transition:opacity .12s ease;}
+.side-rail:focus-within, .side-rail.open{width:272px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
 .side-rail:focus-within .side-rail-edge, .side-rail.open .side-rail-edge{opacity:0; pointer-events:none;}
 .side-rail:focus-within .side-rail-panel, .side-rail.open .side-rail-panel{opacity:1; pointer-events:auto;}
 @media (hover:hover) and (pointer:fine){
-  .side-rail:hover{width:240px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
+  .side-rail:hover{width:272px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
   .side-rail:hover .side-rail-edge{opacity:0; pointer-events:none;}
   .side-rail:hover .side-rail-panel{opacity:1; pointer-events:auto;}
 }
-.side-rail-label{font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); padding:0 10px 10px;}
+.side-rail-label{display:flex; align-items:center; gap:6px; font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); padding:0 10px 12px;}
+.side-rail-label i{width:4px; height:4px; border-radius:50%; background:var(--brand-red); display:block; flex:none;}
 .main-content{flex:1; min-width:0; margin-left:14px;}
 .home-hint{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; color:var(--ink-3); padding:80px 20px; font-size:13.5px;}
 .home-hint-ico{font-size:40px; opacity:.6;}
@@ -144,17 +145,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dlg-close{margin-left:auto;}
 
 /* ============ barra lateral / módulos ============ */
-.rail-list{display:flex; flex-direction:column; gap:2px;}
-.card{position:relative; display:flex; align-items:center; gap:12px; width:100%; padding:9px 10px; border:0; border-radius:10px; background:none; color:inherit; font:inherit; text-align:left; text-decoration:none; cursor:default;}
+.rail-list{display:flex; flex-direction:column; gap:1px;}
+.card{position:relative; display:flex; align-items:center; gap:11px; width:100%; padding:8px 8px; border:0; border-radius:11px; background:none; color:inherit; font:inherit; text-align:left; text-decoration:none; cursor:default; transition:background .12s ease;}
+.card::before{content:''; position:absolute; left:-10px; top:16%; bottom:16%; width:3px; border-radius:0 3px 3px 0; background:var(--accent, var(--brand-red)); opacity:0; transition:opacity .15s ease;}
 .card:hover{background:var(--surface-2);}
+.card:hover::before{opacity:.85;}
 .card.dragging{opacity:.4;}
 .card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:-2px;}
 .card-stretch{position:absolute; inset:0; z-index:0; background:none; border:0; padding:0; margin:0; cursor:pointer; border-radius:inherit;}
-.card-icon{order:1; width:32px; height:32px; display:grid; place-items:center; font-size:17px; border-radius:9px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 16%, transparent); flex:none; pointer-events:none;}
-.card-title{order:2; flex:1; min-width:0; font-weight:600; font-size:12.5px; line-height:1.3; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none;}
+.card-icon{width:36px; height:36px; display:grid; place-items:center; font-size:18px; line-height:1; border-radius:11px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 18%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--blue-deep)) 32%, transparent); flex:none; pointer-events:none;}
+.card-title{flex:1; min-width:0; font-family:"Archivo",sans-serif; font-weight:600; font-size:12.5px; letter-spacing:-.005em; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; pointer-events:none;}
 .card.no-link .card-title{color:var(--ink-3); font-style:italic;}
-.card-fav,.card-edit{position:relative; z-index:1; flex:none; opacity:0; transition:opacity .15s; background:none; border-radius:50%;}
-.card-fav{order:3;} .card-edit{order:4;}
+.card-fav,.card-edit{position:absolute; top:8px; z-index:1; flex:none; opacity:0; transition:opacity .15s; background:var(--surface); border-radius:50%;}
+.card-edit{right:4px;} .card-fav{right:30px;}
 .card-fav.on{opacity:1; color:#E3A008;}
 .card:hover .card-fav,.card:focus-within .card-fav,.card:hover .card-edit,.card:focus-within .card-edit{opacity:.7;}
 .card-fav:hover,.card-edit:hover{opacity:1!important;}
@@ -220,7 +223,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   <nav class="side-rail" id="side-rail" aria-label="Módulos">
     <div class="side-rail-edge" aria-hidden="true"><span></span></div>
     <div class="side-rail-panel">
-      <div class="side-rail-label">Ferramentas</div>
+      <div class="side-rail-label"><i></i>Ferramentas</div>
       <div id="ferramentas-tools" class="rail-list"></div>
     </div>
   </nav>
