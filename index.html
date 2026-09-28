@@ -138,9 +138,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .card-fav.on{opacity:1; color:#E3A008;}
 .card:hover .card-fav,.card:focus-within .card-fav,.card:hover .card-edit,.card:focus-within .card-edit{opacity:.7;}
 .card-fav:hover,.card-edit:hover{opacity:1!important;}
-.card-add{border-style:dashed; border-color:var(--rule-strong); background:none; box-shadow:none; color:var(--ink-3); cursor:pointer;}
-.card-add:hover{border-color:var(--blue-deep); color:var(--blue-deep); box-shadow:var(--shadow-1); transform:translateY(-4px);}
-.card-add-plus{font-size:34px; line-height:1; font-weight:300; pointer-events:none;}
 .modules-empty{grid-column:1/-1; text-align:center; padding:40px 20px; color:var(--ink-3);}
 
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px;}
@@ -385,10 +382,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       </div>`;
     }).join('');
 
-    const addTile = ro ? '' : `<button type="button" class="card card-add" data-action="add" aria-label="Novo módulo"><span class="card-add-plus">＋</span><span class="card-title">Novo módulo</span></button>`;
-
-    container.innerHTML = tiles + addTile;
-    if (!list.length && ro) container.innerHTML = '<div class="modules-empty">Nenhum módulo cadastrado.</div>';
+    container.innerHTML = list.length ? tiles : '<div class="modules-empty">Nenhum módulo cadastrado.</div>';
   }
 
   const findTool = (id) => state.tools.find(t => t.id === id);
@@ -441,7 +435,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#ferramentas-tools').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
-    if (btn.dataset.action === 'add') { openFerramentaDialog(null); return; }
     const t = findTool(btn.dataset.id);
     if (!t) return;
     const action = btn.dataset.action;
