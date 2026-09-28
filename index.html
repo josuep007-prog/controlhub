@@ -1,7 +1,6 @@
 <title>Control Hub</title>
 <script>try{var t=localStorage.getItem('controlhub-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --page:#EDF0F3; --surface:#FFFFFF; --surface-2:#F5F8FA; --surface-3:#EAEFF3;
@@ -128,64 +127,6 @@ main{padding-block:24px 90px; display:flex; flex-direction:column; gap:24px;}
 .filters button:first-child{border-left:none;}
 .filters button.on{background:var(--ink); color:var(--page);}
 
-.pill{font-family:"IBM Plex Sans",sans-serif; font-size:11px; font-weight:600; padding:3px 9px; border-radius:99px; background:var(--surface-2); color:var(--ink-2); display:inline-flex; align-items:center; gap:5px; white-space:nowrap;}
-.pill.st-ativa{background:color-mix(in srgb, var(--status-green) 16%, var(--surface-2)); color:var(--status-green);}
-.pill.st-inativa{background:var(--st-pend-bg); color:var(--st-pend-ink);}
-
-.sector-chip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:var(--ink-2); flex:1 1 0; min-width:0;}
-.sector-chip i{width:7px; height:7px; border-radius:50%; display:block; flex:none;}
-.sector-chip span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.sector-chip.sc-empty{color:var(--ink-3); font-weight:400;}
-.sc-contabil i{background:var(--sector-contabil);} .sc-contabil{color:var(--sector-contabil);}
-.sc-fiscal i{background:var(--sector-fiscal);} .sc-fiscal{color:var(--sector-fiscal);}
-.sc-pessoal i{background:var(--sector-pessoal);} .sc-pessoal{color:var(--sector-pessoal);}
-.sc-financeiro i{background:var(--sector-financeiro);} .sc-financeiro{color:var(--sector-financeiro);}
-
-.badge-atrasado{display:inline-flex; align-items:center; font-size:10.5px; font-weight:700; color:#fff; background:var(--brand-red); border-radius:2px; padding:2px 6px; white-space:nowrap;}
-:root[data-theme="dark"] .badge-atrasado, :root:not([data-theme="light"]) .badge-atrasado{color:#0B1015;}
-.badge-semana{display:inline-flex; align-items:center; font-size:10.5px; font-weight:700; color:#fff; background:var(--status-warn); border-radius:2px; padding:2px 6px; white-space:nowrap;}
-:root[data-theme="dark"] .badge-semana, :root:not([data-theme="light"]) .badge-semana{color:#0B1015;}
-.badge-ok{display:inline-flex; align-items:center; font-size:10.5px; font-weight:700; color:#fff; background:var(--status-green); border-radius:2px; padding:2px 6px; white-space:nowrap;}
-:root[data-theme="dark"] .badge-ok, :root:not([data-theme="light"]) .badge-ok{color:#0B1015;}
-
-/* ============ painel (dashboard) ============ */
-.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px;}
-.kpi{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); padding:14px 16px; display:flex; flex-direction:column; gap:4px; box-shadow:var(--shadow-1);}
-.kpi-lbl{font-size:12px; font-weight:600; color:var(--ink-3);}
-.kpi-val{font-family:"IBM Plex Mono",monospace; font-size:26px; font-weight:600; line-height:1.2;}
-.kpi-val.alert{color:var(--brand-red);}
-.kpi-sub{font-size:11px; color:var(--ink-3);}
-
-.atencao-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:14px;}
-.atencao-col{padding:14px 18px 12px; min-width:0;}
-.atencao-col h3{font-family:"Archivo",sans-serif; font-size:13px; font-weight:700; display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;}
-.atencao-col h3 .mono{color:var(--ink-3); font-weight:600;}
-.att-item{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--rule); font-size:13px; cursor:pointer; width:100%; background:none; border-left:none; border-right:none; border-bottom:none; text-align:left; font:inherit; color:inherit;}
-.att-item:first-child{border-top:none;}
-.att-item:hover .att-name{color:var(--brand-red);}
-.att-name{font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.att-meta{font-size:11px; font-weight:600; color:var(--ink-3); white-space:nowrap; flex:none;}
-.att-empty{font-size:12px; color:var(--ink-3); padding:10px 0;}
-
-/* ============ empresas ============ */
-.ethead{display:grid; grid-template-columns:minmax(170px,1.5fr) 130px minmax(220px,2fr) 150px; gap:12px; padding:9px 20px; border-bottom:1px solid var(--rule); background:var(--surface-2);}
-.ethead span{font-size:11.5px; font-weight:600; color:var(--ink-3);}
-@media (max-width:820px){ .ethead{display:none;} }
-.erow{border-bottom:1px solid var(--rule); cursor:pointer;}
-.erow:last-child{border-bottom:none;}
-.erow-main{display:grid; grid-template-columns:minmax(170px,1.5fr) 130px minmax(220px,2fr) 150px; gap:12px; align-items:start; padding:14px 20px;}
-.erow-main:hover{background:var(--surface-2);}
-@media (max-width:820px){ .erow-main{grid-template-columns:1fr; gap:6px;} }
-.ename{font-weight:600; font-size:13.5px;}
-.esub{font-size:11px; color:var(--ink-3); margin-top:2px; font-family:"IBM Plex Mono",monospace;}
-.eresp-list{display:flex; flex-direction:column; gap:6px;}
-.eresp-row{display:flex; gap:14px;}
-.eprazo{font-size:12px; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:2px;}
-@media (max-width:820px){ .eprazo{align-items:flex-start;} }
-.empresas-empty{text-align:center; padding:50px 20px; color:var(--ink-3);}
-.grupo-analista{padding:12px 20px; font-family:"Archivo",sans-serif; font-size:13px; font-weight:700; background:var(--surface-2); border-bottom:1px solid var(--rule); border-top:1px solid var(--rule); display:flex; gap:8px; align-items:baseline;}
-.grupo-analista .mono{font-weight:600; color:var(--ink-3); font-size:11px;}
-
 /* ============ dialogs ============ */
 dialog.dlg{border:1px solid var(--rule); border-radius:8px; padding:0; background:var(--surface); color:var(--ink); box-shadow:0 20px 60px rgba(0,0,0,.3); width:min(600px, calc(100vw - 32px));}
 dialog.dlg.dlg-lg{width:min(820px, calc(100vw - 32px));}
@@ -199,34 +140,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .field textarea{resize:vertical;}
 .form-row{display:flex; gap:12px; flex-wrap:wrap;}
 .form-row > *{flex:1; min-width:140px;}
-.dlg-section{display:flex; flex-direction:column; gap:10px; padding-top:14px; border-top:1px solid var(--rule);}
-.dlg-section:first-child{padding-top:0; border-top:none;}
-.dlg-section-title{font-family:"Archivo",sans-serif; font-size:13px; font-weight:700;}
-.setor-field{border-left:3px solid var(--sc,var(--rule-strong)); padding-left:10px; display:flex; flex-direction:column; gap:5px;}
-.setor-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px;}
-.list-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--rule);}
-.list-row:first-child{border-top:none;}
-.list-row .main{flex:1; min-width:0;}
-.list-row .main strong{display:block; font-size:13px;}
-.list-row .main span{display:block; font-size:11.5px; color:var(--ink-3);}
-.add-inline{display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:10px;}
-.add-inline input,.add-inline select{flex:1; min-width:110px;}
-.empty-mini{font-size:12px; color:var(--ink-3); padding:6px 0;}
 .dlg-close{margin-left:auto;}
-
-/* ============ prazos ============ */
-.praz-row{display:grid; grid-template-columns:52px minmax(0,1fr) auto; gap:2px 14px; align-items:center; padding:10px 20px; border-top:1px solid var(--rule);}
-.praz-row:first-child{border-top:none;}
-.praz-day{display:flex; flex-direction:column; align-items:center; justify-content:center; width:46px; padding:4px 0; border:1px solid var(--rule-strong); border-radius:var(--r); background:var(--surface); line-height:1.1; color:var(--blue-deep);}
-.praz-day b{font-family:"IBM Plex Mono",monospace; font-size:16px; font-weight:600;}
-.praz-day small{font-size:10px; font-weight:600; color:var(--ink-3);}
-.praz-day.atrasado{border-color:var(--brand-red); color:var(--brand-red); background:var(--brand-red-soft);}
-.praz-day.sem-data{color:var(--ink-3);}
-.praz-titulo{font-size:13.5px; font-weight:600;}
-.praz-empresa{background:none; border:none; padding:0; font:inherit; font-size:11.5px; color:var(--ink-3); cursor:pointer; text-align:left;}
-.praz-empresa:hover{color:var(--brand-red); text-decoration:underline;}
-.praz-acoes{display:flex; align-items:center; gap:8px;}
-.prazos-empty{text-align:center; padding:50px 20px; color:var(--ink-3);}
 
 /* ============ ferramentas ============ */
 .tools{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; padding:16px 20px;}
@@ -259,19 +173,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .empty{text-align:center; padding:56px 20px; color:var(--ink-3);}
 .empty-icon{font-size:44px; margin:0;}
 
-.banner{margin:0 20px 0; padding:10px 14px; border-radius:var(--r); border:1px solid color-mix(in srgb, var(--status-warn) 45%, var(--rule)); background:color-mix(in srgb, var(--status-warn) 12%, var(--surface)); font-size:13px;}
-.banner.info{border-color:color-mix(in srgb, var(--blue-deep) 40%, var(--rule)); background:color-mix(in srgb, var(--blue-deep) 10%, var(--surface));}
-
-.import-map{display:flex; flex-direction:column; gap:6px;}
-.map-row{display:grid; grid-template-columns:1fr 1.2fr; gap:10px; align-items:center;}
-.map-row label{font-size:12px; font-weight:600; color:var(--ink-2);}
-.preview-wrap{overflow-x:auto; border:1px solid var(--rule); border-radius:var(--r);}
-.preview-wrap table{border-collapse:collapse; width:100%; font-size:11.5px;}
-.preview-wrap th,.preview-wrap td{padding:6px 9px; border-bottom:1px solid var(--rule); white-space:nowrap; text-align:left;}
-.preview-wrap th{background:var(--surface-2); color:var(--ink-3); font-weight:600;}
-.radio-row{display:flex; gap:16px; flex-wrap:wrap;}
-.radio-row label{display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; cursor:pointer;}
-
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px;}
 .toast.show{opacity:1; transform:translate(-50%,0);}
 .spacer{flex:1;}
@@ -296,10 +197,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     </div>
     <div class="masthead-bar">
       <nav class="navtabs" id="navtabs">
-        <button type="button" data-view="painel" class="active">Painel</button>
-        <button type="button" data-view="empresas">Empresas</button>
-        <button type="button" data-view="prazos">Prazos</button>
-        <button type="button" data-view="ferramentas">Ferramentas</button>
+        <button type="button" data-view="ferramentas" class="active">Ferramentas</button>
       </nav>
       <div class="mh-actions">
         <div class="mh-search"><input type="search" id="global-search" placeholder="Buscar…" autocomplete="off"></div>
@@ -311,62 +209,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
 <div class="wrap"><main id="main">
 
-  <!-- ================= PAINEL ================= -->
-  <section class="view" id="view-painel">
-    <div class="kpi-grid" id="painel-kpis"></div>
-    <div>
-      <div class="sec-label">Precisa de atenção</div>
-      <div class="atencao-grid" id="painel-atencao"></div>
-    </div>
-  </section>
-
-  <!-- ================= EMPRESAS ================= -->
-  <section class="view" id="view-empresas" hidden>
-    <div class="panel">
-      <div class="toolbar">
-        <h2>Empresas</h2>
-        <input type="search" id="empresas-search" class="grow" placeholder="Buscar por nome, CNPJ ou analista…" autocomplete="off" style="max-width:280px">
-        <select id="empresas-analista-filtro"><option value="">Todos os analistas</option></select>
-        <div class="filters" id="empresas-status-filtro">
-          <button type="button" data-status="" class="on">Todas</button>
-          <button type="button" data-status="ativa">Ativas</button>
-          <button type="button" data-status="inativa">Inativas</button>
-        </div>
-        <div class="filters" id="empresas-modo">
-          <button type="button" data-modo="lista" class="on">Lista</button>
-          <button type="button" data-modo="analista">Por analista</button>
-        </div>
-        <button type="button" class="btn" id="btn-empresas-import">⬆️ Importar planilha</button>
-        <button type="button" class="btn" id="btn-empresas-export">⬇️ Exportar</button>
-        <button type="button" class="btn btn-primary" id="btn-empresa-nova">＋ Nova empresa</button>
-      </div>
-      <div class="ethead">
-        <span>Empresa</span><span>Regime / status</span><span>Responsáveis</span><span style="text-align:right">Próximo prazo</span>
-      </div>
-      <div id="empresas-list"></div>
-    </div>
-  </section>
-
-  <!-- ================= PRAZOS ================= -->
-  <section class="view" id="view-prazos" hidden>
-    <div class="panel">
-      <div class="toolbar">
-        <h2>Prazos</h2>
-        <div class="filters" id="prazos-filtro">
-          <button type="button" data-f="atrasados" class="on">Atrasados</button>
-          <button type="button" data-f="semana">Esta semana</button>
-          <button type="button" data-f="pendentes">Todos pendentes</button>
-          <button type="button" data-f="concluidos">Concluídos</button>
-        </div>
-        <input type="search" id="prazos-search" class="grow" placeholder="Buscar empresa ou prazo…" autocomplete="off" style="max-width:240px">
-        <button type="button" class="btn btn-primary" id="btn-prazo-novo">＋ Novo prazo</button>
-      </div>
-      <div id="prazos-list"></div>
-    </div>
-  </section>
-
   <!-- ================= FERRAMENTAS ================= -->
-  <section class="view" id="view-ferramentas" hidden>
+  <section class="view" id="view-ferramentas">
     <div class="panel">
       <div class="toolbar">
         <h2>Ferramentas</h2>
@@ -399,153 +243,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   </section>
 
 </main></div>
-
-<!-- ===== dialog: empresa ===== -->
-<dialog id="dlg-empresa" class="dlg dlg-lg">
-  <div class="dlg-head">
-    <h2 id="dlg-empresa-title">Nova empresa</h2>
-    <button type="button" class="icon-btn dlg-close" id="dlg-empresa-close" aria-label="Fechar">✕</button>
-  </div>
-  <div class="dlg-body">
-    <input type="hidden" id="emp-id">
-    <div class="dlg-section">
-      <div class="form-row">
-        <label class="field">Nome *<input id="emp-nome" maxlength="120" required></label>
-        <label class="field">CNPJ<input id="emp-cnpj" maxlength="20" placeholder="00.000.000/0000-00"></label>
-      </div>
-      <div class="form-row">
-        <label class="field">Regime tributário
-          <select id="emp-regime">
-            <option value="">—</option>
-            <option>Simples Nacional</option>
-            <option>Lucro Presumido</option>
-            <option>Lucro Real</option>
-            <option>MEI</option>
-            <option>Isento/Imune</option>
-          </select>
-        </label>
-        <label class="field">Status
-          <select id="emp-status"><option value="ativa">Ativa</option><option value="inativa">Inativa</option></select>
-        </label>
-      </div>
-    </div>
-
-    <div class="dlg-section">
-      <div class="dlg-section-title">Responsáveis por setor</div>
-      <div class="setor-grid">
-        <label class="field setor-field sc-contabil" style="--sc:var(--sector-contabil)">Contábil<input id="emp-resp-contabil" placeholder="Nome do analista"></label>
-        <label class="field setor-field sc-fiscal" style="--sc:var(--sector-fiscal)">Fiscal<input id="emp-resp-fiscal" placeholder="Nome do analista"></label>
-        <label class="field setor-field sc-pessoal" style="--sc:var(--sector-pessoal)">Pessoal / DP<input id="emp-resp-pessoal" placeholder="Nome do analista"></label>
-        <label class="field setor-field sc-financeiro" style="--sc:var(--sector-financeiro)">Financeiro<input id="emp-resp-financeiro" placeholder="Nome do analista"></label>
-      </div>
-    </div>
-
-    <div class="dlg-section">
-      <div class="dlg-section-title">Contatos</div>
-      <div id="emp-contatos-list"></div>
-      <div class="add-inline">
-        <input id="emp-contato-nome" placeholder="Nome">
-        <input id="emp-contato-cargo" placeholder="Cargo">
-        <input id="emp-contato-telefone" placeholder="Telefone">
-        <input id="emp-contato-email" placeholder="E-mail" type="email">
-        <button type="button" class="btn btn-sm" id="btn-emp-contato-add">＋ Adicionar</button>
-      </div>
-    </div>
-
-    <div class="dlg-section">
-      <div class="dlg-section-title">Observações por setor</div>
-      <div class="setor-grid">
-        <label class="field setor-field sc-contabil" style="--sc:var(--sector-contabil)">Contábil<textarea id="emp-obs-contabil" rows="2"></textarea></label>
-        <label class="field setor-field sc-fiscal" style="--sc:var(--sector-fiscal)">Fiscal<textarea id="emp-obs-fiscal" rows="2"></textarea></label>
-        <label class="field setor-field sc-pessoal" style="--sc:var(--sector-pessoal)">Pessoal / DP<textarea id="emp-obs-pessoal" rows="2"></textarea></label>
-        <label class="field setor-field sc-financeiro" style="--sc:var(--sector-financeiro)">Financeiro<textarea id="emp-obs-financeiro" rows="2"></textarea></label>
-      </div>
-      <label class="field">Geral<textarea id="emp-obs-geral" rows="2"></textarea></label>
-    </div>
-
-    <div class="dlg-section">
-      <div class="dlg-section-title">Prazos</div>
-      <div id="emp-prazos-list"></div>
-      <div class="add-inline">
-        <input id="emp-prazo-titulo" placeholder="Descrição do prazo" style="flex:2">
-        <select id="emp-prazo-setor">
-          <option value="">Setor —</option>
-          <option value="contabil">Contábil</option>
-          <option value="fiscal">Fiscal</option>
-          <option value="pessoal">Pessoal</option>
-          <option value="financeiro">Financeiro</option>
-        </select>
-        <input id="emp-prazo-data" type="date">
-        <button type="button" class="btn btn-sm" id="btn-emp-prazo-add">＋ Adicionar</button>
-      </div>
-    </div>
-
-    <div class="dlg-actions">
-      <button type="button" class="btn btn-danger" id="btn-emp-excluir" hidden>Excluir empresa</button>
-      <span class="spacer"></span>
-      <button type="button" class="btn" id="btn-emp-fechar">Fechar</button>
-    </div>
-  </div>
-</dialog>
-
-<!-- ===== dialog: novo prazo (avulso) ===== -->
-<dialog id="dlg-prazo" class="dlg">
-  <div class="dlg-head"><h2>Novo prazo</h2><button type="button" class="icon-btn dlg-close" id="dlg-prazo-close" aria-label="Fechar">✕</button></div>
-  <form class="dlg-body" id="form-prazo">
-    <label class="field">Empresa *
-      <input id="prazo-empresa" list="prazo-empresa-list" placeholder="Comece a digitar…" required autocomplete="off">
-      <datalist id="prazo-empresa-list"></datalist>
-    </label>
-    <label class="field">Descrição *<input id="prazo-titulo" required maxlength="140"></label>
-    <div class="form-row">
-      <label class="field">Setor
-        <select id="prazo-setor">
-          <option value="">—</option>
-          <option value="contabil">Contábil</option>
-          <option value="fiscal">Fiscal</option>
-          <option value="pessoal">Pessoal</option>
-          <option value="financeiro">Financeiro</option>
-        </select>
-      </label>
-      <label class="field">Data<input id="prazo-data" type="date"></label>
-    </div>
-    <div class="dlg-actions">
-      <span class="spacer"></span>
-      <button type="button" class="btn" id="btn-prazo-cancelar">Cancelar</button>
-      <button type="submit" class="btn btn-primary">Salvar</button>
-    </div>
-  </form>
-</dialog>
-
-<!-- ===== dialog: importar empresas ===== -->
-<dialog id="dlg-import" class="dlg dlg-lg">
-  <div class="dlg-head"><h2>Importar empresas de planilha</h2><button type="button" class="icon-btn dlg-close" id="dlg-import-close" aria-label="Fechar">✕</button></div>
-  <div class="dlg-body">
-    <div id="import-step-file">
-      <p class="sec-sub" style="margin:0 0 10px">Envie um arquivo .csv ou .xlsx. Na próxima tela você indica qual coluna da planilha corresponde a cada campo do Control Hub.</p>
-      <input type="file" id="import-file-input" accept=".csv,.xlsx,.xls">
-    </div>
-    <div id="import-step-map" hidden>
-      <div class="import-map" id="import-map-rows"></div>
-      <div class="dlg-section">
-        <div class="dlg-section-title">Prévia</div>
-        <div class="preview-wrap"><table id="import-preview"></table></div>
-      </div>
-      <div class="dlg-section">
-        <div class="dlg-section-title">Empresas já existentes com o mesmo nome ou CNPJ</div>
-        <div class="radio-row">
-          <label><input type="radio" name="import-mode" value="merge" checked> Atualizar / juntar</label>
-          <label><input type="radio" name="import-mode" value="replace"> Substituir toda a lista</label>
-        </div>
-      </div>
-    </div>
-    <div class="dlg-actions">
-      <span class="spacer"></span>
-      <button type="button" class="btn" id="btn-import-cancelar">Cancelar</button>
-      <button type="button" class="btn btn-primary" id="btn-import-confirmar" hidden>Importar</button>
-    </div>
-  </div>
-</dialog>
 
 <!-- ===== dialog: ferramenta ===== -->
 <dialog id="dlg-ferramenta" class="dlg">
@@ -598,13 +295,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const STATUS_TIMEOUT_MS = 8000;
   const RECENT_LIMIT = 12;
 
-  const SETORES = [
-    { id:'contabil', label:'Contábil' },
-    { id:'fiscal', label:'Fiscal' },
-    { id:'pessoal', label:'Pessoal' },
-    { id:'financeiro', label:'Financeiro' },
-  ];
-
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -619,17 +309,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (!url) return 'Link não configurado';
     try { return new URL(url).host; } catch { return url; }
   }
-  function normalizeHeader(s) {
-    return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-  }
-  function todayStr() { return new Date().toISOString().slice(0,10); }
-  function cnpjDigits(s) { return String(s||'').replace(/\D/g,''); }
-  function formatDateBR(iso) {
-    if (!iso) return '—';
-    const [y,m,d] = iso.split('-');
-    return (d && m && y) ? `${d}/${m}/${y}` : iso;
-  }
-
   let toastTimer;
   function toast(msg) {
     const el = $('#toast');
@@ -656,15 +335,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   // ---------- estado ----------
   const state = {
-    view: 'painel',
+    view: 'ferramentas',
     tools: [], toolsLoaded: false,
-    empresas: [], empresasLoaded: false,
     status: {},
     readOnly: false,
     canCheck: !HOSTED,
     toolsView: 'all', toolsQuery: '',
-    empresasQuery: '', empresasStatus: '', empresasAnalista: '', empresasModo: 'lista',
-    prazosFiltro: 'atrasados', prazosQuery: '',
     prefs: { theme: null, toolsLayout: 'grid', toolsSort: 'manual' },
   };
 
@@ -709,44 +385,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     };
   }
 
-  // ---------- normalização: empresas ----------
-  function normalizeContato(c) {
-    if (!c) return null;
-    const nome = String(c.nome||'').trim();
-    if (!nome) return null;
-    return { nome: nome.slice(0,80), cargo:String(c.cargo||'').slice(0,60), telefone:String(c.telefone||'').slice(0,40), email:String(c.email||'').slice(0,120) };
-  }
-  function normalizePrazo(p) {
-    if (!p) return null;
-    const titulo = String(p.titulo||'').trim();
-    if (!titulo) return null;
-    return {
-      id: validId(p.id) ? p.id : uid(),
-      titulo: titulo.slice(0,140),
-      setor: SETORES.some(s=>s.id===p.setor) ? p.setor : '',
-      data: /^\d{4}-\d{2}-\d{2}$/.test(p.data||'') ? p.data : '',
-      concluido: !!p.concluido,
-    };
-  }
-  function normalizeEmpresa(e, i=0) {
-    const responsaveis = {}; SETORES.forEach(s => { responsaveis[s.id] = String(e.responsaveis?.[s.id]||'').slice(0,60); });
-    const observacoes = { geral: String(e.observacoes?.geral||'') }; SETORES.forEach(s => { observacoes[s.id] = String(e.observacoes?.[s.id]||''); });
-    return {
-      id: validId(e.id) ? e.id : uid(),
-      nome: String(e.nome || 'Sem nome').slice(0,120),
-      cnpj: String(e.cnpj || '').slice(0,20),
-      regime: String(e.regime || ''),
-      status: e.status === 'inativa' ? 'inativa' : 'ativa',
-      responsaveis,
-      contatos: Array.isArray(e.contatos) ? e.contatos.map(normalizeContato).filter(Boolean) : [],
-      observacoes,
-      prazos: Array.isArray(e.prazos) ? e.prazos.map(normalizePrazo).filter(Boolean) : [],
-      order: Number.isFinite(e.order) ? e.order : i,
-      createdAt: e.createdAt || Date.now(),
-      updatedAt: e.updatedAt || Date.now(),
-    };
-  }
-
   // ---------- persistência (genérica por coleção) ----------
   function makeLocalStore(key, defaultsFn) {
     return {
@@ -768,9 +406,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
 
   let toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
-  let empresasStore = makeLocalStore('control-hub:empresas', () => []);
   const toolsDbStore = makeDbStore('tools');
-  const empresasDbStore = makeDbStore('empresas');
 
   async function persist(fn) {
     try { await fn(); }
@@ -810,544 +446,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return list;
   }
 
-  // ---------- consultas: empresas ----------
-  function analistas() {
-    const set = new Set();
-    state.empresas.forEach(e => SETORES.forEach(s => { if (e.responsaveis[s.id]) set.add(e.responsaveis[s.id]); }));
-    return [...set].sort((a,b) => a.localeCompare(b,'pt-BR'));
-  }
-  function matchesEmpresaQuery(e,q) {
-    if (!q) return true;
-    const hay = [e.nome, e.cnpj, e.regime, ...Object.values(e.responsaveis), ...e.contatos.map(c=>c.nome)].join(' ').toLowerCase();
-    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
-  }
-  function visibleEmpresas() {
-    return state.empresas.filter(e => {
-      if (state.empresasStatus && e.status !== state.empresasStatus) return false;
-      if (state.empresasAnalista && !Object.values(e.responsaveis).includes(state.empresasAnalista)) return false;
-      if (!matchesEmpresaQuery(e, state.empresasQuery)) return false;
-      return true;
-    }).sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'));
-  }
-  function proximoPrazo(e) {
-    const pendentes = e.prazos.filter(p => !p.concluido && p.data).sort((a,b) => a.data.localeCompare(b.data));
-    return pendentes[0] || null;
-  }
-  function todosPrazos() {
-    const out = [];
-    state.empresas.forEach(e => e.prazos.forEach(p => out.push({ ...p, empresaId:e.id, empresaNome:e.nome })));
-    return out;
-  }
-
   // ---------- render: shell ----------
   function render() {
-    $$('.navtabs button').forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
-    $$('.view').forEach(v => { v.hidden = v.id !== `view-${state.view}`; });
-    if (state.view === 'painel') renderPainel();
-    else if (state.view === 'empresas') renderEmpresas();
-    else if (state.view === 'prazos') renderPrazos();
-    else if (state.view === 'ferramentas') renderFerramentas();
+    renderFerramentas();
   }
-
-  // ---------- render: painel ----------
-  function renderPainel() {
-    const ativas = state.empresas.filter(e => e.status === 'ativa').length;
-    const prazos = todosPrazos().filter(p => !p.concluido && p.data);
-    const atrasados = prazos.filter(p => p.data < todayStr());
-    const in7 = new Date(Date.now()+7*864e5).toISOString().slice(0,10);
-    const semana = prazos.filter(p => p.data >= todayStr() && p.data <= in7);
-    const semResponsavel = state.empresas.filter(e => SETORES.some(s => !e.responsaveis[s.id]));
-
-    $('#painel-kpis').innerHTML = [
-      ['Empresas ativas', ativas],
-      ['Prazos atrasados', atrasados.length, atrasados.length > 0],
-      ['Prazos esta semana', semana.length],
-      ['Sem responsável em algum setor', semResponsavel.length],
-    ].map(([lbl,val,alert]) => `<div class="kpi"><div class="kpi-lbl">${lbl}</div><div class="kpi-val mono${alert?' alert':''}">${val}</div></div>`).join('');
-
-    const atrasadosOrdenados = atrasados.sort((a,b) => a.data.localeCompare(b.data)).slice(0,8);
-    const semContato = state.empresas.filter(e => e.contatos.length === 0);
-
-    const col = (titulo, count, itemsHtml) => `
-      <div class="panel atencao-col">
-        <h3><span>${titulo}</span><span class="mono">${count}</span></h3>
-        ${itemsHtml}
-      </div>`;
-
-    $('#painel-atencao').innerHTML =
-      col('Prazos atrasados', atrasados.length, atrasadosOrdenados.length
-        ? atrasadosOrdenados.map(p => `<button type="button" class="att-item" data-open-empresa="${escapeHtml(p.empresaId)}"><span class="att-name">${escapeHtml(p.empresaNome)} — ${escapeHtml(p.titulo)}</span><span class="att-meta">${formatDateBR(p.data)}</span></button>`).join('')
-        : '<div class="att-empty">Nenhum prazo atrasado.</div>') +
-      col('Empresas sem responsável', semResponsavel.length, semResponsavel.length
-        ? semResponsavel.slice(0,8).map(e => {
-            const faltando = SETORES.filter(s => !e.responsaveis[s.id]).map(s=>s.label).join(', ');
-            return `<button type="button" class="att-item" data-open-empresa="${escapeHtml(e.id)}"><span class="att-name">${escapeHtml(e.nome)}</span><span class="att-meta">${escapeHtml(faltando)}</span></button>`;
-          }).join('')
-        : '<div class="att-empty">Todas com responsável definido.</div>') +
-      col('Empresas sem contato', semContato.length, semContato.length
-        ? semContato.slice(0,8).map(e => `<button type="button" class="att-item" data-open-empresa="${escapeHtml(e.id)}"><span class="att-name">${escapeHtml(e.nome)}</span><span class="att-meta">sem contato</span></button>`).join('')
-        : '<div class="att-empty">Todas com pelo menos um contato.</div>');
-
-    $$('#painel-atencao [data-open-empresa]').forEach(b => b.addEventListener('click', () => {
-      const e = state.empresas.find(x => x.id === b.dataset.openEmpresa);
-      if (e) { state.view = 'empresas'; render(); openEmpresaDialog(e); }
-    }));
-  }
-
-  // ---------- render: empresas ----------
-  function renderEmpresas() {
-    const analistaSel = $('#empresas-analista-filtro');
-    const atual = analistaSel.value;
-    analistaSel.innerHTML = '<option value="">Todos os analistas</option>' + analistas().map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
-    analistaSel.value = state.empresasAnalista || '';
-
-    $$('#empresas-status-filtro button').forEach(b => b.classList.toggle('on', b.dataset.status === state.empresasStatus));
-    $$('#empresas-modo button').forEach(b => b.classList.toggle('on', b.dataset.modo === state.empresasModo));
-
-    const list = visibleEmpresas();
-    const container = $('#empresas-list');
-    $('#empresas-list').previousElementSibling.style.display = state.empresasModo === 'analista' ? 'none' : '';
-
-    if (!state.empresasLoaded) { container.innerHTML = ''; return; }
-    if (!list.length) { container.innerHTML = '<div class="empresas-empty">Nenhuma empresa encontrada. Cadastre manualmente ou importe uma planilha.</div>'; return; }
-
-    if (state.empresasModo === 'analista') {
-      const grupos = new Map();
-      list.forEach(e => {
-        const nomes = new Set(SETORES.map(s => e.responsaveis[s.id]).filter(Boolean));
-        if (!nomes.size) nomes.add('__sem__');
-        nomes.forEach(n => { if (!grupos.has(n)) grupos.set(n, []); grupos.get(n).push(e); });
-      });
-      const ordered = [...grupos.keys()].sort((a,b) => a==='__sem__'?1:b==='__sem__'?-1:a.localeCompare(b,'pt-BR'));
-      container.innerHTML = ordered.map(nome => `
-        <div class="grupo-analista">${nome==='__sem__' ? 'Sem responsável' : escapeHtml(nome)} <span class="mono">${grupos.get(nome).length}</span></div>
-        ${grupos.get(nome).map(empresaRowHtml).join('')}
-      `).join('');
-    } else {
-      container.innerHTML = list.map(empresaRowHtml).join('');
-    }
-
-    $$('#empresas-list .erow').forEach(row => row.addEventListener('click', () => {
-      const e = state.empresas.find(x => x.id === row.dataset.id);
-      if (e) openEmpresaDialog(e);
-    }));
-  }
-
-  function empresaRowHtml(e) {
-    const prox = proximoPrazo(e);
-    let proxHtml = '<span style="color:var(--ink-3)">Sem prazos</span>';
-    if (prox) {
-      const atrasado = prox.data && prox.data < todayStr();
-      proxHtml = `${escapeHtml(prox.titulo)}<br><span class="mono" style="color:var(--ink-3)">${formatDateBR(prox.data)}</span> ${atrasado ? '<span class="badge-atrasado">atrasado</span>' : ''}`;
-    }
-    const chip = s => e.responsaveis[s.id]
-      ? `<span class="sector-chip sc-${s.id}"><i></i><span>${escapeHtml(e.responsaveis[s.id])}</span></span>`
-      : `<span class="sector-chip sc-empty"><i style="background:var(--rule-strong)"></i><span>${s.label}: —</span></span>`;
-    const resp = `<div class="eresp-row">${chip(SETORES[0])}${chip(SETORES[1])}</div><div class="eresp-row">${chip(SETORES[2])}${chip(SETORES[3])}</div>`;
-    return `
-    <div class="erow" data-id="${escapeHtml(e.id)}">
-      <div class="erow-main">
-        <div><div class="ename">${escapeHtml(e.nome)}</div>${e.cnpj ? `<div class="esub">${escapeHtml(e.cnpj)}</div>` : ''}</div>
-        <div><span class="pill">${escapeHtml(e.regime || '—')}</span><br><span class="pill st-${e.status}" style="margin-top:4px">${e.status === 'ativa' ? 'Ativa' : 'Inativa'}</span></div>
-        <div class="eresp-list">${resp}</div>
-        <div class="eprazo">${proxHtml}</div>
-      </div>
-    </div>`;
-  }
-
-  // ---------- render: prazos ----------
-  function renderPrazos() {
-    $$('#prazos-filtro button').forEach(b => b.classList.toggle('on', b.dataset.f === state.prazosFiltro));
-    let list = todosPrazos();
-    const hoje = todayStr();
-    const in7 = new Date(Date.now()+7*864e5).toISOString().slice(0,10);
-    if (state.prazosFiltro === 'atrasados') list = list.filter(p => !p.concluido && p.data && p.data < hoje);
-    else if (state.prazosFiltro === 'semana') list = list.filter(p => !p.concluido && p.data && p.data >= hoje && p.data <= in7);
-    else if (state.prazosFiltro === 'pendentes') list = list.filter(p => !p.concluido);
-    else if (state.prazosFiltro === 'concluidos') list = list.filter(p => p.concluido);
-    if (state.prazosQuery) {
-      const q = state.prazosQuery.toLowerCase();
-      list = list.filter(p => (p.empresaNome+' '+p.titulo).toLowerCase().includes(q));
-    }
-    list.sort((a,b) => (a.data||'9999').localeCompare(b.data||'9999'));
-
-    const container = $('#prazos-list');
-    if (!list.length) { container.innerHTML = '<div class="prazos-empty">Nenhum prazo nesta visão.</div>'; return; }
-
-    container.innerHTML = list.map(p => {
-      const atrasado = !p.concluido && p.data && p.data < hoje;
-      let day = '<div class="praz-day sem-data"><b>—</b></div>';
-      if (p.data) {
-        const [y,m,d] = p.data.split('-');
-        const wk = new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','');
-        day = `<div class="praz-day${atrasado?' atrasado':''}"><b>${d}</b><small>${wk}</small></div>`;
-      }
-      const setorLbl = SETORES.find(s => s.id === p.setor)?.label;
-      return `
-      <div class="praz-row" data-id="${escapeHtml(p.id)}" data-empresa="${escapeHtml(p.empresaId)}">
-        ${day}
-        <div>
-          <div class="praz-titulo">${escapeHtml(p.titulo)} ${atrasado ? '<span class="badge-atrasado">atrasado</span>' : ''} ${p.concluido ? '<span class="badge-ok">concluído</span>' : ''}</div>
-          <button type="button" class="praz-empresa" data-open-empresa="${escapeHtml(p.empresaId)}">${escapeHtml(p.empresaNome)}${setorLbl ? ' · ' + escapeHtml(setorLbl) : ''}</button>
-        </div>
-        <div class="praz-acoes">
-          <button type="button" class="btn btn-sm" data-toggle-prazo="${escapeHtml(p.id)}" data-empresa2="${escapeHtml(p.empresaId)}">${p.concluido ? 'Reabrir' : 'Concluir'}</button>
-        </div>
-      </div>`;
-    }).join('');
-
-    $$('[data-open-empresa]', container).forEach(b => b.addEventListener('click', () => {
-      const e = state.empresas.find(x => x.id === b.dataset.openEmpresa);
-      if (e) openEmpresaDialog(e);
-    }));
-    $$('[data-toggle-prazo]', container).forEach(b => b.addEventListener('click', () => {
-      const emp = state.empresas.find(x => x.id === b.dataset.empresa2);
-      if (!emp) return;
-      const pr = emp.prazos.find(x => x.id === b.dataset.togglePrazo);
-      if (!pr) return;
-      pr.concluido = !pr.concluido;
-      emp.updatedAt = Date.now();
-      saveEmpresa(emp);
-      renderPrazos();
-      renderPainel();
-    }));
-  }
-
-  // ---------- diálogo: empresa ----------
-  let empresaAtual = null;
-
-  function openEmpresaDialog(empresa) {
-    empresaAtual = empresa || normalizeEmpresa({});
-    const isNew = !empresa;
-    $('#dlg-empresa-title').textContent = isNew ? 'Nova empresa' : 'Editar empresa';
-    $('#btn-emp-excluir').hidden = isNew;
-    $('#emp-id').value = empresaAtual.id;
-    $('#emp-nome').value = empresaAtual.nome === 'Sem nome' && isNew ? '' : empresaAtual.nome;
-    $('#emp-cnpj').value = empresaAtual.cnpj;
-    $('#emp-regime').value = empresaAtual.regime;
-    $('#emp-status').value = empresaAtual.status;
-    SETORES.forEach(s => { $(`#emp-resp-${s.id}`).value = empresaAtual.responsaveis[s.id]; $(`#emp-obs-${s.id}`).value = empresaAtual.observacoes[s.id]; });
-    $('#emp-obs-geral').value = empresaAtual.observacoes.geral;
-    renderEmpContatos();
-    renderEmpPrazos();
-    $('#dlg-empresa').showModal();
-    $('#emp-nome').focus();
-  }
-
-  function readEmpresaForm() {
-    const responsaveis = {}; SETORES.forEach(s => { responsaveis[s.id] = $(`#emp-resp-${s.id}`).value.trim(); });
-    const observacoes = { geral: $('#emp-obs-geral').value.trim() }; SETORES.forEach(s => { observacoes[s.id] = $(`#emp-obs-${s.id}`).value.trim(); });
-    return { nome: $('#emp-nome').value.trim(), cnpj: $('#emp-cnpj').value.trim(), regime: $('#emp-regime').value, status: $('#emp-status').value, responsaveis, observacoes };
-  }
-
-  function commitEmpresaForm({ silent } = {}) {
-    if (!$('#emp-nome').value.trim()) return false;
-    Object.assign(empresaAtual, readEmpresaForm(), { updatedAt: Date.now() });
-    const isNew = !state.empresas.some(e => e.id === empresaAtual.id);
-    if (isNew) {
-      empresaAtual.order = Math.max(-1, ...state.empresas.map(e => e.order)) + 1;
-      state.empresas.push(empresaAtual);
-    }
-    saveEmpresa(empresaAtual);
-    if (!silent) toast('Empresa salva.');
-    renderEmpresas(); renderPainel();
-    return true;
-  }
-
-  function saveEmpresa(empresa) { persist(() => empresasStore.saveOne(empresa)); }
-
-  function renderEmpContatos() {
-    const list = $('#emp-contatos-list');
-    if (!empresaAtual.contatos.length) { list.innerHTML = '<div class="empty-mini">Nenhum contato cadastrado.</div>'; return; }
-    list.innerHTML = empresaAtual.contatos.map((c,i) => `
-      <div class="list-row">
-        <div class="main"><strong>${escapeHtml(c.nome)}${c.cargo ? ' · '+escapeHtml(c.cargo) : ''}</strong><span>${[c.telefone,c.email].filter(Boolean).map(escapeHtml).join(' · ') || '—'}</span></div>
-        <button type="button" class="icon-btn" data-del-contato="${i}" aria-label="Remover">🗑️</button>
-      </div>`).join('');
-    $$('[data-del-contato]', list).forEach(b => b.addEventListener('click', () => {
-      empresaAtual.contatos.splice(Number(b.dataset.delContato), 1);
-      if (!commitEmpresaForm({ silent:true })) return;
-      renderEmpContatos();
-    }));
-  }
-
-  function renderEmpPrazos() {
-    const list = $('#emp-prazos-list');
-    if (!empresaAtual.prazos.length) { list.innerHTML = '<div class="empty-mini">Nenhum prazo cadastrado.</div>'; return; }
-    const ordered = [...empresaAtual.prazos].sort((a,b) => (a.data||'9999').localeCompare(b.data||'9999'));
-    list.innerHTML = ordered.map(p => {
-      const atrasado = !p.concluido && p.data && p.data < todayStr();
-      const setorLbl = SETORES.find(s => s.id === p.setor)?.label || '';
-      return `
-      <div class="list-row">
-        <div class="main"><strong>${escapeHtml(p.titulo)} ${atrasado ? '<span class="badge-atrasado">atrasado</span>' : ''}${p.concluido ? '<span class="badge-ok">concluído</span>' : ''}</strong><span>${formatDateBR(p.data)}${setorLbl ? ' · '+escapeHtml(setorLbl) : ''}</span></div>
-        <button type="button" class="btn btn-sm" data-toggle-praz="${escapeHtml(p.id)}">${p.concluido ? 'Reabrir' : 'Concluir'}</button>
-        <button type="button" class="icon-btn" data-del-praz="${escapeHtml(p.id)}" aria-label="Remover">🗑️</button>
-      </div>`;
-    }).join('');
-    $$('[data-toggle-praz]', list).forEach(b => b.addEventListener('click', () => {
-      const p = empresaAtual.prazos.find(x => x.id === b.dataset.togglePraz);
-      if (p) { p.concluido = !p.concluido; commitEmpresaForm({ silent:true }); renderEmpPrazos(); }
-    }));
-    $$('[data-del-praz]', list).forEach(b => b.addEventListener('click', () => {
-      empresaAtual.prazos = empresaAtual.prazos.filter(x => x.id !== b.dataset.delPraz);
-      commitEmpresaForm({ silent:true }); renderEmpPrazos();
-    }));
-  }
-
-  $('#btn-emp-contato-add').addEventListener('click', () => {
-    const c = normalizeContato({ nome:$('#emp-contato-nome').value, cargo:$('#emp-contato-cargo').value, telefone:$('#emp-contato-telefone').value, email:$('#emp-contato-email').value });
-    if (!c) { toast('Informe ao menos o nome do contato.'); return; }
-    empresaAtual.contatos.push(c);
-    if (!commitEmpresaForm({ silent:true })) { toast('Preencha o nome da empresa antes de adicionar contatos.'); return; }
-    ['emp-contato-nome','emp-contato-cargo','emp-contato-telefone','emp-contato-email'].forEach(id => $('#'+id).value = '');
-    renderEmpContatos();
-  });
-
-  $('#btn-emp-prazo-add').addEventListener('click', () => {
-    const p = normalizePrazo({ titulo:$('#emp-prazo-titulo').value, setor:$('#emp-prazo-setor').value, data:$('#emp-prazo-data').value });
-    if (!p) { toast('Descreva o prazo.'); return; }
-    empresaAtual.prazos.push(p);
-    if (!commitEmpresaForm({ silent:true })) { toast('Preencha o nome da empresa antes de adicionar prazos.'); return; }
-    $('#emp-prazo-titulo').value = ''; $('#emp-prazo-setor').value=''; $('#emp-prazo-data').value = '';
-    renderEmpPrazos();
-  });
-
-  ['emp-nome','emp-cnpj','emp-regime','emp-status','emp-obs-geral'].forEach(id => {
-    $('#'+id).addEventListener('change', () => commitEmpresaForm({ silent:true }));
-  });
-  SETORES.forEach(s => { $(`#emp-resp-${s.id}`).addEventListener('change', () => commitEmpresaForm({ silent:true })); $(`#emp-obs-${s.id}`).addEventListener('change', () => commitEmpresaForm({ silent:true })); });
-
-  $('#btn-emp-fechar').addEventListener('click', () => { if (commitEmpresaForm()) $('#dlg-empresa').close(); else $('#dlg-empresa').close(); });
-  $('#dlg-empresa-close').addEventListener('click', () => $('#dlg-empresa').close());
-  $('#btn-empresa-nova').addEventListener('click', () => openEmpresaDialog(null));
-  $('#btn-emp-excluir').addEventListener('click', async () => {
-    const ok = await ask(`Excluir "${empresaAtual.nome}"? Isso remove contatos e prazos cadastrados.`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
-    if (!ok) return;
-    state.empresas = state.empresas.filter(e => e.id !== empresaAtual.id);
-    persist(() => empresasStore.deleteOne(empresaAtual.id));
-    $('#dlg-empresa').close();
-    renderEmpresas(); renderPainel();
-    toast('Empresa excluída.');
-  });
-
-  // ---------- toolbar: empresas ----------
-  $('#empresas-search').addEventListener('input', (e) => { state.empresasQuery = e.target.value.trim(); renderEmpresas(); });
-  $('#empresas-analista-filtro').addEventListener('change', (e) => { state.empresasAnalista = e.target.value; renderEmpresas(); });
-  $('#empresas-status-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.empresasStatus = b.dataset.status; renderEmpresas(); });
-  $('#empresas-modo').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.empresasModo = b.dataset.modo; renderEmpresas(); });
-  $('#btn-empresas-export').addEventListener('click', async () => {
-    const filename = `control-hub-empresas-${new Date().toISOString().slice(0,10)}.json`;
-    const json = JSON.stringify({ app:'control-hub', kind:'empresas', exportedAt:new Date().toISOString(), empresas: state.empresas }, null, 2);
-    if (downloads) { try { await downloads.save({ filename, data: json }); } catch (e) { if (e?.code !== 'declined') toast('Não foi possível gerar o arquivo aqui.'); } return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
-  });
-
-  // ---------- importação de planilha ----------
-  const IMPORT_FIELDS = [
-    { key:'nome', label:'Nome da empresa *', keywords:['nome','razao social','razão social','empresa'] },
-    { key:'cnpj', label:'CNPJ', keywords:['cnpj'] },
-    { key:'regime', label:'Regime tributário', keywords:['regime','tributacao','tributação'] },
-    { key:'status', label:'Status (ativa/inativa)', keywords:['status','situacao','situação'] },
-    { key:'resp_contabil', label:'Responsável — Contábil', keywords:['responsavel contabil','analista contabil','contador'] },
-    { key:'resp_fiscal', label:'Responsável — Fiscal', keywords:['responsavel fiscal','analista fiscal'] },
-    { key:'resp_pessoal', label:'Responsável — Pessoal/DP', keywords:['responsavel pessoal','analista pessoal','responsavel dp','analista dp'] },
-    { key:'resp_financeiro', label:'Responsável — Financeiro', keywords:['responsavel financeiro','analista financeiro'] },
-    { key:'contato_nome', label:'Contato — nome', keywords:['contato','nome do contato'] },
-    { key:'contato_cargo', label:'Contato — cargo', keywords:['cargo'] },
-    { key:'contato_telefone', label:'Contato — telefone', keywords:['telefone','celular','fone'] },
-    { key:'contato_email', label:'Contato — e-mail', keywords:['email','e-mail'] },
-    { key:'obs_contabil', label:'Observação — Contábil', keywords:['observacao contabil','obs contabil'] },
-    { key:'obs_fiscal', label:'Observação — Fiscal', keywords:['observacao fiscal','obs fiscal'] },
-    { key:'obs_pessoal', label:'Observação — Pessoal', keywords:['observacao pessoal','obs pessoal'] },
-    { key:'obs_financeiro', label:'Observação — Financeiro', keywords:['observacao financeiro','obs financeiro'] },
-    { key:'obs_geral', label:'Observação geral', keywords:['observacao geral','obs geral','notas','observacoes'] },
-  ];
-
-  let importParsed = null;
-  let importMapping = null;
-
-  function detectDelimiter(sample) {
-    const commas = (sample.match(/,/g)||[]).length;
-    const semis = (sample.match(/;/g)||[]).length;
-    return semis > commas ? ';' : ',';
-  }
-  function parseCSV(text) {
-    const delim = detectDelimiter(text.split('\n')[0] || '');
-    const rows = []; let row = [], field = '', inQuotes = false;
-    for (let i=0;i<text.length;i++) {
-      const c = text[i];
-      if (inQuotes) { if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; } else field += c; }
-      else if (c === '"') inQuotes = true;
-      else if (c === delim) { row.push(field); field = ''; }
-      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else if (c === '\r') { /* ignora */ }
-      else field += c;
-    }
-    if (field.length || row.length) { row.push(field); rows.push(row); }
-    return rows.filter(r => r.some(c => c.trim() !== ''));
-  }
-  async function parseXLSXFile(file) {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type:'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false });
-    return rows.map(r => r.map(c => String(c ?? ''))).filter(r => r.some(c => c.trim() !== ''));
-  }
-  function guessMapping(headers) {
-    const norm = headers.map(normalizeHeader);
-    const mapping = {}; const used = new Set();
-    IMPORT_FIELDS.forEach(f => {
-      let idx = -1;
-      for (let i=0;i<norm.length;i++) { if (used.has(i)) continue; if (f.keywords.some(k => norm[i].includes(k))) { idx = i; break; } }
-      mapping[f.key] = idx; if (idx>=0) used.add(idx);
-    });
-    return mapping;
-  }
-
-  $('#import-file-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    let rows;
-    try {
-      if (/\.xlsx?$/i.test(file.name)) {
-        if (!window.XLSX) { toast('Não foi possível carregar o leitor de planilhas. Exporte como CSV e tente de novo.'); return; }
-        rows = await parseXLSXFile(file);
-      } else rows = parseCSV(await file.text());
-    } catch { toast('Não foi possível ler o arquivo.'); return; }
-    if (!rows.length) { toast('Arquivo vazio.'); return; }
-    importParsed = { headers: rows[0], rows: rows.slice(1) };
-    importMapping = guessMapping(importParsed.headers);
-    renderImportMapping();
-  });
-
-  function renderImportMapping() {
-    $('#import-step-file').hidden = true;
-    $('#import-step-map').hidden = false;
-    $('#btn-import-confirmar').hidden = false;
-    const opts = importParsed.headers.map((h,i) => `<option value="${i}">${escapeHtml(h || '(coluna '+(i+1)+')')}</option>`).join('');
-    $('#import-map-rows').innerHTML = IMPORT_FIELDS.map(f => `
-      <div class="map-row">
-        <label for="map-${f.key}">${escapeHtml(f.label)}</label>
-        <select id="map-${f.key}" data-field="${f.key}"><option value="-1">— não importar —</option>${opts}</select>
-      </div>`).join('');
-    IMPORT_FIELDS.forEach(f => { $(`#map-${f.key}`).value = String(importMapping[f.key] ?? -1); });
-    $$('#import-map-rows select').forEach(sel => sel.addEventListener('change', () => { importMapping[sel.dataset.field] = Number(sel.value); renderImportPreview(); }));
-    renderImportPreview();
-  }
-
-  function renderImportPreview() {
-    const fields = IMPORT_FIELDS.filter(f => importMapping[f.key] >= 0);
-    const rows = importParsed.rows.slice(0,4);
-    const table = $('#import-preview');
-    table.innerHTML = `<thead><tr>${fields.map(f => `<th>${escapeHtml(f.label)}</th>`).join('')}</tr></thead>` +
-      `<tbody>${rows.map(r => `<tr>${fields.map(f => `<td>${escapeHtml(r[importMapping[f.key]] || '')}</td>`).join('')}</tr>`).join('')}</tbody>`;
-  }
-
-  function buildEmpresasFromRows() {
-    return importParsed.rows.map((r,i) => {
-      const get = (key) => { const idx = importMapping[key]; return idx>=0 ? String(r[idx]||'').trim() : ''; };
-      const contato = get('contato_nome') ? [normalizeContato({ nome:get('contato_nome'), cargo:get('contato_cargo'), telefone:get('contato_telefone'), email:get('contato_email') })].filter(Boolean) : [];
-      return normalizeEmpresa({
-        nome: get('nome'), cnpj: get('cnpj'), regime: get('regime'),
-        status: /inativ/i.test(get('status')) ? 'inativa' : 'ativa',
-        responsaveis: { contabil:get('resp_contabil'), fiscal:get('resp_fiscal'), pessoal:get('resp_pessoal'), financeiro:get('resp_financeiro') },
-        contatos: contato,
-        observacoes: { contabil:get('obs_contabil'), fiscal:get('obs_fiscal'), pessoal:get('obs_pessoal'), financeiro:get('obs_financeiro'), geral:get('obs_geral') },
-      }, i);
-    }).filter(e => e.nome && e.nome !== 'Sem nome');
-  }
-
-  function findExistingEmpresa(incoming, list) {
-    const cd = cnpjDigits(incoming.cnpj);
-    if (cd) { const hit = list.find(e => cnpjDigits(e.cnpj) === cd); if (hit) return hit; }
-    const n = normalizeHeader(incoming.nome);
-    return list.find(e => normalizeHeader(e.nome) === n) || null;
-  }
-  function mergeEmpresaFields(existing, incoming) {
-    const merged = { ...existing };
-    if (incoming.nome) merged.nome = incoming.nome;
-    if (incoming.cnpj) merged.cnpj = incoming.cnpj;
-    if (incoming.regime) merged.regime = incoming.regime;
-    if (incoming.status) merged.status = incoming.status;
-    merged.responsaveis = { ...existing.responsaveis };
-    SETORES.forEach(s => { if (incoming.responsaveis[s.id]) merged.responsaveis[s.id] = incoming.responsaveis[s.id]; });
-    merged.observacoes = { ...existing.observacoes };
-    SETORES.forEach(s => { if (incoming.observacoes[s.id]) merged.observacoes[s.id] = incoming.observacoes[s.id]; });
-    if (incoming.observacoes.geral) merged.observacoes.geral = incoming.observacoes.geral;
-    merged.contatos = [...existing.contatos];
-    incoming.contatos.forEach(c => { if (!merged.contatos.some(x => normalizeHeader(x.nome) === normalizeHeader(c.nome))) merged.contatos.push(c); });
-    merged.updatedAt = Date.now();
-    return merged;
-  }
-
-  $('#btn-import-confirmar').addEventListener('click', async () => {
-    const incoming = buildEmpresasFromRows();
-    if (!incoming.length) { toast('Nenhuma linha válida (confira a coluna Nome).'); return; }
-    const mode = $('input[name="import-mode"]:checked').value;
-    let toSave = [], toDelete = [];
-    if (mode === 'replace') {
-      const ok = await ask(`Substituir toda a lista de empresas por ${incoming.length} registro(s) importado(s)? As empresas atuais que não estiverem na planilha serão removidas.`, [{label:'Cancelar',value:false},{label:'Substituir',value:true,kind:'btn-danger'}]);
-      if (!ok) return;
-      toDelete = state.empresas.map(e => e.id);
-      toSave = incoming.map((e,i) => ({ ...e, order:i }));
-      state.empresas = toSave;
-    } else {
-      incoming.forEach(inc => {
-        const existing = findExistingEmpresa(inc, state.empresas);
-        if (existing) {
-          const merged = mergeEmpresaFields(existing, inc);
-          const idx = state.empresas.findIndex(e => e.id === existing.id);
-          state.empresas[idx] = merged;
-          toSave.push(merged);
-        } else {
-          const order = Math.max(-1, ...state.empresas.map(e => e.order)) + 1;
-          state.empresas.push(inc);
-          toSave.push(inc);
-        }
-      });
-    }
-    closeImportDialog();
-    renderEmpresas(); renderPainel();
-    await persist(async () => { await empresasStore.saveMany(toSave); for (const id of toDelete) await empresasStore.deleteOne(id); });
-    toast(`${incoming.length} empresa(s) processada(s).`);
-  });
-
-  function closeImportDialog() {
-    $('#dlg-import').close();
-    $('#import-step-file').hidden = false;
-    $('#import-step-map').hidden = true;
-    $('#btn-import-confirmar').hidden = true;
-    $('#import-file-input').value = '';
-    importParsed = null; importMapping = null;
-  }
-  $('#btn-empresas-import').addEventListener('click', () => $('#dlg-import').showModal());
-  $('#dlg-import-close').addEventListener('click', closeImportDialog);
-  $('#btn-import-cancelar').addEventListener('click', closeImportDialog);
-
-  // ---------- toolbar: prazos ----------
-  $('#prazos-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.prazosFiltro = b.dataset.f; renderPrazos(); });
-  $('#prazos-search').addEventListener('input', (e) => { state.prazosQuery = e.target.value.trim(); renderPrazos(); });
-  $('#btn-prazo-novo').addEventListener('click', () => {
-    $('#prazo-empresa-list').innerHTML = state.empresas.map(e => `<option value="${escapeHtml(e.nome)}">`).join('');
-    $('#form-prazo').reset();
-    $('#dlg-prazo').showModal();
-  });
-  $('#dlg-prazo-close').addEventListener('click', () => $('#dlg-prazo').close());
-  $('#btn-prazo-cancelar').addEventListener('click', () => $('#dlg-prazo').close());
-  $('#form-prazo').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const nome = $('#prazo-empresa').value.trim();
-    const emp = state.empresas.find(x => normalizeHeader(x.nome) === normalizeHeader(nome));
-    if (!emp) { toast('Selecione uma empresa da lista.'); return; }
-    const p = normalizePrazo({ titulo:$('#prazo-titulo').value, setor:$('#prazo-setor').value, data:$('#prazo-data').value });
-    if (!p) { toast('Descreva o prazo.'); return; }
-    emp.prazos.push(p); emp.updatedAt = Date.now();
-    saveEmpresa(emp);
-    $('#dlg-prazo').close();
-    renderPrazos(); renderPainel();
-    toast('Prazo adicionado.');
-  });
 
   // ---------- render: ferramentas ----------
   function renderFerramentas() {
@@ -1535,22 +637,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   });
 
   // ---------- navegação / busca global / tema ----------
-  $('#navtabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.view = b.dataset.view; render(); });
-  $('#global-search').addEventListener('input', (e) => {
-    const q = e.target.value.trim();
-    if (state.view === 'ferramentas') { state.toolsQuery = q; renderFerramentas(); }
-    else if (state.view === 'empresas') { state.empresasQuery = q; renderEmpresas(); }
-    else if (q) { state.view = 'empresas'; state.empresasQuery = q; render(); $('#empresas-search').value = q; }
-  });
+  $('#global-search').addEventListener('input', (e) => { state.toolsQuery = e.target.value.trim(); renderFerramentas(); });
   $('#btn-theme').addEventListener('click', () => { state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs(); });
 
   // ---------- inicialização ----------
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
-    empresasStore = makeLocalStore('control-hub:empresas', () => []);
     state.tools = toolsStore.load().map(normalizeTool);
-    state.empresas = empresasStore.load().map(normalizeEmpresa);
-    state.toolsLoaded = true; state.empresasLoaded = true;
+    state.toolsLoaded = true;
     render();
   }
 
@@ -1560,18 +654,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     downloads = dl;
     if (!dbNs) { state.canCheck = false; startLocal(); return; }
     db = dbNs;
-    toolsStore = toolsDbStore; empresasStore = empresasDbStore;
+    toolsStore = toolsDbStore;
     if (user && (await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
 
     db.collection('tools').onSnapshot((snap) => {
       state.tools = snap.docs.map((d,i) => normalizeTool({ ...d.data(), id:d.id }, i));
       state.toolsLoaded = true;
-      render();
-    }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
-
-    db.collection('empresas').onSnapshot((snap) => {
-      state.empresas = snap.docs.map((d,i) => normalizeEmpresa({ ...d.data(), id:d.id }, i));
-      state.empresasLoaded = true;
       render();
     }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
   }
