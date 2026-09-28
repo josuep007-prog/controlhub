@@ -74,13 +74,7 @@ a{color:var(--blue-deep);}
 .wm-a{color:var(--brand-red);} .wm-b{color:#7FC2DE;}
 .brand-tag{font-size:11.5px; font-weight:500; color:var(--masthead-ink-2); margin-top:3px; display:flex; align-items:center; gap:6px;}
 .brand-tag i{width:4px; height:4px; border-radius:50%; background:var(--brand-red); display:block;}
-.masthead-bar{display:flex; align-items:center; gap:16px; flex-wrap:wrap; border-top:1px solid var(--masthead-2);}
-.navtabs{display:flex; flex-wrap:wrap; overflow-x:auto; scrollbar-width:none;}
-.navtabs::-webkit-scrollbar{display:none;}
-.navtabs button{background:none; border:none; border-bottom:3px solid transparent; padding:11px 2px; margin-right:20px; color:var(--masthead-ink-2); font-size:13.5px; font-weight:600; cursor:pointer; font-family:"Archivo",sans-serif; white-space:nowrap;}
-.navtabs button:hover{color:var(--masthead-ink);}
-.navtabs button.active{color:#fff; border-bottom-color:var(--brand-red);}
-.mh-actions{margin-left:auto; display:flex; align-items:center; gap:8px; padding-block:8px; flex-wrap:wrap;}
+.mh-actions{margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 .mh-search{position:relative;}
 .mh-search input{background:var(--masthead-2); border:1px solid transparent; color:var(--masthead-ink); width:220px; max-width:44vw; font-size:13px; padding:6px 10px;}
 .mh-search input::placeholder{color:#697A87;}
@@ -94,18 +88,9 @@ a{color:var(--blue-deep);}
   .mh-search input{width:150px;}
 }
 
-/* ============ layout / typography helpers ============ */
-main{padding-block:24px 90px; display:flex; flex-direction:column; gap:24px;}
-.view{display:flex; flex-direction:column; gap:22px; animation:rise .22s ease;}
+/* ============ layout ============ */
+main{padding-block:40px 90px;}
 @keyframes rise{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
-.sec-label{font-family:"Archivo",sans-serif; font-size:16px; font-weight:700; letter-spacing:-.01em; display:flex; align-items:baseline; gap:10px; margin-bottom:12px;}
-.sec-label .cnt{margin-left:auto; font-size:13px; font-weight:500; color:var(--ink-3);}
-.sec-sub{font-size:12.5px; color:var(--ink-3); margin-top:-14px;}
-.panel{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow-1);}
-.panel-pad{padding:18px 20px;}
-.toolbar{display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--rule);}
-.toolbar h2{font-size:14.5px; font-weight:700; margin-right:auto;}
-.toolbar .grow{flex:1 1 auto; min-width:160px;}
 
 /* ============ buttons / chips ============ */
 .btn{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:var(--r); padding:8px 13px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap; text-decoration:none; transition:border-color .15s, background .15s, color .15s;}
@@ -120,12 +105,7 @@ main{padding-block:24px 90px; display:flex; flex-direction:column; gap:24px;}
 .btn-sm{padding:5px 10px; font-size:11.5px;}
 .icon-btn{border:0; background:none; cursor:pointer; padding:6px; border-radius:var(--r); font-size:15px; line-height:1; color:var(--ink-3);}
 .icon-btn:hover{background:var(--surface-2); color:var(--ink);}
-.btn:focus-visible,.icon-btn:focus-visible,.navtabs button:focus-visible,.filters button:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
-
-.filters{display:inline-flex; border:1px solid var(--rule-strong); border-radius:var(--r); overflow:hidden;}
-.filters button{background:var(--surface); border:none; border-left:1px solid var(--rule); padding:7px 12px; font-size:11.5px; font-weight:600; color:var(--ink-3); cursor:pointer; white-space:nowrap;}
-.filters button:first-child{border-left:none;}
-.filters button.on{background:var(--ink); color:var(--page);}
+.btn:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
 
 /* ============ dialogs ============ */
 dialog.dlg{border:1px solid var(--rule); border-radius:8px; padding:0; background:var(--surface); color:var(--ink); box-shadow:0 20px 60px rgba(0,0,0,.3); width:min(600px, calc(100vw - 32px));}
@@ -142,36 +122,26 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .form-row > *{flex:1; min-width:140px;}
 .dlg-close{margin-left:auto;}
 
-/* ============ ferramentas ============ */
-.tools{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; padding:16px 20px;}
-.tools.list{display:flex; flex-direction:column; gap:8px;}
-.card{position:relative; background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow-1); padding:14px; display:flex; flex-direction:column; gap:9px; border-top:3px solid var(--accent, var(--blue-deep));}
+/* ============ módulos ============ */
+.modules-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(148px,1fr)); gap:22px;}
+.card{position:relative; aspect-ratio:1; background:var(--surface); border:1px solid var(--rule); border-radius:16px; box-shadow:var(--shadow-2); padding:16px 12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; text-decoration:none; color:inherit; font:inherit; transition:transform .15s ease, box-shadow .15s ease;}
+.card:hover{transform:translateY(-4px); box-shadow:0 10px 26px rgba(16,24,32,.16);}
+:root[data-theme="dark"] .card:hover, :root:not([data-theme="light"]) .card:hover{box-shadow:0 10px 26px rgba(0,0,0,.55);}
 .card.dragging{opacity:.4;}
-.card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:2px;}
-.card-head{display:flex; align-items:center; gap:10px;}
-.card-icon{width:38px; height:38px; display:grid; place-items:center; font-size:20px; border-radius:var(--r); background:color-mix(in srgb, var(--accent, var(--blue-deep)) 16%, transparent); flex:none;}
-.card-title{font-weight:600; font-size:14.5px; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.card-host{color:var(--ink-3); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.card-titles{min-width:0; flex:1;}
-.card-desc{color:var(--ink-2); font-size:12.5px; margin:0; min-height:1.2em;}
-.card-tags{display:flex; flex-wrap:wrap; gap:5px;}
-.tag{font-size:10.5px; padding:2px 7px; border-radius:99px; background:var(--surface-2); color:var(--ink-3);}
-.card-foot{display:flex; align-items:center; gap:5px; margin-top:auto;}
-.card-meta{color:var(--ink-3); font-size:11px; margin-right:auto;}
-.fav-btn{opacity:.35;} .fav-btn.on{opacity:1;}
-.status{display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-3);}
-.status-dot{width:8px; height:8px; border-radius:50%; background:var(--rule-strong);}
-.status.online .status-dot{background:var(--status-green);}
-.status.offline .status-dot{background:var(--brand-red);}
-.status.checking .status-dot{background:var(--status-warn); animation:pulse 1s infinite;}
-@keyframes pulse{50%{opacity:.3;}}
-.tools.list .card{flex-direction:row; align-items:center; border-top:1px solid var(--rule); border-left:3px solid var(--accent,var(--blue-deep));}
-.tools.list .card-head{flex:0 0 240px;}
-.tools.list .card-desc{flex:1;}
-.tools.list .card-tags{display:none;}
-.card.no-link .card-host{font-style:italic; color:var(--status-warn);}
-.empty{text-align:center; padding:56px 20px; color:var(--ink-3);}
-.empty-icon{font-size:44px; margin:0;}
+.card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:3px;}
+.card-stretch{position:absolute; inset:0; z-index:0; background:none; border:0; padding:0; margin:0; cursor:pointer; border-radius:inherit;}
+.card-icon{width:52px; height:52px; display:grid; place-items:center; font-size:26px; border-radius:14px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 16%, transparent); flex:none; pointer-events:none;}
+.card-title{font-weight:600; font-size:13.5px; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; pointer-events:none;}
+.card.no-link .card-title{color:var(--ink-3); font-style:italic;}
+.card-fav,.card-edit{position:absolute; top:8px; z-index:1; opacity:0; transition:opacity .15s; background:var(--surface); border-radius:50%;}
+.card-fav{left:8px;} .card-edit{right:8px;}
+.card-fav.on{opacity:1; color:#E3A008;}
+.card:hover .card-fav,.card:focus-within .card-fav,.card:hover .card-edit,.card:focus-within .card-edit{opacity:.7;}
+.card-fav:hover,.card-edit:hover{opacity:1!important;}
+.card-add{border-style:dashed; border-color:var(--rule-strong); background:none; box-shadow:none; color:var(--ink-3); cursor:pointer;}
+.card-add:hover{border-color:var(--blue-deep); color:var(--blue-deep); box-shadow:var(--shadow-1); transform:translateY(-4px);}
+.card-add-plus{font-size:34px; line-height:1; font-weight:300; pointer-events:none;}
+.modules-empty{grid-column:1/-1; text-align:center; padding:40px 20px; color:var(--ink-3);}
 
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px;}
 .toast.show{opacity:1; transform:translate(-50%,0);}
@@ -194,11 +164,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <div class="brand-tag"><i></i>Painel interno · ControlTax</div>
         </div>
       </div>
-    </div>
-    <div class="masthead-bar">
-      <nav class="navtabs" id="navtabs">
-        <button type="button" data-view="ferramentas" class="active">Ferramentas</button>
-      </nav>
       <div class="mh-actions">
         <div class="mh-search"><input type="search" id="global-search" placeholder="Buscar…" autocomplete="off"></div>
         <button type="button" class="theme-btn" id="btn-theme" title="Alternar tema" aria-label="Alternar tema">🌓</button>
@@ -208,40 +173,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 </header>
 
 <div class="wrap"><main id="main">
-
-  <!-- ================= FERRAMENTAS ================= -->
-  <section class="view" id="view-ferramentas">
-    <div class="panel">
-      <div class="toolbar">
-        <h2>Ferramentas</h2>
-        <div class="filters" id="ferramentas-view-filtro">
-          <button type="button" data-fview="all" class="on">Todas</button>
-          <button type="button" data-fview="favorites">Favoritas</button>
-          <button type="button" data-fview="recent">Recentes</button>
-          <button type="button" data-fview="offline" id="ferramentas-offline-btn">Com problema</button>
-        </div>
-        <select id="ferramentas-sort">
-          <option value="manual">Ordem manual</option>
-          <option value="name">Nome (A–Z)</option>
-          <option value="usage">Mais usadas</option>
-          <option value="recent">Usadas recentemente</option>
-        </select>
-        <button type="button" class="btn" id="ferramentas-btn-check">📡 Verificar status</button>
-        <button type="button" class="btn icon-btn" id="ferramentas-btn-layout" title="Alternar grade/lista">▦</button>
-        <button type="button" class="btn" id="ferramentas-btn-export">⬇️ Exportar</button>
-        <label class="btn" title="Importar configuração">⬆️ Importar<input type="file" id="ferramentas-import-input" accept="application/json" hidden></label>
-        <button type="button" class="btn" id="ferramentas-btn-reset">↺ Restaurar</button>
-        <button type="button" class="btn btn-primary" id="btn-ferramenta-nova">＋ Nova ferramenta</button>
-      </div>
-      <div id="ferramentas-cats" class="toolbar" style="border-bottom:1px solid var(--rule)"></div>
-      <div id="ferramentas-tools" class="tools grid"></div>
-      <div id="ferramentas-empty" class="empty" hidden>
-        <p class="empty-icon">🧰</p>
-        <p>Nenhuma ferramenta encontrada.</p>
-      </div>
-    </div>
-  </section>
-
+  <div id="ferramentas-tools" class="modules-grid"></div>
 </main></div>
 
 <!-- ===== dialog: ferramenta ===== -->
@@ -263,7 +195,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     <label class="field">Notas<textarea name="notes" rows="2" placeholder="Credenciais ficam no cofre, não aqui"></textarea></label>
     <div class="form-row">
       <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" name="favorite"> Favorita</label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" name="monitor" checked> Monitorar status</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:12.5px"><input type="checkbox" name="newTab" checked> Nova aba</label>
     </div>
     <div class="dlg-actions">
@@ -292,8 +223,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const HOSTED = typeof window.claude?.use === 'function';
   const THEME_KEY = 'controlhub-theme';
   const PREFS_KEY = 'controlhub-prefs';
-  const STATUS_TIMEOUT_MS = 8000;
-  const RECENT_LIMIT = 12;
 
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
@@ -335,13 +264,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   // ---------- estado ----------
   const state = {
-    view: 'ferramentas',
     tools: [], toolsLoaded: false,
-    status: {},
     readOnly: false,
-    canCheck: !HOSTED,
-    toolsView: 'all', toolsQuery: '',
-    prefs: { theme: null, toolsLayout: 'grid', toolsSort: 'manual' },
+    toolsQuery: '',
+    prefs: { theme: null },
   };
 
   let db = null, downloads = null;
@@ -361,7 +287,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','contábil'] },
     { id:'zappy', name:'Zappy', url:'', icon:'💬', category:'Comunicação', color:'#167A45', description:'Só os contatos.', tags:['whatsapp','contatos'] },
     { id:'zimbra', name:'Zimbra', url:'', icon:'✉️', category:'Comunicação', color:'#167A45', description:'Agendamento das salas e monitoramento das comunicações.', tags:['e-mail','salas'] },
-    { id:'pasta-servidor', name:'Pasta Servidor', url:'', icon:'🗄️', category:'Monitoramento', color:'#B5530C', description:'Arquivos fora do padrão ou salvos no local errado.', tags:['servidor','arquivos'], monitor:false },
+    { id:'pasta-servidor', name:'Pasta Servidor', url:'', icon:'🗄️', category:'Monitoramento', color:'#B5530C', description:'Arquivos fora do padrão ou salvos no local errado.', tags:['servidor','arquivos'] },
   ];
 
   function normalizeTool(t, i=0) {
@@ -376,7 +302,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       tags: Array.isArray(t.tags) ? t.tags.filter(Boolean).map(String) : [],
       notes: t.notes || '',
       favorite: !!t.favorite,
-      monitor: t.monitor !== false,
       newTab: t.newTab !== false,
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
@@ -424,26 +349,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const hay = [t.name,t.description,t.category,t.url,t.notes,...t.tags].join(' ').toLowerCase();
     return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
   }
-  function inToolView(t, view) {
-    if (view === 'favorites') return t.favorite;
-    if (view === 'recent') return !!t.lastUsed;
-    if (view === 'offline') return state.status[t.id] === 'offline';
-    if (view.startsWith('cat:')) return t.category === view.slice(4);
-    return true;
-  }
   function visibleTools() {
-    let list = state.tools.filter(t => inToolView(t, state.toolsView) && matchesToolQuery(t, state.toolsQuery));
-    const sort = state.toolsView === 'recent' ? 'recent' : state.prefs.toolsSort;
-    const by = {
-      manual:(a,b)=>a.order-b.order,
-      name:(a,b)=>a.name.localeCompare(b.name,'pt-BR'),
-      usage:(a,b)=>b.uses-a.uses||a.order-b.order,
-      recent:(a,b)=>(b.lastUsed||0)-(a.lastUsed||0),
-    }[sort];
-    list.sort(by);
-    if (state.toolsView === 'recent') list = list.slice(0, RECENT_LIMIT);
-    if (state.toolsView === 'all' && sort === 'manual') list.sort((a,b) => b.favorite - a.favorite);
-    return list;
+    return state.tools
+      .filter(t => matchesToolQuery(t, state.toolsQuery))
+      .sort((a,b) => a.order-b.order || 0)
+      .sort((a,b) => b.favorite - a.favorite);
   }
 
   // ---------- render: shell ----------
@@ -453,77 +363,37 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   // ---------- render: ferramentas ----------
   function renderFerramentas() {
-    $('#ferramentas-offline-btn').hidden = !state.canCheck;
-    $('#ferramentas-btn-check').hidden = !state.canCheck;
-    $('#btn-ferramenta-nova').hidden = state.readOnly;
-    $$('#ferramentas-view-filtro button').forEach(b => b.classList.toggle('on', b.dataset.fview === state.toolsView));
-    $('#ferramentas-sort').value = state.prefs.toolsSort;
-
-    const cats = categories();
-    $('#ferramentas-cats').innerHTML = cats.length ? cats.map(c => `<button type="button" class="btn btn-sm" data-cat="${escapeHtml(c)}">${escapeHtml(c)} <span class="mono">${state.tools.filter(t=>t.category===c).length}</span></button>`).join('') : '';
-    $$('#ferramentas-cats [data-cat]').forEach(b => b.addEventListener('click', () => { state.toolsView = 'cat:'+b.dataset.cat; renderFerramentas(); }));
-
     const list = visibleTools();
     const container = $('#ferramentas-tools');
-    container.className = `tools ${state.prefs.toolsLayout}`;
-    $('#ferramentas-btn-layout').textContent = state.prefs.toolsLayout === 'grid' ? '☰' : '▦';
-
-    if (!state.toolsLoaded) { container.innerHTML = ''; $('#ferramentas-empty').hidden = true; return; }
-    $('#ferramentas-empty').hidden = list.length > 0;
-
-    const draggable = !state.readOnly && state.prefs.toolsSort === 'manual' && state.toolsView !== 'recent' && !state.toolsQuery;
     const ro = state.readOnly;
-    const STATUS_LABEL = { online:'Online', offline:'Fora do ar', checking:'Verificando…' };
+    const draggable = !ro && !state.toolsQuery;
 
-    container.innerHTML = list.map(t => {
-      const st = state.canCheck && t.monitor && t.url ? state.status[t.id] : null;
-      const used = t.lastUsed ? `Usada há pouco` : 'Nunca usada';
+    if (!state.toolsLoaded) { container.innerHTML = ''; return; }
+
+    const tiles = list.map(t => {
       const target = t.newTab || HOSTED ? ' target="_blank" rel="noopener noreferrer"' : '';
+      const stretch = t.url
+        ? `<a class="card-stretch" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}"${target} aria-label="Abrir ${escapeHtml(t.name)}"></a>`
+        : `<button type="button" class="card-stretch" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Configurar ${escapeHtml(t.name)}"></button>`;
       return `
-      <article class="card${t.url?'':' no-link'}" data-id="${escapeHtml(t.id)}" style="--accent:${t.color}" ${draggable?'draggable="true"':''}>
-        <div class="card-head">
-          <div class="card-icon">${escapeHtml(t.icon)}</div>
-          <div class="card-titles"><h3 class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</h3><div class="card-host">${escapeHtml(hostOf(t.url))}</div></div>
-          <button class="icon-btn fav-btn ${t.favorite?'on':''}" data-action="fav" aria-label="Favoritar" ${ro?'disabled':''}>⭐</button>
-        </div>
-        <p class="card-desc">${escapeHtml(t.description)}</p>
-        ${t.tags.length ? `<div class="card-tags">${t.tags.map(g=>`<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>` : ''}
-        <div class="card-foot">
-          ${st ? `<span class="status ${st}"><span class="status-dot"></span>${STATUS_LABEL[st]}</span>` : `<span class="card-meta">${used}</span>`}
-          ${state.canCheck && t.monitor && t.url ? `<button class="icon-btn" data-action="check" aria-label="Verificar status">📡</button>` : ''}
-          ${t.url ? `<button class="icon-btn" data-action="copy" aria-label="Copiar link">🔗</button>` : ''}
-          ${ro ? '' : `<button class="icon-btn" data-action="edit" aria-label="Editar">✏️</button>`}
-          ${t.url ? `<a class="btn btn-primary btn-sm" data-action="open" href="${escapeHtml(t.url)}"${target}>Abrir ↗</a>` : (ro ? '' : `<button class="btn btn-sm" data-action="edit">Definir link</button>`)}
-        </div>
-      </article>`;
+      <div class="card${t.url?'':' no-link'}" data-id="${escapeHtml(t.id)}" style="--accent:${t.color}" ${draggable?'draggable="true"':''}>
+        ${stretch}
+        ${ro ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="Favoritar">⭐</button>`}
+        ${ro ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar">✏️</button>`}
+        <div class="card-icon">${escapeHtml(t.icon)}</div>
+        <div class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+      </div>`;
     }).join('');
+
+    const addTile = ro ? '' : `<button type="button" class="card card-add" data-action="add" aria-label="Novo módulo"><span class="card-add-plus">＋</span><span class="card-title">Novo módulo</span></button>`;
+
+    container.innerHTML = tiles + addTile;
+    if (!list.length && ro) container.innerHTML = '<div class="modules-empty">Nenhum módulo cadastrado.</div>';
   }
 
   const findTool = (id) => state.tools.find(t => t.id === id);
 
   function recordUse(t) { t.uses += 1; t.lastUsed = Date.now(); if (!state.readOnly) persist(() => toolsStore.saveOne(t)); }
-
-  async function checkStatus(t) {
-    if (!t.url || !state.canCheck) return;
-    state.status[t.id] = 'checking'; renderFerramentas();
-    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), STATUS_TIMEOUT_MS);
-    try { await fetch(t.url, { mode:'no-cors', cache:'no-store', signal:ctrl.signal }); state.status[t.id] = 'online'; }
-    catch { state.status[t.id] = 'offline'; }
-    finally { clearTimeout(timer); }
-    renderFerramentas();
-  }
-  async function checkAll() {
-    const btn = $('#ferramentas-btn-check'); btn.disabled = true;
-    const monitored = state.tools.filter(t => t.monitor && t.url);
-    await Promise.all(monitored.map(checkStatus));
-    btn.disabled = false;
-    const off = monitored.filter(t => state.status[t.id] === 'offline').length;
-    toast(off ? `${off} ferramenta(s) com problema.` : 'Tudo online ✅');
-  }
-  async function copyLink(t) {
-    if (!t.url) return toast('Link não configurado.');
-    try { await navigator.clipboard.writeText(t.url); toast('Link copiado.'); } catch { toast(t.url); }
-  }
 
   const dlgFerramenta = $('#dlg-ferramenta');
   const formFerramenta = $('#form-ferramenta');
@@ -532,11 +402,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     formFerramenta.reset();
     $('#dlg-ferramenta-title').textContent = tool ? 'Editar ferramenta' : 'Nova ferramenta';
     $('#btn-ferramenta-excluir').hidden = !tool;
-    const t = tool || { icon:'🔧', color:'#3C659B', monitor:true, newTab:true, category: state.toolsView.startsWith('cat:') ? state.toolsView.slice(4) : '' };
+    const t = tool || { icon:'🔧', color:'#3C659B', newTab:true, category:'' };
     const f = formFerramenta.elements;
     f.id.value = t.id||''; f.name.value = t.name||''; f.url.value = t.url||''; f.icon.value = t.icon||''; f.description.value = t.description||'';
     f.category.value = t.category||''; f.color.value = t.color||'#3C659B'; f.tags.value = (t.tags||[]).join(', '); f.notes.value = t.notes||'';
-    f.favorite.checked = !!t.favorite; f.monitor.checked = t.monitor !== false; f.newTab.checked = t.newTab !== false;
+    f.favorite.checked = !!t.favorite; f.newTab.checked = t.newTab !== false;
     $('#ferramenta-cat-options').innerHTML = categories().map(c => `<option value="${escapeHtml(c)}">`).join('');
     dlgFerramenta.showModal(); f.name.focus();
   }
@@ -546,7 +416,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const rawUrl = f.url.value.trim();
     const url = rawUrl ? safeUrl(rawUrl) : '';
     if (url === null) { toast('Informe uma URL http(s) válida.'); f.url.focus(); return; }
-    const data = { name:f.name.value.trim(), url, icon:f.icon.value.trim()||'🔧', description:f.description.value.trim(), category:f.category.value.trim()||'Geral', color:f.color.value, tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean), notes:f.notes.value.trim(), favorite:f.favorite.checked, monitor:f.monitor.checked, newTab:f.newTab.checked };
+    const data = { name:f.name.value.trim(), url, icon:f.icon.value.trim()||'🔧', description:f.description.value.trim(), category:f.category.value.trim()||'Geral', color:f.color.value, tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean), notes:f.notes.value.trim(), favorite:f.favorite.checked, newTab:f.newTab.checked };
     let tool = findTool(f.id.value);
     if (tool) { Object.assign(tool, data); toast('Ferramenta atualizada.'); }
     else { const order = Math.max(-1, ...state.tools.map(t=>t.order)) + 1; tool = normalizeTool({...data, order}); state.tools.push(tool); toast('Ferramenta adicionada.'); }
@@ -563,32 +433,29 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const ok = await ask(`Excluir "${t.name}"?`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
     if (!ok) return;
     state.tools = state.tools.filter(x => x.id !== t.id);
-    delete state.status[t.id];
     persist(() => toolsStore.deleteOne(t.id));
-    if (state.toolsView.startsWith('cat:') && !categories().includes(state.toolsView.slice(4))) state.toolsView = 'all';
     renderFerramentas();
     toast('Ferramenta excluída.');
   });
-  $('#btn-ferramenta-nova').addEventListener('click', () => openFerramentaDialog(null));
 
   $('#ferramentas-tools').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]'); const card = e.target.closest('.card');
-    if (!card || !btn) return;
-    const t = findTool(card.dataset.id); if (!t) return;
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'add') { openFerramentaDialog(null); return; }
+    const t = findTool(btn.dataset.id);
+    if (!t) return;
     const action = btn.dataset.action;
     if (action === 'open') recordUse(t);
-    else if (action === 'edit') openFerramentaDialog(t);
-    else if (action === 'copy') copyLink(t);
-    else if (action === 'check') checkStatus(t);
-    else if (action === 'fav' && !state.readOnly) { t.favorite = !t.favorite; persist(() => toolsStore.saveOne(t)); renderFerramentas(); }
+    else if (action === 'edit') { e.preventDefault(); openFerramentaDialog(t); }
+    else if (action === 'fav' && !state.readOnly) { e.preventDefault(); t.favorite = !t.favorite; persist(() => toolsStore.saveOne(t)); renderFerramentas(); }
   });
 
   let dragId = null;
-  $('#ferramentas-tools').addEventListener('dragstart', (e) => { const card = e.target.closest('.card'); if (!card) return; dragId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+  $('#ferramentas-tools').addEventListener('dragstart', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id) return; dragId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
   $('#ferramentas-tools').addEventListener('dragend', (e) => { e.target.closest('.card')?.classList.remove('dragging'); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); });
-  $('#ferramentas-tools').addEventListener('dragover', (e) => { const card = e.target.closest('.card'); if (!card || !dragId) return; e.preventDefault(); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); if (card.dataset.id !== dragId) card.classList.add('drag-over'); });
+  $('#ferramentas-tools').addEventListener('dragover', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id || !dragId) return; e.preventDefault(); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); if (card.dataset.id !== dragId) card.classList.add('drag-over'); });
   $('#ferramentas-tools').addEventListener('drop', (e) => {
-    const card = e.target.closest('.card'); if (!card || !dragId || card.dataset.id === dragId) return;
+    const card = e.target.closest('.card'); if (!card || !card.dataset.id || !dragId || card.dataset.id === dragId) return;
     e.preventDefault();
     const ordered = [...state.tools].sort((a,b) => a.order-b.order);
     const from = ordered.findIndex(t => t.id === dragId); const to = ordered.findIndex(t => t.id === card.dataset.id);
@@ -597,42 +464,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     ordered.forEach((t,i) => { t.order = i; });
     dragId = null;
     persist(() => toolsStore.saveMany(changed));
-    renderFerramentas();
-  });
-
-  $('#ferramentas-view-filtro').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; state.toolsView = b.dataset.fview; renderFerramentas(); });
-  $('#ferramentas-sort').addEventListener('change', (e) => { state.prefs.toolsSort = e.target.value; savePrefs(); renderFerramentas(); });
-  $('#ferramentas-btn-layout').addEventListener('click', () => { state.prefs.toolsLayout = state.prefs.toolsLayout === 'grid' ? 'list' : 'grid'; savePrefs(); renderFerramentas(); });
-  $('#ferramentas-btn-check').addEventListener('click', checkAll);
-  $('#ferramentas-btn-export').addEventListener('click', async () => {
-    const filename = `control-hub-${new Date().toISOString().slice(0,10)}.json`;
-    const json = JSON.stringify({ app:'control-hub', version:1, exportedAt:new Date().toISOString(), tools: state.tools }, null, 2);
-    if (downloads) { try { await downloads.save({ filename, data: json }); } catch (e) { if (e?.code !== 'declined') toast('Não foi possível gerar o arquivo aqui.'); } return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json],{type:'application/json'})); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
-  });
-  $('#ferramentas-import-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0]; e.target.value = '';
-    if (!file) return;
-    let tools;
-    try { const json = JSON.parse(await file.text()); tools = Array.isArray(json) ? json : json.tools; if (!Array.isArray(tools)) throw new Error(); }
-    catch { toast('Arquivo inválido: use um JSON exportado pelo Control Hub.'); return; }
-    const mode = await ask(`Importar ${tools.length} ferramenta(s).\nSubstituir a lista atual ou juntar com ela?`, [{label:'Cancelar',value:null},{label:'Juntar',value:'merge'},{label:'Substituir',value:'replace',kind:'btn-danger'}]);
-    if (!mode) return;
-    const incoming = tools.map(normalizeTool);
-    let removed = [];
-    if (mode === 'replace') { const keep = new Set(incoming.map(t=>t.id)); removed = state.tools.filter(t=>!keep.has(t.id)).map(t=>t.id); state.tools = incoming; }
-    else { const ids = new Set(state.tools.map(t=>t.id)); const base = Math.max(-1, ...state.tools.map(t=>t.order))+1; incoming.forEach((t,i) => { if (ids.has(t.id)) t.id = uid(); t.order = base+i; state.tools.push(t); }); }
-    state.status = {};
-    renderFerramentas();
-    await persist(async () => { await toolsStore.saveMany(incoming); for (const id of removed) await toolsStore.deleteOne(id); });
-    toast(`${incoming.length} ferramenta(s) importada(s).`);
-  });
-  $('#ferramentas-btn-reset').addEventListener('click', async () => {
-    const ok = await ask('Restaurar as ferramentas iniciais? As ferramentas atuais serão substituídas.', [{label:'Cancelar',value:false},{label:'Restaurar',value:true,kind:'btn-danger'}]);
-    if (!ok) return;
-    state.tools = DEFAULT_TOOLS.map(normalizeTool);
-    state.status = {}; state.toolsView = 'all';
-    toolsStore.persistAll(state.tools);
     renderFerramentas();
   });
 
@@ -652,7 +483,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     render();
     const [dbNs, dl, user] = await Promise.all([window.claude.use('db'), window.claude.use('downloads'), window.claude.use('user')]);
     downloads = dl;
-    if (!dbNs) { state.canCheck = false; startLocal(); return; }
+    if (!dbNs) { startLocal(); return; }
     db = dbNs;
     toolsStore = toolsDbStore;
     if (user && (await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
