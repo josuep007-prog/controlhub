@@ -90,6 +90,23 @@ a{color:var(--blue-deep);}
 
 /* ============ layout ============ */
 main{padding-block:40px 90px;}
+.shell{position:relative; display:flex; align-items:flex-start;}
+.side-rail{position:fixed; top:var(--header-h, 64px); bottom:0; left:0; width:14px; z-index:25; background:var(--surface); border-right:1px solid var(--rule); overflow:hidden; transition:width .16s ease, box-shadow .16s ease;}
+.side-rail-edge{position:absolute; left:0; top:50%; width:14px; height:72px; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+.side-rail-edge span{width:4px; height:64px; border-radius:3px; background:var(--brand-red); opacity:.55; transition:opacity .16s ease;}
+.side-rail-panel{width:240px; padding:18px 10px; opacity:0; pointer-events:none; transition:opacity .12s ease;}
+.side-rail:focus-within, .side-rail.open{width:240px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
+.side-rail:focus-within .side-rail-edge, .side-rail.open .side-rail-edge{opacity:0; pointer-events:none;}
+.side-rail:focus-within .side-rail-panel, .side-rail.open .side-rail-panel{opacity:1; pointer-events:auto;}
+@media (hover:hover) and (pointer:fine){
+  .side-rail:hover{width:240px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
+  .side-rail:hover .side-rail-edge{opacity:0; pointer-events:none;}
+  .side-rail:hover .side-rail-panel{opacity:1; pointer-events:auto;}
+}
+.side-rail-label{font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); padding:0 10px 10px;}
+.main-content{flex:1; min-width:0; margin-left:14px;}
+.home-hint{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; color:var(--ink-3); padding:80px 20px; font-size:13.5px;}
+.home-hint-ico{font-size:40px; opacity:.6;}
 @keyframes rise{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
 
 /* ============ buttons / chips ============ */
@@ -126,34 +143,33 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .empty-mini{font-size:12px; color:var(--ink-3); padding:2px 0;}
 .dlg-close{margin-left:auto;}
 
-/* ============ módulos ============ */
-.modules-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(148px,1fr)); gap:22px;}
-.card{position:relative; aspect-ratio:1; background:var(--surface); border:1px solid var(--rule); border-radius:16px; box-shadow:var(--shadow-2); padding:16px 12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; text-decoration:none; color:inherit; font:inherit; transition:transform .15s ease, box-shadow .15s ease;}
-.card:hover{transform:translateY(-4px); box-shadow:0 10px 26px rgba(16,24,32,.16);}
-:root[data-theme="dark"] .card:hover, :root:not([data-theme="light"]) .card:hover{box-shadow:0 10px 26px rgba(0,0,0,.55);}
+/* ============ barra lateral / módulos ============ */
+.rail-list{display:flex; flex-direction:column; gap:2px;}
+.card{position:relative; display:flex; align-items:center; gap:12px; width:100%; padding:9px 10px; border:0; border-radius:10px; background:none; color:inherit; font:inherit; text-align:left; text-decoration:none; cursor:default;}
+.card:hover{background:var(--surface-2);}
 .card.dragging{opacity:.4;}
-.card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:3px;}
+.card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:-2px;}
 .card-stretch{position:absolute; inset:0; z-index:0; background:none; border:0; padding:0; margin:0; cursor:pointer; border-radius:inherit;}
-.card-icon{width:52px; height:52px; display:grid; place-items:center; font-size:26px; border-radius:14px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 16%, transparent); flex:none; pointer-events:none;}
-.card-title{font-weight:600; font-size:13.5px; line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; pointer-events:none;}
+.card-icon{order:1; width:32px; height:32px; display:grid; place-items:center; font-size:17px; border-radius:9px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 16%, transparent); flex:none; pointer-events:none;}
+.card-title{order:2; flex:1; min-width:0; font-weight:600; font-size:12.5px; line-height:1.3; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none;}
 .card.no-link .card-title{color:var(--ink-3); font-style:italic;}
-.card-fav,.card-edit{position:absolute; top:8px; z-index:1; opacity:0; transition:opacity .15s; background:var(--surface); border-radius:50%;}
-.card-fav{left:8px;} .card-edit{right:8px;}
+.card-fav,.card-edit{position:relative; z-index:1; flex:none; opacity:0; transition:opacity .15s; background:none; border-radius:50%;}
+.card-fav{order:3;} .card-edit{order:4;}
 .card-fav.on{opacity:1; color:#E3A008;}
 .card:hover .card-fav,.card:focus-within .card-fav,.card:hover .card-edit,.card:focus-within .card-edit{opacity:.7;}
 .card-fav:hover,.card-edit:hover{opacity:1!important;}
-.modules-empty{grid-column:1/-1; text-align:center; padding:40px 20px; color:var(--ink-3);}
+.modules-empty{text-align:center; padding:24px 10px; color:var(--ink-3); font-size:12px;}
 
 /* ============ módulo DP ============ */
-dialog.dlg-full{width:min(1180px, calc(100vw - 32px)); height:calc(100vh - 48px); height:calc(100dvh - 48px); max-height:calc(100vh - 48px); display:flex; flex-direction:column;}
-dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
-.dp-toolbar{flex:none; display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; padding:0 22px 16px;}
+.module-view-head{display:flex; align-items:center; gap:10px; padding:16px 22px;}
+.module-view-head h2{font-size:17px; font-weight:700; margin-right:auto;}
+.dp-toolbar{display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; padding:0 22px 16px;}
 .dp-toolbar input[type="search"]{flex:1 1 220px; min-width:0;}
 .dp-toolbar select{flex:0 0 auto;}
 .dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap;}
-.dp-listhead{flex:none; display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; padding:8px 22px; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); background:var(--surface-2); font-size:11.5px; font-weight:600; color:var(--ink-3);}
+.dp-listhead{display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; padding:8px 22px; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); background:var(--surface-2); font-size:11.5px; font-weight:600; color:var(--ink-3);}
 @media (max-width:760px){ .dp-listhead{display:none;} }
-.dp-list{flex:1; overflow-y:auto; padding-bottom:12px;}
+.dp-list{padding-bottom:24px;}
 .dp-row{display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; align-items:center; padding:10px 22px; border-bottom:1px solid var(--rule); cursor:pointer;}
 .dp-row:hover{background:var(--surface-2);}
 @media (max-width:760px){ .dp-row{grid-template-columns:1fr; gap:4px;} }
@@ -200,9 +216,42 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
   </div>
 </header>
 
-<div class="wrap"><main id="main">
-  <div id="ferramentas-tools" class="modules-grid"></div>
-</main></div>
+<div class="shell">
+  <nav class="side-rail" id="side-rail" aria-label="Módulos">
+    <div class="side-rail-edge" aria-hidden="true"><span></span></div>
+    <div class="side-rail-panel">
+      <div class="side-rail-label">Ferramentas</div>
+      <div id="ferramentas-tools" class="rail-list"></div>
+    </div>
+  </nav>
+  <main id="main" class="main-content">
+    <div class="wrap" id="view-home">
+      <div class="home-hint">
+        <div class="home-hint-ico">🗂️</div>
+        <p>Passe o mouse na barra lateral à esquerda para abrir um módulo.</p>
+      </div>
+    </div>
+
+    <!-- ===== módulo: DP (lista) ===== -->
+    <section id="view-dp" class="module-view" hidden>
+      <div class="module-view-head">
+        <button type="button" class="icon-btn" id="dp-back" aria-label="Voltar para ferramentas">←</button>
+        <h2>Departamento Pessoal</h2>
+        <span class="dp-count" id="dp-count"></span>
+      </div>
+      <div class="dp-toolbar">
+        <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
+        <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
+        <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
+        <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
+      </div>
+      <div class="dp-listhead">
+        <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
+      </div>
+      <div class="dp-list" id="dp-list"></div>
+    </section>
+  </main>
+</div>
 
 <!-- ===== dialog: ferramenta ===== -->
 <dialog id="dlg-ferramenta" class="dlg">
@@ -238,25 +287,6 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
       <button type="submit" class="btn btn-primary">Salvar</button>
     </div>
   </form>
-</dialog>
-
-<!-- ===== módulo: DP (lista) ===== -->
-<dialog id="dlg-dp" class="dlg dlg-full">
-  <div class="dlg-head">
-    <h2>Departamento Pessoal</h2>
-    <span class="dp-count" id="dp-count"></span>
-    <button type="button" class="icon-btn dlg-close" id="dlg-dp-close" aria-label="Fechar">✕</button>
-  </div>
-  <div class="dp-toolbar">
-    <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
-    <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
-    <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
-    <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
-  </div>
-  <div class="dp-listhead">
-    <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
-  </div>
-  <div class="dp-list" id="dp-list"></div>
 </dialog>
 
 <!-- ===== módulo: DP (detalhe da empresa) ===== -->
@@ -380,6 +410,7 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     prefs: { theme: null },
     dpEmpresas: [], dpLoaded: false,
     dpQuery: '', dpResponsavel: '',
+    activeModule: null,
   };
 
   let db = null, downloads = null;
@@ -642,6 +673,21 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     if (key === 'dp') openDpModule();
   }
 
+  function goHome() {
+    state.activeModule = null;
+    $('#side-rail').classList.remove('open');
+    $$('.module-view').forEach(el => { el.hidden = true; });
+    $('#view-home').hidden = false;
+  }
+
+  $('#side-rail').addEventListener('click', (e) => {
+    if (e.target.closest('.side-rail-edge')) $('#side-rail').classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    const rail = $('#side-rail');
+    if (rail.classList.contains('open') && !rail.contains(e.target)) rail.classList.remove('open');
+  });
+
   let dragId = null;
   $('#ferramentas-tools').addEventListener('dragstart', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id) return; dragId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
   $('#ferramentas-tools').addEventListener('dragend', (e) => { e.target.closest('.card')?.classList.remove('dragging'); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); });
@@ -681,7 +727,10 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     const cur = state.dpResponsavel;
     sel.innerHTML = '<option value="">Todos os responsáveis</option>' + dpResponsaveis().map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
     sel.value = cur;
-    $('#dlg-dp').showModal();
+    state.activeModule = 'dp';
+    $('#side-rail').classList.remove('open');
+    $('#view-home').hidden = true;
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
     renderDp();
     $('#dp-search').focus();
   }
@@ -706,7 +755,7 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
   }
   $('#dp-search').addEventListener('input', (e) => { state.dpQuery = e.target.value.trim(); renderDp(); });
   $('#dp-filtro-responsavel').addEventListener('change', (e) => { state.dpResponsavel = e.target.value; renderDp(); });
-  $('#dlg-dp-close').addEventListener('click', () => $('#dlg-dp').close());
+  $('#dp-back').addEventListener('click', () => goHome());
 
   $('#dp-btn-export').addEventListener('click', async () => {
     const filename = `control-hub-dp-${new Date().toISOString().slice(0,10)}.json`;
@@ -864,12 +913,18 @@ dialog.dlg-full .dlg-head{flex:none; padding:16px 22px;}
     db.collection('dp_empresas').onSnapshot((snap) => {
       state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i));
       state.dpLoaded = true;
-      if ($('#dlg-dp').open) renderDp();
+      if (state.activeModule === 'dp') renderDp();
     }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
   }
 
+  function syncHeaderHeight() {
+    document.documentElement.style.setProperty('--header-h', ($('.masthead')?.offsetHeight || 64) + 'px');
+  }
+  window.addEventListener('resize', syncHeaderHeight);
+
   loadPrefs();
   applyTheme();
+  syncHeaderHeight();
   if (HOSTED) startShared(); else startLocal();
 })();
 </script>
