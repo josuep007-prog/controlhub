@@ -921,7 +921,7 @@ body.portal-open{overflow:hidden;}
       <div class="dp-field-grid">
         <label class="field">Razão social / nome<input id="dp-nome" autocomplete="off"></label>
         <label class="field">Código<input id="dp-cod" autocomplete="off"></label>
-        <label class="field">CNPJ<input id="dp-cnpj" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00"><span class="field-hint" id="dp-cnpj-hint"></span></label>
+        <label class="field">CNPJ ou CPF<input id="dp-cnpj" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00"><span class="field-hint" id="dp-cnpj-hint"></span></label>
         <label class="field">Código Domínio<input id="dp-codigo-dominio" autocomplete="off"></label>
         <label class="field">Tributação<select id="dp-tributacao"></select></label>
         <label class="field">Situação no DP
@@ -1217,8 +1217,19 @@ body.portal-open{overflow:hidden;}
     if (d.length > 12) o += '-' + d.slice(12);
     return o;
   }
+  // Empregador doméstico tem CPF (11 dígitos) no lugar do CNPJ.
+  function cpfValido(v) {
+    if (/[A-Za-z]/.test(String(v||''))) return false;
+    const d = String(v||'').replace(/\D/g,'');
+    if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+    const dv = (len) => { let s = 0; for (let i = 0; i < len; i++) s += +d[i] * (len + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+    return dv(9) === +d[9] && dv(10) === +d[10];
+  }
+  const maskCpf = (v) => { const d = String(v||'').replace(/\D/g,''); return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`; };
   // CNPJ numérico ou alfanumérico (IN RFB 2.229/2024): valor do caractere = código ASCII − 48, pesos 2..9 da direita.
+  // Também aceita CPF válido (empregador doméstico).
   function cnpjValido(v) {
+    if (cpfValido(v)) return true;
     const d = cnpjClean(v);
     if (!/^[0-9A-Z]{12}\d{2}$/.test(d) || /^(.)\1+$/.test(d)) return false;
     const dv = (len) => { let s = 0, w = 2; for (let i = len-1; i >= 0; i--) { s += (d.charCodeAt(i) - 48) * w; w = w === 9 ? 2 : w + 1; } const r = s % 11; return r < 2 ? 0 : 11 - r; };
@@ -1842,7 +1853,7 @@ body.portal-open{overflow:hidden;}
   const byNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
   const findDpEmpresa = (id) => state.dpEmpresas.find(e => e.id === id);
   const ativa = (e) => e.situacao !== 'Inativa';
-  const fmtCnpj = (v) => cnpjClean(v).length === 14 ? maskCnpj(v) : String(v || '').trim();
+  const fmtCnpj = (v) => cnpjClean(v).length === 14 ? maskCnpj(v) : cpfValido(v) ? maskCpf(v) : String(v || '').trim();
   const wd = (d) => DIAS_SEM[d.getDay()];
 
   function dpResponsaveis() {
@@ -2048,7 +2059,7 @@ body.portal-open{overflow:hidden;}
   // ---------- cadastro ----------
   const GAPS = [
     { v:'cnpj', l:'Sem CNPJ', test: e => !e.cnpj },
-    { v:'cnpjinv', l:'CNPJ inválido', test: e => !!e.cnpj && !cnpjValido(e.cnpj) },
+    { v:'cnpjinv', l:'CNPJ/CPF inválido', test: e => !!e.cnpj && !cnpjValido(e.cnpj) },
     { v:'resp', l:'Sem responsável', test: e => !e.responsavel },
     { v:'trib', l:'Sem tributação', test: e => !e.tributacao },
     { v:'database', l:'Sem data-base', test: e => !e.dataBase && !e.estabelecimentos.some(s => s.dataBase) },
@@ -2202,7 +2213,7 @@ body.portal-open{overflow:hidden;}
 
   // Ordem fixa das situações = ordem validada da paleta (azul, laranja, verde-água, amarelo).
   const SIT_FUNC = [['Ativo', 'var(--viz-1)'], ['Férias', 'var(--viz-2)'], ['Desligado', 'var(--viz-3)'], ['Afastado', 'var(--viz-4)']];
-  const GAP_OK = { cnpj:'CNPJ informado', cnpjinv:'CNPJ válido', resp:'Responsável definido', trib:'Tributação definida', database:'Data-base definida', fech:'Procedimento de fechamento' };
+  const GAP_OK = { cnpj:'CNPJ informado', cnpjinv:'CNPJ/CPF válido', resp:'Responsável definido', trib:'Tributação definida', database:'Data-base definida', fech:'Procedimento de fechamento' };
 
   // ---------- painel ----------
   function renderDpPainel() {
@@ -2648,7 +2659,7 @@ body.portal-open{overflow:hidden;}
     container.innerHTML = list.map(e => {
       const p = proxEmpresa(e);
       const inv = e.cnpj && !cnpjValido(e.cnpj);
-      const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)" title="CNPJ inválido"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
+      const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)" title="CNPJ/CPF inválido"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
       return `<div class="dp-row" style="--cols:${EMP_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
         <div><div class="dp-cell-main">${escapeHtml(e.nome)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>
         <div class="dp-hide-sm dp-cell-sub" style="font-size:12px">${escapeHtml(e.tributacao || '—')}</div>
@@ -2851,8 +2862,9 @@ body.portal-open{overflow:hidden;}
     const v = $('#dp-cnpj').value, hint = $('#dp-cnpj-hint'), c = cnpjClean(v);
     hint.className = 'field-hint'; hint.textContent = '';
     if (!c) return;
-    if (c.length < 14) { hint.textContent = `${c.length}/14 caracteres`; return; }
-    if (!cnpjValido(v)) { hint.className = 'field-hint err'; hint.textContent = 'CNPJ inválido: confira os dígitos.'; return; }
+    if (cpfValido(v)) { hint.textContent = 'CPF válido (empregador doméstico).'; return; }
+    if (c.length < 14) { hint.textContent = c.length === 11 ? '11 dígitos: CPF inválido, ou continue digitando o CNPJ' : `${c.length}/14 caracteres`; return; }
+    if (!cnpjValido(v)) { hint.className = 'field-hint err'; hint.textContent = 'CNPJ/CPF inválido: confira os dígitos.'; return; }
     const dup = state.dpEmpresas.find(x => x.id !== dpAtual?.id && cnpjClean(x.cnpj) === c);
     if (dup) { hint.className = 'field-hint warn'; hint.textContent = `Já cadastrado em “${dup.nome}”.`; }
   }
@@ -2932,7 +2944,7 @@ body.portal-open{overflow:hidden;}
     if (f.uid) return `<span data-uid="${escapeHtml(v)}">Alguém da equipe</span>`;
     if (f.type === 'date') return escapeHtml(fmtDateStr(v));
     if (f.type === 'money') return escapeHtml(fmtBRL(v));
-    if (f.type === 'cnpj') return `<span class="dp-mono"${cnpjValido(v) ? '' : ' style="color:var(--dp-late)" title="CNPJ inválido"'}>${escapeHtml(v)}</span>`;
+    if (f.type === 'cnpj') return `<span class="dp-mono"${cnpjValido(v) ? '' : ' style="color:var(--dp-late)" title="CNPJ/CPF inválido"'}>${escapeHtml(v)}</span>`;
     return escapeHtml(v);
   }
   function extraCells(sec, row) {
