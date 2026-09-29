@@ -276,7 +276,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .pill-soon{background:var(--dp-soon-bg); color:var(--dp-soon);}
 .pill-ok{background:var(--dp-ok-bg); color:var(--dp-ok);}
 .pill-muted{background:transparent; color:var(--ink-3); border:1px dashed var(--rule-strong);}
-.tag{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); border:1px solid var(--rule-strong); border-radius:3px; padding:0 4px;}
 
 
 
@@ -464,7 +463,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ml-day-item{display:flex; align-items:center; gap:10px; padding:7px 10px; background:var(--surface-2); border-radius:var(--r); font-size:12.5px; border:1px solid transparent; cursor:pointer; text-align:left; font:inherit; color:inherit; width:100%;}
 .ml-day-item:hover,.ml-day-item.on{border-color:var(--blue-deep);}
 .ml-day-item .dp-cell-sub{margin-left:auto;}
-.tag-meu{white-space:nowrap; color:var(--blue-deep); border-color:color-mix(in srgb, var(--blue-deep) 55%, transparent);}
 .dp-filter-pill{display:inline-flex; align-items:center; gap:6px; background:var(--blue-pale); color:var(--blue-deep); border-radius:14px; padding:3px 6px 3px 11px; font-size:11.5px; font-weight:600;}
 .dp-filter-pill button{border:0; background:none; color:inherit; cursor:pointer; font-size:12px; padding:0 3px;}
 
@@ -512,10 +510,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   .dp-row{grid-template-columns:var(--cols-sm, 1fr auto);}
   .dp-show-sm{display:block;}
 }
-.tag-lembrete{color:var(--sector-pessoal); border-color:color-mix(in srgb, var(--sector-pessoal) 55%, transparent);}
-.tag-pessoal{color:var(--sector-financeiro); border-color:color-mix(in srgb, var(--sector-financeiro) 55%, transparent);}
-.tag-database{color:var(--sector-fiscal); border-color:color-mix(in srgb, var(--sector-fiscal) 55%, transparent);}
-.tag-prazo{color:var(--sector-contabil); border-color:color-mix(in srgb, var(--sector-contabil) 55%, transparent);}
 .dp-row.past,.ag-day.past{opacity:.55;}
 .cal-day.past{opacity:.6;}
 .cal-n.ok{background:var(--surface-3); color:var(--ink-3);}
@@ -524,8 +518,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-prox{display:flex; align-items:center; gap:8px; min-width:0;}
 .dp-prox .dp-cell-sub{font-size:12px; color:var(--ink-2);}
 .q-item .pill,.dp-occ .pill{justify-self:start;}
-.q-text .dp-cell-main .tag{margin-right:2px; vertical-align:1px;}
-
+.q-text .dp-cell-main 
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px; max-width:calc(100vw - 32px);}
 .toast.show{opacity:1; transform:translate(-50%,0);}
 .toast.show.has-action{pointer-events:auto;}
@@ -2006,7 +1999,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (dd <= 7) return `<span class="pill pill-soon">Em ${dd} dias</span>`;
     return `<span class="pill">${fmtDM(d)} ${wd(d)}</span>`;
   }
-  const tagTipo = (t) => `<span class="tag tag-${t}">${TIPOS[t]}</span>`;
   const empLink = (ev) => ev.meu
     ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
     : ev.emps
@@ -2139,7 +2131,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return `<div class="dp-empty" style="grid-column:1/-1"><strong>Nenhuma empresa cadastrada no DP</strong><span>Cadastre as empresas ou importe um backup na aba Empresas.</span><button type="button" class="btn btn-primary btn-sm" data-go="empresas" data-ro-hide>Ir para Empresas</button></div>`;
   }
   const alItem = (a) => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${escapeHtml(a.empresa.nome)}</div></div>${pillRel(a.d, a.nivel === 'late' ? 'late' : undefined)}</div>`;
-  const qItem = (ev) => `<div class="q-item">${pillRel(ev.d)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div>${empLink(ev)}</div></div>`;
+  const qItem = (ev) => `<div class="q-item">${pillRel(ev.d)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div>${empLink(ev)}</div></div>`;
   // ---------- dica dos gráficos (tooltip) ----------
   // Cada marca leva data-tip: primeira linha em destaque, as demais abaixo. Texto sempre via textContent.
   const vizTip = document.createElement('div');
@@ -2412,7 +2404,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       if (ev.meu) return meuItem(ev);
       const k = ymd(ev.d);
       const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome + (ev.empresa.responsavel && !state.dpAgAnalista ? ' · ' + ev.empresa.responsavel : '') : '';
-      return `<div class="ml-item${ev.d < t ? ' past' : ''}" role="button" tabindex="0" ${evAttrs(ev, k)}>${pillRel(ev.d)}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${ehLembrete(ev) ? '' : tagTipo(ev.tipo) + ' '}${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml(quem) || '&nbsp;'}</div></div></div>`;
+      return `<div class="ml-item${ev.d < t ? ' past' : ''}" role="button" tabindex="0" ${evAttrs(ev, k)}>${pillRel(ev.d)}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml(quem) || '&nbsp;'}</div></div></div>`;
     };
     let titulo, sub, lista, vazio;
     if (state.dpAgDia) {
@@ -2964,7 +2956,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (dpDraft) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Crie a empresa para ver as datas dela.</div>'; return; }
     if (!ativa(e)) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Empresa inativa: fica fora da agenda e dos alertas. Os lembretes continuam abaixo.</div>'; return; }
     const evs = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral' && ev.tipo !== 'lembrete').slice(0, 10);
-    const itens = evs.map(ev => `<div class="dp-occ dp-occ-btn" role="button" tabindex="0" ${ev.edit ? `data-edit="${escapeHtml(ev.edit)}"` : ''} title="${state.readOnly ? 'Ver' : 'Editar'}"><div>${pillRel(ev.d)}</div><div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div>${state.readOnly ? '' : `<span class="dp-occ-go">${ic('edit', 'ic-sm')} Editar</span>`}</div>`).join('');
+    const itens = evs.map(ev => `<div class="dp-occ dp-occ-btn" role="button" tabindex="0" ${ev.edit ? `data-edit="${escapeHtml(ev.edit)}"` : ''} title="${state.readOnly ? 'Ver' : 'Editar'}"><div>${pillRel(ev.d)}</div><div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div>${state.readOnly ? '' : `<span class="dp-occ-go">${ic('edit', 'ic-sm')} Editar</span>`}</div>`).join('');
     el.innerHTML = `<div class="dlg-section-title">Outras datas desta empresa <span class="dp-cell-sub" style="font-weight:500">rotinas, pessoal e data-base nos próximos 45 dias</span></div><div>${itens || '<div class="empty-mini">Nenhuma rotina, evento de pessoal ou data-base nos próximos 45 dias.</div>'}</div>`;
   }
   function refreshDetailDatas() { if (dpAtual && dlgDetail.open) { renderDetailProx(); renderDetailGerais(); renderDetailSec('prazos'); updateDetailHeader(); } }
