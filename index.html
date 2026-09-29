@@ -4,7 +4,7 @@
 <style>
 :root{
   --page:#EDF0F3; --surface:#FFFFFF; --surface-2:#F5F8FA; --surface-3:#EAEFF3;
-  --ink:#101820; --ink-2:#47545F; --ink-3:#78868F;
+  --ink:#101820; --ink-2:#47545F; --ink-3:#5F6D77;
   --rule:#DCE3E9; --rule-strong:#C2CCD5;
   --brand-red:#C2000C; --brand-red-deep:#550E0B; --brand-red-soft:#FBEAEA;
   --blue-deep:#3C659B; --blue-mid:#6BAAC9; --blue-pale:#DCE8F1;
@@ -249,7 +249,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-row:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
 .dp-row > *{min-width:0;}
 .dp-list{padding-bottom:24px;}
-.dp-cell-sub{font-size:11px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.dp-cell-sub{font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .dp-cell-main{font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .dp-mono{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;}
 .dp-empty{text-align:center; padding:44px 20px; color:var(--ink-3); display:flex; flex-direction:column; align-items:center; gap:12px;}
@@ -303,7 +303,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .q-item:first-child{border-top:0;}
 .q-text{min-width:0;}
 .q-text .dp-cell-main{font-weight:500;}
-.q-emp{border:0; background:none; padding:0; color:var(--ink-3); font-size:11.5px; cursor:pointer; text-align:left; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;}
+.q-emp{border:0; background:none; padding:0; color:var(--ink-3); font-size:12px; cursor:pointer; text-align:left; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;}
 .q-emp:hover{color:var(--blue-deep); text-decoration:underline;}
 .al-item{display:grid; grid-template-columns:8px minmax(0,1fr) auto; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--rule); cursor:pointer;}
 .al-item:first-child{border-top:0;}
@@ -332,7 +332,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cal-n.late{background:var(--dp-late); color:var(--surface);}
 .cal-n.today{background:var(--dp-today); color:var(--surface);}
 .cal-n.ok{background:var(--dp-ok-bg); color:var(--dp-ok);}
-.cal-legend{display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px; color:var(--ink-3); padding-top:8px;}
+.cal-legend{display:flex; gap:10px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-3); padding-top:8px;}
 
 
 /* agenda */
@@ -340,13 +340,22 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ag-day .wd{font-family:"IBM Plex Sans",sans-serif; font-weight:500; color:var(--ink-3); font-size:12px;}
 .ag-day .hol{font-family:"IBM Plex Sans",sans-serif; font-size:11px; color:var(--dp-today); font-weight:600;}
 @media (max-width:760px){ .ag-day{padding-inline:16px;} }
-.ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0 18px; align-items:start;}
-.ag-side{padding:16px 22px 24px 0; position:sticky; top:calc(var(--header-h, 64px) + 12px);}
-@media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static; padding:0 22px 8px; order:-1;} }
-@media (max-width:760px){ .ag-side{padding-inline:16px;} }
+.ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:16px 18px; align-items:start; padding:0 22px 24px;}
+.ag-grid .list-card{margin:0;}
+.ag-side{position:sticky; top:calc(var(--header-h, 64px) + 12px);}
+@media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static; order:-1;} }
+@media (max-width:760px){ .ag-grid{padding-inline:16px;} }
+.list-card{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); margin:0 22px 24px; overflow:hidden;}
+.list-card .dp-listhead{border-top:0;}
+.list-card .dp-list{padding-bottom:0;}
+.list-card .dp-list > .dp-row:last-child{border-bottom:0;}
+.list-card .ag-day{background:var(--surface-2);}
+.list-card .ag-day:first-child{padding-top:10px;}
+@media (max-width:760px){ .list-card{margin-inline:16px;} }
+.module-view{max-width:1320px; margin-inline:auto;}
 .ml-cal .cal-day{aspect-ratio:1/0.9;}
 .ml-cal .cal-day.sel{border-color:var(--blue-deep); background:var(--blue-pale);}
-.cal-n.meu{background:var(--sector-pessoal); color:var(--surface);}
+.cal-n.meu{background:var(--blue-deep); color:var(--surface);}
 .ml-item{display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--rule); cursor:pointer; min-width:0;}
 .ml-item:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
 .chk{width:22px; height:22px; flex:none; border-radius:50%; border:1.5px solid var(--rule-strong); background:var(--surface); display:grid; place-items:center; color:transparent; cursor:pointer; padding:0;}
@@ -363,7 +372,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ml-day-item{display:flex; align-items:center; gap:10px; padding:7px 10px; background:var(--surface-2); border-radius:var(--r); font-size:12.5px; border:1px solid transparent; cursor:pointer; text-align:left; font:inherit; color:inherit; width:100%;}
 .ml-day-item:hover,.ml-day-item.on{border-color:var(--blue-deep);}
 .ml-day-item .dp-cell-sub{margin-left:auto;}
-.tag-meu{white-space:nowrap; color:var(--brand-red); border-color:color-mix(in srgb, var(--brand-red) 55%, transparent);}
+.tag-meu{white-space:nowrap; color:var(--blue-deep); border-color:color-mix(in srgb, var(--blue-deep) 55%, transparent);}
 .dp-filter-pill{display:inline-flex; align-items:center; gap:6px; background:var(--blue-pale); color:var(--blue-deep); border-radius:14px; padding:3px 6px 3px 11px; font-size:11.5px; font-weight:600;}
 .dp-filter-pill button{border:0; background:none; color:inherit; cursor:pointer; font-size:12px; padding:0 3px;}
 
@@ -378,7 +387,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dpanel[hidden]{display:none;}
 .dpanel{display:flex; flex-direction:column; gap:16px;}
 .dp-field-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px;}
-.field-hint{font-size:11px; font-weight:500; color:var(--ink-3); min-height:0;}
+.field-hint{font-size:12px; font-weight:500; color:var(--ink-3); min-height:0;}
 .field-hint.warn{color:var(--dp-today);} .field-hint.err{color:var(--dp-late);}
 .dp-section-rows{display:flex; flex-direction:column; gap:6px;}
 .dp-section-row{display:flex; gap:8px 12px; flex-wrap:wrap; align-items:flex-start; padding:8px 10px; background:var(--surface-2); border-radius:var(--r); border:1px solid transparent;}
@@ -530,9 +539,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <div class="dp-view" id="dp-view-agenda" hidden>
         <div class="dp-toolbar">
           <div class="dp-month" role="group" aria-label="Mês da agenda">
-            <button type="button" id="dp-ag-prev" aria-label="Mês anterior">‹</button>
+            <button type="button" id="dp-ag-prev" aria-label="Mês anterior"><svg class="ic"><use href="#i-left"/></svg></button>
             <span class="dp-month-label" id="dp-ag-label"></span>
-            <button type="button" id="dp-ag-next" aria-label="Próximo mês">›</button>
+            <button type="button" id="dp-ag-next" aria-label="Próximo mês"><svg class="ic"><use href="#i-right"/></svg></button>
           </div>
           <button type="button" class="btn btn-sm btn-ghost" id="dp-ag-hoje">Próximos 30 dias</button>
           <input type="search" id="dp-ag-search" placeholder="Buscar por data, empresa ou funcionário…" autocomplete="off">
@@ -544,7 +553,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <span class="dp-count" id="dp-ag-count"></span>
         </div>
         <div class="ag-grid">
-          <div class="dp-list" id="dp-ag-list"></div>
+          <div class="list-card"><div class="dp-list" id="dp-ag-list"></div></div>
           <aside class="ag-side" aria-label="Meus lembretes">
             <section class="pn-card" id="dp-meus"></section>
           </aside>
@@ -557,14 +566,16 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <select id="dp-filtro-trib" aria-label="Tributação"><option value="">Toda tributação</option></select>
           <select id="dp-filtro-sit" aria-label="Situação"><option value="">Toda situação</option><option>Ativa</option><option>Sem movimento</option><option>Inativa</option></select>
           <select id="dp-filtro-gap" aria-label="Cadastro"><option value="">Qualquer cadastro</option></select>
-          <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova" data-ro-hide>＋ Nova empresa</button>
+          <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Nova empresa</button>
           <button type="button" class="btn btn-sm" id="dp-btn-csv">Planilha (CSV)</button>
           <button type="button" class="btn btn-sm" id="dp-btn-export">Backup</button>
           <label class="btn btn-sm" title="Importar backup (JSON)" data-ro-hide>Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
           <span class="dp-count" id="dp-count"></span>
         </div>
-        <div class="dp-listhead" id="dp-emp-head" style="--cols:minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px"></div>
-        <div class="dp-list" id="dp-list"></div>
+        <div class="list-card">
+          <div class="dp-listhead" id="dp-emp-head" style="--cols:minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px"></div>
+          <div class="dp-list" id="dp-list"></div>
+        </div>
       </div>
 
       <div class="dp-view" id="dp-view-funcionarios" hidden>
@@ -574,10 +585,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <button type="button" class="btn btn-sm" id="dp-btn-func-csv">Planilha (CSV)</button>
           <span class="dp-count" id="dp-func-count"></span>
         </div>
+        <div class="list-card">
         <div class="dp-listhead" style="--cols:minmax(0,1.6fr) minmax(0,1.4fr) 96px 104px minmax(0,1.8fr)">
           <span>Funcionário</span><span>Empresa</span><span>Admissão</span><span>Situação</span><span>Próxima data</span>
         </div>
         <div class="dp-list" id="dp-func-list"></div>
+        </div>
       </div>
     </section>
   </main>
@@ -585,7 +598,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
 <!-- ===== dialog: ferramenta ===== -->
 <dialog id="dlg-ferramenta" class="dlg">
-  <div class="dlg-head"><h2 id="dlg-ferramenta-title">Nova ferramenta</h2><button type="button" class="icon-btn dlg-close" id="dlg-ferramenta-close-x" aria-label="Fechar">✕</button></div>
+  <div class="dlg-head"><h2 id="dlg-ferramenta-title">Nova ferramenta</h2><button type="button" class="icon-btn dlg-close" id="dlg-ferramenta-close-x" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <form class="dlg-body" id="form-ferramenta">
     <input type="hidden" name="id">
     <div class="form-row">
@@ -624,7 +637,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   <div class="dlg-head">
     <h2 id="dp-detail-title">Empresa</h2>
     <span class="pill" id="dp-detail-sit"></span>
-    <button type="button" class="icon-btn dlg-close" id="dlg-dp-detail-close" aria-label="Fechar">✕</button>
+    <button type="button" class="icon-btn dlg-close" id="dlg-dp-detail-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button>
   </div>
   <div class="dtabs" role="tablist" id="dp-dtabs">
     <button type="button" class="dtab" data-dtab="dados">Dados</button>
@@ -700,7 +713,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 <dialog id="dlg-dp-gerais" class="dlg dlg-lg">
   <div class="dlg-head">
     <h2>Prazos gerais</h2>
-    <button type="button" class="icon-btn dlg-close" id="dlg-dp-gerais-close" aria-label="Fechar">✕</button>
+    <button type="button" class="icon-btn dlg-close" id="dlg-dp-gerais-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button>
   </div>
   <div class="dlg-body">
     <p class="dp-sec-note" style="margin:0">Datas que valem para todas as empresas ativas (salários, eSocial, FGTS…). Aparecem uma vez por dia na agenda, com a quantidade de empresas. Para tirar um prazo de uma empresa, abra a empresa e desmarque na aba Datas e lembretes.</p>
@@ -717,7 +730,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 <dialog id="dlg-meu" class="dlg">
   <div class="dlg-head">
     <h2 id="dlg-meu-title">Novo lembrete</h2>
-    <button type="button" class="icon-btn dlg-close" id="dlg-meu-close" aria-label="Fechar">✕</button>
+    <button type="button" class="icon-btn dlg-close" id="dlg-meu-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button>
   </div>
   <form class="dlg-body" id="form-meu">
     <div class="dlg-section" id="meu-dia-wrap" hidden>
@@ -1941,7 +1954,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (state.dpAgDia) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
     const base = all;
     $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${base.filter(ev => !v || ev.tipo === v).length}</span></button>`).join('');
-    $('#dp-ag-dia').innerHTML = state.dpAgDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o mês inteiro">✕</button></span>` : '';
+    $('#dp-ag-dia').innerHTML = state.dpAgDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o mês inteiro">${ic('x', 'ic-sm')}</button></span>` : '';
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s)`;
     const semDatas = !state.dpGerais.length && !state.meus.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
@@ -1972,7 +1985,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const el = $('#dp-meus');
     const aberto = !!el.querySelector('details[open]');
     const t = hoje();
-    const head = `<div class="pn-card-head"><h3>Meus lembretes</h3>${podeCriarMeu() && state.meusLoaded ? '<button type="button" class="btn btn-sm btn-primary" data-meu-novo>＋ Novo</button>' : ''}</div>`;
+    const head = `<div class="pn-card-head"><h3>Meus lembretes</h3>${podeCriarMeu() && state.meusLoaded ? '<button type="button" class="btn btn-sm btn-primary" data-meu-novo>' + ic('plus', 'ic-sm') + ' Novo</button>' : ''}</div>`;
     if (state.meusOff) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">${escapeHtml(state.meusOff)}</div></div>`; return; }
     if (!state.meusLoaded) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">Carregando…</div></div>`; return; }
 
@@ -2018,7 +2031,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     $('#meu-dia-wrap').hidden = !evs.length;
     $('#meu-dia-title').textContent = d ? `Neste dia · ${fmtDMY(d)}, ${wd(d)}${feriado(d) ? ' · ' + feriado(d) : ''}` : '';
     $('#meu-dia-list').innerHTML = evs.map(ev => `<button type="button" class="ml-day-item${meuAtual?.id === ev.meu.id ? ' on' : ''}" data-meu-edit="${escapeHtml(ev.meu.id)}"><span>${escapeHtml(ev.titulo)}</span><span class="dp-cell-sub">${escapeHtml(ev.meu.rep !== 'nao' ? descreveRep(ev.meu) : '')}</span></button>`).join('')
-      + (podeCriarMeu() && meuAtual ? '<button type="button" class="btn btn-sm" data-meu-new style="align-self:flex-start">＋ Outro lembrete neste dia</button>' : '');
+      + (podeCriarMeu() && meuAtual ? '<button type="button" class="btn btn-sm" data-meu-new style="align-self:flex-start">' + ic('plus', 'ic-sm') + ' Outro lembrete neste dia</button>' : '');
   }
   function fillMeuForm(l) {
     meuAtual = l;
@@ -2413,7 +2426,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         return `<div class="dp-section-row editing" data-row="${escapeHtml(row.id)}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, row[f.key], 'edit')).join('')}<div class="dp-row-actions"><button type="button" class="btn btn-sm btn-primary" data-sec-save="${sec}" data-id="${escapeHtml(row.id)}">Salvar</button><button type="button" class="btn btn-sm" data-sec-cancel="${sec}">Cancelar</button></div></div>`;
       }
       const cells = cfg.fields.filter((f, i) => i === 0 || row[f.key] || f.type === 'regra' || f.uid).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
-      const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">✏️</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">🗑️</button></div>`;
+      const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
       return `<div class="dp-section-row">${extraCells(sec, row)}${cells}${actions}</div>`;
     }).join('');
     const addRow = ro ? '' : `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<button type="button" class="btn btn-sm" data-sec-add="${sec}" style="align-self:flex-end">＋ ${escapeHtml(cfg.addLabel)}</button></div>`;
