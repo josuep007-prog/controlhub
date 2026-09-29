@@ -8596,8 +8596,35 @@
   });
 
   // Aberto dentro do Control Hub (iframe), usa a conexão da página principal: é ela que tem o banco liberado.
+  // O banco da página principal só aceita objetos criados lá: cada objeto enviado (set, update, add,
+  // filtros) é recriado com o JSON da página principal antes de seguir.
+  function bancoDoPai(db){
+    var P = window.parent;
+    var clonar = function(v){ return v && typeof v === "object" ? P.JSON.parse(JSON.stringify(v)) : v; };
+    var ehRef = function(r){ return r && typeof r === "object" && typeof r.then !== "function" && (typeof r.onSnapshot === "function" || typeof r.doc === "function"); };
+    var envolve = function(t){
+      return new Proxy({}, {
+        get:function(_, k){
+          var v = t[k];
+          if(typeof v !== "function") return v;
+          return function(){
+            var a = Array.prototype.map.call(arguments, function(x){ return typeof x === "function" ? x : clonar(x); });
+            var r = v.apply(t, a);
+            return ehRef(r) ? envolve(r) : r;
+          };
+        },
+        has:function(_, k){ return k in t; }
+      });
+    };
+    return envolve(db);
+  }
   function usarCap(n){
-    try{ if(window.parent !== window && window.parent.claude && window.parent.claude.use) return window.parent.claude.use(n); }catch(e){}
+    try{
+      if(window.parent !== window && window.parent.claude && window.parent.claude.use){
+        var p = window.parent.claude.use(n);
+        return n === "db" ? p.then(function(db){ return db ? bancoDoPai(db) : db; }) : p;
+      }
+    }catch(e){}
     return window.claude && window.claude.use ? window.claude.use(n) : Promise.resolve(null);
   }
   usarCap("db").then(function(db){
