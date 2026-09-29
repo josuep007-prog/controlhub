@@ -236,7 +236,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-toolbar input[type="search"]{flex:1 1 220px; min-width:0;}
 .dp-toolbar select{flex:0 1 auto; min-width:0;}
 /* cartela de clientes */
-.ct-layout{display:grid; grid-template-columns:270px minmax(0,1fr); gap:16px; padding:0 22px 24px; align-items:start;}
+.ct-layout{display:grid; grid-template-columns:250px minmax(0,1fr); gap:16px; padding:0 22px 24px; align-items:start;}
 .ct-side{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); padding:8px; display:flex; flex-direction:column; gap:2px; position:sticky; top:calc(var(--header-h, 64px) + 12px); max-height:calc(100vh - var(--header-h, 64px) - 24px); overflow:auto;}
 .ct-side-h{font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); padding:4px 8px 6px;}
 .ct-an{display:grid; grid-template-columns:32px minmax(0,1fr) auto; gap:4px 10px; align-items:center; border:1px solid transparent; border-radius:var(--r); padding:8px; cursor:pointer; position:relative;}
@@ -257,7 +257,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ct-add{display:flex; gap:6px; padding:8px 2px 2px; border-top:1px solid var(--rule); margin-top:6px;}
 .ct-add input{flex:1; min-width:0;}
 .list-card.ct-sheet{margin:0;}
-.ct-scroll{overflow-x:auto;}
+.ct-scroll{overflow-x:visible;}
+@media (max-width:860px){ .ct-scroll{overflow-x:auto;} }
 .ct-table{width:100%; border-collapse:collapse; font-size:13px;}
 .ct-table th{background:var(--surface-2); text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:9px 10px; border-bottom:1px solid var(--rule); white-space:nowrap;}
 .ct-table th button{all:unset; cursor:pointer;}
@@ -272,15 +273,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ct-table .num{text-align:right; font-variant-numeric:tabular-nums;}
 .ct-table .chk-col{width:34px; padding-right:0;}
 .ct-table input[type=checkbox]{width:16px; height:16px; cursor:pointer; accent-color:var(--blue-deep);}
-.ct-table select{width:100%; min-width:160px; padding:4px 6px;}
+.ct-table select{width:100%; min-width:0; padding:4px 6px; font-size:12.5px; text-overflow:ellipsis;}
+#ct-table{table-layout:fixed;} #ct-table th,#ct-table td{padding-inline:8px; overflow-wrap:anywhere;} #ct-table th{white-space:normal;} #ct-table .pill{white-space:normal; text-align:left;}
+#ct-table .dp-cell-main{white-space:normal;} #ct-table .dp-cell-sub{white-space:normal;}
+.ct-emp-pills{display:flex; gap:4px; margin-top:2px; flex-wrap:wrap;}
+@media (max-width:860px){ #ct-table{table-layout:auto; min-width:820px;} }
 .ct-table select.vazio{color:var(--dp-late); border-color:color-mix(in srgb, var(--dp-late) 50%, var(--rule-strong));}
-.ct-emp{all:unset; cursor:pointer; display:block; max-width:340px;}
+.ct-emp{all:unset; cursor:pointer; display:block; max-width:100%;}
 .ct-emp:hover .dp-cell-main{text-decoration:underline;}
 .ct-emp:focus-visible{outline:2px solid var(--blue-deep);}
 .ct-bulk{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--blue-pale); border:1px solid var(--blue-deep); border-radius:var(--r); padding:8px 12px; margin-bottom:10px; font-size:13px;}
 .ct-bulk select{min-width:180px;}
 .ct-hint{font-size:12px; color:var(--ink-3); margin:8px 2px 0;}
-@media (max-width:860px){ .ct-layout{grid-template-columns:minmax(0,1fr);} .ct-side{position:static; max-height:none;} }
+@media (max-width:1180px){ .ct-layout{grid-template-columns:minmax(0,1fr);} .ct-side{position:static; max-height:none; flex-direction:row; flex-wrap:wrap;} .ct-side .ct-an{flex:1 1 230px;} .ct-side-h,.ct-add{flex:1 1 100%;} }
 .ct-alertas{display:flex; flex-direction:column; gap:6px; padding:0 22px 12px;}
 .ct-al{display:flex; align-items:center; gap:8px; text-align:left; border:1px solid var(--rule); border-left-width:4px; background:var(--surface); border-radius:var(--r); padding:7px 12px; font:inherit; font-size:12.5px; color:var(--ink); cursor:pointer;}
 .ct-al.late{border-left-color:var(--dp-late);} .ct-al.warn{border-left-color:var(--dp-today);}
@@ -314,7 +319,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ct-bar:hover,.ct-bar:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
 .ct-bar.sem{box-shadow:inset 0 -3px 0 var(--dp-late);}
 .ct-sem{color:var(--dp-late); font-weight:600;}
-.ct-acoes{white-space:nowrap; text-align:right;} .ct-acoes .btn{margin-right:4px;}
+.ct-acoes{text-align:right;} .ct-acoes .btn{margin:0 0 4px 4px;}
 .ct-enc summary{cursor:pointer; font-size:12.5px; color:var(--ink-2); padding:4px 2px; margin-bottom:8px;}
 .aus-emps{display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto;}
 .aus-row{display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:10px; align-items:center;}
@@ -3636,23 +3641,23 @@ body.portal-open{overflow:hidden;}
     const optsRes = (atual, titular) => `<option value="">—</option>` + nomes.filter(n => norm(n) !== norm(titular)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
     const th = (k, l, cls = '') => `<th${cls ? ` class="${cls}"` : ''}><button type="button" data-ct-sort="${k}" class="${state.dpCtSort === k ? 'on' : ''}" aria-pressed="${state.dpCtSort === k}">${l}${state.dpCtSort === k ? ' ↓' : ''}</button></th>`;
     const todasSel = linhas.length > 0 && linhas.every(l => state.dpCtSel.has(l.e.id));
-    const head = `<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}<th>Situação</th>${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}<th title="Quem cobre primeiro nas ausências">Reserva</th><th>Hoje com</th></tr></thead>`;
+    const cols = `<colgroup>${ro ? '' : '<col style="width:34px">'}<col style="width:22%"><col style="width:14%"><col style="width:12%"><col style="width:62px"><col style="width:16%"><col style="width:14%"><col></colgroup>`;
+    const head = `${cols}<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}<th title="Quem cobre primeiro nas ausências">Reserva</th><th>Hoje com</th></tr></thead>`;
     const body = linhas.length ? linhas.map(({ e, nf }) => {
       const s = state.dpCtSel.has(e.id), r = ctResp(e), mudou = sim && r !== e.responsavel;
       const cob = coberturaDe(e);
       const hoje_ = !e.responsavel ? '<span class="dp-cell-sub">—</span>' : cob.coberta ? `<span class="pill pill-today" title="${escapeHtml(cob.titular)} está de ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdBR(cob.aus.fim)}">${escapeHtml(cob.efetivo)}</span>` : cob.aus ? '<span class="pill pill-late" title="Titular ausente e ninguém cobrindo esta empresa">sem cobertura</span>' : '<span class="dp-cell-sub">titular</span>';
       return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}${mudou ? ' mudou' : ''}"${ro ? '' : ' draggable="true"'}>
         ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
-        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${escapeHtml(e.nome)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button></td>
-        <td class="dp-mono">${escapeHtml(e.cnpj || '—')}</td>
+        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${escapeHtml(e.nome)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
+        <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
-        <td><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></td>
         <td class="num">${nf}</td>
         <td><select data-ct-resp class="${r ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(r)}</select>${mudou ? `<div class="ct-antes">antes: ${escapeHtml(e.responsavel || 'sem responsável')}</div>` : ''}</td>
         <td><select data-ct-reserva aria-label="Reserva de ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${optsRes(e.reserva, r)}</select></td>
         <td>${hoje_}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="9"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
+    }).join('') : `<tr><td colspan="8"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
     $('#ct-table').innerHTML = head + '<tbody>' + body + '</tbody>';
 
     const n = state.dpCtSel.size, bulk = $('#ct-bulk');
