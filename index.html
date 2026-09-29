@@ -306,6 +306,23 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ag-day .wd{font-family:"IBM Plex Sans",sans-serif; font-weight:500; color:var(--ink-3); font-size:12px;}
 .ag-day .hol{font-family:"IBM Plex Sans",sans-serif; font-size:11px; color:var(--dp-today); font-weight:600;}
 @media (max-width:760px){ .ag-day{padding-inline:16px;} }
+.ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0 18px; align-items:start;}
+.ag-side{padding:16px 22px 24px 0; position:sticky; top:calc(var(--header-h, 64px) + 12px);}
+@media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static; padding:0 22px 8px; order:-1;} }
+@media (max-width:760px){ .ag-side{padding-inline:16px;} }
+.ml-cal .cal-day{aspect-ratio:1/0.9;}
+.ml-cal .cal-day.sel{border-color:var(--blue-deep); background:var(--blue-pale);}
+.cal-n.meu{background:var(--sector-pessoal); color:var(--surface);}
+.ml-item{display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--rule); cursor:pointer;}
+.ml-item:first-child{border-top:0;}
+.ml-item:hover .dp-cell-main{color:var(--blue-deep);}
+.ml-all summary{cursor:pointer; font-size:12px; font-weight:600; color:var(--ink-3); padding:10px 0 4px;}
+.ml-all summary:hover{color:var(--ink);}
+.ml-day-list{display:flex; flex-direction:column; gap:4px;}
+.ml-day-item{display:flex; align-items:center; gap:10px; padding:7px 10px; background:var(--surface-2); border-radius:var(--r); font-size:12.5px; border:1px solid transparent; cursor:pointer; text-align:left; font:inherit; color:inherit; width:100%;}
+.ml-day-item:hover,.ml-day-item.on{border-color:var(--blue-deep);}
+.ml-day-item .dp-cell-sub{margin-left:auto;}
+.tag-meu{white-space:nowrap; color:var(--brand-red); border-color:color-mix(in srgb, var(--brand-red) 55%, transparent);}
 .dp-filter-pill{display:inline-flex; align-items:center; gap:6px; background:var(--blue-pale); color:var(--blue-deep); border-radius:14px; padding:3px 6px 3px 11px; font-size:11.5px; font-weight:600;}
 .dp-filter-pill button{border:0; background:none; color:inherit; cursor:pointer; font-size:12px; padding:0 3px;}
 
@@ -447,7 +464,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <span id="dp-ag-dia"></span>
           <span class="dp-count" id="dp-ag-count"></span>
         </div>
-        <div class="dp-list" id="dp-ag-list"></div>
+        <div class="ag-grid">
+          <div class="dp-list" id="dp-ag-list"></div>
+          <aside class="ag-side" aria-label="Meus lembretes">
+            <section class="pn-card" id="dp-meus"></section>
+          </aside>
+        </div>
       </div>
 
       <div class="dp-view" id="dp-view-empresas" hidden>
@@ -612,6 +634,54 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   </div>
 </dialog>
 
+<!-- ===== agenda: meus lembretes ===== -->
+<dialog id="dlg-meu" class="dlg">
+  <div class="dlg-head">
+    <h2 id="dlg-meu-title">Novo lembrete</h2>
+    <button type="button" class="icon-btn dlg-close" id="dlg-meu-close" aria-label="Fechar">✕</button>
+  </div>
+  <form class="dlg-body" id="form-meu">
+    <div class="dlg-section" id="meu-dia-wrap" hidden>
+      <div class="dlg-section-title" id="meu-dia-title"></div>
+      <div class="ml-day-list" id="meu-dia-list"></div>
+    </div>
+    <div class="dlg-section">
+      <div class="dlg-section-title" id="meu-form-title">Novo lembrete</div>
+      <input type="hidden" name="id">
+      <label class="field">Lembrete *<input name="texto" required maxlength="200" autocomplete="off" placeholder="Ex.: Cobrar variáveis da folha"></label>
+      <div class="form-row">
+        <label class="field">Data *<input name="data" type="date" required></label>
+        <label class="field" style="max-width:130px">Hora<input name="hora" type="time"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Repetição
+          <select name="rep">
+            <option value="nao">Não repete</option>
+            <option value="diaria">Todo dia</option>
+            <option value="util">Todo dia útil (seg. a sex.)</option>
+            <option value="semanal">Toda semana</option>
+            <option value="mensal">Todo mês</option>
+            <option value="anual">Todo ano</option>
+          </select>
+        </label>
+        <label class="field" style="max-width:120px" id="meu-intervalo-wrap">A cada<input name="intervalo" type="number" min="1" max="99" value="1" inputmode="numeric"><span class="field-hint" id="meu-intervalo-un"></span></label>
+        <label class="field" id="meu-ate-wrap">Termina em<input name="ate" type="date"><span class="field-hint">Em branco: repete sem fim.</span></label>
+      </div>
+      <span class="field-hint" id="meu-resumo"></span>
+      <label class="field">Empresa (opcional)<select name="empresaId"></select></label>
+      <label class="field">Observação<textarea name="obs" rows="2" maxlength="500"></textarea></label>
+      <p class="dp-sec-note" style="margin:0">Só você vê os seus lembretes.</p>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-danger" id="btn-meu-excluir" hidden>Excluir</button>
+      <button type="button" class="btn" id="btn-meu-pular" hidden>Excluir só este dia</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-meu-cancelar">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="btn-meu-salvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- ===== confirmação genérica ===== -->
 <dialog id="dlg-ask" class="dlg" style="width:min(420px, calc(100vw - 32px))">
   <div class="dlg-body">
@@ -694,6 +764,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '',
     dpFuncQuery: '', dpFuncFiltro: '',
+    meus: [], meusLoaded: false, meusOff: '', meusSel: '',
     meId: null,
     activeModule: null,
   };
@@ -1008,6 +1079,24 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const geraisDb = { async save(itens) { await db.doc('dp_config/prazos_gerais').set({ itens }); } };
   let geraisStore = makeGeraisLocal();
 
+  // Meus lembretes: no servidor ficam em data/users/<id>/, área que só o próprio usuário lê e grava.
+  function makeMeusLocal() {
+    const KEY = 'control-hub:meus-lembretes';
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } };
+    return {
+      load,
+      async save(l) { localStorage.setItem(KEY, JSON.stringify(load().filter(x => x.id !== l.id).concat(l))); },
+      async del(id) { localStorage.setItem(KEY, JSON.stringify(load().filter(x => x.id !== id))); },
+    };
+  }
+  function makeMeusDb(col) {
+    return {
+      async save(l) { const { id, ...body } = l; await col.doc(id).set(body); },
+      async del(id) { await col.doc(id).delete(); },
+    };
+  }
+  let meusStore = makeMeusLocal();
+
   async function persist(fn) {
     try { await fn(); return true; }
     catch (e) {
@@ -1243,9 +1332,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
 
   // ---------- agenda: todas as datas de um período ----------
-  const TIPOS = { lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', geral:'Prazo geral' };
-  const TIPO_ORD = { lembrete:0, pessoal:1, prazo:2, database:3, geral:4 };
-  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
+  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', geral:'Prazo geral' };
+  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, geral:4 };
+  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.hora || '').localeCompare(b.hora || '') || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
   const dentro = (d, from, to) => !!d && d >= from && d <= to;
   function mesesEntre(from, to) { const out = []; for (let m = mesDe(from); m <= mesDe(to); m = mesShift(m, 1)) out.push(m); return out; }
   function eventos(from, to, lista = empresasCarteira()) {
@@ -1278,6 +1367,78 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   const proxEmpresa = (e) => { const t = hoje(); return eventos(t, addDays(t, 60), [e]).find(ev => ev.tipo !== 'geral') || null; };
 
+  // ---------- meus lembretes: de cada usuário, com repetição ----------
+  const REPS = { nao:'Não repete', diaria:'Todo dia', util:'Todo dia útil', semanal:'Toda semana', mensal:'Todo mês', anual:'Todo ano' };
+  const REP_UN = { diaria:['dia','dias'], semanal:['semana','semanas'], mensal:['mês','meses'], anual:['ano','anos'] };
+  function normalizeMeu(l) {
+    const rep = REPS[l.rep] ? l.rep : 'nao';
+    return {
+      id: validId(l.id) ? l.id : uid(),
+      texto: String(l.texto || '').trim().slice(0, 200),
+      data: toYmd(l.data),
+      hora: /^\d{2}:\d{2}$/.test(l.hora || '') ? l.hora : '',
+      rep,
+      intervalo: Math.min(99, Math.max(1, parseInt(l.intervalo, 10) || 1)),
+      ate: rep === 'nao' ? '' : (parseYmd(toYmd(l.ate)) ? toYmd(l.ate) : ''),
+      empresaId: validId(l.empresaId) ? l.empresaId : '',
+      obs: String(l.obs || '').slice(0, 500),
+      excecoes: Array.isArray(l.excecoes) ? l.excecoes.filter(x => parseYmd(x)).slice(-200) : [],
+      autor: String(l.autor || ''),
+      criadoEm: Number(l.criadoEm) || Date.now(),
+      atualizadoEm: Number(l.atualizadoEm) || 0,
+    };
+  }
+  function descreveRep(l) {
+    if (l.rep === 'nao') return REPS.nao;
+    const ini = parseYmd(l.data);
+    let s;
+    if (l.rep === 'util') s = REPS.util;
+    else if (l.intervalo > 1) s = `A cada ${l.intervalo} ${REP_UN[l.rep][1]}`;
+    else s = REPS[l.rep];
+    if (ini && l.rep === 'semanal') s += ` (${DIAS_SEM[ini.getDay()]})`;
+    if (ini && l.rep === 'mensal') s += ` (dia ${ini.getDate()})`;
+    if (ini && l.rep === 'anual') s += ` (${fmtDM(ini)})`;
+    if (l.ate) s += ` até ${fmtDateStr(l.ate)}`;
+    return s;
+  }
+  // Datas em que o lembrete cai dentro de [from, to]. Mês/ano sem o dia (31, 29/02) usa o último dia do mês.
+  function ocorrencias(l, from, to) {
+    const ini = parseYmd(l.data);
+    if (!ini) return [];
+    const fim = parseYmd(l.ate);
+    const lim = l.rep !== 'nao' && fim && fim < to ? fim : to;
+    const out = [];
+    if (ini > lim || lim < from) return out;
+    const pula = new Set(l.excecoes);
+    const push = (d) => { if (d >= from && d <= lim && d >= ini && !pula.has(ymd(d))) out.push(d); };
+    const n = l.intervalo || 1;
+    if (l.rep === 'diaria' || l.rep === 'semanal') {
+      const step = n * (l.rep === 'semanal' ? 7 : 1);
+      for (let k = Math.max(0, Math.floor(diffDays(from, ini) / step)); ; k++) { const d = addDays(ini, k * step); if (d > lim) break; push(d); }
+    } else if (l.rep === 'util') {
+      for (let d = from > ini ? from : ini; d <= lim; d = addDays(d, 1)) if (diaUtil(d)) push(d);
+    } else if (l.rep === 'mensal' || l.rep === 'anual') {
+      const step = l.rep === 'anual' ? 12 * n : n;
+      const mDiff = (from.getFullYear() - ini.getFullYear()) * 12 + from.getMonth() - ini.getMonth();
+      for (let k = Math.max(0, Math.floor(mDiff / step)); ; k++) {
+        const m = ini.getMonth() + k * step;
+        const d = new Date(ini.getFullYear(), m, Math.min(ini.getDate(), new Date(ini.getFullYear(), m + 1, 0).getDate()));
+        if (d > lim) break;
+        push(d);
+      }
+    } else push(ini);
+    return out;
+  }
+  function meusEventos(from, to) {
+    const out = [];
+    state.meus.forEach(l => ocorrencias(l, from, to).forEach(d => {
+      const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
+      out.push({ tipo:'meu', d, hora: l.hora, titulo: (l.hora ? l.hora + ' · ' : '') + (l.texto || 'Lembrete'), sub: [l.rep !== 'nao' ? descreveRep(l) : '', l.obs].filter(Boolean).join(' · '), meu: l, empresa: emp });
+    }));
+    return out.sort(porData);
+  }
+  const todosEventos = (from, to) => [...eventos(from, to), ...meusEventos(from, to)].sort(porData);
+
   function pillRel(d, nivel) {
     const dd = diffDays(d, hoje());
     if (nivel === 'late' || (nivel == null && dd < 0)) return `<span class="pill ${nivel === 'late' ? 'pill-late' : 'pill-muted'}">${dd === -1 ? 'Ontem' : dd < 0 ? `Há ${-dd} dias` : fmtDM(d)}</span>`;
@@ -1287,8 +1448,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return `<span class="pill">${fmtDM(d)} ${wd(d)}</span>`;
   }
   const tagTipo = (t) => `<span class="tag tag-${t}">${TIPOS[t]}</span>`;
-  const empLink = (ev) => ev.emps
-    ? `<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
+  const empLink = (ev) => ev.meu
+    ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
+    : ev.emps
+    ?`<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
     : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${escapeHtml(ev.empresa.nome)}${ev.empresa.responsavel && !state.dpCarteira ? ' · ' + escapeHtml(ev.empresa.responsavel) : ''}</button>`;
 
   // ---------- cadastro ----------
@@ -1351,7 +1514,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function renderBadges() {
     const t = hoje();
-    const n = eventos(t, t).length;
+    const n = todosEventos(t, t).length;
     const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
     ba.title = `${n} data(s) hoje`;
     const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
@@ -1373,6 +1536,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   // Delegação: abrir empresa, atalhos do painel, filtros
   $('#view-dp').addEventListener('click', (e) => {
+    const meu = e.target.closest('[data-meu]');
+    if (meu) { const l = state.meus.find(x => x.id === meu.dataset.meu); if (l) openMeu({ lembrete: l, dia: meu.dataset.dia }); return; }
+    const meuDia = e.target.closest('[data-meu-dia]');
+    if (meuDia) { state.meusSel = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
+    if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: state.meusSel || ymd(hoje()), novo: true }); return; }
     const open = e.target.closest('[data-open-emp]');
     if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) openDpDetail(emp, { tab: open.dataset.tab }); return; }
     const go = e.target.closest('[data-go]');
@@ -1395,7 +1563,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   });
   $('#view-dp').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    const row = e.target.closest('[data-open-emp],[data-open-gerais]');
+    const row = e.target.closest('[data-open-emp],[data-open-gerais],[data-meu]');
     if (row && row === e.target && row.getAttribute('role') === 'button') { e.preventDefault(); row.click(); }
   });
 
@@ -1410,9 +1578,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (!state.dpLoaded) { kp.innerHTML = ''; grid.innerHTML = '<div class="dp-empty" style="grid-column:1/-1">Carregando empresas…</div>'; return; }
     if (!state.dpEmpresas.length) { kp.innerHTML = ''; grid.innerHTML = emptyEmpresasHtml(); return; }
     const t = hoje();
-    const hojeEv = eventos(t, t);
-    const semana = eventos(addDays(t, 1), addDays(t, 7));
-    const lembretes30 = eventos(t, addDays(t, 30)).filter(ev => ev.tipo === 'lembrete');
+    const hojeEv = todosEventos(t, t);
+    const semana = todosEventos(addDays(t, 1), addDays(t, 7));
+    const lembretes30 = todosEventos(t, addDays(t, 30)).filter(ev => ev.tipo === 'lembrete' || ev.tipo === 'meu');
     const alertas = alertasPessoal();
     const urg = alertas.filter(a => a.nivel !== 'soon').length;
     const emps = empresasCarteira();
@@ -1426,8 +1594,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     ].join('');
 
     // próximas datas (sem os eventos de pessoal, que têm cartão próprio)
-    const prox = eventos(t, addDays(t, 14)).filter(ev => ev.tipo !== 'pessoal');
-    const semDatas = !state.dpGerais.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length);
+    const prox = todosEventos(t, addDays(t, 14)).filter(ev => ev.tipo !== 'pessoal');
+    const semDatas = !state.dpGerais.length && !state.meus.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length);
     let proxBody;
     if (semDatas) proxBody = `<div class="dp-empty" style="padding:24px 10px"><strong>Nenhuma data cadastrada</strong><span>Cadastre os prazos que valem para todas as empresas (salários, eSocial, FGTS…) e os lembretes de cada empresa na aba Datas e lembretes.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Cadastrar manualmente</button></div></div>`;
     else if (!prox.length) proxBody = `<div class="empty-mini" style="padding:14px 0">Nenhuma data nos próximos 14 dias${state.dpCarteira ? ' nesta carteira' : ''}.</div>`;
@@ -1464,14 +1632,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const { y, m } = mesParts(mes);
     const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
     const porDia = {};
-    eventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
+    todosEventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
     const cells = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-wd">${d}</div>`);
     for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-day blank"></div>');
     const t = hoje(), tk = ymd(t);
     for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
       const k = ymd(d), list = porDia[k] || [];
       const hol = feriado(d);
-      const cls = k === tk ? 'today' : d < t ? 'ok' : list.some(ev => ev.tipo === 'lembrete') ? 'late' : '';
+      const cls = k === tk ? 'today' : d < t ? 'ok' : list.some(ev => ev.tipo === 'lembrete' || ev.tipo === 'meu') ? 'late' : '';
       const resumo = Object.entries(list.reduce((acc, ev) => { acc[TIPOS[ev.tipo]] = (acc[TIPOS[ev.tipo]] || 0) + 1; return acc; }, {})).map(([k2, n]) => `${n} ${k2.toLowerCase()}`).join(', ');
       const title = `${fmtDMY(d)}${hol ? ' · ' + hol : ''}${resumo ? ' · ' + resumo : ''}`;
       const dayCls = `cal-day${hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
@@ -1481,7 +1649,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
 
   // ---------- agenda ----------
-  const AG_FILTROS = [['','Tudo'],['lembrete','Lembretes'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
+  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
   const AG_COLS = 'style="--cols:96px minmax(0,2.2fr) minmax(0,1.4fr) 104px; --cols-sm:minmax(0,1fr) auto"';
   // Sem mês escolhido, a agenda mostra os próximos 30 dias; as setas passam para meses inteiros.
   $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = state.dpAgMes ? mesShift(state.dpAgMes, -1) : mesDe(hoje()); state.dpAgDia = ''; renderDpAgenda(); });
@@ -1498,15 +1666,16 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (state.dpAgMes) { const { y, m } = mesParts(state.dpAgMes); from = new Date(y, m, 1); to = new Date(y, m + 1, 0); $('#dp-ag-label').textContent = `${MESES[m]} ${y}`; }
     else { from = t; to = addDays(t, 30); $('#dp-ag-label').textContent = 'Próximos 30 dias'; }
     $('#dp-ag-hoje').hidden = !state.dpAgMes && !state.dpAgDia;
+    renderMeus();
     if (!state.dpLoaded) { list.innerHTML = ''; return; }
-    let all = eventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : ''], state.dpAgQuery));
+    let all = todosEventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : ''], state.dpAgQuery));
     if (state.dpAgDia) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
     const base = all;
     $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${base.filter(ev => !v || ev.tipo === v).length}</span></button>`).join('');
     $('#dp-ag-dia').innerHTML = state.dpAgDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o mês inteiro">✕</button></span>` : '';
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s)`;
-    const semDatas = !state.dpGerais.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
+    const semDatas = !state.dpGerais.length && !state.meus.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
     if (semDatas) {
       list.innerHTML = `<div class="dp-empty"><strong>A agenda está vazia</strong><span>Ela junta os prazos gerais, as rotinas e os lembretes de cada empresa e as datas de funcionários (experiência, férias, rescisão).</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
       return;
@@ -1519,12 +1688,159 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       const rel = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd === -1 ? 'ontem' : '';
       const past = dd < 0 ? ' past' : '';
       return `<div class="ag-day${past}">${fmtDM(d)} <span class="wd">${wd(d)}${rel ? ' · ' + rel : ''}</span>${hol ? `<span class="hol">${escapeHtml(hol)}</span>` : ''}</div>` + evs.map(ev => {
-        const attrs = ev.emps ? 'role="button" tabindex="0" data-open-gerais' : `role="button" tabindex="0" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
-        const quem = ev.emps ? empLink(ev) : `<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
-        return `<div class="dp-row${past}" ${AG_COLS} ${attrs}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome)}</div></div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
+        const attrs = ev.meu ? `role="button" tabindex="0" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
+          : ev.emps ? 'role="button" tabindex="0" data-open-gerais' :`role="button" tabindex="0" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
+        const quem = ev.meu ? `<div class="dp-cell-main" style="font-weight:500">Só você</div>${ev.empresa ? `<div class="dp-cell-sub">${escapeHtml(ev.empresa.nome)}</div>` : ''}`
+          : ev.emps ? empLink(ev) :`<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
+        return `<div class="dp-row${past}" ${AG_COLS} ${attrs}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${ev.meu ? (ev.empresa ? escapeHtml(ev.empresa.nome) : 'só você') : ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome)}</div></div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
       }).join('');
     }).join('');
   }
+
+  // ---------- meus lembretes: painel ao lado da agenda ----------
+  const podeCriarMeu = () => !state.meusOff && !state.readOnly;
+  function renderMeus() {
+    const el = $('#dp-meus');
+    const aberto = !!el.querySelector('details[open]');
+    const t = hoje();
+    const head = `<div class="pn-card-head"><h3>Meus lembretes</h3>${podeCriarMeu() && state.meusLoaded ? '<button type="button" class="btn btn-sm btn-primary" data-meu-novo>＋ Novo</button>' : ''}</div>`;
+    if (state.meusOff) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">${escapeHtml(state.meusOff)}</div></div>`; return; }
+    if (!state.meusLoaded) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">Carregando…</div></div>`; return; }
+
+    const mes = state.dpAgMes || mesDe(t);
+    const { y, m } = mesParts(mes);
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+    const porDia = {};
+    meusEventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
+    const cells = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-wd">${d}</div>`);
+    for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-day blank"></div>');
+    const tk = ymd(t);
+    for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
+      const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
+      const clicavel = list.length || podeCriarMeu();
+      const title = `${fmtDMY(d)}${hol ? ' · ' + hol : ''}${list.length ? ' · ' + list.map(ev => ev.titulo).join('; ') : podeCriarMeu() ? ' · clique para cadastrar' : ''}`;
+      const cls = `cal-day${hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.meusSel ? ' sel' : ''}`;
+      cells.push(`<button type="button" class="${cls}" ${clicavel ? `data-meu-dia="${k}"` : 'tabindex="-1"'} title="${escapeHtml(title)}"><span>${d.getDate()}</span>${list.length ? `<span class="cal-n meu">${list.length}</span>` : ''}</button>`);
+    }
+    const cal = `<div class="dp-cell-sub" style="font-weight:600;padding-bottom:6px">${MESES[m]} ${y}</div><div class="cal ml-cal">${cells.join('')}</div><div class="cal-legend"><span>${podeCriarMeu() ? 'Clique num dia para ver ou cadastrar lembretes' : 'Clique num dia marcado para ver os lembretes'}</span></div>`;
+
+    const prox = meusEventos(t, addDays(t, 60)).slice(0, 8);
+    const proxHtml = prox.length ? prox.map(ev => `<div class="ml-item" role="button" tabindex="0" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">${pillRel(ev.d)}<div style="min-width:0"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml([ev.meu.rep !== 'nao' ? descreveRep(ev.meu) : '', ev.empresa?.nome].filter(Boolean).join(' · ')) || '&nbsp;'}</div></div></div>`).join('')
+      : `<div class="empty-mini">${state.meus.length ? 'Nenhum lembrete nos próximos 60 dias.' : 'Você ainda não tem lembretes. Clique num dia do calendário para cadastrar o primeiro.'}</div>`;
+
+    const todos = [...state.meus].sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
+    const allHtml = todos.length ? `<details class="ml-all"${aberto ? ' open' : ''}><summary>Todos os meus lembretes (${todos.length})</summary>${todos.map(l => `<div class="ml-item" role="button" tabindex="0" data-meu="${escapeHtml(l.id)}" data-dia="${escapeHtml(l.data)}"><span class="dp-mono dp-cell-sub">${escapeHtml(fmtDateStr(l.data))}</span><div style="min-width:0"><div class="dp-cell-main">${escapeHtml(l.texto || 'Lembrete')}</div><div class="dp-cell-sub">${escapeHtml(descreveRep(l))}</div></div></div>`).join('')}</details>` : '';
+
+    el.innerHTML = `${head}<div class="pn-card-body">${cal}<div class="dlg-section-title" style="padding:14px 0 4px;font-size:12.5px">Próximos</div>${proxHtml}${allHtml}</div>`;
+  }
+
+  // ---------- meus lembretes: janela ----------
+  const dlgMeu = $('#dlg-meu'), formMeu = $('#form-meu');
+  let meuDia = '', meuAtual = null;
+  function openMeu({ lembrete = null, dia = '' } = {}) {
+    meuDia = dia || lembrete?.data || ymd(hoje());
+    fillMeuForm(lembrete);
+    if (!dlgMeu.open) dlgMeu.showModal();
+    if (!lembrete && podeCriarMeu()) formMeu.elements.texto.focus();
+  }
+  function renderMeuDia() {
+    const d = parseYmd(meuDia);
+    const evs = d ? meusEventos(d, d) : [];
+    $('#meu-dia-wrap').hidden = !evs.length;
+    $('#meu-dia-title').textContent = d ? `Neste dia · ${fmtDMY(d)}, ${wd(d)}${feriado(d) ? ' · ' + feriado(d) : ''}` : '';
+    $('#meu-dia-list').innerHTML = evs.map(ev => `<button type="button" class="ml-day-item${meuAtual?.id === ev.meu.id ? ' on' : ''}" data-meu-edit="${escapeHtml(ev.meu.id)}"><span>${escapeHtml(ev.titulo)}</span><span class="dp-cell-sub">${escapeHtml(ev.meu.rep !== 'nao' ? descreveRep(ev.meu) : '')}</span></button>`).join('')
+      + (podeCriarMeu() && meuAtual ? '<button type="button" class="btn btn-sm" data-meu-new style="align-self:flex-start">＋ Outro lembrete neste dia</button>' : '');
+  }
+  function fillMeuForm(l) {
+    meuAtual = l;
+    const ro = !podeCriarMeu();
+    const f = formMeu.elements;
+    formMeu.reset();
+    const v = l || { data: meuDia, rep: 'nao', intervalo: 1 };
+    f.id.value = v.id || ''; f.texto.value = v.texto || ''; f.data.value = v.data || meuDia; f.hora.value = v.hora || '';
+    f.rep.value = v.rep || 'nao'; f.intervalo.value = v.intervalo || 1; f.ate.value = v.ate || ''; f.obs.value = v.obs || '';
+    const emps = [...state.dpEmpresas].sort(byNome);
+    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</option>`).join('');
+    f.empresaId.value = emps.some(e => e.id === v.empresaId) ? v.empresaId : '';
+    const titulo = l ? (ro ? 'Lembrete' : 'Editar lembrete') : 'Novo lembrete';
+    $('#dlg-meu-title').textContent = titulo;
+    $('#meu-form-title').textContent = l && l.rep !== 'nao' && !ro ? 'Editar lembrete (vale para todas as repetições)' : titulo;
+    [...f].forEach(el => { if (el.name) el.disabled = ro; });
+    $('#btn-meu-salvar').hidden = ro;
+    $('#btn-meu-excluir').hidden = !l || ro;
+    const d = parseYmd(meuDia);
+    $('#btn-meu-pular').hidden = !l || ro || l.rep === 'nao' || !d || !ocorrencias(l, d, d).length;
+    updateMeuRep();
+    renderMeuDia();
+  }
+  function updateMeuRep() {
+    const f = formMeu.elements, rep = f.rep.value;
+    $('#meu-intervalo-wrap').hidden = rep === 'nao' || rep === 'util';
+    $('#meu-ate-wrap').hidden = rep === 'nao';
+    const n = parseInt(f.intervalo.value, 10) || 1;
+    $('#meu-intervalo-un').textContent = REP_UN[rep] ? REP_UN[rep][n > 1 ? 1 : 0] : '';
+    const l = normalizeMeu({ data: f.data.value, rep, intervalo: f.intervalo.value, ate: f.ate.value, excecoes: meuAtual?.excecoes });
+    if (!parseYmd(l.data)) { $('#meu-resumo').textContent = ''; return; }
+    const t = hoje();
+    const next = ocorrencias(l, t, addDays(t, 800)).slice(0, 3);
+    $('#meu-resumo').textContent = `${descreveRep(l)}.${next.length ? ' Próximas: ' + next.map(d => `${fmtDM(d)} ${wd(d)}`).join(', ') + '.' : ' Nenhuma data de hoje em diante.'}`;
+  }
+  formMeu.addEventListener('input', (e) => { if (['rep','intervalo','data','ate'].includes(e.target.name)) updateMeuRep(); });
+  formMeu.addEventListener('change', (e) => { if (e.target.name === 'rep') updateMeuRep(); });
+
+  async function meusWrite(fn) {
+    try { await fn(); return true; }
+    catch (e) {
+      toast(e?.code === 'invalid_argument' ? 'Você não tem permissão para salvar lembretes aqui.' : e?.code === 'quota_exceeded' ? 'Limite de armazenamento atingido.' : 'Não foi possível salvar o lembrete. Tente de novo.');
+      return false;
+    }
+  }
+  function setMeuLocal(l) { state.meus = state.meus.filter(x => x.id !== l.id).concat(l); }
+  function afterMeuChange(dia) { if (dia) state.meusSel = dia; renderDpActiveView(); }
+  formMeu.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!podeCriarMeu()) return;
+    const f = formMeu.elements;
+    if (!f.texto.value.trim()) { toast('Escreva o lembrete.'); f.texto.focus(); return; }
+    if (!parseYmd(f.data.value)) { toast('Informe a data.'); f.data.focus(); return; }
+    if (f.rep.value !== 'nao' && f.ate.value && f.ate.value < f.data.value) { toast('A data de término vem antes do início.'); f.ate.focus(); return; }
+    const antes = meuAtual;
+    const l = normalizeMeu({ ...(antes || {}), texto: f.texto.value, data: f.data.value, hora: f.hora.value, rep: f.rep.value, intervalo: f.intervalo.value, ate: f.ate.value, empresaId: f.empresaId.value, obs: f.obs.value.trim(), autor: antes?.autor || state.meId || '', atualizadoEm: Date.now() });
+    if (!(await meusWrite(() => meusStore.save(l)))) return;
+    setMeuLocal(l);
+    dlgMeu.close();
+    afterMeuChange(l.data);
+    toast(antes ? 'Lembrete atualizado.' : 'Lembrete criado.');
+  });
+  $('#btn-meu-excluir').addEventListener('click', async () => {
+    const l = meuAtual;
+    if (!l || !podeCriarMeu()) return;
+    dlgMeu.close();
+    const ok = await ask(l.rep !== 'nao' ? `Excluir "${l.texto}" e todas as repetições?` : `Excluir "${l.texto}"?`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
+    if (!ok) return;
+    if (!(await meusWrite(() => meusStore.del(l.id)))) return;
+    state.meus = state.meus.filter(x => x.id !== l.id);
+    afterMeuChange();
+    toast('Lembrete excluído.', { label:'Desfazer', fn: async () => { if (await meusWrite(() => meusStore.save(l))) { setMeuLocal(l); afterMeuChange(); } } });
+  });
+  $('#btn-meu-pular').addEventListener('click', async () => {
+    const l = meuAtual, dia = meuDia;
+    if (!l || !podeCriarMeu()) return;
+    const novo = normalizeMeu({ ...l, excecoes: [...l.excecoes, dia], atualizadoEm: Date.now() });
+    if (!(await meusWrite(() => meusStore.save(novo)))) return;
+    setMeuLocal(novo);
+    dlgMeu.close();
+    afterMeuChange();
+    toast(`Lembrete tirado de ${fmtDateStr(dia)}.`, { label:'Desfazer', fn: async () => { const back = normalizeMeu({ ...novo, excecoes: novo.excecoes.filter(x => x !== dia) }); if (await meusWrite(() => meusStore.save(back))) { setMeuLocal(back); afterMeuChange(); } } });
+  });
+  dlgMeu.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-meu-edit]');
+    if (ed) { const l = state.meus.find(x => x.id === ed.dataset.meuEdit); if (l) fillMeuForm(l); return; }
+    if (e.target.closest('[data-meu-new]')) { fillMeuForm(null); formMeu.elements.texto.focus(); }
+  });
+  $('#btn-meu-cancelar').addEventListener('click', () => dlgMeu.close());
+  $('#dlg-meu-close').addEventListener('click', () => dlgMeu.close());
+  dlgMeu.addEventListener('close', () => { meuAtual = null; });
 
   // ---------- empresas ----------
   const EMP_COLS = 'minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px';
@@ -2063,6 +2379,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
     state.dpGerais = normalizeGerais(geraisStore.load());
     state.dpLoaded = true;
+    meusStore = makeMeusLocal();
+    state.meus = (Array.isArray(meusStore.load()) ? meusStore.load() : []).map(normalizeMeu);
+    state.meusLoaded = true;
     render();
     renderDpActiveView();
   }
@@ -2100,6 +2419,20 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       if (state.activeModule === 'dp') { renderDpActiveView(); refreshDetailDatas(); }
       if (dlgGerais.open) renderGerais();
     }, caiu);
+
+    if (!state.meId) state.meusOff = 'Entre com a sua conta para ter lembretes próprios.';
+    else {
+      try {
+        const col = db.doc(`data/users/${state.meId}/agenda`).collection('lembretes');
+        meusStore = makeMeusDb(col);
+        col.onSnapshot((snap) => {
+          state.meus = snap.docs.map(d => normalizeMeu({ ...d.data(), id: d.id }));
+          state.meusLoaded = true;
+          if (state.activeModule === 'dp') renderDpActiveView();
+          if (dlgMeu.open) renderMeuDia();
+        }, caiu);
+      } catch { state.meusOff = 'Não foi possível abrir os seus lembretes.'; }
+    }
 
     if (state.activeModule === 'dp') { applyDpReadOnly(); renderDpActiveView(); }
   }
