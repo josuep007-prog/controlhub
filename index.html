@@ -113,7 +113,7 @@ main{padding-block:22px 90px;}
 .side-rail{position:fixed; top:var(--header-h, 64px); bottom:0; left:0; width:64px; z-index:25; background:var(--surface); border-right:1px solid var(--rule); overflow:hidden auto; overscroll-behavior:contain; scrollbar-width:none; transition:width .16s ease, box-shadow .16s ease;}
 .side-rail-panel{width:260px; padding:12px 10px 20px;}
 .side-rail.open{width:260px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
-@media (hover:hover) and (pointer:fine){
+@media (hover:hover) and (pointer:fine) and (min-width:761px){
   .side-rail.hovering{width:260px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
 }
 .side-rail-label{display:flex; align-items:center; gap:6px; font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); padding:14px 12px 8px; white-space:nowrap; opacity:0; transition:opacity .12s ease;}
@@ -345,6 +345,54 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ag-side{position:sticky; top:calc(var(--header-h, 64px) + 12px);}
 @media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static; order:-1;} }
 @media (max-width:760px){ .ag-grid{padding-inline:16px;} }
+.seg{display:inline-flex; border:1px solid var(--rule-strong); border-radius:var(--r); background:var(--surface); overflow:hidden;}
+.seg button{border:0; background:none; padding:6px 11px; font-size:12px; font-weight:600; color:var(--ink-2); cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+.seg button + button{border-left:1px solid var(--rule-strong);}
+.seg button.on{background:var(--blue-deep); color:var(--surface);}
+.seg button:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.only-sm{display:none;}
+@media (max-width:760px){ .only-sm{display:block;} .hide-sm{display:none!important;} }
+.agm{display:grid; grid-template-columns:repeat(7, minmax(0,1fr));}
+.agm-wd{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3); padding:8px 8px 6px; background:var(--surface-2); border-bottom:1px solid var(--rule);}
+.agm-day{position:relative; min-height:108px; padding:4px 5px 6px; border-right:1px solid var(--rule); border-bottom:1px solid var(--rule); display:flex; flex-direction:column; gap:3px; min-width:0;}
+.agm-day:nth-child(7n){border-right:0;}
+.agm-day.off,.agm-day.hol{background:color-mix(in srgb, var(--surface-2) 60%, var(--surface));}
+.agm-day.blank{background:var(--surface-2);}
+.agm-day.past .agm-evs{opacity:.6;}
+.agm-num{align-self:flex-start; border:0; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--ink-2); width:24px; height:24px; border-radius:50%; cursor:pointer; font-variant-numeric:tabular-nums;}
+.agm-num:hover{background:var(--surface-3); color:var(--ink);}
+.agm-num:focus-visible{outline:2px solid var(--blue-deep);}
+.agm-day.is-today .agm-num{background:var(--blue-deep); color:var(--surface);}
+.agm-hol{font-size:10.5px; color:var(--dp-today); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.agm-n{display:none;}
+.agm-evs{display:flex; flex-direction:column; gap:2px; min-width:0;}
+.agm-ev{display:block; width:100%; border:0; border-left:3px solid var(--ink-3); background:var(--surface-2); color:var(--ink); font:inherit; font-size:11.5px; text-align:left; padding:2px 5px; border-radius:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;}
+.agm-ev:hover{background:var(--surface-3);}
+.agm-ev:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
+.agm-ev.feito{text-decoration:line-through; color:var(--ink-3);}
+.agm-meu{border-left-color:var(--blue-deep);} .agm-lembrete{border-left-color:var(--sector-pessoal);}
+.agm-prazo{border-left-color:var(--sector-contabil);} .agm-database{border-left-color:var(--sector-fiscal);}
+.agm-geral{border-left-color:var(--ink-3);} .agm-pessoal{border-left-color:var(--sector-financeiro);}
+.agm-more{border:0; background:none; font:inherit; font-size:11px; font-weight:600; color:var(--blue-deep); text-align:left; padding:1px 5px; cursor:pointer;}
+@media (max-width:760px){
+  .agm-day{min-height:56px; align-items:center; padding:4px 2px;}
+  .agm-evs,.agm-hol{display:none;}
+  .agm-num{align-self:center; position:static;}
+  .agm-num::after{content:''; position:absolute; inset:0;}
+  .agm-n{display:block; font-size:10px; font-weight:700; padding:0 5px; border-radius:6px; background:var(--dp-soon-bg); color:var(--dp-soon);}
+  .agm-wd{padding-inline:2px; text-align:center; font-size:10px;}
+}
+.menu{position:relative;}
+.menu > summary{list-style:none;}
+.menu > summary::-webkit-details-marker{display:none;}
+.menu[open] > summary{border-color:var(--blue-deep); color:var(--blue-deep);}
+.menu-list{position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:260px; background:var(--surface); border:1px solid var(--rule); border-radius:6px; box-shadow:var(--shadow-2); padding:4px; display:flex; flex-direction:column;}
+.menu-item{display:flex; align-items:center; gap:8px; width:100%; border:0; background:none; font:inherit; font-size:12.5px; color:var(--ink); text-align:left; padding:8px 10px; border-radius:4px; cursor:pointer;}
+.menu-item:hover,.menu-item:focus-visible{background:var(--surface-2); outline:none;}
+.save-state{font-size:12px; font-weight:600; color:var(--ink-3); display:inline-flex; align-items:center; gap:4px; min-height:18px;}
+.save-state.ok{color:var(--status-green);} .save-state.err{color:var(--dp-late);}
+.dp-last{padding:4px 22px 0; font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+@media (hover:none){ .side-rail.open .card-fav, .side-rail.open .card-edit{opacity:.75;} }
 .list-card{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); margin:0 22px 24px; overflow:hidden;}
 .list-card .dp-listhead{border-top:0;}
 .list-card .dp-list{padding-bottom:0;}
@@ -415,7 +463,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   .dp-show-sm{display:block;}
 }
 .tag-lembrete{color:var(--sector-pessoal); border-color:color-mix(in srgb, var(--sector-pessoal) 55%, transparent);}
-.tag-pessoal{color:var(--blue-deep); border-color:color-mix(in srgb, var(--blue-deep) 55%, transparent);}
+.tag-pessoal{color:var(--sector-financeiro); border-color:color-mix(in srgb, var(--sector-financeiro) 55%, transparent);}
 .tag-database{color:var(--sector-fiscal); border-color:color-mix(in srgb, var(--sector-fiscal) 55%, transparent);}
 .tag-prazo{color:var(--sector-contabil); border-color:color-mix(in srgb, var(--sector-contabil) 55%, transparent);}
 .dp-row.past,.ag-day.past{opacity:.55;}
@@ -519,6 +567,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <div class="module-view-head">
         <button type="button" class="icon-btn" id="dp-back" aria-label="Voltar para o início" title="Início"><svg class="ic"><use href="#i-back"/></svg></button>
         <h2>Departamento Pessoal</h2>
+        <span class="save-state" aria-live="polite"></span>
         <span class="dp-sync" id="dp-sync"></span>
         <label class="dp-carteira" for="dp-carteira">Carteira
           <select id="dp-carteira"><option value="">Equipe toda</option></select>
@@ -538,7 +587,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
       <div class="dp-view" id="dp-view-agenda" hidden>
         <div class="dp-toolbar">
-          <div class="dp-month" role="group" aria-label="Mês da agenda">
+          <div class="seg" id="dp-ag-modo" role="group" aria-label="Visualização">
+            <button type="button" data-ag-modo="lista"><svg class="ic ic-sm"><use href="#i-list"/></svg> Lista</button>
+            <button type="button" data-ag-modo="mes"><svg class="ic ic-sm"><use href="#i-calendar"/></svg> Mês</button>
+          </div>
+          <div class="dp-month" role="group" aria-label="Período da agenda">
             <button type="button" id="dp-ag-prev" aria-label="Mês anterior"><svg class="ic"><use href="#i-left"/></svg></button>
             <span class="dp-month-label" id="dp-ag-label"></span>
             <button type="button" id="dp-ag-next" aria-label="Próximo mês"><svg class="ic"><use href="#i-right"/></svg></button>
@@ -548,7 +601,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <button type="button" class="btn btn-sm" id="dp-btn-gerais">Prazos gerais…</button>
         </div>
         <div class="dp-toolbar" style="padding-top:0">
-          <div class="dp-chips" id="dp-ag-chips" role="group" aria-label="Filtrar por tipo"></div>
+          <div class="dp-chips hide-sm" id="dp-ag-chips" role="group" aria-label="Filtrar por tipo"></div>
+          <select class="only-sm" id="dp-ag-tipo-sel" aria-label="Filtrar por tipo"></select>
           <span id="dp-ag-dia"></span>
           <span class="dp-count" id="dp-ag-count"></span>
         </div>
@@ -566,11 +620,16 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <select id="dp-filtro-trib" aria-label="Tributação"><option value="">Toda tributação</option></select>
           <select id="dp-filtro-sit" aria-label="Situação"><option value="">Toda situação</option><option>Ativa</option><option>Sem movimento</option><option>Inativa</option></select>
           <select id="dp-filtro-gap" aria-label="Cadastro"><option value="">Qualquer cadastro</option></select>
-          <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Nova empresa</button>
-          <button type="button" class="btn btn-sm" id="dp-btn-csv">Planilha (CSV)</button>
-          <button type="button" class="btn btn-sm" id="dp-btn-export">Backup</button>
-          <label class="btn btn-sm" title="Importar backup (JSON)" data-ro-hide>Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
           <span class="dp-count" id="dp-count"></span>
+          <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Nova empresa</button>
+          <details class="menu">
+            <summary class="btn btn-sm" aria-label="Mais ações"><svg class="ic ic-sm"><use href="#i-more"/></svg> Mais</summary>
+            <div class="menu-list">
+              <button type="button" class="menu-item" id="dp-btn-csv"><svg class="ic ic-sm"><use href="#i-download"/></svg> Planilha das empresas (CSV)</button>
+              <button type="button" class="menu-item" id="dp-btn-export"><svg class="ic ic-sm"><use href="#i-download"/></svg> Baixar backup (JSON)</button>
+              <label class="menu-item" data-ro-hide><svg class="ic ic-sm"><use href="#i-upload"/></svg> Importar backup…<input type="file" id="dp-import-input" accept="application/json" hidden></label>
+            </div>
+          </details>
         </div>
         <div class="list-card">
           <div class="dp-listhead" id="dp-emp-head" style="--cols:minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px"></div>
@@ -637,8 +696,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   <div class="dlg-head">
     <h2 id="dp-detail-title">Empresa</h2>
     <span class="pill" id="dp-detail-sit"></span>
+    <span class="save-state" aria-live="polite"></span>
     <button type="button" class="icon-btn dlg-close" id="dlg-dp-detail-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button>
   </div>
+  <div class="dp-last" id="dp-last"></div>
   <div class="dtabs" role="tablist" id="dp-dtabs">
     <button type="button" class="dtab" data-dtab="dados">Dados</button>
     <button type="button" class="dtab" data-dtab="folha">Folha</button>
@@ -855,7 +916,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
-    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '',
+    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgModo: 'lista',
     dpFuncQuery: '', dpFuncFiltro: '',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
     meId: null,
@@ -1198,8 +1259,16 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   let meusStore = makeMeusLocal();
 
+  // Indicador "Salvando… / Salvo" no topo do módulo e da janela da empresa.
+  let salvando = 0, saveTimer;
+  function setSave(html, cls = '') { $$('.save-state').forEach(el => { el.innerHTML = html; el.className = 'save-state ' + cls; }); }
+  async function trackSave(fn) {
+    salvando++; clearTimeout(saveTimer); setSave('Salvando…');
+    try { await fn(); if (!--salvando) { setSave(`${ic('check', 'ic-sm')} Salvo`, 'ok'); saveTimer = setTimeout(() => setSave(''), 2500); } }
+    catch (e) { salvando = Math.max(0, salvando - 1); setSave('Não salvo', 'err'); throw e; }
+  }
   async function persist(fn) {
-    try { await fn(); return true; }
+    try { await trackSave(fn); return true; }
     catch (e) {
       if (e?.code === 'invalid_argument') { state.readOnly = true; toast('Você não tem permissão para editar esta lista.'); render(); if (state.activeModule === 'dp') applyDpReadOnly(); }
       else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido. Exclua registros antigos para continuar.');
@@ -1932,36 +2001,57 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   // ---------- agenda ----------
   const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
-  const AG_COLS = 'style="--cols:96px minmax(0,2.2fr) minmax(0,1.4fr) 104px; --cols-sm:minmax(0,1fr) auto"';
-  // Sem mês escolhido, a agenda mostra os próximos 30 dias; as setas passam para meses inteiros.
+  const AG_COLS = 'style="--cols:112px minmax(0,2.2fr) minmax(0,1.4fr) 104px; --cols-sm:minmax(0,1fr) auto"';
+  const evAttrs = (ev, k) => ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
+    : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
+  // Lista: sem mês escolhido mostra os próximos 30 dias; as setas passam para meses inteiros. Mês: grade do mês.
+  function setAgModo(modo) {
+    state.dpAgModo = modo === 'mes' ? 'mes' : 'lista';
+    state.prefs.dpAgModo = state.dpAgModo; savePrefs();
+    if (state.dpAgModo === 'mes') { state.dpAgDia = ''; if (!state.dpAgMes) state.dpAgMes = mesDe(hoje()); }
+    renderDpAgenda();
+  }
+  $('#dp-ag-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-ag-modo]'); if (b) setAgModo(b.dataset.agModo); });
   $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = state.dpAgMes ? mesShift(state.dpAgMes, -1) : mesDe(hoje()); state.dpAgDia = ''; renderDpAgenda(); });
   $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = ''; state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = state.dpAgModo === 'mes' ? mesDe(hoje()) : ''; state.dpAgDia = ''; renderDpAgenda(); });
   $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
   $('#dp-ag-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpAgTipo = c.dataset.f; renderDpAgenda(); } });
+  $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
   $('#dp-ag-dia').addEventListener('click', (e) => { if (e.target.closest('button')) { state.dpAgDia = ''; renderDpAgenda(); } });
+  $('#dp-ag-list').addEventListener('click', (e) => { const d = e.target.closest('[data-ag-dia]'); if (d) { e.stopPropagation(); state.dpAgMes = d.dataset.agDia.slice(0, 7); setAgModo('lista'); state.dpAgDia = d.dataset.agDia; renderDpAgenda(); } });
   $('#dp-btn-gerais').addEventListener('click', () => openGerais());
   function renderDpAgenda() {
     const list = $('#dp-ag-list');
     const t = hoje();
+    const mesModo = state.dpAgModo === 'mes';
+    if (mesModo && !state.dpAgMes) state.dpAgMes = mesDe(t);
     let from, to;
     if (state.dpAgMes) { const { y, m } = mesParts(state.dpAgMes); from = new Date(y, m, 1); to = new Date(y, m + 1, 0); $('#dp-ag-label').textContent = `${MESES[m]} ${y}`; }
-    else { from = t; to = addDays(t, 30); $('#dp-ag-label').textContent = 'Próximos 30 dias'; }
-    $('#dp-ag-hoje').hidden = !state.dpAgMes && !state.dpAgDia;
+    else { from = t; to = addDays(t, 30); $('#dp-ag-label').textContent = `${fmtDM(from)} a ${fmtDM(to)}`; }
+    $$('[data-ag-modo]').forEach(b => { const on = b.dataset.agModo === state.dpAgModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const hojeBtn = $('#dp-ag-hoje');
+    hojeBtn.textContent = mesModo ? 'Mês atual' : 'Próximos 30 dias';
+    hojeBtn.hidden = mesModo ? state.dpAgMes === mesDe(t) : (!state.dpAgMes && !state.dpAgDia);
     renderMeus();
     if (!state.dpLoaded) { list.innerHTML = ''; return; }
-    let all = todosEventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : ''], state.dpAgQuery));
-    if (state.dpAgDia) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
+    let all = todosEventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
+    if (state.dpAgDia && !mesModo) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
     const base = all;
-    $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${base.filter(ev => !v || ev.tipo === v).length}</span></button>`).join('');
-    $('#dp-ag-dia').innerHTML = state.dpAgDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o mês inteiro">${ic('x', 'ic-sm')}</button></span>` : '';
+    const conta = (v) => base.filter(ev => !v || ev.tipo === v).length;
+    $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}" aria-pressed="${state.dpAgTipo === v}">${l} <span class="n">${conta(v)}</span></button>`).join('');
+    const sel = $('#dp-ag-tipo-sel');
+    sel.innerHTML = AG_FILTROS.map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
+    sel.value = state.dpAgTipo;
+    $('#dp-ag-dia').innerHTML = state.dpAgDia && !mesModo ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o período inteiro">${ic('x', 'ic-sm')}</button></span>` : '';
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s)`;
     const semDatas = !state.dpGerais.length && !state.meus.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
-    if (semDatas) {
-      list.innerHTML = `<div class="dp-empty"><strong>A agenda está vazia</strong><span>Ela junta os prazos gerais, as rotinas e os lembretes de cada empresa e as datas de funcionários (experiência, férias, rescisão).</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
+    if (semDatas && !mesModo) {
+      list.innerHTML = `<div class="dp-empty"><strong>A agenda está vazia</strong><span>Ela junta os seus lembretes, os prazos gerais, as rotinas e os lembretes de cada empresa e as datas de funcionários (experiência, férias, rescisão).</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
       return;
     }
+    if (mesModo) { list.innerHTML = agMesHtml(vis, state.dpAgMes); return; }
     if (!vis.length) { list.innerHTML = `<div class="dp-empty">${state.dpAgMes ? 'Nenhuma data neste mês com este filtro.' : 'Nenhuma data nos próximos 30 dias com este filtro.'}</div>`; return; }
     const grupos = new Map();
     vis.forEach(ev => { const k = ymd(ev.d); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(ev); });
@@ -1970,13 +2060,30 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       const rel = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd === -1 ? 'ontem' : '';
       const past = dd < 0 ? ' past' : '';
       return `<div class="ag-day${past}">${fmtDM(d)} <span class="wd">${wd(d)}${rel ? ' · ' + rel : ''}</span>${hol ? `<span class="hol">${escapeHtml(hol)}</span>` : ''}</div>` + evs.map(ev => {
-        const attrs = ev.meu ? `role="button" tabindex="0" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
-          : ev.emps ? 'role="button" tabindex="0" data-open-gerais' :`role="button" tabindex="0" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
         const quem = ev.meu ? `<div class="dp-cell-main" style="font-weight:500">Só você</div>${ev.empresa ? `<div class="dp-cell-sub">${escapeHtml(ev.empresa.nome)}</div>` : ''}`
-          : ev.emps ? empLink(ev) :`<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
-        return `<div class="dp-row${past}" ${AG_COLS} ${attrs}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${ev.meu ? (ev.empresa ? escapeHtml(ev.empresa.nome) : 'só você') : ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome)}</div></div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
+          : ev.emps ? empLink(ev) : `<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
+        const onde = ev.meu ? (ev.empresa ? escapeHtml(ev.empresa.nome) : 'só você') : ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome);
+        const texto = `<div style="min-width:0;flex:1"><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${onde}</div></div>`;
+        return `<div class="dp-row${past}${ev.feito ? ' feito' : ''}" ${AG_COLS} role="button" tabindex="0" ${evAttrs(ev, k)}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div style="display:flex;align-items:center;gap:10px;min-width:0">${ev.meu ? chkMeu(ev) : ''}${texto}</div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
       }).join('');
     }).join('');
+  }
+  function agMesHtml(vis, mes) {
+    const { y, m } = mesParts(mes);
+    const first = new Date(y, m, 1);
+    const porDia = {};
+    vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
+    const cells = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="agm-wd">${d}</div>`);
+    for (let i = 0; i < first.getDay(); i++) cells.push('<div class="agm-day blank"></div>');
+    const t = hoje(), tk = ymd(t);
+    for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
+      const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
+      const chips = list.slice(0, 3).map(ev => `<button type="button" class="agm-ev agm-${ev.tipo}${ev.feito ? ' feito' : ''}" ${evAttrs(ev, k)} title="${escapeHtml(`${TIPOS[ev.tipo]}: ${ev.titulo}${ev.emps ? ` · ${ev.emps.length} empresa(s)` : ev.empresa ? ' · ' + ev.empresa.nome : ''}`)}">${escapeHtml(ev.titulo)}</button>`).join('');
+      const mais = list.length > 3 ? `<button type="button" class="agm-more" data-ag-dia="${k}">+${list.length - 3} mais</button>` : '';
+      const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
+      cells.push(`<div class="${cls}"><button type="button" class="agm-num" data-ag-dia="${k}" aria-label="${fmtDMY(d)}: ${list.length} data(s). Ver em lista">${d.getDate()}</button>${list.length ? `<span class="agm-n">${list.length}</span>` : ''}${hol ? `<span class="agm-hol">${escapeHtml(hol)}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
+    }
+    return `<div class="agm">${cells.join('')}</div><div class="cal-legend" style="padding:10px 14px 12px">Clique no número do dia para ver tudo em lista.</div>`;
   }
 
   // ---------- meus lembretes: painel ao lado da agenda ----------
@@ -2071,7 +2178,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   formMeu.addEventListener('change', (e) => { if (e.target.name === 'rep') updateMeuRep(); });
 
   async function meusWrite(fn) {
-    try { await fn(); return true; }
+    try { await trackSave(fn); return true; }
     catch (e) {
       toast(e?.code === 'invalid_argument' ? 'Você não tem permissão para salvar lembretes aqui.' : e?.code === 'quota_exceeded' ? 'Limite de armazenamento atingido.' : 'Não foi possível salvar o lembrete. Tente de novo.');
       return false;
@@ -2307,6 +2414,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function updateDetailHeader() {
     $('#dp-detail-title').textContent = dpDraft ? (dpAtual.nome || 'Nova empresa') : dpAtual.nome;
+    const h = !dpDraft && dpAtual.historico[0];
+    const last = $('#dp-last');
+    last.innerHTML = h ? `Última alteração: ${escapeHtml(h.alteracao || '')} · ${h.autor ? `<span data-uid="${escapeHtml(h.autor)}">Alguém da equipe</span> · ` : ''}${escapeHtml(h.data || '')}` : '';
+    last.title = last.textContent;
+    fillNames(last);
     const sit = $('#dp-detail-sit');
     sit.className = `pill ${SIT_PILL[dpAtual.situacao] || ''}`;
     sit.textContent = dpDraft ? 'Rascunho' : dpAtual.situacao;
@@ -2328,13 +2440,15 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function setDtab(tab) {
     dpDtab = tab;
-    $$('.dtab', dlgDetail).forEach(t => t.classList.toggle('active', t.dataset.dtab === tab));
+    $$('.dtab', dlgDetail).forEach(t => { const on = t.dataset.dtab === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
     $$('.dpanel', dlgDetail).forEach(p => { p.hidden = p.dataset.dpanel !== tab; });
   }
   $('#dp-dtabs').addEventListener('click', (e) => { const t = e.target.closest('.dtab'); if (t) setDtab(t.dataset.dtab); });
 
+  const addAbertos = new Set();
   function openDpDetail(empresa, { tab, draft } = {}) {
     dpAtual = empresa; dpDraft = !!draft; dpEdit = null;
+    addAbertos.clear();
     fillMainFields(false);
     $$('[data-field]', dlgDetail).forEach(i => { i.value = ''; });
     renderDetail();
@@ -2429,7 +2543,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
       return `<div class="dp-section-row">${extraCells(sec, row)}${cells}${actions}</div>`;
     }).join('');
-    const addRow = ro ? '' : `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<button type="button" class="btn btn-sm" data-sec-add="${sec}" style="align-self:flex-end">＋ ${escapeHtml(cfg.addLabel)}</button></div>`;
+    const addRow = ro ? '' : addAbertos.has(sec)
+      ? `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<div class="dp-row-actions" style="align-self:flex-end"><button type="button" class="btn btn-sm btn-primary" data-sec-add="${sec}">${ic('plus', 'ic-sm')} Adicionar</button><button type="button" class="btn btn-sm" data-sec-fechar="${sec}">Fechar</button></div></div>`
+      : `<div class="dp-add-row"><button type="button" class="btn btn-sm" data-sec-abrir="${sec}">${ic('plus', 'ic-sm')} ${escapeHtml(cfg.addLabel)}</button></div>`;
     return `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>${note ? `<div class="dp-sec-note">${note}</div>` : ''}<div class="dp-section-rows">${rows || '<div class="empty-mini">Nenhum registro.</div>'}</div>${addRow}`;
   }
   const SEC_NOTES = {
@@ -2486,7 +2602,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   });
 
   function collectRow(wrap, sec) { const row = {}; $$(`[data-field][data-sec="${sec}"]`, wrap).forEach(i => { row[i.dataset.field] = i.value; }); return row; }
-  function rowLabel(row) { for (const k of ['nome','tarefa','rubrica','funcionario','cnpj','descricao','alteracao','tipo']) if (row[k]) return row[k]; return ''; }
+  function rowLabel(row) { for (const k of ['nome','tarefa','texto','rubrica','funcionario','cnpj','descricao','alteracao','tipo']) if (row[k]) return row[k]; return ''; }
   // Adaptador por contexto: a empresa aberta ou a lista de prazos gerais.
   const secCtx = {
     emp: { items: (sec) => dpAtual[sec], cfg: (sec) => DP_SECTIONS[sec], save: (sec, txt) => { saveEmpresaFields({ [sec]: dpAtual[sec] }, sec === 'historico' ? null : txt); renderDetailSec(sec); if (sec !== 'historico') renderDetailSec('historico'); if (sec === 'prazos' || sec === 'funcionarios' || sec === 'lembretes') { renderDetailProx(); updateDetailHeader(); } } },
@@ -2499,6 +2615,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const del = e.target.closest('[data-sec-del]');
     const save = e.target.closest('[data-sec-save]');
     const cancel = e.target.closest('[data-sec-cancel]');
+    const abrir = e.target.closest('[data-sec-abrir]'), fechar = e.target.closest('[data-sec-fechar]');
+    if ((abrir || fechar) && !state.readOnly) {
+      const sec = abrir ? abrir.dataset.secAbrir : fechar.dataset.secFechar;
+      if (abrir) addAbertos.add(sec); else addAbertos.delete(sec);
+      ctx === secCtx.gerais ? renderGerais() : renderDetailSec(sec);
+      if (abrir) $(`[data-add-wrap="${sec}"] [data-field]`)?.focus();
+      return true;
+    }
     if (!(add || edit || del || save || cancel) || state.readOnly) return false;
     const sec = (add || edit || del || save || cancel).dataset[add ? 'secAdd' : edit ? 'secEdit' : del ? 'secDel' : save ? 'secSave' : 'secCancel'];
     const cfg = ctx.cfg(sec), items = ctx.items(sec), noun = SEC_NOME[sec] || 'registro';
@@ -2508,6 +2632,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       if (sec === 'historico') { raw.data = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }); raw.autor = state.meId || ''; }
       const row = normalizeDpRow(raw, cfg.fields);
       if (!row) { toast('Preencha ao menos um campo.'); return true; }
+      if (sec === 'lembretes' && !parseYmd(row.data)) { toast('Informe a data do lembrete.'); $('[data-field="data"]', wrap)?.focus(); return true; }
       if (sec === 'historico') items.unshift(row); else items.push(row);
       $$('[data-field]', wrap).forEach(i => { i.value = ''; });
       ctx.save(sec, `Adicionou ${noun}: ${rowLabel(row)}`);
@@ -2625,6 +2750,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function openGerais() {
     dpEditPrev = dpEdit; dpEdit = null;
+    addAbertos.delete('gerais');
     renderGerais();
     dlgGerais.classList.toggle('ro', state.readOnly);
     dlgGerais.showModal();
@@ -2660,6 +2786,26 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   // ---------- navegação / busca global / tema ----------
   $('#btn-theme').addEventListener('click', () => { state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs(); });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTheme());
+
+  // Menus "Mais": fecham ao clicar fora ou num item.
+  document.addEventListener('click', (e) => {
+    $$('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.menu-item:not(label)')) d.open = false; });
+  });
+  $('#dp-import-input').addEventListener('change', () => { $$('details.menu[open]').forEach(d => { d.open = false; }); });
+
+  // Abas: ligação aba/painel para leitores de tela e setas do teclado.
+  $$('.dp-tab').forEach(t => { const v = t.dataset.dpView, pnl = $('#dp-view-' + v); t.id = 'dp-tab-' + v; t.setAttribute('aria-controls', pnl.id); pnl.setAttribute('role', 'tabpanel'); pnl.setAttribute('aria-labelledby', t.id); });
+  $$('.dtab').forEach(t => { const v = t.dataset.dtab, pnl = $(`[data-dpanel="${v}"]`); t.setAttribute('role', 'tab'); t.id = 'dtab-' + v; pnl.id = 'dpanel-' + v; t.setAttribute('aria-controls', pnl.id); pnl.setAttribute('role', 'tabpanel'); pnl.setAttribute('aria-labelledby', t.id); });
+  document.addEventListener('keydown', (e) => {
+    const tab = e.target.closest?.('[role="tab"]');
+    if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    const tabs = $$('[role="tab"]', tab.closest('[role="tablist"]'));
+    const i = tabs.indexOf(tab);
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault();
+    tabs[n].focus();
+    tabs[n].click();
+  });
 
   // ---------- inicialização ----------
   function startLocal() {
@@ -2742,6 +2888,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   applyTheme();
   syncHeaderHeight();
   state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
+  state.dpAgModo = state.prefs.dpAgModo === 'mes' ? 'mes' : 'lista';
   if (HOSTED) startShared(); else startLocal();
   const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
   if (rotaInicial) applyRoute(rotaInicial); else renderHome();
