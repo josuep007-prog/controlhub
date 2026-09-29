@@ -99,9 +99,9 @@ main{padding-block:40px 90px;}
 .side-rail:focus-within .side-rail-edge, .side-rail.open .side-rail-edge{opacity:0; pointer-events:none;}
 .side-rail:focus-within .side-rail-panel, .side-rail.open .side-rail-panel{opacity:1; pointer-events:auto;}
 @media (hover:hover) and (pointer:fine){
-  .side-rail:hover{width:272px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
-  .side-rail:hover .side-rail-edge{opacity:0; pointer-events:none;}
-  .side-rail:hover .side-rail-panel{opacity:1; pointer-events:auto;}
+  .side-rail.hovering{width:272px; box-shadow:6px 0 24px rgba(16,24,32,.18);}
+  .side-rail.hovering .side-rail-edge{opacity:0; pointer-events:none;}
+  .side-rail.hovering .side-rail-panel{opacity:1; pointer-events:auto;}
 }
 .side-rail-label{display:flex; align-items:center; gap:6px; font-family:"Archivo",sans-serif; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); padding:0 10px 12px;}
 .side-rail-label i{width:4px; height:4px; border-radius:50%; background:var(--brand-red); display:block; flex:none;}
@@ -169,7 +169,20 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-toolbar{display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; padding:0 22px 16px;}
 .dp-toolbar input[type="search"]{flex:1 1 220px; min-width:0;}
 .dp-toolbar select{flex:0 0 auto;}
-.dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap;}
+.dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap; margin-left:auto;}
+.dp-tabs{display:flex; gap:2px; padding:0 22px; border-bottom:1px solid var(--rule); flex-wrap:wrap;}
+.dp-tab{padding:10px 14px; border:0; background:none; font-size:12.5px; font-weight:600; color:var(--ink-3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;}
+.dp-tab:hover{color:var(--ink);}
+.dp-tab.active{color:var(--blue-deep); border-bottom-color:var(--blue-deep);}
+.dp-view[hidden]{display:none;}
+.dp-listhead-prazos, .dp-row-prazos{grid-template-columns:70px 2fr 1.6fr 1.2fr;}
+.dp-listhead-func, .dp-row-func{grid-template-columns:1.4fr 1.2fr 1fr 1.4fr;}
+.kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; padding:20px 22px;}
+.kpi-card{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); padding:14px 16px; display:flex; flex-direction:column; gap:4px; text-align:left; font:inherit; color:inherit;}
+.kpi-card.clickable{cursor:pointer; transition:border-color .15s, background .15s;}
+.kpi-card.clickable:hover{border-color:var(--blue-deep); background:var(--surface-2);}
+.kpi-value{font-family:"Archivo",sans-serif; font-size:22px; font-weight:700; line-height:1;}
+.kpi-label{font-size:11.5px; color:var(--ink-3); font-weight:600; text-transform:uppercase; letter-spacing:.04em;}
 .dp-listhead{display:grid; grid-template-columns:minmax(160px,2fr) 110px 130px 110px 90px; gap:12px; padding:8px 22px; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); background:var(--surface-2); font-size:11.5px; font-weight:600; color:var(--ink-3);}
 @media (max-width:760px){ .dp-listhead{display:none;} }
 .dp-list{padding-bottom:24px;}
@@ -235,24 +248,60 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       </div>
     </div>
 
-    <!-- ===== módulo: DP (lista) ===== -->
+    <!-- ===== módulo: DP ===== -->
     <section id="view-dp" class="module-view" hidden>
       <div class="module-view-head">
         <button type="button" class="icon-btn" id="dp-back" aria-label="Voltar para ferramentas">←</button>
         <h2>Departamento Pessoal</h2>
-        <span class="dp-count" id="dp-count"></span>
       </div>
-      <div class="dp-toolbar">
-        <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
-        <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
-        <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova">＋ Nova empresa</button>
-        <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
-        <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
+      <div class="dp-tabs" role="tablist">
+        <button type="button" class="dp-tab" data-dp-view="painel">Painel</button>
+        <button type="button" class="dp-tab" data-dp-view="empresas">Empresas</button>
+        <button type="button" class="dp-tab" data-dp-view="prazos">Prazos</button>
+        <button type="button" class="dp-tab" data-dp-view="funcionarios">Funcionários</button>
       </div>
-      <div class="dp-listhead">
-        <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
+
+      <div class="dp-view" id="dp-view-painel">
+        <div class="kpi-grid" id="dp-painel-kpis"></div>
+        <div id="dp-painel-detalhes" style="padding:0 22px 22px"></div>
       </div>
-      <div class="dp-list" id="dp-list"></div>
+
+      <div class="dp-view" id="dp-view-empresas" hidden>
+        <div class="dp-toolbar">
+          <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
+          <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
+          <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova">＋ Nova empresa</button>
+          <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
+          <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
+          <span class="dp-count" id="dp-count"></span>
+        </div>
+        <div class="dp-listhead">
+          <span>Empresa</span><span>Tributação</span><span>Responsável</span><span>Data-base</span><span>UF</span>
+        </div>
+        <div class="dp-list" id="dp-list"></div>
+      </div>
+
+      <div class="dp-view" id="dp-view-prazos" hidden>
+        <div class="dp-toolbar">
+          <input type="search" id="dp-prazos-search" placeholder="Buscar por tarefa, empresa ou responsável…" autocomplete="off">
+          <span class="dp-count" id="dp-prazos-count"></span>
+        </div>
+        <div class="dp-listhead dp-listhead-prazos">
+          <span>Dia</span><span>Tarefa / rotina</span><span>Empresa</span><span>Responsável</span>
+        </div>
+        <div class="dp-list" id="dp-prazos-list"></div>
+      </div>
+
+      <div class="dp-view" id="dp-view-funcionarios" hidden>
+        <div class="dp-toolbar">
+          <input type="search" id="dp-func-search" placeholder="Buscar por nome, cargo, status ou empresa…" autocomplete="off">
+          <span class="dp-count" id="dp-func-count"></span>
+        </div>
+        <div class="dp-listhead dp-listhead-func">
+          <span>Nome</span><span>Cargo</span><span>Status</span><span>Empresa</span>
+        </div>
+        <div class="dp-list" id="dp-func-list"></div>
+      </div>
     </section>
   </main>
 </div>
@@ -326,6 +375,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     </div>
 
     <div class="dlg-section" id="dp-section-estabelecimentos"></div>
+    <div class="dlg-section" id="dp-section-funcionarios"></div>
 
     <div class="dlg-section">
       <div class="dlg-section-title">Fechamento da folha — procedimento</div>
@@ -414,7 +464,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     toolsQuery: '',
     prefs: { theme: null },
     dpEmpresas: [], dpLoaded: false,
-    dpQuery: '', dpResponsavel: '',
+    dpQuery: '', dpResponsavel: '', dpView: 'painel', dpPrazosQuery: '', dpFuncQuery: '',
     activeModule: null,
   };
 
@@ -519,6 +569,17 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       {key:'data', label:'Data', width:0.8},
       {key:'alteracao', label:'Alteração', width:3},
     ]},
+    funcionarios: { title:'Funcionários', addLabel:'Adicionar funcionário', fields:[
+      {key:'nome', label:'Nome', width:1.6},
+      {key:'cargo', label:'Cargo', width:1.2},
+      {key:'admissao', label:'Admissão', width:1, type:'date'},
+      {key:'status', label:'Status', width:1, type:'select', options:['Ativo','Férias','Afastado','Desligado']},
+      {key:'feriasInicio', label:'Férias (início)', width:1, type:'date'},
+      {key:'feriasFim', label:'Férias (fim)', width:1, type:'date'},
+      {key:'rescisao', label:'Rescisão', width:1, type:'date'},
+      {key:'salario', label:'Salário', width:1, type:'number'},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
   };
 
   function normalizeDpRow(row, fields) {
@@ -550,8 +611,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       pensao: rows('pensao'),
       prazos: rows('prazos'),
       historico: rows('historico'),
+      funcionarios: rows('funcionarios'),
       observacoes: String(e.observacoes || ''),
       order: Number.isFinite(e.order) ? e.order : i,
+      updatedAt: Number(e.updatedAt) || 0,
     };
   }
 
@@ -675,12 +738,15 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   });
 
   function openModule(key) {
+    document.activeElement?.blur();
+    $('#side-rail').classList.remove('hovering');
     if (key === 'dp') openDpModule();
   }
 
   function goHome() {
     state.activeModule = null;
     $('#side-rail').classList.remove('open');
+    $('#side-rail').classList.remove('hovering');
     $$('.module-view').forEach(el => { el.hidden = true; });
     $('#view-home').hidden = false;
   }
@@ -688,6 +754,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#side-rail').addEventListener('click', (e) => {
     if (e.target.closest('.side-rail-edge')) $('#side-rail').classList.toggle('open');
   });
+  $('#side-rail').addEventListener('mouseenter', () => $('#side-rail').classList.add('hovering'));
+  $('#side-rail').addEventListener('mouseleave', () => $('#side-rail').classList.remove('hovering'));
   document.addEventListener('click', (e) => {
     const rail = $('#side-rail');
     if (rail.classList.contains('open') && !rail.contains(e.target)) rail.classList.remove('open');
@@ -719,7 +787,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
   }
   function dpHasParticularidades(e) {
-    return !!(e.fechamento || e.observacoes || e.estabelecimentos.length || e.rubricas.length || e.rpa.length || e.pensao.length || e.prazos.length || e.historico.length);
+    return !!(e.fechamento || e.observacoes || e.estabelecimentos.length || e.rubricas.length || e.rpa.length || e.pensao.length || e.prazos.length || e.historico.length || e.funcionarios.length);
   }
   function visibleDpEmpresas() {
     return state.dpEmpresas
@@ -727,19 +795,142 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       .sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'));
   }
 
-  function openDpModule() {
+  function refreshResponsavelOptions() {
     const sel = $('#dp-filtro-responsavel');
     const cur = state.dpResponsavel;
     sel.innerHTML = '<option value="">Todos os responsáveis</option>' + dpResponsaveis().map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
     sel.value = cur;
+  }
+
+  function openDpModule() {
+    refreshResponsavelOptions();
     state.activeModule = 'dp';
     $('#side-rail').classList.remove('open');
     $('#view-home').hidden = true;
     $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
-    renderDp();
-    $('#dp-search').focus();
+    setDpView(state.dpView || 'painel');
   }
+
+  function setDpView(view) {
+    state.dpView = view;
+    $$('.dp-tab').forEach(t => t.classList.toggle('active', t.dataset.dpView === view));
+    $$('.dp-view').forEach(v => { v.hidden = v.id !== `dp-view-${view}`; });
+    if (view === 'painel') renderDpPainel();
+    else if (view === 'empresas') renderDp();
+    else if (view === 'prazos') renderDpPrazos();
+    else if (view === 'funcionarios') renderDpFuncionarios();
+  }
+  $('.dp-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-tab');
+    if (btn) setDpView(btn.dataset.dpView);
+  });
+
+  function renderDpActiveView() { setDpView(state.dpView || 'painel'); }
+
+  function renderDpPainel() {
+    const total = state.dpEmpresas.length;
+    const byTributacao = {};
+    const byResponsavel = {};
+    state.dpEmpresas.forEach(e => {
+      const trib = e.tributacao || '—';
+      byTributacao[trib] = (byTributacao[trib]||0) + 1;
+      const resp = e.responsavel || '—';
+      byResponsavel[resp] = (byResponsavel[resp]||0) + 1;
+    });
+    const comParticularidades = state.dpEmpresas.filter(dpHasParticularidades).length;
+    const completude = total ? Math.round((comParticularidades/total)*100) : 0;
+
+    if (!state.dpLoaded) { $('#dp-painel-kpis').innerHTML = ''; $('#dp-painel-detalhes').innerHTML = ''; return; }
+
+    const cards = [
+      `<div class="kpi-card"><div class="kpi-value">${total}</div><div class="kpi-label">Empresas cadastradas</div></div>`,
+      `<div class="kpi-card"><div class="kpi-value">${completude}%</div><div class="kpi-label">Com particularidades</div></div>`,
+    ];
+    Object.entries(byResponsavel).sort((a,b) => b[1]-a[1]).forEach(([resp,count]) => {
+      cards.push(`<button type="button" class="kpi-card clickable" data-dp-filtro-resp="${escapeHtml(resp)}"><div class="kpi-value">${count}</div><div class="kpi-label">${escapeHtml(resp)}</div></button>`);
+    });
+    $('#dp-painel-kpis').innerHTML = cards.join('');
+
+    const tribRows = Object.entries(byTributacao).sort((a,b) => b[1]-a[1])
+      .map(([t,c]) => `<div class="dp-section-row"><div class="dp-section-cell" style="flex:2"><span class="dp-section-cell-label">Tributação</span><span class="dp-section-cell-val">${escapeHtml(t)}</span></div><div class="dp-section-cell"><span class="dp-section-cell-label">Empresas</span><span class="dp-section-cell-val">${c}</span></div></div>`).join('');
+    const recentes = [...state.dpEmpresas].filter(e => e.updatedAt).sort((a,b) => b.updatedAt - a.updatedAt).slice(0,5)
+      .map(e => `<div class="dp-section-row"><div class="dp-section-cell" style="flex:2"><span class="dp-section-cell-label">Empresa</span><span class="dp-section-cell-val">${escapeHtml(e.nome)}</span></div><div class="dp-section-cell"><span class="dp-section-cell-label">Atualizado</span><span class="dp-section-cell-val">${new Date(e.updatedAt).toLocaleString('pt-BR')}</span></div></div>`).join('');
+    $('#dp-painel-detalhes').innerHTML = `
+      <div class="dlg-section-title">Por tributação</div>
+      <div class="dp-section-rows">${tribRows || '<div class="empty-mini">Sem dados.</div>'}</div>
+      <div class="dlg-section-title" style="margin-top:18px">Modificado recentemente</div>
+      <div class="dp-section-rows">${recentes || '<div class="empty-mini">Sem dados.</div>'}</div>
+    `;
+  }
+  $('#dp-painel-kpis').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-dp-filtro-resp]');
+    if (!btn) return;
+    state.dpResponsavel = btn.dataset.dpFiltroResp === '—' ? '' : btn.dataset.dpFiltroResp;
+    $('#dp-filtro-responsavel').value = state.dpResponsavel;
+    setDpView('empresas');
+  });
+
+  function allPrazos() {
+    return state.dpEmpresas.flatMap(e => e.prazos.map(p => ({ ...p, empresaId: e.id, empresaNome: e.nome, responsavel: e.responsavel })));
+  }
+  function matchesPrazoQuery(p, q) {
+    if (!q) return true;
+    const hay = [p.tarefa, p.empresaNome, p.responsavel, p.dia, p.caminho].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  }
+  function renderDpPrazos() {
+    const list = allPrazos()
+      .filter(p => matchesPrazoQuery(p, state.dpPrazosQuery))
+      .sort((a,b) => a.dia.localeCompare(b.dia,'pt-BR') || a.tarefa.localeCompare(b.tarefa,'pt-BR'));
+    $('#dp-prazos-count').textContent = `${list.length} prazo(s)`;
+    const container = $('#dp-prazos-list');
+    if (!state.dpLoaded) { container.innerHTML = ''; return; }
+    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhum prazo cadastrado.</div>'; return; }
+    container.innerHTML = list.map(p => `
+      <div class="dp-row dp-row-prazos" data-empresa-id="${escapeHtml(p.empresaId)}">
+        <div>${escapeHtml(p.dia || '—')}</div>
+        <div>${escapeHtml(p.tarefa || '—')}</div>
+        <div>${escapeHtml(p.empresaNome)}</div>
+        <div>${escapeHtml(p.responsavel || '—')}</div>
+      </div>`).join('');
+    $$('.dp-row', container).forEach(row => row.addEventListener('click', () => {
+      const e = findDpEmpresa(row.dataset.empresaId);
+      if (e) openDpDetail(e);
+    }));
+  }
+  $('#dp-prazos-search').addEventListener('input', (e) => { state.dpPrazosQuery = e.target.value.trim(); renderDpPrazos(); });
+
+  function allFuncionarios() {
+    return state.dpEmpresas.flatMap(e => e.funcionarios.map(f => ({ ...f, empresaId: e.id, empresaNome: e.nome })));
+  }
+  function matchesFuncQuery(f, q) {
+    if (!q) return true;
+    const hay = [f.nome, f.cargo, f.status, f.empresaNome].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  }
+  function renderDpFuncionarios() {
+    const list = allFuncionarios()
+      .filter(f => matchesFuncQuery(f, state.dpFuncQuery))
+      .sort((a,b) => a.nome.localeCompare(b.nome,'pt-BR'));
+    $('#dp-func-count').textContent = `${list.length} funcionário(s)`;
+    const container = $('#dp-func-list');
+    if (!state.dpLoaded) { container.innerHTML = ''; return; }
+    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhum funcionário cadastrado.</div>'; return; }
+    container.innerHTML = list.map(f => `
+      <div class="dp-row dp-row-func" data-empresa-id="${escapeHtml(f.empresaId)}">
+        <div>${escapeHtml(f.nome || '—')}</div>
+        <div>${escapeHtml(f.cargo || '—')}</div>
+        <div>${escapeHtml(f.status || '—')}</div>
+        <div>${escapeHtml(f.empresaNome)}</div>
+      </div>`).join('');
+    $$('.dp-row', container).forEach(row => row.addEventListener('click', () => {
+      const e = findDpEmpresa(row.dataset.empresaId);
+      if (e) openDpDetail(e);
+    }));
+  }
+  $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); renderDpFuncionarios(); });
   function renderDp() {
+    refreshResponsavelOptions();
     const list = visibleDpEmpresas();
     const filtered = !!(state.dpQuery || state.dpResponsavel);
     $('#dp-count').textContent = filtered ? `${list.length} de ${state.dpEmpresas.length} empresa(s)` : `${state.dpEmpresas.length} empresa(s)`;
@@ -767,7 +958,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#dp-btn-nova').addEventListener('click', () => {
     if (state.readOnly) return;
     const order = Math.max(-1, ...state.dpEmpresas.map(e => e.order)) + 1;
-    const empresa = normalizeDpEmpresa({ nome:'Nova empresa', order });
+    const empresa = normalizeDpEmpresa({ nome:'Nova empresa', order, updatedAt: Date.now() });
     state.dpEmpresas.push(empresa);
     persist(() => dpStore.saveOne(empresa));
     renderDp();
@@ -810,7 +1001,13 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>
       <div class="dp-section-rows">${rows || '<div class="empty-mini">Nenhum registro.</div>'}</div>
       <div class="dp-add-row" data-dp-add-row="${key}">
-        ${cfg.fields.map(f => `<input data-field="${f.key}" placeholder="${escapeHtml(f.label)}" style="flex:${f.width}">`).join('')}
+        ${cfg.fields.map(f => {
+          if (f.type === 'select') {
+            return `<select data-field="${f.key}" style="flex:${f.width}"><option value="">${escapeHtml(f.label)}</option>${(f.options||[]).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+          }
+          const type = f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text';
+          return `<input type="${type}" data-field="${f.key}" placeholder="${escapeHtml(f.label)}" style="flex:${f.width}">`;
+        }).join('')}
         <button type="button" class="btn btn-sm" data-dp-add-btn="${key}">＋ ${escapeHtml(cfg.addLabel)}</button>
       </div>`;
   }
@@ -854,6 +1051,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     dpAtual.adiantamento = $('#dp-adiantamento').value.trim();
     dpAtual.fechamento = $('#dp-fechamento').value.trim();
     dpAtual.observacoes = $('#dp-observacoes').value.trim();
+    dpAtual.updatedAt = Date.now();
     $('#dp-detail-title').textContent = dpAtual.nome;
     saveDpEmpresa(dpAtual);
     renderDp();
@@ -867,10 +1065,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       const key = addBtn.dataset.dpAddBtn;
       const wrap = addBtn.closest('[data-dp-add-row]');
       const row = {};
-      $$('input[data-field]', wrap).forEach(inp => { row[inp.dataset.field] = inp.value; });
+      $$('[data-field]', wrap).forEach(inp => { row[inp.dataset.field] = inp.value; });
       const normalized = normalizeDpRow(row, DP_SECTIONS[key].fields);
       if (!normalized) { toast('Preencha ao menos um campo.'); return; }
       dpAtual[key].push(normalized);
+      dpAtual.updatedAt = Date.now();
       saveDpEmpresa(dpAtual);
       renderDpDetailSections();
       renderDp();
@@ -880,6 +1079,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (delBtn) {
       const key = delBtn.dataset.dpDelSection;
       dpAtual[key].splice(Number(delBtn.dataset.idx), 1);
+      dpAtual.updatedAt = Date.now();
       saveDpEmpresa(dpAtual);
       renderDpDetailSections();
       renderDp();
@@ -933,7 +1133,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     db.collection('dp_empresas').onSnapshot((snap) => {
       state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i));
       state.dpLoaded = true;
-      if (state.activeModule === 'dp') renderDp();
+      if (state.activeModule === 'dp') renderDpActiveView();
     }, () => toast('A conexão com os dados caiu. Recarregue a página.'));
   }
 
