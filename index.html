@@ -189,6 +189,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .card.dragging{opacity:.4;}
 .card.drag-over{outline:2px dashed var(--blue-deep); outline-offset:-2px;}
 .card-stretch{position:absolute; inset:0; z-index:0; background:none; border:0; padding:0; margin:0; cursor:pointer; border-radius:inherit;}
+.card-icon .ic{width:23px; height:23px; stroke-width:1.75; color:color-mix(in srgb, var(--accent, var(--blue-deep)) 78%, var(--ink)); vertical-align:0;}
 .card-icon{width:36px; height:36px; display:grid; place-items:center; font-size:18px; line-height:1; border-radius:11px; background:color-mix(in srgb, var(--accent, var(--blue-deep)) 18%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--blue-deep)) 32%, transparent); flex:none; pointer-events:none;}
 .card-title{flex:1; min-width:0; font-family:"Archivo",sans-serif; font-weight:600; font-size:12.5px; letter-spacing:-.005em; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; pointer-events:none;}
 .card.no-link .card-title{color:var(--ink-3); font-style:italic;}
@@ -516,6 +517,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     <symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
     <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+    <symbol id="i-t-gestta" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="m8.5 11.5 1.4 1.4 2.4-2.6M14.5 11.8H16M8.5 17l1.4 1.4 2.4-2.6M14.5 17.3H16"/></symbol>
+    <symbol id="i-t-dp" viewBox="0 0 24 24"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8Z"/><path d="M14 3v5h5"/><circle cx="12" cy="12.6" r="2.1"/><path d="M8.4 18.6a3.6 3.6 0 0 1 7.2 0"/></symbol>
+    <symbol id="i-t-fiscal" viewBox="0 0 24 24"><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21Z"/><path d="M9.2 14.8 14.8 9.2"/><circle cx="9.6" cy="9.6" r="1"/><circle cx="14.4" cy="14.4" r="1"/></symbol>
+    <symbol id="i-t-portal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="9.3" cy="9.2" r="1.7"/><path d="M6.4 14a2.9 2.9 0 0 1 5.8 0"/><path d="M14.5 9h3.5M14.5 12h2.5"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
   </defs>
 </svg>
@@ -1326,7 +1331,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         ${stretch}
         ${ro ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="${t.favorite ? 'Tirar dos favoritos' : 'Favoritar'}" aria-pressed="${t.favorite}">${ic('star', 'ic-sm')}</button>`}
         ${ro ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar ${escapeHtml(t.name)}">${ic('edit', 'ic-sm')}</button>`}
-        <div class="card-icon">${escapeHtml(t.icon)}</div>
+        <div class="card-icon">${toolIcon(t)}</div>
         <div class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
       </div>`;
     }).join('');
@@ -1336,6 +1341,13 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     $('#nav-home').classList.toggle('nav-on', !state.activeModule);
   }
 
+  // Ícones desenhados para os módulos principais. Só valem enquanto a ferramenta ainda usa o emoji original;
+  // se alguém trocar o ícone no cadastro, vale o que a pessoa escolheu.
+  const TOOL_SVG = { 'gestta':['📈','gestta'], 'planilha-dp':['👥','dp'], 'planilha-fiscal':['🧾','fiscal'], 'portal-cliente':['🧑‍💼','portal'] };
+  function toolIcon(t) {
+    const m = TOOL_SVG[t.id];
+    return m && t.icon === m[0] ? ic('t-' + m[1]) : escapeHtml(t.icon);
+  }
   const findTool = (id) => state.tools.find(t => t.id === id);
 
   function recordUse(t) { t.uses += 1; t.lastUsed = Date.now(); if (!state.readOnly) persist(() => toolsStore.saveOne(t)); }
@@ -1439,7 +1451,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   // ---------- início: Hoje ----------
   const cardHtml = (titulo, sub, body, acoes = '') => `<section class="pn-card"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${acoes}</div><div class="pn-card-body">${body}</div></section>`;
   function toolTile(t) {
-    const inner = `<div class="card-icon" style="--accent:${t.color}">${escapeHtml(t.icon)}</div><span>${escapeHtml(t.name)}</span>`;
+    const inner = `<div class="card-icon" style="--accent:${t.color}">${toolIcon(t)}</div><span>${escapeHtml(t.name)}</span>`;
     if (t.moduleKey) return `<button type="button" class="qa-tile" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}">${inner}</button>`;
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
@@ -1497,7 +1509,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     add('Meus lembretes', state.meus.filter(l => matchQ([l.texto, l.obs], q)).slice(0, 5)
       .map(l => ({ ico: ic('bell'), title: l.texto || 'Lembrete', sub: `${fmtDateStr(l.data)} · ${descreveRep(l)}`, run: () => openMeu({ lembrete: l }) })));
     add('Ferramentas', state.tools.filter(t => matchesToolQuery(t, q)).slice(0, 5)
-      .map(t => ({ ico: escapeHtml(t.icon), title: t.name, sub: t.moduleKey ? 'Módulo' : hostOf(t.url), run: () => { if (t.moduleKey) openModule(t.moduleKey); else if (t.url) { recordUse(t); openLink(t.url); } else openFerramentaDialog(t); } })));
+      .map(t => ({ ico: toolIcon(t), title: t.name, sub: t.moduleKey ? 'Módulo' : hostOf(t.url), run: () => { if (t.moduleKey) openModule(t.moduleKey); else if (t.url) { recordUse(t); openLink(t.url); } else openFerramentaDialog(t); } })));
     return groups;
   }
   function renderSearch() {
