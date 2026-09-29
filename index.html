@@ -174,17 +174,15 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 }
 .module-view-head{display:flex; align-items:center; gap:10px 12px; padding:16px 22px; flex-wrap:wrap;}
 .module-view-head h2{font-size:17px; font-weight:700; margin-right:auto;}
-.dp-carteira{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--ink-3);}
-.dp-carteira select{max-width:200px;}
-
-.dp-monthbar{display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; padding:0 22px 14px;}
+.dp-sync{font-size:11.5px; color:var(--ink-3);}
 .dp-month{display:flex; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--rule-strong); border-radius:var(--r);}
 .dp-month button{border:0; background:none; cursor:pointer; padding:6px 10px; font-size:14px; color:var(--ink-2);}
 .dp-month button:hover{color:var(--blue-deep);}
+.dp-month button:focus-visible{outline:2px solid var(--blue-deep);}
 .dp-month-label{font-family:"Archivo",sans-serif; font-weight:700; font-size:13.5px; min-width:120px; text-align:center;}
-.dp-comp{font-size:12px; color:var(--ink-3);}
-.dp-comp b{font-weight:600; color:var(--ink-2);}
-.dp-sync{margin-left:auto; font-size:11.5px; color:var(--ink-3);}
+.dp-carteira{display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--ink-3);}
+.dp-carteira select{max-width:200px;}
+
 
 .dp-tabs{display:flex; gap:2px; padding:0 22px; border-bottom:1px solid var(--rule); overflow-x:auto; scrollbar-width:none;}
 .dp-tab{padding:10px 14px; border:0; background:none; font-size:12.5px; font-weight:600; color:var(--ink-3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; display:flex; align-items:center; gap:6px;}
@@ -226,7 +224,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   .dp-listhead{display:none;}
   .dp-row{grid-template-columns:1fr auto; gap:4px 10px; padding-inline:16px;}
   .dp-row .dp-hide-sm{display:none;}
-  .dp-toolbar,.dp-monthbar{padding-inline:16px;}
+  .dp-toolbar{padding-inline:16px;}
   .dp-tabs{padding-inline:10px;}
   .module-view-head{padding-inline:16px;}
 }
@@ -240,22 +238,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .pill-muted{background:transparent; color:var(--ink-3); border:1px dashed var(--rule-strong);}
 .tag{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); border:1px solid var(--rule-strong); border-radius:3px; padding:0 4px;}
 
-/* caixa de conclusão */
-.chk{flex:none; width:24px; height:24px; border-radius:5px; border:1.5px solid var(--rule-strong); background:var(--surface); cursor:pointer; display:grid; place-items:center; padding:0; font-size:13px; font-weight:700; color:transparent; transition:background .12s, border-color .12s;}
-.chk:hover{border-color:var(--dp-ok);}
-.chk:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
-.chk.late{border-color:var(--dp-late); background:var(--dp-late-bg);}
-.chk.today{border-color:var(--dp-today); background:var(--dp-today-bg);}
-.chk.done{background:var(--dp-ok); border-color:var(--dp-ok); color:var(--surface);}
-.chk.na{border-style:dashed; background:none; cursor:default; color:var(--ink-3); font-weight:400;}
-.chk:disabled{cursor:default; opacity:.75;}
 
-/* barras de progresso */
-.bar{height:6px; border-radius:3px; background:var(--track); overflow:hidden; min-width:40px;}
-.bar > i{display:block; height:100%; background:var(--blue-deep); border-radius:3px;}
-.bar.full > i{background:var(--dp-ok);}
-.bar-line{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink-3); font-variant-numeric:tabular-nums;}
-.bar-line .bar{flex:1;}
 
 /* painel */
 .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:16px 22px 4px;}
@@ -282,7 +265,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .pn-card-body{padding:0 14px 12px; display:flex; flex-direction:column; gap:2px; min-width:0;}
 .pn-link{border:0; background:none; color:var(--blue-deep); font-size:12px; font-weight:600; cursor:pointer; padding:0;}
 .pn-link:hover{text-decoration:underline;}
-.q-item{display:grid; grid-template-columns:auto 108px minmax(0,1fr); gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--rule);}
+.q-item{display:grid; grid-template-columns:96px minmax(0,1fr); gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--rule);}
 .q-item:first-child{border-top:0;}
 .q-text{min-width:0;}
 .q-text .dp-cell-main{font-weight:500;}
@@ -317,25 +300,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cal-n.ok{background:var(--dp-ok-bg); color:var(--dp-ok);}
 .cal-legend{display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px; color:var(--ink-3); padding-top:8px;}
 
-/* matriz de fechamento */
-.mx-wrap{overflow-x:auto; margin:0 22px 28px; border:1px solid var(--rule); border-radius:var(--r); background:var(--surface);}
-@media (max-width:760px){ .mx-wrap{margin-inline:16px;} }
-.mx{border-collapse:separate; border-spacing:0; width:100%; font-size:12.5px;}
-.mx th,.mx td{padding:8px 10px; border-bottom:1px solid var(--rule); text-align:center; white-space:nowrap;}
-.mx thead th{background:var(--surface-2); font-size:11px; font-weight:600; color:var(--ink-3); vertical-align:bottom; position:sticky; top:0;}
-.mx thead th .mx-h{display:block; color:var(--ink); font-weight:600; font-size:11.5px; white-space:normal; max-width:120px; margin:0 auto; line-height:1.25;}
-.mx thead th .mx-d{display:block; font-family:"IBM Plex Mono",monospace; font-size:10.5px; margin-top:3px;}
-.mx th.mx-emp,.mx td.mx-emp{text-align:left; position:sticky; left:0; background:var(--surface); z-index:1; min-width:180px; max-width:260px; white-space:normal; border-right:1px solid var(--rule);}
-.mx thead th.mx-emp{background:var(--surface-2); z-index:2;}
-.mx td.mx-emp button{border:0; background:none; padding:0; font:inherit; font-weight:600; color:var(--ink); cursor:pointer; text-align:left;}
-.mx td.mx-emp button:hover{color:var(--blue-deep); text-decoration:underline;}
-.mx td .chk{margin:0 auto;}
-.mx tbody tr:hover td{background:var(--surface-2);}
-.mx tfoot td{font-size:11px; color:var(--ink-3); font-weight:600; background:var(--surface-2); font-variant-numeric:tabular-nums; border-bottom:0;}
-.mx tfoot td.mx-emp{background:var(--surface-2);}
-.mx .mx-folha{border-left:1px solid var(--rule);}
-.mx-esp{border:0; background:none; font:inherit; font-size:12px; color:var(--ink-2); cursor:pointer; font-variant-numeric:tabular-nums;}
-.mx-esp:hover{color:var(--blue-deep); text-decoration:underline;}
 
 /* agenda */
 .ag-day{display:flex; align-items:baseline; gap:8px; padding:14px 22px 6px; font-family:"Archivo",sans-serif; font-weight:700; font-size:13px; border-bottom:1px solid var(--rule);}
@@ -373,7 +337,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-geral-list{display:flex; flex-direction:column; gap:4px;}
 .dp-geral-item{display:flex; align-items:center; gap:10px; padding:6px 10px; background:var(--surface-2); border-radius:var(--r); font-size:12.5px;}
 .dp-geral-item .dp-mono{margin-left:auto; font-size:11.5px; color:var(--ink-3);}
-.dp-occ{display:grid; grid-template-columns:auto 108px minmax(0,1fr); gap:10px; align-items:center; padding:6px 0; border-top:1px solid var(--rule);}
+.dp-occ{display:grid; grid-template-columns:96px minmax(0,1fr); gap:10px; align-items:center; padding:6px 0; border-top:1px solid var(--rule);}
 .dp-occ:first-child{border-top:0;}
 .dlg-actions .spacer{flex:1;}
 .ro-note{font-size:12px; color:var(--ink-3); background:var(--surface-2); padding:8px 10px; border-radius:var(--r);}
@@ -383,6 +347,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   .dp-row{grid-template-columns:var(--cols-sm, 1fr auto);}
   .dp-show-sm{display:block;}
 }
+.tag-lembrete{color:var(--sector-pessoal); border-color:color-mix(in srgb, var(--sector-pessoal) 55%, transparent);}
+.tag-pessoal{color:var(--blue-deep); border-color:color-mix(in srgb, var(--blue-deep) 55%, transparent);}
+.tag-database{color:var(--sector-fiscal); border-color:color-mix(in srgb, var(--sector-fiscal) 55%, transparent);}
+.tag-prazo{color:var(--sector-contabil); border-color:color-mix(in srgb, var(--sector-contabil) 55%, transparent);}
+.dp-row.past,.ag-day.past{opacity:.55;}
+.cal-day.past{opacity:.6;}
+.cal-n.ok{background:var(--surface-3); color:var(--ink-3);}
+.cal-n.late{background:var(--sector-pessoal); color:var(--surface);}
+.cal-key.late::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--sector-pessoal); margin-right:4px; vertical-align:-1px;}
+.dp-prox{display:flex; align-items:center; gap:8px; min-width:0;}
+.dp-prox .dp-cell-sub{font-size:12px; color:var(--ink-2);}
+.q-item .pill,.dp-occ .pill{justify-self:start;}
+.q-text .dp-cell-main .tag{margin-right:2px; vertical-align:1px;}
 
 .toast{position:fixed; bottom:20px; left:50%; transform:translate(-50%,20px); background:var(--ink); color:var(--page); padding:10px 16px; border-radius:var(--r); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; font-size:13px; max-width:calc(100vw - 32px);}
 .toast.show{opacity:1; transform:translate(-50%,0);}
@@ -437,24 +414,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <div class="module-view-head">
         <button type="button" class="icon-btn" id="dp-back" aria-label="Voltar para ferramentas">←</button>
         <h2>Departamento Pessoal</h2>
+        <span class="dp-sync" id="dp-sync"></span>
         <label class="dp-carteira" for="dp-carteira">Carteira
           <select id="dp-carteira"><option value="">Equipe toda</option></select>
         </label>
       </div>
-      <div class="dp-monthbar">
-        <div class="dp-month" role="group" aria-label="Mês de trabalho">
-          <button type="button" id="dp-mes-prev" aria-label="Mês anterior">‹</button>
-          <span class="dp-month-label" id="dp-mes-label"></span>
-          <button type="button" id="dp-mes-next" aria-label="Próximo mês">›</button>
-        </div>
-        <span class="dp-comp" id="dp-comp"></span>
-        <button type="button" class="btn btn-sm btn-ghost" id="dp-mes-hoje" hidden>Voltar para o mês atual</button>
-        <span class="dp-sync" id="dp-sync"></span>
-      </div>
       <div class="dp-tabs" role="tablist">
         <button type="button" class="dp-tab" role="tab" data-dp-view="painel">Painel</button>
-        <button type="button" class="dp-tab" role="tab" data-dp-view="fechamento">Fechamento do mês</button>
-        <button type="button" class="dp-tab" role="tab" data-dp-view="prazos">Agenda <span class="dp-tab-badge" id="dp-badge-prazos" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="agenda">Agenda <span class="dp-tab-badge" id="dp-badge-agenda" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="empresas">Empresas</button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
       </div>
@@ -464,24 +431,23 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         <div class="pn-grid" id="dp-painel-grid"></div>
       </div>
 
-      <div class="dp-view" id="dp-view-fechamento" hidden>
+      <div class="dp-view" id="dp-view-agenda" hidden>
         <div class="dp-toolbar">
-          <input type="search" id="dp-fech-search" placeholder="Buscar empresa…" autocomplete="off">
-          <label class="dp-check-label"><input type="checkbox" id="dp-fech-pend"> Só com pendência</label>
+          <div class="dp-month" role="group" aria-label="Mês da agenda">
+            <button type="button" id="dp-ag-prev" aria-label="Mês anterior">‹</button>
+            <span class="dp-month-label" id="dp-ag-label"></span>
+            <button type="button" id="dp-ag-next" aria-label="Próximo mês">›</button>
+          </div>
+          <button type="button" class="btn btn-sm btn-ghost" id="dp-ag-hoje">Próximos 30 dias</button>
+          <input type="search" id="dp-ag-search" placeholder="Buscar por data, empresa ou funcionário…" autocomplete="off">
           <button type="button" class="btn btn-sm" id="dp-btn-gerais">Prazos gerais…</button>
-          <span class="dp-count" id="dp-fech-count"></span>
         </div>
-        <div id="dp-fech-body"></div>
-      </div>
-
-      <div class="dp-view" id="dp-view-prazos" hidden>
-        <div class="dp-toolbar">
-          <input type="search" id="dp-prazos-search" placeholder="Buscar por tarefa, empresa ou responsável…" autocomplete="off">
-          <div class="dp-chips" id="dp-prazos-chips" role="group" aria-label="Filtrar por situação"></div>
-          <span id="dp-prazos-dia"></span>
-          <span class="dp-count" id="dp-prazos-count"></span>
+        <div class="dp-toolbar" style="padding-top:0">
+          <div class="dp-chips" id="dp-ag-chips" role="group" aria-label="Filtrar por tipo"></div>
+          <span id="dp-ag-dia"></span>
+          <span class="dp-count" id="dp-ag-count"></span>
         </div>
-        <div class="dp-list" id="dp-prazos-list"></div>
+        <div class="dp-list" id="dp-ag-list"></div>
       </div>
 
       <div class="dp-view" id="dp-view-empresas" hidden>
@@ -496,7 +462,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <label class="btn btn-sm" title="Importar backup (JSON)" data-ro-hide>Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
           <span class="dp-count" id="dp-count"></span>
         </div>
-        <div class="dp-listhead" id="dp-emp-head" style="--cols:minmax(0,2.4fr) 130px minmax(0,1fr) 100px 150px 110px"></div>
+        <div class="dp-listhead" id="dp-emp-head" style="--cols:minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px"></div>
         <div class="dp-list" id="dp-list"></div>
       </div>
 
@@ -508,7 +474,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
           <span class="dp-count" id="dp-func-count"></span>
         </div>
         <div class="dp-listhead" style="--cols:minmax(0,1.6fr) minmax(0,1.4fr) 96px 104px minmax(0,1.8fr)">
-          <span>Funcionário</span><span>Empresa</span><span>Admissão</span><span>Situação</span><span>Próximo evento</span>
+          <span>Funcionário</span><span>Empresa</span><span>Admissão</span><span>Situação</span><span>Próxima data</span>
         </div>
         <div class="dp-list" id="dp-func-list"></div>
       </div>
@@ -563,7 +529,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     <button type="button" class="dtab" data-dtab="dados">Dados</button>
     <button type="button" class="dtab" data-dtab="folha">Folha</button>
     <button type="button" class="dtab" data-dtab="funcionarios">Funcionários<span class="n" id="dp-dtab-n-func"></span></button>
-    <button type="button" class="dtab" data-dtab="prazos">Prazos<span class="n" id="dp-dtab-n-prazos"></span></button>
+    <button type="button" class="dtab" data-dtab="prazos">Datas e lembretes<span class="n" id="dp-dtab-n-prazos"></span></button>
     <button type="button" class="dtab" data-dtab="historico">Histórico</button>
   </div>
   <div class="dlg-body">
@@ -578,7 +544,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         <label class="field">Tributação<select id="dp-tributacao"></select></label>
         <label class="field">Situação no DP
           <select id="dp-situacao"><option>Ativa</option><option>Sem movimento</option><option>Inativa</option></select>
-          <span class="field-hint">Empresas inativas saem do fechamento do mês.</span>
+          <span class="field-hint">Empresas inativas saem da agenda e dos alertas.</span>
         </label>
         <label class="field">Responsável<input id="dp-responsavel" list="dp-resp-options" placeholder="Analista" autocomplete="off"><datalist id="dp-resp-options"></datalist></label>
         <label class="field">Cidade / UF<input id="dp-uf" autocomplete="off"></label>
@@ -610,7 +576,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     </div>
 
     <div class="dpanel" data-dpanel="prazos" hidden>
-      <div class="dlg-section" id="dp-emp-mes"></div>
+      <div class="dlg-section" id="dp-section-lembretes"></div>
+      <div class="dlg-section" id="dp-emp-prox"></div>
       <div class="dlg-section" id="dp-section-prazos"></div>
       <div class="dlg-section" id="dp-emp-gerais"></div>
     </div>
@@ -635,7 +602,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     <button type="button" class="icon-btn dlg-close" id="dlg-dp-gerais-close" aria-label="Fechar">✕</button>
   </div>
   <div class="dlg-body">
-    <p class="dp-sec-note" style="margin:0">Valem para todas as empresas ativas e viram colunas no fechamento do mês. Para tirar um prazo de uma empresa específica, abra a empresa e desmarque na aba Prazos.</p>
+    <p class="dp-sec-note" style="margin:0">Datas que valem para todas as empresas ativas (salários, eSocial, FGTS…). Aparecem uma vez por dia na agenda, com a quantidade de empresas. Para tirar um prazo de uma empresa, abra a empresa e desmarque na aba Datas e lembretes.</p>
     <div class="dlg-section" id="dp-section-gerais"></div>
     <div class="dlg-actions">
       <button type="button" class="btn" id="btn-dp-sugeridos" data-ro-hide>Adicionar prazos legais sugeridos</button>
@@ -722,12 +689,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     readOnly: false,
     toolsQuery: '',
     prefs: { theme: null, dpCarteira: '' },
-    dpEmpresas: [], dpLoaded: false,
-    dpGerais: [], dpMesDocs: {},
-    dpMes: '', dpCalMes: '', dpCarteira: '',
-    dpView: 'painel', dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
-    dpPrazosQuery: '', dpPrazosFiltro: 'pendentes', dpPrazosDia: '',
-    dpFechQuery: '', dpFechPend: false,
+    dpEmpresas: [], dpLoaded: false, dpGerais: [],
+    dpCarteira: '', dpView: 'painel', dpCalMes: '',
+    dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
+    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '',
     dpFuncQuery: '', dpFuncFiltro: '',
     meId: null,
     activeModule: null,
@@ -836,9 +801,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const mesParts = (key) => { const [y,m] = key.split('-').map(Number); return { y, m: m-1 }; };
   const mesShift = (key, n) => { const { y, m } = mesParts(key); const d = new Date(y, m + n, 1); return mesKey(d.getFullYear(), d.getMonth()); };
   const mesNome = (key) => { const { y, m } = mesParts(key); return `${MESES[m]} ${y}`; };
-  const compLabel = (key) => { const { y, m } = mesParts(key); return `${pad2(m+1)}/${y}`; };
-  // Até o dia 20 o trabalho ainda é da competência anterior (salários, eSocial, FGTS, DARF); depois, da competência corrente.
-  const compPadrao = () => { const d = new Date(); const base = mesKey(d.getFullYear(), d.getMonth()); return d.getDate() <= 20 ? mesShift(base, -1) : base; };
+  const mesDe = (d) => mesKey(d.getFullYear(), d.getMonth());
   function toYmd(v) {
     const s = String(v||'').trim();
     if (parseYmd(s)) return s;
@@ -874,10 +837,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     { v:'util_sab', l:'Nº dia útil (conta sábado)' },
   ];
   const regraLabel = (v) => REGRAS.find(r => r.v === v)?.l || '';
-  const QUANDO = [
-    { v:'seguinte', l:'Mês seguinte à competência' },
-    { v:'mesmo',    l:'Próprio mês da competência' },
-  ];
   function parseDia(p) {
     const raw = String(p.dia || '').trim();
     const m = raw.match(/\d{1,2}/);
@@ -887,11 +846,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const regra = p.regra || (/[uú]til|\bdu\b/i.test(raw) ? 'util' : 'fixo');
     return { n, regra };
   }
-  const quandoDe = (p) => p.quando || ((parseDia(p)?.n || 0) > 20 ? 'mesmo' : 'seguinte');
-  function vencimento(p, comp) {
+  // Data em que o prazo cai dentro de um mês do calendário.
+  function vencimento(p, mes) {
     const pd = parseDia(p);
     if (!pd) return null;
-    const { y, m } = mesParts(quandoDe(p) === 'mesmo' ? comp : mesShift(comp, 1));
+    const { y, m } = mesParts(mes);
     if (pd.regra === 'util' || pd.regra === 'util_sab') {
       let c = 0;
       for (let d = new Date(y, m, 1); d.getMonth() === m; d = addDays(d, 1)) {
@@ -914,16 +873,15 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function descreveRegra(p) {
     const pd = parseDia(p);
     if (!pd) return p.dia ? `“${p.dia}”: dia não reconhecido` : 'sem dia definido';
-    const r = { util:`${pd.n}º dia útil`, util_sab:`${pd.n}º dia útil, contando sábado`, antecipa:`dia ${pd.n}, antecipa se não for útil`, prorroga:`dia ${pd.n}, prorroga se não for útil`, fixo:`dia ${pd.n}` }[pd.regra] || `dia ${pd.n}`;
-    return `${r}, ${quandoDe(p) === 'mesmo' ? 'no mês da competência' : 'no mês seguinte'}`;
+    return { util:`${pd.n}º dia útil`, util_sab:`${pd.n}º dia útil, contando sábado`, antecipa:`dia ${pd.n}, antecipa se não for útil`, prorroga:`dia ${pd.n}, prorroga se não for útil`, fixo:`dia ${pd.n}` }[pd.regra] || `dia ${pd.n}`;
   }
 
   const PRAZOS_SUGERIDOS = [
-    { tarefa:'Pagamento de salários', dia:'5', regra:'util_sab', quando:'seguinte', caminho:'' },
-    { tarefa:'eSocial: fechamento dos periódicos (S-1299)', dia:'15', regra:'antecipa', quando:'seguinte', caminho:'' },
-    { tarefa:'DCTFWeb: transmissão', dia:'15', regra:'antecipa', quando:'seguinte', caminho:'' },
-    { tarefa:'FGTS Digital: pagamento da guia', dia:'20', regra:'antecipa', quando:'seguinte', caminho:'' },
-    { tarefa:'DARF previdenciário: pagamento', dia:'20', regra:'antecipa', quando:'seguinte', caminho:'' },
+    { tarefa:'Pagamento de salários', dia:'5', regra:'util_sab', caminho:'' },
+    { tarefa:'eSocial: fechamento dos periódicos (S-1299)', dia:'15', regra:'antecipa', caminho:'' },
+    { tarefa:'DCTFWeb: transmissão', dia:'15', regra:'antecipa', caminho:'' },
+    { tarefa:'FGTS Digital: pagamento da guia', dia:'20', regra:'antecipa', caminho:'' },
+    { tarefa:'DARF previdenciário: pagamento', dia:'20', regra:'antecipa', caminho:'' },
   ];
 
   // ---------- módulo DP: modelo de dados ----------
@@ -955,10 +913,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       {key:'base', label:'Base / ofício', width:1.6},
       {key:'procedimento', label:'Procedimento', width:2},
     ]},
-    prazos: { title:'Prazos e rotinas específicos desta empresa', addLabel:'Adicionar prazo', fields:[
+    lembretes: { title:'Lembretes e datas avulsas', addLabel:'Adicionar lembrete', fields:[
+      {key:'data', label:'Data', width:0.9, type:'date'},
+      {key:'texto', label:'Lembrete', width:2.6},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
+    prazos: { title:'Rotinas mensais desta empresa', addLabel:'Adicionar rotina', fields:[
       {key:'dia', label:'Dia', width:0.5, type:'dia'},
       {key:'regra', label:'Regra do dia', width:1.6, type:'regra'},
-      {key:'quando', label:'Vence no', width:1.5, type:'quando'},
       {key:'tarefa', label:'Tarefa / rotina', width:2.4},
       {key:'caminho', label:'Caminho no sistema', width:1.8},
     ]},
@@ -1020,6 +982,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       rpa: rows('rpa'),
       pensao: rows('pensao'),
       prazos: rows('prazos'),
+      lembretes: rows('lembretes').map(l => { l.data = toYmd(l.data); return l; }),
       historico: rows('historico'),
       funcionarios: rows('funcionarios').map(f => { ['admissao','aquisitivo','feriasInicio','feriasFim','rescisao'].forEach(k => { f[k] = toYmd(f[k]); }); return f; }),
       naoAplica: Array.isArray(e.naoAplica) ? e.naoAplica.filter(x => typeof x === 'string') : [],
@@ -1034,30 +997,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   let dpStore = makeLocalStore('control-hub:dp', () => []);
   const dpDbStore = makeDbStore('dp_empresas');
-
-  // Fechamento do mês: um documento por mês com { itens: { empresaId: { chave: {uid, em} | null } } }
-  function makeMesLocal() {
-    const KEY = 'control-hub:dp-mes';
-    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
-    return {
-      load(mes) { return load()[mes] || null; },
-      async mark(mes, empId, key, val) {
-        const all = load(); const doc = all[mes] ||= { mes, itens:{} };
-        (doc.itens[empId] ||= {})[key] = val;
-        try { localStorage.setItem(KEY, JSON.stringify(all)); } catch { toast('Não foi possível salvar no navegador.'); }
-      },
-    };
-  }
-  const mesDb = {
-    async mark(mes, empId, key, val) {
-      const ref = db.doc(`dp_mes/${mes}`);
-      const patch = { itens: { [empId]: { [key]: val } } };
-      if (state.dpMesDocs[mes]?.exists) { await ref.update(patch); return; }
-      try { await ref.update(patch); }
-      catch (e) { if (e?.code !== 'invalid_argument') throw e; await ref.set({ mes, ...patch }); }
-    },
-  };
-  let mesStore = makeMesLocal();
 
   function makeGeraisLocal() {
     const KEY = 'control-hub:dp-gerais';
@@ -1249,141 +1188,108 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const empresasCarteira = () => state.dpEmpresas.filter(naCarteira);
   const carteiraNome = () => state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira;
 
-  // ---------- fechamento: ocorrências de prazo por competência ----------
-  const mesSlot = (comp) => state.dpMesDocs[comp];
-  const marca = (comp, empId, key) => mesSlot(comp)?.data?.itens?.[empId]?.[key] || null;
-
-  function statusOcc(data, feito) {
-    if (feito) return 'feito';
-    if (!data) return 'semdata';
-    const d = diffDays(data, hoje());
-    return d < 0 ? 'atrasado' : d === 0 ? 'hoje' : d <= 7 ? 'semana' : 'futuro';
-  }
-  function mkOcc(e, p, key, geral, comp) {
-    const data = vencimento(p, comp);
-    const feito = marca(comp, e.id, key);
-    return { key, comp, empresa:e, prazo:p, geral, data, feito, st: statusOcc(data, feito) };
-  }
-  function ocorrenciasEmpresa(e, comp) {
-    if (!ativa(e)) return [];
-    const out = [];
-    state.dpGerais.forEach(g => { if (!e.naoAplica.includes(g.id)) out.push(mkOcc(e, g, 'g:' + g.id, true, comp)); });
-    e.prazos.forEach(p => out.push(mkOcc(e, p, 'p:' + p.id, false, comp)));
-    return out;
-  }
-  const ocorrencias = (comp, lista = empresasCarteira()) => lista.flatMap(e => ocorrenciasEmpresa(e, comp));
-  const byData = (a, b) => ((a.data ? a.data.getTime() : Infinity) - (b.data ? b.data.getTime() : Infinity)) || a.empresa.nome.localeCompare(b.empresa.nome, 'pt-BR');
-  // Pendências da competência anterior só contam se a equipe já usava o controle naquele mês.
-  function anteriorAtrasados() {
-    const prev = mesShift(state.dpMes, -1);
-    if (!mesSlot(prev)?.exists) return [];
-    return ocorrencias(prev).filter(o => o.st === 'atrasado');
-  }
-  const folhaOcc = (e, comp) => { const feito = marca(comp, e.id, 'folha'); return { key:'folha', comp, empresa:e, prazo:{ tarefa:`Folha ${compLabel(comp)} fechada` }, geral:false, data:null, feito, st: feito ? 'feito' : 'futuro' }; };
-
-  function pillOcc(o) {
-    if (o.st === 'feito') return '<span class="pill pill-ok">Feito</span>';
-    if (o.st === 'semdata') return '<span class="pill pill-muted">Sem dia</span>';
-    const d = diffDays(o.data, hoje());
-    if (d < 0) return `<span class="pill pill-late">${-d} d de atraso</span>`;
-    if (d === 0) return '<span class="pill pill-today">Vence hoje</span>';
-    if (d <= 7) return `<span class="pill pill-soon">${d === 1 ? 'Amanhã' : `Em ${d} dias`}</span>`;
-    return `<span class="pill">${fmtDM(o.data)} ${wd(o.data)}</span>`;
-  }
-  function chkBtn(o) {
-    const cls = o.st === 'feito' ? 'done' : o.st === 'atrasado' ? 'late' : o.st === 'hoje' ? 'today' : '';
-    const base = `${o.prazo.tarefa || 'Prazo'} · ${o.empresa.nome}${o.data ? ' · vence ' + fmtDMY(o.data) : ''}${o.feito ? ' · feito em ' + new Date(o.feito.em).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}) : ''}`;
-    const label = o.feito ? `Desmarcar: ${o.prazo.tarefa || 'prazo'}` : `Marcar como feito: ${o.prazo.tarefa || 'prazo'}`;
-    return `<button type="button" class="chk ${cls}" data-chk="${escapeHtml(o.empresa.id)}" data-key="${escapeHtml(o.key)}" data-comp="${o.comp}" aria-pressed="${!!o.feito}" aria-label="${escapeHtml(label)}" title="${escapeHtml(base)}" data-title="${escapeHtml(base)}"${o.feito?.uid ? ` data-uid="${escapeHtml(o.feito.uid)}" data-uid-attr="title"` : ''}${state.readOnly ? ' disabled' : ''}>✓</button>`;
-  }
-
-  async function toggleFeito(comp, empId, key) {
-    if (state.readOnly) return;
-    const antes = marca(comp, empId, key);
-    const val = antes ? null : { uid: state.meId || '', em: Date.now() };
-    const slot = state.dpMesDocs[comp] ||= { exists:false, data:{ mes:comp, itens:{} } };
-    slot.data ||= { mes:comp, itens:{} };
-    slot.data.itens ||= {};
-    (slot.data.itens[empId] ||= {})[key] = val;
-    renderDpActiveView(); refreshDetailMes();
-    const ok = await persist(() => mesStore.mark(comp, empId, key, val));
-    if (ok && !db) slot.exists = true;
-    if (!ok) { slot.data.itens[empId][key] = antes; renderDpActiveView(); refreshDetailMes(); }
-  }
-  document.addEventListener('click', (ev) => {
-    const b = ev.target.closest?.('[data-chk]');
-    if (!b) return;
-    ev.stopPropagation();
-    if (!b.disabled) toggleFeito(b.dataset.comp, b.dataset.chk, b.dataset.key);
-  }, true);
-
-  let mesUnsubs = [];
-  function subscribeMeses() {
-    const alvo = [state.dpMes, mesShift(state.dpMes, -1)];
-    if (!db) {
-      alvo.forEach(m => { const d = mesStore.load(m); state.dpMesDocs[m] = { exists: !!d, data: d ? JSON.parse(JSON.stringify(d)) : { mes:m, itens:{} } }; });
-      return;
-    }
-    mesUnsubs.forEach(u => u()); mesUnsubs = [];
-    alvo.forEach(m => {
-      mesUnsubs.push(db.doc(`dp_mes/${m}`).onSnapshot((s) => {
-        state.dpMesDocs[m] = { exists: s.exists, data: s.exists ? structuredClone(s.data()) : { mes:m, itens:{} } };
-        if (state.activeModule === 'dp') { renderDpActiveView(); refreshDetailMes(); }
-      }, () => toast('A conexão com os dados caiu. Recarregue a página.')));
-    });
-  }
-
-  // ---------- pessoas: alertas calculados pelas datas ----------
-  function funcInfo(f) {
+  // ---------- pessoas: datas calculadas a partir do cadastro ----------
+  function funcStatus(f) {
     const t = hoje();
-    const adm = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
+    const fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
     let status = f.status || 'Ativo';
     if (res && res < t) status = 'Desligado';
     else if (fi && ff && fi <= t && t <= ff) status = 'Férias';
     else if (status === 'Férias' && ff && ff < t) status = 'Ativo';
-    const ev = [];
-    const push = (d, txt) => { const dd = diffDays(d, t); ev.push({ d, txt, dd, nivel: dd < 0 ? 'late' : dd === 0 ? 'today' : 'soon' }); };
-    if (res) {
-      const ate = diffDays(res, t), pag = addDays(res, 10);
-      if (ate > 0 && ate <= 15) push(res, 'Desligamento programado');
-      if (ate <= 15 && diffDays(pag, t) >= -5) push(pag, 'Pagar verbas rescisórias até');
-    }
-    if (status !== 'Desligado') {
-      if (adm) [[44,'Fim da experiência (45 dias)'],[89,'Fim da experiência (90 dias)']].forEach(([n,l]) => { const d = addDays(adm, n); const dd = diffDays(d, t); if (dd >= 0 && dd <= 15) push(d, l); });
-      let aq = parseYmd(f.aquisitivo);
-      if (!aq && adm && diffDays(t, adm) < 700) aq = adm;
-      if (aq) {
-        const fimAq = addDays(addYears(aq, 1), -1), limite = addDays(addYears(aq, 2), -1);
-        const agendada = fi && fi > fimAq;
-        if (t > fimAq && !agendada) {
-          const dd = diffDays(limite, t);
-          if (dd < 0) push(limite, 'Férias vencidas: período concessivo encerrou em');
-          else if (dd <= 90) push(limite, 'Conceder férias até (fim do concessivo)');
-        }
-      }
-      if (fi) { const dd = diffDays(fi, t); if (dd >= 0 && dd <= 30) push(addDays(fi, -2), `Pagar férias (início ${fmtDM(fi)}) até`); }
-      if (ff && status === 'Férias') { const dd = diffDays(ff, t); if (dd >= 0 && dd <= 7) push(addDays(ff, 1), 'Retorno de férias'); }
-    }
-    ev.sort((a, b) => a.d - b.d);
-    return { status, ev };
+    return status;
   }
+  // Cada data tem uma janela (dias antes/depois de hoje) em que vira alerta no painel.
+  function funcEventos(f) {
+    const out = [];
+    const t = hoje();
+    const adm = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
+    const ev = (d, txt, janela, tipo='') => { if (!res || d <= addDays(res, 10) || tipo === 'resc') out.push({ d, txt, janela, tipo }); };
+    if (adm) { ev(addDays(adm, 44), 'Fim da experiência (45 dias)', [0, 15]); ev(addDays(adm, 89), 'Fim da experiência (90 dias)', [0, 15]); }
+    if (fi) { ev(addDays(fi, -2), `Pagar férias (início ${fmtDM(fi)})`, [-2, 30]); ev(fi, 'Início das férias', null); }
+    if (ff) ev(addDays(ff, 1), 'Retorno de férias', [0, 7]);
+    if (res) { ev(res, 'Último dia (desligamento)', [1, 15], 'resc'); ev(addDays(res, 10), 'Prazo para pagar a rescisão', [-5, 15], 'resc'); }
+    let aq = parseYmd(f.aquisitivo);
+    if (!aq && adm && diffDays(t, adm) < 700) aq = adm;
+    if (aq && !(res && res < t)) {
+      const fimAq = addDays(addYears(aq, 1), -1), limite = addDays(addYears(aq, 2), -1);
+      if (!(fi && fi > fimAq)) ev(limite, 'Fim do período concessivo de férias', [-3650, 90], 'concessivo');
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+  function funcAlertas(f) {
+    const t = hoje();
+    return funcEventos(f).filter(ev => ev.janela).map(ev => ({ ...ev, dd: diffDays(ev.d, t) }))
+      .filter(ev => ev.dd >= ev.janela[0] && ev.dd <= ev.janela[1])
+      .map(ev => ({ ...ev, txt: ev.tipo === 'concessivo' && ev.dd < 0 ? 'Férias vencidas: concessivo encerrou' : ev.txt, nivel: ev.dd < 0 ? 'late' : ev.dd === 0 ? 'today' : 'soon' }));
+  }
+  const funcProx = (f) => funcEventos(f).find(ev => ev.d >= hoje()) || null;
+
   function alertasPessoal(lista = empresasCarteira()) {
     const out = [];
     const t = hoje();
     const meses = [t.getMonth(), (t.getMonth() + 1) % 12];
     lista.filter(ativa).forEach(e => {
-      e.funcionarios.forEach(f => funcInfo(f).ev.forEach(a => out.push({ ...a, empresa:e, func:f, tab:'funcionarios' })));
+      e.funcionarios.forEach(f => funcAlertas(f).forEach(a => out.push({ ...a, empresa:e, func:f, tab:'funcionarios' })));
       const bases = new Set([e.dataBase, ...e.estabelecimentos.map(s => s.dataBase)].filter(Boolean));
       bases.forEach(b => {
         const mi = MESES.indexOf(b);
         const pos = meses.indexOf(mi);
         if (pos < 0) return;
         const d = new Date(t.getFullYear() + (pos === 1 && mi === 0 ? 1 : 0), mi, 1);
-        out.push({ d, dd: diffDays(d, t), txt:`Data-base em ${b}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
+        out.push({ d, txt:`Data-base em ${b}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
       });
     });
     return out.sort((a, b) => a.d - b.d);
   }
+
+  // ---------- agenda: todas as datas de um período ----------
+  const TIPOS = { lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', geral:'Prazo geral' };
+  const TIPO_ORD = { lembrete:0, pessoal:1, prazo:2, database:3, geral:4 };
+  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
+  const dentro = (d, from, to) => !!d && d >= from && d <= to;
+  function mesesEntre(from, to) { const out = []; for (let m = mesDe(from); m <= mesDe(to); m = mesShift(m, 1)) out.push(m); return out; }
+  function eventos(from, to, lista = empresasCarteira()) {
+    const out = [];
+    const ativas = lista.filter(ativa);
+    mesesEntre(from, to).forEach(m => {
+      const { y, m: mi } = mesParts(m);
+      state.dpGerais.forEach(g => {
+        const d = vencimento(g, m);
+        if (!dentro(d, from, to)) return;
+        const emps = ativas.filter(e => !e.naoAplica.includes(g.id));
+        if (emps.length) out.push({ tipo:'geral', d, titulo: g.tarefa || 'Prazo geral', sub: descreveRegra(g) + (g.caminho ? ' · ' + g.caminho : ''), emps });
+      });
+      ativas.forEach(e => {
+        e.prazos.forEach(p => { const d = vencimento(p, m); if (dentro(d, from, to)) out.push({ tipo:'prazo', d, titulo: p.tarefa || 'Rotina', sub: descreveRegra(p) + (p.caminho ? ' · ' + p.caminho : ''), empresa:e, tab:'prazos' }); });
+        const bases = new Set([e.dataBase, ...e.estabelecimentos.map(s => s.dataBase)].filter(Boolean));
+        const d1 = new Date(y, mi, 1);
+        if (bases.has(MESES[mi]) && dentro(d1, from, to)) out.push({ tipo:'database', d: d1, titulo:`Data-base em ${MESES[mi]}`, sub:'Conferir reajuste e cláusulas da CCT', empresa:e, tab:'dados' });
+      });
+    });
+    lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos' }); }));
+    ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios' }); })));
+    return out.sort(porData);
+  }
+  // Próxima ocorrência de um prazo mensal a partir de hoje.
+  function proxVenc(p) {
+    const t = hoje();
+    const d = vencimento(p, mesDe(t));
+    return d && d >= t ? d : vencimento(p, mesShift(mesDe(t), 1));
+  }
+  const proxEmpresa = (e) => { const t = hoje(); return eventos(t, addDays(t, 60), [e]).find(ev => ev.tipo !== 'geral') || null; };
+
+  function pillRel(d, nivel) {
+    const dd = diffDays(d, hoje());
+    if (nivel === 'late' || (nivel == null && dd < 0)) return `<span class="pill ${nivel === 'late' ? 'pill-late' : 'pill-muted'}">${dd === -1 ? 'Ontem' : dd < 0 ? `Há ${-dd} dias` : fmtDM(d)}</span>`;
+    if (dd === 0) return '<span class="pill pill-today">Hoje</span>';
+    if (dd === 1) return '<span class="pill pill-soon">Amanhã</span>';
+    if (dd <= 7) return `<span class="pill pill-soon">Em ${dd} dias</span>`;
+    return `<span class="pill">${fmtDM(d)} ${wd(d)}</span>`;
+  }
+  const tagTipo = (t) => `<span class="tag tag-${t}">${TIPOS[t]}</span>`;
+  const empLink = (ev) => ev.emps
+    ? `<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
+    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${escapeHtml(ev.empresa.nome)}${ev.empresa.responsavel && !state.dpCarteira ? ' · ' + escapeHtml(ev.empresa.responsavel) : ''}</button>`;
 
   // ---------- cadastro ----------
   const GAPS = [
@@ -1415,26 +1321,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   $('#dp-carteira').addEventListener('change', (e) => setCarteira(e.target.value));
 
-  function renderMonthbar() {
-    const comp = state.dpMes;
-    const venc = mesShift(comp, 1);
-    $('#dp-mes-label').textContent = `Competência ${compLabel(comp)}`;
-    $('#dp-comp').innerHTML = `Folha de <b>${escapeHtml(MESES[mesParts(comp).m].toLowerCase())}</b> · recolhimentos vencem em <b>${escapeHtml(MESES[mesParts(venc).m].toLowerCase())}</b>`;
-    $('#dp-mes-hoje').hidden = comp === compPadrao();
-    $('#dp-sync').textContent = db ? 'Sincronizado com a equipe' : 'Salvo só neste navegador';
-  }
-  function setMes(m) {
-    state.dpMes = m;
-    state.dpPrazosDia = '';
-    state.dpCalMes = '';
-    subscribeMeses();
-    renderDpActiveView();
-    refreshDetailMes();
-  }
-  $('#dp-mes-prev').addEventListener('click', () => setMes(mesShift(state.dpMes, -1)));
-  $('#dp-mes-next').addEventListener('click', () => setMes(mesShift(state.dpMes, 1)));
-  $('#dp-mes-hoje').addEventListener('click', () => setMes(compPadrao()));
-
   function openDpModule() {
     $('#view-home').hidden = true;
     state.activeModule = 'dp';
@@ -1455,19 +1341,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
     refreshCarteiraOptions();
-    renderMonthbar();
+    $('#dp-sync').textContent = db ? 'Sincronizado com a equipe' : 'Salvo só neste navegador';
     renderBadges();
     const v = state.dpView;
     if (v === 'painel') renderDpPainel();
-    else if (v === 'fechamento') renderDpFechamento();
-    else if (v === 'prazos') renderDpPrazos();
+    else if (v === 'agenda') renderDpAgenda();
     else if (v === 'empresas') renderDp();
     else if (v === 'funcionarios') renderDpFuncionarios();
   }
   function renderBadges() {
-    const occ = ocorrencias(state.dpMes);
-    const n = occ.filter(o => o.st === 'atrasado' || o.st === 'hoje').length + anteriorAtrasados().length;
-    const bp = $('#dp-badge-prazos'); bp.hidden = !n; bp.textContent = n;
+    const t = hoje();
+    const n = eventos(t, t).length;
+    const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
+    ba.title = `${n} data(s) hoje`;
     const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
     const bf = $('#dp-badge-func'); bf.hidden = !nf; bf.textContent = nf;
   }
@@ -1479,6 +1365,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     $('#dlg-dp-gerais').classList.toggle('ro', ro);
   }
 
+  function irAgenda({ dia = '', tipo = '', mes } = {}) {
+    state.dpAgDia = dia;
+    state.dpAgTipo = tipo;
+    state.dpAgMes = mes || (dia ? dia.slice(0, 7) : '');
+    setDpView('agenda');
+  }
   // Delegação: abrir empresa, atalhos do painel, filtros
   $('#view-dp').addEventListener('click', (e) => {
     const open = e.target.closest('[data-open-emp]');
@@ -1486,10 +1378,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const go = e.target.closest('[data-go]');
     if (go) {
       const [view, a, b] = go.dataset.go.split(':');
-      if (view === 'prazos') { state.dpPrazosFiltro = a || 'pendentes'; state.dpPrazosDia = ''; }
+      if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
       if (view === 'funcionarios') state.dpFuncFiltro = a || '';
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
-      if (go.dataset.comp) { state.dpMes = go.dataset.comp; subscribeMeses(); }
       setDpView(view);
       return;
     }
@@ -1498,190 +1389,145 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const cal = e.target.closest('[data-cal-mes]');
     if (cal) { state.dpCalMes = cal.dataset.calMes; renderDpPainel(); return; }
     const dia = e.target.closest('[data-cal-dia]');
-    if (dia) { state.dpPrazosDia = dia.dataset.calDia; state.dpPrazosFiltro = 'todos'; setDpView('prazos'); return; }
+    if (dia) { irAgenda({ dia: dia.dataset.calDia }); return; }
     if (e.target.closest('[data-open-gerais]')) openGerais();
     if (e.target.closest('[data-sugeridos]')) addSugeridos();
   });
   $('#view-dp').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    const row = e.target.closest('[data-open-emp]');
+    const row = e.target.closest('[data-open-emp],[data-open-gerais]');
     if (row && row === e.target && row.getAttribute('role') === 'button') { e.preventDefault(); row.click(); }
   });
 
   // ---------- painel ----------
-  const kpiCard = (value, label, cls, go, extra='') => `<button type="button" class="kpi-card clickable ${cls}" data-go="${go}"><div class="kpi-value">${value}</div>${extra}<div class="kpi-label">${label}</div></button>`;
+  const kpiCard = (value, label, cls, go, sub='') => `<button type="button" class="kpi-card clickable ${cls}" data-go="${go}"><div class="kpi-value">${value}</div><div class="kpi-label">${label}</div>${sub ? `<div class="dp-cell-sub">${sub}</div>` : ''}</button>`;
   function emptyEmpresasHtml() {
     return `<div class="dp-empty" style="grid-column:1/-1"><strong>Nenhuma empresa cadastrada no DP</strong><span>Cadastre as empresas ou importe um backup na aba Empresas.</span><button type="button" class="btn btn-primary btn-sm" data-go="empresas" data-ro-hide>Ir para Empresas</button></div>`;
   }
-  function qItem(o) {
-    return `<div class="q-item">${chkBtn(o)}${pillOcc(o)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(o.prazo.tarefa)}">${escapeHtml(o.prazo.tarefa || 'Prazo')}${o.comp !== state.dpMes ? ` <span class="tag">comp. ${compLabel(o.comp)}</span>` : ''}</div><button type="button" class="q-emp" data-open-emp="${escapeHtml(o.empresa.id)}" data-tab="prazos">${escapeHtml(o.empresa.nome)}${o.empresa.responsavel && !state.dpCarteira ? ' · ' + escapeHtml(o.empresa.responsavel) : ''}</button></div></div>`;
-  }
+  const qItem = (ev) => `<div class="q-item">${pillRel(ev.d)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div>${empLink(ev)}</div></div>`;
   function renderDpPainel() {
     const kp = $('#dp-painel-kpis'), grid = $('#dp-painel-grid');
     if (!state.dpLoaded) { kp.innerHTML = ''; grid.innerHTML = '<div class="dp-empty" style="grid-column:1/-1">Carregando empresas…</div>'; return; }
     if (!state.dpEmpresas.length) { kp.innerHTML = ''; grid.innerHTML = emptyEmpresasHtml(); return; }
-    const comp = state.dpMes;
-    const occ = ocorrencias(comp);
-    const prev = anteriorAtrasados();
-    const atrasados = occ.filter(o => o.st === 'atrasado').length + prev.length;
-    const hojeN = occ.filter(o => o.st === 'hoje').length;
-    const semana = occ.filter(o => o.st === 'semana').length;
-    const emps = empresasCarteira().filter(ativa);
-    const fechadas = emps.filter(e => marca(comp, e.id, 'folha')).length;
-    const pct = emps.length ? Math.round(fechadas / emps.length * 100) : 0;
+    const t = hoje();
+    const hojeEv = eventos(t, t);
+    const semana = eventos(addDays(t, 1), addDays(t, 7));
+    const lembretes30 = eventos(t, addDays(t, 30)).filter(ev => ev.tipo === 'lembrete');
     const alertas = alertasPessoal();
     const urg = alertas.filter(a => a.nivel !== 'soon').length;
+    const emps = empresasCarteira();
+    const nAtivas = emps.filter(ativa).length;
     kp.innerHTML = [
-      kpiCard(atrasados, 'Atrasados', atrasados ? 'is-late' : 'is-ok', 'prazos:atrasados'),
-      kpiCard(hojeN, 'Vencem hoje', hojeN ? 'is-today' : '', 'prazos:hoje'),
-      kpiCard(semana, 'Próximos 7 dias', '', 'prazos:semana'),
-      kpiCard(`${fechadas}<small> / ${emps.length}</small>`, `Folhas ${compLabel(comp)} fechadas`, emps.length && fechadas === emps.length ? 'is-ok' : '', 'fechamento', `<div class="bar${pct === 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div>`),
-      kpiCard(alertas.length, 'Alertas de pessoal', urg ? 'is-today' : '', 'funcionarios:alerta'),
+      kpiCard(hojeEv.length, 'Datas hoje', hojeEv.length ? 'is-today' : '', 'agenda:hoje', `${fmtDM(t)}, ${wd(t)}${feriado(t) ? ' · ' + escapeHtml(feriado(t)) : ''}`),
+      kpiCard(semana.length, 'Próximos 7 dias', '', 'agenda'),
+      kpiCard(lembretes30.length, 'Lembretes em 30 dias', '', 'agenda:tipo:lembrete'),
+      kpiCard(alertas.length, 'Alertas de pessoal', urg ? 'is-late' : '', 'funcionarios:alerta', urg ? `${urg} pedem ação agora` : ''),
+      kpiCard(nAtivas, state.dpCarteira ? 'Empresas na carteira' : 'Empresas ativas', '', 'empresas', emps.length > nAtivas ? `${emps.length - nAtivas} inativa(s)` : ''),
     ].join('');
 
-    // fila
-    const fila = [...prev, ...occ.filter(o => o.st === 'atrasado' || o.st === 'hoje' || o.st === 'semana')].sort(byData);
-    const semPrazos = !state.dpGerais.length && !state.dpEmpresas.some(e => e.prazos.length);
-    let filaBody;
-    if (semPrazos) filaBody = `<div class="dp-empty" style="padding:24px 10px"><strong>Nenhum prazo cadastrado</strong><span>Cadastre os prazos que valem para todas as empresas (salários, eSocial, FGTS…) para montar a fila.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Cadastrar manualmente</button></div></div>`;
-    else if (!fila.length) filaBody = `<div class="empty-mini" style="padding:14px 0">Nada atrasado nem vencendo nos próximos 7 dias${state.dpCarteira ? ' nesta carteira' : ''}.</div>`;
-    else filaBody = fila.slice(0, 12).map(qItem).join('') + (fila.length > 12 ? `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="prazos:pendentes">Ver mais ${fila.length - 12} na agenda</button></div>` : '');
+    // próximas datas (sem os eventos de pessoal, que têm cartão próprio)
+    const prox = eventos(t, addDays(t, 14)).filter(ev => ev.tipo !== 'pessoal');
+    const semDatas = !state.dpGerais.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length);
+    let proxBody;
+    if (semDatas) proxBody = `<div class="dp-empty" style="padding:24px 10px"><strong>Nenhuma data cadastrada</strong><span>Cadastre os prazos que valem para todas as empresas (salários, eSocial, FGTS…) e os lembretes de cada empresa na aba Datas e lembretes.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Cadastrar manualmente</button></div></div>`;
+    else if (!prox.length) proxBody = `<div class="empty-mini" style="padding:14px 0">Nenhuma data nos próximos 14 dias${state.dpCarteira ? ' nesta carteira' : ''}.</div>`;
+    else proxBody = prox.slice(0, 14).map(qItem).join('') + `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="agenda">Abrir a agenda</button></div>`;
     const hint = !state.dpCarteira && dpResponsaveis().length > 1 ? '<span class="sub">Escolha sua carteira no topo para ver só as suas empresas.</span>' : '';
-    const filaCard = `<section class="pn-card"><div class="pn-card-head"><h3>${state.dpCarteira ? `Fila de ${escapeHtml(carteiraNome())}` : 'Fila da equipe'}</h3><span class="sub">atrasados, hoje e próximos 7 dias</span>${hint}</div><div class="pn-card-body">${filaBody}</div></section>`;
+    const proxCard = `<section class="pn-card"><div class="pn-card-head"><h3>Próximas datas</h3><span class="sub">hoje e próximos 14 dias</span>${hint}</div><div class="pn-card-body">${proxBody}</div></section>`;
 
-    // alertas de pessoal
-    const alBody = alertas.length ? alertas.slice(0, 8).map(a => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${escapeHtml(a.empresa.nome)}</div></div><span class="pill ${a.nivel === 'late' ? 'pill-late' : a.nivel === 'today' ? 'pill-today' : 'pill-soon'}">${fmtDM(a.d)}</span></div>`).join('')
+    const alBody = alertas.length ? alertas.slice(0, 8).map(a => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${escapeHtml(a.empresa.nome)}</div></div>${pillRel(a.d, a.nivel === 'late' ? 'late' : undefined)}</div>`).join('')
       + (alertas.length > 8 ? `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="funcionarios:alerta">Ver todos os ${alertas.length} alertas</button></div>` : '')
       : '<div class="empty-mini" style="padding:10px 0">Sem férias, experiências, rescisões ou datas-base pedindo atenção agora.</div>';
     const alCard = `<section class="pn-card"><div class="pn-card-head"><h3>Alertas de pessoal</h3><span class="sub">experiência, férias, rescisão e data-base</span></div><div class="pn-card-body">${alBody}</div></section>`;
 
-    // calendário
-    const venc = mesShift(comp, 1);
-    const tMes = mesKey(hoje().getFullYear(), hoje().getMonth());
-    const calMes = state.dpCalMes || ([comp, venc].includes(tMes) ? tMes : venc);
-    const calCard = `<section class="pn-card"><div class="pn-card-head"><h3>Calendário</h3><div class="dp-chips">${[comp, venc].map(m => `<button type="button" class="dp-chip${m === calMes ? ' on' : ''}" data-cal-mes="${m}">${MESES[mesParts(m).m]}</button>`).join('')}</div></div><div class="pn-card-body">${calendarioHtml(calMes, occ)}</div></section>`;
+    const m0 = mesDe(t), m1 = mesShift(m0, 1);
+    const calMes = [m0, m1].includes(state.dpCalMes) ? state.dpCalMes : m0;
+    const calCard = `<section class="pn-card"><div class="pn-card-head"><h3>Calendário</h3><div class="dp-chips">${[m0, m1].map(m => `<button type="button" class="dp-chip${m === calMes ? ' on' : ''}" data-cal-mes="${m}">${MESES[mesParts(m).m]}</button>`).join('')}</div></div><div class="pn-card-body">${calendarioHtml(calMes)}</div></section>`;
 
-    // progresso por analista
     const todas = state.dpEmpresas.filter(ativa);
     const grupos = dpResponsaveis().map(r => [r, r]);
     if (todas.some(e => !e.responsavel)) grupos.push([SEM_RESP, 'Sem responsável']);
-    const anBody = grupos.map(([key, nome]) => {
+    const cBody = grupos.map(([key, nome]) => {
       const es = todas.filter(e => respDe(e, key));
-      const oc = ocorrencias(comp, es);
-      const feitos = oc.filter(o => o.feito).length;
-      const late = oc.filter(o => o.st === 'atrasado').length;
-      const fch = es.filter(e => marca(comp, e.id, 'folha')).length;
-      const p = es.length ? Math.round(fch / es.length * 100) : 0;
-      return `<button type="button" class="an-item${norm(state.dpCarteira) === norm(key) ? ' on' : ''}" data-carteira="${escapeHtml(key)}" title="Filtrar pela carteira"><div class="an-head"><span class="an-name">${escapeHtml(nome)}</span><span class="dp-cell-sub">${es.length} empresa(s)${late ? ` · <span style="color:var(--dp-late)">${late} atrasado(s)</span>` : ''}</span></div><div class="bar-line"><span style="min-width:92px">Folhas ${fch}/${es.length}</span><div class="bar${p === 100 ? ' full' : ''}"><i style="width:${p}%"></i></div></div><div class="bar-line"><span style="min-width:92px">Prazos ${feitos}/${oc.length}</span><div class="bar${oc.length && feitos === oc.length ? ' full' : ''}"><i style="width:${oc.length ? Math.round(feitos / oc.length * 100) : 0}%"></i></div></div></button>`;
+      const nFunc = es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
+      const n7 = eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length;
+      return `<button type="button" class="an-item${norm(state.dpCarteira) === norm(key) ? ' on' : ''}" data-carteira="${escapeHtml(key)}" title="Filtrar pela carteira"><div class="an-head"><span class="an-name">${escapeHtml(nome)}</span><span class="dp-cell-sub">${es.length} empresa(s) · ${nFunc} funcionário(s)</span></div><div class="dp-cell-sub">${n7 ? `${n7} data(s) própria(s) nos próximos 7 dias` : 'Nada específico nos próximos 7 dias'}</div></button>`;
     }).join('');
-    const anCard = `<section class="pn-card"><div class="pn-card-head"><h3>Progresso por analista</h3><span class="sub">competência ${compLabel(comp)}</span></div><div class="pn-card-body">${anBody || '<div class="empty-mini">Defina responsáveis nas empresas para acompanhar a equipe.</div>'}</div></section>`;
+    const cCard = `<section class="pn-card"><div class="pn-card-head"><h3>Carteiras</h3><span class="sub">clique para filtrar</span></div><div class="pn-card-body">${cBody || '<div class="empty-mini">Defina responsáveis nas empresas para separar as carteiras.</div>'}</div></section>`;
 
-    // cadastro
-    const base = empresasCarteira();
-    const gaps = GAPS.map(g => [g, base.filter(g.test).length]).filter(([, n]) => n);
+    const gaps = GAPS.map(g => [g, emps.filter(g.test).length]).filter(([, n]) => n);
     const gapCard = `<section class="pn-card"><div class="pn-card-head"><h3>Cadastro a completar</h3><span class="sub">${gaps.length ? 'clique para ver as empresas' : ''}</span></div><div class="pn-card-body">${gaps.length ? `<div class="gap-chips">${gaps.map(([g, n]) => `<button type="button" class="dp-chip" data-go="empresas:gap:${g.v}">${escapeHtml(g.l)} <span class="n">${n}</span></button>`).join('')}</div>` : '<div class="empty-mini" style="padding:6px 0 4px">Todas as empresas têm os dados essenciais preenchidos.</div>'}</div></section>`;
 
-    grid.innerHTML = `<div class="pn-col">${filaCard}${alCard}</div><div class="pn-col">${calCard}${anCard}${gapCard}</div>`;
-    fillNames(grid);
+    grid.innerHTML = `<div class="pn-col">${proxCard}${alCard}</div><div class="pn-col">${calCard}${cCard}${gapCard}</div>`;
   }
-  function calendarioHtml(mes, occ) {
+  function calendarioHtml(mes) {
     const { y, m } = mesParts(mes);
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
     const porDia = {};
-    occ.forEach(o => { if (!o.data || o.data.getMonth() !== m || o.data.getFullYear() !== y) return; const k = ymd(o.data); (porDia[k] ||= []).push(o); });
-    const first = new Date(y, m, 1);
+    eventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
     const cells = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-wd">${d}</div>`);
     for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-day blank"></div>');
-    const t = ymd(hoje());
+    const t = hoje(), tk = ymd(t);
     for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
       const k = ymd(d), list = porDia[k] || [];
       const hol = feriado(d);
-      const pend = list.filter(o => !o.feito);
-      const cls = pend.some(o => o.st === 'atrasado') ? 'late' : pend.some(o => o.st === 'hoje') ? 'today' : list.length && !pend.length ? 'ok' : '';
-      const title = `${fmtDMY(d)}${hol ? ' · ' + hol : ''}${list.length ? ` · ${pend.length} pendente(s) de ${list.length}` : ''}`;
-      const dayCls = `cal-day${hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === t ? ' is-today' : ''}`;
-      cells.push(`<button type="button" class="${dayCls}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} title="${escapeHtml(title)}"><span>${d.getDate()}</span>${list.length ? `<span class="cal-n ${cls}">${pend.length || '✓'}</span>` : ''}</button>`);
+      const cls = k === tk ? 'today' : d < t ? 'ok' : list.some(ev => ev.tipo === 'lembrete') ? 'late' : '';
+      const resumo = Object.entries(list.reduce((acc, ev) => { acc[TIPOS[ev.tipo]] = (acc[TIPOS[ev.tipo]] || 0) + 1; return acc; }, {})).map(([k2, n]) => `${n} ${k2.toLowerCase()}`).join(', ');
+      const title = `${fmtDMY(d)}${hol ? ' · ' + hol : ''}${resumo ? ' · ' + resumo : ''}`;
+      const dayCls = `cal-day${hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
+      cells.push(`<button type="button" class="${dayCls}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} title="${escapeHtml(title)}"><span>${d.getDate()}</span>${list.length ? `<span class="cal-n ${cls}">${list.length}</span>` : ''}</button>`);
     }
-    return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span>Número = prazos pendentes no dia</span><span>Riscado = feriado nacional ou bancário</span></div>`;
+    return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span>Número = datas no dia</span><span class="cal-key late">tem lembrete</span><span>Riscado = feriado nacional ou bancário</span></div>`;
   }
 
-  // ---------- fechamento (matriz) ----------
-  $('#dp-fech-search').addEventListener('input', (e) => { state.dpFechQuery = e.target.value.trim(); renderDpFechamento(); });
-  $('#dp-fech-pend').addEventListener('change', (e) => { state.dpFechPend = e.target.checked; renderDpFechamento(); });
+  // ---------- agenda ----------
+  const AG_FILTROS = [['','Tudo'],['lembrete','Lembretes'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
+  const AG_COLS = 'style="--cols:96px minmax(0,2.2fr) minmax(0,1.4fr) 104px; --cols-sm:minmax(0,1fr) auto"';
+  // Sem mês escolhido, a agenda mostra os próximos 30 dias; as setas passam para meses inteiros.
+  $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = state.dpAgMes ? mesShift(state.dpAgMes, -1) : mesDe(hoje()); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = ''; state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
+  $('#dp-ag-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpAgTipo = c.dataset.f; renderDpAgenda(); } });
+  $('#dp-ag-dia').addEventListener('click', (e) => { if (e.target.closest('button')) { state.dpAgDia = ''; renderDpAgenda(); } });
   $('#dp-btn-gerais').addEventListener('click', () => openGerais());
-  function renderDpFechamento() {
-    const body = $('#dp-fech-body');
-    if (!state.dpLoaded) { body.innerHTML = ''; return; }
-    if (!state.dpEmpresas.length) { body.innerHTML = emptyEmpresasHtml(); $('#dp-fech-count').textContent = ''; return; }
-    const comp = state.dpMes;
-    const gerais = state.dpGerais;
-    let rows = empresasCarteira().filter(ativa)
-      .filter(e => matchQ([e.nome, e.cod, e.cnpj, e.responsavel], state.dpFechQuery))
-      .sort(byNome)
-      .map(e => {
-        const occ = ocorrenciasEmpresa(e, comp);
-        const gmap = Object.fromEntries(occ.filter(o => o.geral).map(o => [o.key, o]));
-        const esp = occ.filter(o => !o.geral);
-        const folha = folhaOcc(e, comp);
-        return { e, gmap, esp, folha, pend: occ.some(o => !o.feito) || !folha.feito };
-      });
-    if (state.dpFechPend) rows = rows.filter(r => r.pend);
-    const total = rows.reduce((n, r) => n + Object.keys(r.gmap).length + r.esp.length + 1, 0);
-    const feitos = rows.reduce((n, r) => n + Object.values(r.gmap).filter(o => o.feito).length + r.esp.filter(o => o.feito).length + (r.folha.feito ? 1 : 0), 0);
-    $('#dp-fech-count').textContent = `${rows.length} empresa(s) · ${feitos}/${total} itens concluídos`;
-    const banner = gerais.length ? '' : `<div class="dp-empty" style="padding:18px 22px 22px"><strong>Cadastre os prazos gerais</strong><span>Eles viram colunas desta matriz, com o vencimento calculado para cada competência.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Cadastrar manualmente</button></div></div>`;
-    if (!rows.length) { body.innerHTML = banner + `<div class="dp-empty">${state.dpFechPend ? 'Nenhuma empresa com pendência nesta competência.' : 'Nenhuma empresa encontrada.'}</div>`; return; }
-    const head = gerais.map(g => { const d = vencimento(g, comp); return `<th scope="col"><span class="mx-h">${escapeHtml(g.tarefa || 'Prazo')}</span><span class="mx-d">${d ? `${fmtDM(d)} ${wd(d)}` : descreveDia(g)}</span></th>`; }).join('');
-    const colTot = gerais.map(g => { const k = 'g:' + g.id; const ap = rows.filter(r => r.gmap[k]); return `<td>${ap.filter(r => r.gmap[k].feito).length}/${ap.length}</td>`; }).join('');
-    const tr = rows.map(r => {
-      const cells = gerais.map(g => { const o = r.gmap['g:' + g.id]; return `<td>${o ? chkBtn(o) : '<span class="chk na" title="Não se aplica a esta empresa">–</span>'}</td>`; }).join('');
-      const espDone = r.esp.filter(o => o.feito).length;
-      const espLate = r.esp.some(o => o.st === 'atrasado');
-      return `<tr><td class="mx-emp"><button type="button" data-open-emp="${escapeHtml(r.e.id)}" data-tab="prazos">${escapeHtml(r.e.nome)}</button><div class="dp-cell-sub">${escapeHtml(r.e.responsavel || 'Sem responsável')}</div></td>${cells}<td>${r.esp.length ? `<button type="button" class="mx-esp" data-open-emp="${escapeHtml(r.e.id)}" data-tab="prazos"${espLate ? ' style="color:var(--dp-late);font-weight:700"' : ''}>${espDone}/${r.esp.length}</button>` : '<span class="dp-cell-sub">—</span>'}</td><td class="mx-folha">${chkBtn(r.folha)}</td></tr>`;
-    }).join('');
-    const fTot = rows.filter(r => r.folha.feito).length;
-    body.innerHTML = banner + `<div class="mx-wrap"><table class="mx"><thead><tr><th class="mx-emp" scope="col">Empresa</th>${head}<th scope="col"><span class="mx-h">Específicos</span><span class="mx-d">da empresa</span></th><th scope="col" class="mx-folha"><span class="mx-h">Folha fechada</span><span class="mx-d">comp. ${compLabel(comp)}</span></th></tr></thead><tbody>${tr}</tbody><tfoot><tr><td class="mx-emp">Concluído</td>${colTot}<td></td><td class="mx-folha">${fTot}/${rows.length}</td></tr></tfoot></table></div>`;
-    fillNames(body);
-  }
-
-  // ---------- agenda (prazos) ----------
-  const PRAZO_FILTROS = [['pendentes','Pendentes'],['atrasados','Atrasados'],['hoje','Hoje'],['semana','Próximos 7 dias'],['feitos','Feitos'],['todos','Todos']];
-  const passaFiltro = (o, f) => f === 'todos' ? true : f === 'feitos' ? !!o.feito : f === 'pendentes' ? !o.feito : f === 'atrasados' ? o.st === 'atrasado' : f === 'hoje' ? o.st === 'hoje' : f === 'semana' ? (o.st === 'semana' || o.st === 'hoje') : true;
-  $('#dp-prazos-search').addEventListener('input', (e) => { state.dpPrazosQuery = e.target.value.trim(); renderDpPrazos(); });
-  $('#dp-prazos-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpPrazosFiltro = c.dataset.f; renderDpPrazos(); } });
-  $('#dp-prazos-dia').addEventListener('click', (e) => { if (e.target.closest('button')) { state.dpPrazosDia = ''; renderDpPrazos(); } });
-  const AG_COLS = 'style="--cols:auto minmax(0,2.2fr) minmax(0,1.5fr) 118px; --cols-sm:auto minmax(0,1fr)"';
-  function renderDpPrazos() {
-    const list = $('#dp-prazos-list');
+  function renderDpAgenda() {
+    const list = $('#dp-ag-list');
+    const t = hoje();
+    let from, to;
+    if (state.dpAgMes) { const { y, m } = mesParts(state.dpAgMes); from = new Date(y, m, 1); to = new Date(y, m + 1, 0); $('#dp-ag-label').textContent = `${MESES[m]} ${y}`; }
+    else { from = t; to = addDays(t, 30); $('#dp-ag-label').textContent = 'Próximos 30 dias'; }
+    $('#dp-ag-hoje').hidden = !state.dpAgMes && !state.dpAgDia;
     if (!state.dpLoaded) { list.innerHTML = ''; return; }
-    const all = ocorrencias(state.dpMes).filter(o => matchQ([o.prazo.tarefa, o.prazo.caminho, o.empresa.nome, o.empresa.responsavel, o.geral ? 'geral' : ''], state.dpPrazosQuery));
-    const doDia = state.dpPrazosDia ? all.filter(o => o.data && ymd(o.data) === state.dpPrazosDia) : all;
-    $('#dp-prazos-chips').innerHTML = PRAZO_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpPrazosFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${doDia.filter(o => passaFiltro(o, v)).length}</span></button>`).join('');
-    $('#dp-prazos-dia').innerHTML = state.dpPrazosDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpPrazosDia)))}<button type="button" aria-label="Limpar filtro de dia">✕</button></span>` : '';
-    const vis = doDia.filter(o => passaFiltro(o, state.dpPrazosFiltro)).sort(byData);
-    $('#dp-prazos-count').textContent = `${vis.length} prazo(s)`;
-    const prev = anteriorAtrasados();
-    const aviso = prev.length ? `<div class="dp-toolbar" style="padding-top:0"><span class="pill pill-late">${prev.length} atrasado(s) da competência ${compLabel(mesShift(state.dpMes, -1))}</span><button type="button" class="pn-link" data-go="prazos:atrasados" data-comp="${mesShift(state.dpMes, -1)}">Abrir essa competência</button></div>` : '';
-    if (!all.length) {
-      list.innerHTML = aviso + `<div class="dp-empty"><strong>Nenhum prazo nesta competência</strong><span>Cadastre prazos gerais (valem para todas as empresas) ou prazos específicos dentro de cada empresa.</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
+    let all = eventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : ''], state.dpAgQuery));
+    if (state.dpAgDia) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
+    const base = all;
+    $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${base.filter(ev => !v || ev.tipo === v).length}</span></button>`).join('');
+    $('#dp-ag-dia').innerHTML = state.dpAgDia ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o mês inteiro">✕</button></span>` : '';
+    const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
+    $('#dp-ag-count').textContent = `${vis.length} data(s)`;
+    const semDatas = !state.dpGerais.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
+    if (semDatas) {
+      list.innerHTML = `<div class="dp-empty"><strong>A agenda está vazia</strong><span>Ela junta os prazos gerais, as rotinas e os lembretes de cada empresa e as datas de funcionários (experiência, férias, rescisão).</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
       return;
     }
-    if (!vis.length) { list.innerHTML = aviso + '<div class="dp-empty">Nada neste filtro.</div>'; return; }
+    if (!vis.length) { list.innerHTML = `<div class="dp-empty">${state.dpAgMes ? 'Nenhuma data neste mês com este filtro.' : 'Nenhuma data nos próximos 30 dias com este filtro.'}</div>`; return; }
     const grupos = new Map();
-    vis.forEach(o => { const k = o.data ? ymd(o.data) : 'sem'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(o); });
-    list.innerHTML = aviso + [...grupos.entries()].map(([k, os]) => {
-      const d = k === 'sem' ? null : parseYmd(k);
-      const hol = d ? feriado(d) : '';
-      const dd = d ? diffDays(d, hoje()) : null;
-      const rel = d == null ? '' : dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd === -1 ? 'ontem' : '';
-      const head = d ? `<div class="ag-day">${fmtDM(d)} <span class="wd">${wd(d)}${rel ? ' · ' + rel : ''}</span>${hol ? `<span class="hol">${escapeHtml(hol)}</span>` : ''}</div>` : '<div class="ag-day">Sem dia definido <span class="wd">informe o dia no cadastro do prazo</span></div>';
-      return head + os.map(o => `<div class="dp-row" ${AG_COLS} role="button" tabindex="0" data-open-emp="${escapeHtml(o.empresa.id)}" data-tab="prazos">${chkBtn(o)}<div><div class="dp-cell-main">${escapeHtml(o.prazo.tarefa || 'Prazo')} ${o.geral ? '<span class="tag">geral</span>' : ''}</div><div class="dp-cell-sub" title="${escapeHtml(descreveRegra(o.prazo))}">${escapeHtml(descreveRegra(o.prazo) + (o.prazo.caminho ? ' · ' + o.prazo.caminho : ''))}</div><div class="dp-cell-sub dp-show-sm">${escapeHtml(o.empresa.nome)}</div></div><div class="dp-hide-sm"><div class="dp-cell-main" style="font-weight:500">${escapeHtml(o.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(o.empresa.responsavel || 'Sem responsável')}</div></div><div class="dp-hide-sm">${pillOcc(o)}</div></div>`).join('');
+    vis.forEach(ev => { const k = ymd(ev.d); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(ev); });
+    list.innerHTML = [...grupos.entries()].map(([k, evs]) => {
+      const d = parseYmd(k), hol = feriado(d), dd = diffDays(d, t);
+      const rel = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd === -1 ? 'ontem' : '';
+      const past = dd < 0 ? ' past' : '';
+      return `<div class="ag-day${past}">${fmtDM(d)} <span class="wd">${wd(d)}${rel ? ' · ' + rel : ''}</span>${hol ? `<span class="hol">${escapeHtml(hol)}</span>` : ''}</div>` + evs.map(ev => {
+        const attrs = ev.emps ? 'role="button" tabindex="0" data-open-gerais' : `role="button" tabindex="0" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
+        const quem = ev.emps ? empLink(ev) : `<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
+        return `<div class="dp-row${past}" ${AG_COLS} ${attrs}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome)}</div></div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
+      }).join('');
     }).join('');
-    fillNames(list);
   }
 
   // ---------- empresas ----------
-  const EMP_COLS = 'minmax(0,2.4fr) 130px minmax(0,1fr) 100px 150px 110px';
-  const progressoEmpresa = (e) => { if (!ativa(e)) return null; const occ = ocorrenciasEmpresa(e, state.dpMes); const f = folhaOcc(e, state.dpMes); const tot = occ.length + 1; const ok = occ.filter(o => o.feito).length + (f.feito ? 1 : 0); return { ok, tot, late: occ.some(o => o.st === 'atrasado') }; };
+  const EMP_COLS = 'minmax(0,2.2fr) 130px minmax(0,1fr) 100px minmax(0,1.8fr) 110px';
   function visibleDpEmpresas() {
     const gap = GAPS.find(g => g.v === state.dpGap);
     const list = empresasCarteira()
@@ -1689,13 +1535,13 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       .filter(e => matchQ([e.nome, e.cnpj, cnpjClean(e.cnpj), e.cod, e.codigoDominio, e.uf, e.responsavel, e.contato], state.dpQuery));
     const s = state.dpSort;
     if (s === 'resp') return list.sort((a, b) => (a.responsavel || '~').localeCompare(b.responsavel || '~', 'pt-BR') || byNome(a, b));
-    if (s === 'prog') return list.map(e => [e, progressoEmpresa(e)]).sort((a, b) => ((a[1] ? a[1].ok / a[1].tot : 2) - (b[1] ? b[1].ok / b[1].tot : 2)) || byNome(a[0], b[0])).map(x => x[0]);
+    if (s === 'prox') return list.map(e => [e, proxEmpresa(e)]).sort((a, b) => ((a[1] ? a[1].d.getTime() : Infinity) - (b[1] ? b[1].d.getTime() : Infinity)) || byNome(a[0], b[0])).map(x => x[0]);
     return list.sort(byNome);
   }
   function renderEmpHead() {
     const s = state.dpSort;
     const sb = (k, l) => `<button type="button" data-sort="${k}" class="${s === k ? 'on' : ''}" aria-pressed="${s === k}">${l}${s === k ? ' ↓' : ''}</button>`;
-    $('#dp-emp-head').innerHTML = `${sb('nome','Empresa')}<span>Tributação</span>${sb('resp','Responsável')}<span>Data-base</span>${sb('prog','Comp. ' + compLabel(state.dpMes))}<span>Situação</span>`;
+    $('#dp-emp-head').innerHTML = `${sb('nome','Empresa')}<span>Tributação</span>${sb('resp','Responsável')}<span>Data-base</span>${sb('prox','Próxima data')}<span>Situação</span>`;
   }
   $('#dp-emp-head').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (b) { state.dpSort = b.dataset.sort; renderDp(); } });
   function refreshEmpFilters() {
@@ -1718,8 +1564,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (!state.dpEmpresas.length) { container.innerHTML = `<div class="dp-empty"><strong>Nenhuma empresa cadastrada</strong><span>Use “Nova empresa” ou importe um backup do DP.</span></div>`; return; }
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada com esses filtros.</div>'; return; }
     container.innerHTML = list.map(e => {
-      const p = progressoEmpresa(e);
-      const pct = p ? Math.round(p.ok / p.tot * 100) : 0;
+      const p = proxEmpresa(e);
       const inv = e.cnpj && !cnpjValido(e.cnpj);
       const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)" title="CNPJ inválido"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
       return `<div class="dp-row" style="--cols:${EMP_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
@@ -1727,7 +1572,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         <div class="dp-hide-sm dp-cell-sub" style="font-size:12px">${escapeHtml(e.tributacao || '—')}</div>
         <div class="dp-hide-sm">${escapeHtml(e.responsavel || '—')}</div>
         <div class="dp-hide-sm">${escapeHtml(e.dataBase || '—')}</div>
-        <div class="dp-hide-sm">${p ? `<div class="bar-line"><div class="bar${pct === 100 ? ' full' : ''}"><i style="width:${pct}%"></i></div><span${p.late ? ' style="color:var(--dp-late);font-weight:700"' : ''}>${p.ok}/${p.tot}</span></div>` : '<span class="dp-cell-sub">fora do fechamento</span>'}</div>
+        <div class="dp-hide-sm" style="min-width:0">${p ? `<div class="dp-prox">${pillRel(p.d)}<span class="dp-cell-sub" title="${escapeHtml(p.titulo)}">${escapeHtml(p.titulo)}</span></div>` : '<span class="dp-cell-sub">—</span>'}</div>
         <div><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>
       </div>`;
     }).join('');
@@ -1742,28 +1587,32 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const FUNC_FILTROS = [['','Todos'],['alerta','Com alerta'],['Ativo','Ativos'],['Férias','Em férias'],['Afastado','Afastados'],['Desligado','Desligados']];
   const FUNC_COLS = 'minmax(0,1.6fr) minmax(0,1.4fr) 96px 104px minmax(0,1.8fr)';
   function allFuncionarios() {
-    return empresasCarteira().flatMap(e => e.funcionarios.map(f => { const info = funcInfo(f); return { f, e, info, prox: info.ev.find(a => a.dd >= 0) || info.ev[0] || null }; }));
+    return empresasCarteira().flatMap(e => e.funcionarios.map(f => ({ f, e, status: funcStatus(f), alertas: funcAlertas(f), prox: funcProx(f) })));
   }
   $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); renderDpFuncionarios(); });
   $('#dp-func-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpFuncFiltro = c.dataset.f; renderDpFuncionarios(); } });
   function renderDpFuncionarios() {
     const container = $('#dp-func-list');
     if (!state.dpLoaded) { container.innerHTML = ''; return; }
-    const all = allFuncionarios().filter(x => matchQ([x.f.nome, x.f.cargo, x.info.status, x.e.nome, x.f.obs], state.dpFuncQuery));
-    const passa = (x, f) => !f ? true : f === 'alerta' ? x.info.ev.length > 0 : x.info.status === f;
+    const all = allFuncionarios().filter(x => matchQ([x.f.nome, x.f.cargo, x.status, x.e.nome, x.f.obs], state.dpFuncQuery));
+    const passa = (x, f) => !f ? true : f === 'alerta' ? x.alertas.length > 0 : x.status === f;
     $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${all.filter(x => passa(x, v)).length}</span></button>`).join('');
-    const list = all.filter(x => passa(x, state.dpFuncFiltro)).sort((a, b) => (a.prox ? 0 : 1) - (b.prox ? 0 : 1) || (a.prox && b.prox ? a.prox.d - b.prox.d : 0) || (a.f.nome || '').localeCompare(b.f.nome || '', 'pt-BR'));
+    const list = all.filter(x => passa(x, state.dpFuncFiltro)).sort((a, b) => (b.alertas.length ? 1 : 0) - (a.alertas.length ? 1 : 0) || (a.prox ? 0 : 1) - (b.prox ? 0 : 1) || (a.prox && b.prox ? a.prox.d - b.prox.d : 0) || (a.f.nome || '').localeCompare(b.f.nome || '', 'pt-BR'));
     $('#dp-func-count').textContent = `${list.length} funcionário(s)`;
     if (!all.length) { container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return; }
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nada neste filtro.</div>'; return; }
-    container.innerHTML = list.map(({ f, e, info, prox }) => `
+    container.innerHTML = list.map(({ f, e, status, alertas, prox }) => {
+      const a = alertas[0];
+      const ev = a || prox;
+      return `
       <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
         <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${escapeHtml(e.nome)}</span></div></div>
         <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${escapeHtml(e.nome)}</div>
         <div class="dp-hide-sm dp-mono" style="font-size:12px">${f.admissao ? escapeHtml(fmtDateStr(f.admissao)) : '—'}</div>
-        <div><span class="pill ${FUNC_PILL[info.status] || ''}">${escapeHtml(info.status)}</span></div>
-        <div class="dp-hide-sm">${prox ? `<div class="dp-cell-sub" style="font-size:12px;color:var(--ink-2);white-space:normal">${escapeHtml(prox.txt)} <span class="pill ${prox.nivel === 'late' ? 'pill-late' : prox.nivel === 'today' ? 'pill-today' : 'pill-soon'}">${fmtDM(prox.d)}</span></div>` : '<span class="dp-cell-sub">—</span>'}</div>
-      </div>`).join('');
+        <div><span class="pill ${FUNC_PILL[status] || ''}">${escapeHtml(status)}</span></div>
+        <div class="dp-hide-sm">${ev ? `<div class="dp-cell-sub" style="font-size:12px;color:var(--ink-2);white-space:normal">${a ? '<span class="al-dot ' + (a.nivel === 'soon' ? '' : a.nivel) + '" style="display:inline-block;margin-right:5px"></span>' : ''}${escapeHtml(ev.txt)} ${pillRel(ev.d, a?.nivel === 'late' ? 'late' : undefined)}</div>` : '<span class="dp-cell-sub">—</span>'}</div>
+      </div>`;
+    }).join('');
   }
 
   // ---------- arquivos ----------
@@ -1778,13 +1627,13 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   const hojeArq = () => ymd(new Date());
   $('#dp-btn-csv').addEventListener('click', () => {
-    const rows = [['Código','Empresa','CNPJ','Tributação','Responsável','Cidade/UF','Data-base','Situação','Funcionários ativos',`Itens concluídos comp. ${compLabel(state.dpMes)}`,'Folha fechada','Contato']];
-    visibleDpEmpresas().forEach(e => { const p = progressoEmpresa(e); rows.push([e.cod, e.nome, e.cnpj, e.tributacao, e.responsavel, e.uf, e.dataBase, e.situacao, e.funcionarios.filter(f => funcInfo(f).status !== 'Desligado').length, p ? `${p.ok}/${p.tot}` : '', marca(state.dpMes, e.id, 'folha') ? 'Sim' : 'Não', e.contato]); });
+    const rows = [['Código','Empresa','CNPJ','Tributação','Responsável','Cidade/UF','Data-base','Situação','Funcionários ativos','Próxima data','O quê','Contato','Adiantamento']];
+    visibleDpEmpresas().forEach(e => { const p = proxEmpresa(e); rows.push([e.cod, e.nome, e.cnpj, e.tributacao, e.responsavel, e.uf, e.dataBase, e.situacao, e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, p ? fmtDMY(p.d) : '', p?.titulo || '', e.contato, e.adiantamento]); });
     offerFile(`dp-empresas-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#dp-btn-func-csv').addEventListener('click', () => {
-    const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Férias início','Férias fim','Rescisão','Próximo evento','Data do evento']];
-    allFuncionarios().forEach(({ f, e, info, prox }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), info.status, fmtDateStr(f.feriasInicio), fmtDateStr(f.feriasFim), fmtDateStr(f.rescisao), prox?.txt || '', prox ? fmtDMY(prox.d) : '']));
+    const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Férias início','Férias fim','Rescisão','Próxima data','O quê']];
+    allFuncionarios().forEach(({ f, e, status, prox }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), status, fmtDateStr(f.feriasInicio), fmtDateStr(f.feriasFim), fmtDateStr(f.rescisao), prox ? fmtDMY(prox.d) : '', prox?.txt || '']));
     offerFile(`dp-funcionarios-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#dp-btn-export').addEventListener('click', () => {
@@ -1818,8 +1667,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     try { ps = await userNs.profiles([...new Set(els.map(el => el.dataset.uid))]); } catch { return; }
     els.forEach(el => {
       const n = ps[el.dataset.uid]?.name || '';
-      if (el.dataset.uidAttr === 'title') { if (n) el.title = `${el.dataset.title} · por ${n}`; }
-      else el.textContent = n || 'Alguém da equipe';
+      el.textContent = n || 'Alguém da equipe';
     });
   }
 
@@ -1832,7 +1680,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     ['dp-uf','uf','Cidade/UF'], ['dp-data-base','dataBase','Data-base'], ['dp-contato','contato','Contato do cliente'],
     ['dp-adiantamento','adiantamento','Adiantamento salarial'], ['dp-fechamento','fechamento','o procedimento de fechamento', true], ['dp-observacoes','observacoes','as observações gerais', true],
   ];
-  const SEC_NOME = { estabelecimentos:'estabelecimento', rubricas:'rubrica', rpa:'RPA', pensao:'pensão', prazos:'prazo', historico:'nota', funcionarios:'funcionário', gerais:'prazo geral' };
+  const SEC_NOME = { lembretes:'lembrete', estabelecimentos:'estabelecimento', rubricas:'rubrica', rpa:'RPA', pensao:'pensão', prazos:'prazo', historico:'nota', funcionarios:'funcionário', gerais:'prazo geral' };
 
   function fillSelect(sel, opts, value, emptyLabel) {
     const list = [...opts];
@@ -1856,8 +1704,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const sit = $('#dp-detail-sit');
     sit.className = `pill ${SIT_PILL[dpAtual.situacao] || ''}`;
     sit.textContent = dpDraft ? 'Rascunho' : dpAtual.situacao;
-    $('#dp-dtab-n-func').textContent = dpAtual.funcionarios.length ? ` ${dpAtual.funcionarios.filter(f => funcInfo(f).status !== 'Desligado').length}` : '';
-    const nPrazos = dpAtual.prazos.length + state.dpGerais.filter(g => !dpAtual.naoAplica.includes(g.id)).length;
+    $('#dp-dtab-n-func').textContent = dpAtual.funcionarios.length ? ` ${dpAtual.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length}` : '';
+    const nPrazos = dpAtual.lembretes.filter(l => { const d = parseYmd(l.data); return d && d >= hoje(); }).length + dpAtual.prazos.length;
     $('#dp-dtab-n-prazos').textContent = nPrazos ? ` ${nPrazos}` : '';
     $('#btn-dp-criar').hidden = !dpDraft;
     $('#btn-dp-excluir').hidden = dpDraft;
@@ -1915,7 +1763,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     dpAtual[key] = v;
     saveEmpresaFields({ [key]: v }, longo ? `Alterou ${label}` : `${label}: ${old || '—'} → ${v || '—'}`);
     renderDetailSec('historico');
-    if (key === 'situacao') refreshDetailMes();
+    if (key === 'situacao' || key === 'dataBase') refreshDetailDatas();
   }
   MAIN_FIELDS.forEach(([id]) => $('#' + id).addEventListener('change', () => commitMainField(id)));
   $('#dp-nome').addEventListener('input', () => { if (dpDraft) { dpAtual.nome = $('#dp-nome').value.trim(); updateDetailHeader(); } });
@@ -1927,9 +1775,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const v = String(val ?? '');
     const attrs = `data-field="${f.key}" data-sec="${sec}" data-scope="${scope}"`;
     let ctrl;
-    if (f.type === 'select' || f.type === 'regra' || f.type === 'quando') {
+    if (f.type === 'select' || f.type === 'regra') {
       const opts = f.type === 'regra' ? [['', 'Automática'], ...REGRAS.map(r => [r.v, r.l])]
-        : f.type === 'quando' ? [['', 'Automático'], ...QUANDO.map(q => [q.v, q.l])]
         : [['', '—'], ...f.options.map(o => [o, o])];
       if (v && !opts.some(o => o[0] === v)) opts.push([v, v]);
       ctrl = `<select ${attrs}>${opts.map(([ov, ol]) => `<option value="${escapeHtml(ov)}"${ov === v ? ' selected' : ''}>${escapeHtml(ol)}</option>`).join('')}</select>`;
@@ -1942,7 +1789,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function displayVal(f, v) {
     if (f.type === 'regra') return escapeHtml(v ? regraLabel(v) || v : 'Automática');
-    if (f.type === 'quando') return escapeHtml(v ? QUANDO.find(q => q.v === v)?.l || v : 'Automático');
     if (!v) return '—';
     if (f.uid) return `<span data-uid="${escapeHtml(v)}">Alguém da equipe</span>`;
     if (f.type === 'date') return escapeHtml(fmtDateStr(v));
@@ -1952,12 +1798,16 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function extraCells(sec, row) {
     if (sec === 'prazos' || sec === 'gerais') {
-      const d = vencimento(row, state.dpMes);
-      return `<div class="dp-section-cell" style="flex:1.2" title="Vencimento na competência ${compLabel(state.dpMes)}"><span class="dp-section-cell-label">Vence</span><span class="dp-section-cell-val"><span class="dp-mono">${d ? `${fmtDM(d)} ${wd(d)}` : 'informe o dia'}</span><br><span style="font-size:11px;color:var(--ink-3)">${escapeHtml(descreveRegra(row))}</span></span></div>`;
+      const d = proxVenc(row);
+      return `<div class="dp-section-cell" style="flex:1.2"><span class="dp-section-cell-label">Próxima</span><span class="dp-section-cell-val"><span class="dp-mono">${d ? `${fmtDM(d)} ${wd(d)}` : 'informe o dia'}</span><br><span style="font-size:11px;color:var(--ink-3)">${escapeHtml(descreveRegra(row))}</span></span></div>`;
     }
     if (sec === 'funcionarios') {
-      const info = funcInfo(row); const prox = info.ev.find(a => a.dd >= 0) || info.ev[0];
-      return `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[info.status] || ''}">${escapeHtml(info.status)}</span>${prox ? `<span style="display:block;font-size:11.5px;margin-top:3px">${escapeHtml(prox.txt)} <b>${fmtDM(prox.d)}</b></span>` : ''}</span></div>`;
+      const st = funcStatus(row); const al = funcAlertas(row)[0]; const ev = al || funcProx(row);
+      return `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[st] || ''}">${escapeHtml(st)}</span>${ev ? `<span style="display:block;font-size:11.5px;margin-top:3px${al && al.nivel !== 'soon' ? ';color:var(--dp-late)' : ''}">${escapeHtml(ev.txt)} <b>${fmtDM(ev.d)}</b></span>` : ''}</span></div>`;
+    }
+    if (sec === 'lembretes') {
+      const d = parseYmd(row.data);
+      return d ? `<div class="dp-section-cell" style="flex:0 0 auto;align-self:center">${pillRel(d)}</div>` : '';
     }
     return '';
   }
@@ -1968,7 +1818,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       if (dpEdit && dpEdit.sec === sec && dpEdit.id === row.id) {
         return `<div class="dp-section-row editing" data-row="${escapeHtml(row.id)}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, row[f.key], 'edit')).join('')}<div class="dp-row-actions"><button type="button" class="btn btn-sm btn-primary" data-sec-save="${sec}" data-id="${escapeHtml(row.id)}">Salvar</button><button type="button" class="btn btn-sm" data-sec-cancel="${sec}">Cancelar</button></div></div>`;
       }
-      const cells = cfg.fields.filter((f, i) => i === 0 || row[f.key] || f.type === 'regra' || f.type === 'quando' || f.uid).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
+      const cells = cfg.fields.filter((f, i) => i === 0 || row[f.key] || f.type === 'regra' || f.uid).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
       const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">✏️</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">🗑️</button></div>`;
       return `<div class="dp-section-row">${extraCells(sec, row)}${cells}${actions}</div>`;
     }).join('');
@@ -1977,7 +1827,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   const SEC_NOTES = {
     funcionarios: 'Os alertas usam estas datas: experiência 45+45 dias a partir da admissão; férias pelo período aquisitivo (atualize depois de conceder); pagamento de férias 2 dias antes do início; rescisão até 10 dias após o último dia.',
-    prazos: 'Rotinas que só valem para esta empresa. O vencimento é calculado para a competência selecionada no topo do módulo.',
+    prazos: 'Datas que se repetem todo mês só nesta empresa (ex.: cliente envia as variáveis até o dia 25).',
+    lembretes: 'Datas únicas para não esquecer: combinados com o cliente, admissões previstas, reajustes, prazos de documentos.',
     historico: 'Alterações feitas por aqui entram automaticamente. Use a nota para registrar combinados com o cliente.',
   };
   function captureInputs(root) { const m = {}; $$('[data-field]', root).forEach(i => { m[`${i.dataset.scope}|${i.dataset.sec}|${i.dataset.field}`] = i.value; }); return m; }
@@ -1993,24 +1844,22 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function renderDetail() {
     if (!dpAtual) return;
     Object.keys(DP_SECTIONS).forEach(renderDetailSec);
-    renderDetailMes();
+    renderDetailProx();
     renderDetailGerais();
     updateDetailHeader();
     $$('[data-ro-hide]', dlgDetail).forEach(el => { if (el.id !== 'btn-dp-excluir') el.hidden = state.readOnly; });
     if (state.readOnly) $('#btn-dp-excluir').hidden = true;
   }
-  function renderDetailMes() {
-    const el = $('#dp-emp-mes');
-    const e = dpAtual, comp = state.dpMes;
-    if (dpDraft) { el.innerHTML = '<div class="dlg-section-title">Fechamento</div><div class="empty-mini">Crie a empresa para acompanhar o fechamento dela.</div>'; return; }
-    if (!ativa(e)) { el.innerHTML = `<div class="dlg-section-title">Competência ${compLabel(comp)}</div><div class="empty-mini">Empresa inativa: fica fora do fechamento do mês.</div>`; return; }
-    const occ = ocorrenciasEmpresa(e, comp).sort(byData);
-    const f = folhaOcc(e, comp);
-    const itens = [f, ...occ].map(o => `<div class="dp-occ">${chkBtn(o)}${o.key === 'folha' ? `<span class="pill ${o.feito ? 'pill-ok' : ''}">${o.feito ? 'Fechada' : 'Aberta'}</span>` : pillOcc(o)}<div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${escapeHtml(o.prazo.tarefa || 'Prazo')} ${o.geral ? '<span class="tag">geral</span>' : ''}</div>${o.data ? `<div class="dp-cell-sub">vence ${fmtDM(o.data)} ${wd(o.data)}</div>` : ''}</div></div>`).join('');
-    el.innerHTML = `<div class="dlg-section-title">Competência ${compLabel(comp)}</div><div>${itens}</div>`;
-    fillNames(el);
+  function renderDetailProx() {
+    const el = $('#dp-emp-prox');
+    const e = dpAtual, t = hoje();
+    if (dpDraft) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Crie a empresa para ver as datas dela.</div>'; return; }
+    if (!ativa(e)) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Empresa inativa: fica fora da agenda e dos alertas. Os lembretes continuam abaixo.</div>'; return; }
+    const evs = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral' && ev.tipo !== 'lembrete').slice(0, 10);
+    const itens = evs.map(ev => `<div class="dp-occ">${pillRel(ev.d)}<div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div></div>`).join('');
+    el.innerHTML = `<div class="dlg-section-title">Outras datas desta empresa <span class="dp-cell-sub" style="font-weight:500">rotinas, pessoal e data-base nos próximos 45 dias</span></div><div>${itens || '<div class="empty-mini">Nenhuma rotina, evento de pessoal ou data-base nos próximos 45 dias.</div>'}</div>`;
   }
-  function refreshDetailMes() { if (dpAtual && dlgDetail.open) { renderDetailMes(); renderDetailGerais(); renderDetailSec('prazos'); updateDetailHeader(); } }
+  function refreshDetailDatas() { if (dpAtual && dlgDetail.open) { renderDetailProx(); renderDetailGerais(); renderDetailSec('prazos'); updateDetailHeader(); } }
   function renderDetailGerais() {
     const el = $('#dp-emp-gerais');
     const gs = state.dpGerais;
@@ -2025,14 +1874,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const g = state.dpGerais.find(x => x.id === id);
     dpAtual.naoAplica = cb.checked ? dpAtual.naoAplica.filter(x => x !== id) : [...dpAtual.naoAplica, id];
     saveEmpresaFields({ naoAplica: dpAtual.naoAplica }, `${cb.checked ? 'Passou a aplicar' : 'Deixou de aplicar'} o prazo geral: ${g?.tarefa || ''}`);
-    renderDetailSec('historico'); renderDetailMes(); updateDetailHeader();
+    renderDetailSec('historico'); renderDetailProx(); updateDetailHeader();
   });
 
   function collectRow(wrap, sec) { const row = {}; $$(`[data-field][data-sec="${sec}"]`, wrap).forEach(i => { row[i.dataset.field] = i.value; }); return row; }
   function rowLabel(row) { for (const k of ['nome','tarefa','rubrica','funcionario','cnpj','descricao','alteracao','tipo']) if (row[k]) return row[k]; return ''; }
   // Adaptador por contexto: a empresa aberta ou a lista de prazos gerais.
   const secCtx = {
-    emp: { items: (sec) => dpAtual[sec], cfg: (sec) => DP_SECTIONS[sec], save: (sec, txt) => { saveEmpresaFields({ [sec]: dpAtual[sec] }, sec === 'historico' ? null : txt); renderDetailSec(sec); if (sec !== 'historico') renderDetailSec('historico'); if (sec === 'prazos' || sec === 'funcionarios') { renderDetailMes(); updateDetailHeader(); } } },
+    emp: { items: (sec) => dpAtual[sec], cfg: (sec) => DP_SECTIONS[sec], save: (sec, txt) => { saveEmpresaFields({ [sec]: dpAtual[sec] }, sec === 'historico' ? null : txt); renderDetailSec(sec); if (sec !== 'historico') renderDetailSec('historico'); if (sec === 'prazos' || sec === 'funcionarios' || sec === 'lembretes') { renderDetailProx(); updateDetailHeader(); } } },
     gerais: { items: () => state.dpGerais, cfg: () => GERAIS_CFG, save: () => saveGerais() },
   };
   function sectionClick(e, ctxName) {
@@ -2162,7 +2011,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function renderGerais() {
     const el = $('#dp-section-gerais');
     const keep = captureInputs(el);
-    el.innerHTML = sectionHtml('gerais', GERAIS_CFG, state.dpGerais, `Vencimentos mostrados para a competência ${compLabel(state.dpMes)}. Feriados municipais não entram no cálculo.`);
+    el.innerHTML = sectionHtml('gerais', GERAIS_CFG, state.dpGerais, 'A coluna “Próxima” mostra a próxima ocorrência a partir de hoje. Feriados municipais não entram no cálculo.');
     restoreInputs(el, keep);
     $('#btn-dp-sugeridos').hidden = state.readOnly;
   }
@@ -2178,7 +2027,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     persist(() => geraisStore.save(itens));
     renderGerais();
     renderDpActiveView();
-    refreshDetailMes();
+    refreshDetailDatas();
   }
   async function addSugeridos() {
     if (state.readOnly) return;
@@ -2208,14 +2057,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
     dpStore = makeLocalStore('control-hub:dp', () => []);
-    mesStore = makeMesLocal();
     geraisStore = makeGeraisLocal();
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
     state.dpGerais = normalizeGerais(geraisStore.load());
     state.dpLoaded = true;
-    subscribeMeses();
     render();
     renderDpActiveView();
   }
@@ -2229,7 +2076,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     db = dbNs;
     toolsStore = toolsDbStore;
     dpStore = dpDbStore;
-    mesStore = mesDb;
     geraisStore = geraisDb;
     if (user) {
       state.meId = await user.id();
@@ -2251,11 +2097,10 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
     db.doc('dp_config/prazos_gerais').onSnapshot((s) => {
       state.dpGerais = normalizeGerais(s.exists ? s.data().itens : []);
-      if (state.activeModule === 'dp') { renderDpActiveView(); refreshDetailMes(); }
+      if (state.activeModule === 'dp') { renderDpActiveView(); refreshDetailDatas(); }
       if (dlgGerais.open) renderGerais();
     }, caiu);
 
-    subscribeMeses();
     if (state.activeModule === 'dp') { applyDpReadOnly(); renderDpActiveView(); }
   }
 
@@ -2267,7 +2112,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   loadPrefs();
   applyTheme();
   syncHeaderHeight();
-  state.dpMes = compPadrao();
   state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
   if (HOSTED) startShared(); else startLocal();
 })();
