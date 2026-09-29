@@ -5186,7 +5186,8 @@
     var d = null;
     try{ d = JSON.parse(localStorage.getItem(CHAVE_UI) || "null"); }catch(e){ d = null; }
     if(!d || typeof d !== "object") return;
-    if(VIEWS.indexOf(d.view) !== -1) ui.view = d.view;
+    // A aba inicial é sempre "Hoje": a aba salva da última visita não é restaurada.
+    ui.view = "dashboard";
     if(["todos","pessoal","contabil","fiscal"].indexOf(d.filtroSetor) !== -1) ui.filtroSetor = d.filtroSetor;
     ["soPendentes","soImpedimento","soSemAnalista","soSemContato","agendaCompleta"].forEach(function(k){ if(typeof d[k] === "boolean") ui[k] = d[k]; });
     if(d.focoModo === "empresa" || d.focoModo === "etapa") ui.focoModo = d.focoModo;
