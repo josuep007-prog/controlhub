@@ -235,6 +235,53 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-toolbar + .dp-toolbar{padding-top:0;}
 .dp-toolbar input[type="search"]{flex:1 1 220px; min-width:0;}
 .dp-toolbar select{flex:0 1 auto; min-width:0;}
+/* cartela de clientes */
+.ct-layout{display:grid; grid-template-columns:270px minmax(0,1fr); gap:16px; padding:0 22px 24px; align-items:start;}
+.ct-side{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); padding:8px; display:flex; flex-direction:column; gap:2px; position:sticky; top:calc(var(--header-h, 64px) + 12px); max-height:calc(100vh - var(--header-h, 64px) - 24px); overflow:auto;}
+.ct-side-h{font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); padding:4px 8px 6px;}
+.ct-an{display:grid; grid-template-columns:32px minmax(0,1fr) auto; gap:4px 10px; align-items:center; border:1px solid transparent; border-radius:var(--r); padding:8px; cursor:pointer; position:relative;}
+.ct-an:hover{background:var(--surface-2);}
+.ct-an:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.ct-an.on{background:var(--blue-pale); border-color:var(--blue-deep);}
+.ct-an.drop{outline:2px dashed var(--blue-deep); outline-offset:-2px; background:var(--blue-pale);}
+.ct-an-nome{font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.ct-an-sub{font-size:11.5px; color:var(--ink-3); white-space:nowrap;}
+.ct-an-n{font-weight:700; font-size:16px; font-variant-numeric:tabular-nums;}
+.ct-an-bar{grid-column:2 / 4; height:4px; border-radius:2px; background:var(--surface-3); overflow:hidden;}
+.ct-an-bar i{display:block; height:100%; background:var(--viz-1); border-radius:2px;}
+.ct-an.on .ct-an-bar i{background:var(--blue-deep);}
+.ct-an-x{position:absolute; top:2px; right:2px; padding:3px; font-size:12px; opacity:0;}
+.ct-an:hover .ct-an-x,.ct-an-x:focus-visible{opacity:1;}
+@media (hover:none){ .ct-an-x{opacity:1;} }
+.ct-an-tot .avatar{background:var(--surface-3);}
+.ct-add{display:flex; gap:6px; padding:8px 2px 2px; border-top:1px solid var(--rule); margin-top:6px;}
+.ct-add input{flex:1; min-width:0;}
+.list-card.ct-sheet{margin:0;}
+.ct-scroll{overflow-x:auto;}
+.ct-table{width:100%; border-collapse:collapse; font-size:13px;}
+.ct-table th{background:var(--surface-2); text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:9px 10px; border-bottom:1px solid var(--rule); white-space:nowrap;}
+.ct-table th button{all:unset; cursor:pointer;}
+.ct-table th button:hover,.ct-table th button.on{color:var(--ink);}
+.ct-table th button:focus-visible{outline:2px solid var(--blue-deep);}
+.ct-table td{padding:6px 10px; border-bottom:1px solid var(--rule); vertical-align:middle;}
+.ct-table tbody tr:last-child td{border-bottom:0;}
+.ct-table tbody tr:hover{background:var(--surface-2);}
+.ct-table tbody tr.sel{background:var(--blue-pale);}
+.ct-table tbody tr.inativa{opacity:.6;}
+.ct-table tr[draggable="true"]{cursor:grab;}
+.ct-table .num{text-align:right; font-variant-numeric:tabular-nums;}
+.ct-table .chk-col{width:34px; padding-right:0;}
+.ct-table input[type=checkbox]{width:16px; height:16px; cursor:pointer; accent-color:var(--blue-deep);}
+.ct-table select{width:100%; min-width:160px; padding:4px 6px;}
+.ct-table select.vazio{color:var(--dp-late); border-color:color-mix(in srgb, var(--dp-late) 50%, var(--rule-strong));}
+.ct-emp{all:unset; cursor:pointer; display:block; max-width:340px;}
+.ct-emp:hover .dp-cell-main{text-decoration:underline;}
+.ct-emp:focus-visible{outline:2px solid var(--blue-deep);}
+.ct-bulk{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--blue-pale); border:1px solid var(--blue-deep); border-radius:var(--r); padding:8px 12px; margin-bottom:10px; font-size:13px;}
+.ct-bulk select{min-width:180px;}
+.ct-hint{font-size:12px; color:var(--ink-3); margin:8px 2px 0;}
+@media (max-width:860px){ .ct-layout{grid-template-columns:minmax(0,1fr);} .ct-side{position:static; max-height:none;} }
+@media (max-width:760px){ .ct-layout{padding-inline:16px;} }
 .dp-toolbar .filtro-on{border-color:var(--blue-deep); background-color:var(--blue-pale); color:var(--blue-deep); font-weight:600; box-shadow:inset 0 0 0 1px var(--blue-deep);}
 .dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums;}
 .dp-check-label{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-2); white-space:nowrap; cursor:pointer;}
@@ -782,6 +829,7 @@ body.portal-open{overflow:hidden;}
         <button type="button" class="dp-tab" role="tab" data-dp-view="agenda">Agenda <span class="dp-tab-badge" id="dp-badge-agenda" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="empresas">Empresas</button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes</button>
       </div>
 
       <div class="dp-view" id="dp-view-painel">
@@ -856,6 +904,25 @@ body.portal-open{overflow:hidden;}
           <span>Funcionário</span><span>Empresa</span><span>Admissão</span><span>Situação</span><span>Próxima data</span>
         </div>
         <div class="dp-list" id="dp-func-list"></div>
+        </div>
+      </div>
+
+      <div class="dp-view" id="dp-view-cartela" hidden>
+        <div class="dp-toolbar">
+          <input type="search" id="ct-search" placeholder="Buscar empresa, CNPJ ou código…" autocomplete="off">
+          <div class="seg" id="ct-sit" role="group" aria-label="Situação">
+            <button type="button" data-ct-sit="">Ativas</button>
+            <button type="button" data-ct-sit="todas">Incluir inativas</button>
+          </div>
+          <span class="dp-count" id="ct-count"></span>
+        </div>
+        <div class="ct-layout">
+          <aside class="ct-side" id="ct-side" aria-label="Analistas"></aside>
+          <div class="ct-main">
+            <div class="ct-bulk" id="ct-bulk" hidden></div>
+            <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table" id="ct-table"></table></div></div>
+            <p class="ct-hint" data-ro-hide>Troque o responsável na própria linha, selecione várias para mover em lote ou arraste as linhas até um analista à esquerda.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -1123,7 +1190,8 @@ body.portal-open{overflow:hidden;}
     prefs: { theme: null, dpCarteira: '' },
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
-    dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
+    dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEquipe: [],
+    dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
@@ -1459,6 +1527,17 @@ body.portal-open{overflow:hidden;}
   }
   const geraisDb = { async save(itens) { await db.doc('dp_config/prazos_gerais').set({ itens }); } };
   let geraisStore = makeGeraisLocal();
+  // Equipe do DP: analistas cadastrados na Cartela de clientes, mesmo sem nenhuma empresa ainda.
+  function makeEquipeLocal() {
+    const KEY = 'control-hub:dp-equipe';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(nomes) { try { localStorage.setItem(KEY, JSON.stringify(nomes)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const equipeDb = { async save(nomes) { await db.doc('dp_config/equipe').set({ nomes }); } };
+  let equipeStore = makeEquipeLocal();
+  const normalizeEquipe = (v) => { const out = []; (Array.isArray(v) ? v : []).forEach(n => { const t = String(n || '').trim().slice(0, 80); if (t && !out.some(x => norm(x) === norm(t))) out.push(t); }); return out; };
 
   // Meus lembretes: no servidor ficam em data/users/<id>/, área que só o próprio usuário lê e grava.
   function makeMeusLocal() {
@@ -1779,7 +1858,7 @@ body.portal-open{overflow:hidden;}
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
   let pendingEmp = null;
-  const DP_VIEWS = ['painel','agenda','empresas','funcionarios'];
+  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','cartela'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
     return state.activeModule === 'dp' ? `dp/${state.dpView}` : '';
@@ -1859,6 +1938,7 @@ body.portal-open{overflow:hidden;}
 
   function dpResponsaveis() {
     const map = new Map();
+    state.dpEquipe.forEach(n => { const k = norm(n); if (!map.has(k)) map.set(k, n); });
     state.dpEmpresas.forEach(e => { if (e.responsavel) { const k = norm(e.responsavel); if (!map.has(k)) map.set(k, e.responsavel); } });
     return [...map.values()].sort((a,b) => a.localeCompare(b,'pt-BR'));
   }
@@ -2120,6 +2200,7 @@ body.portal-open{overflow:hidden;}
     else if (v === 'agenda') renderDpAgenda();
     else if (v === 'empresas') renderDp();
     else if (v === 'funcionarios') renderDpFuncionarios();
+    else if (v === 'cartela') renderCartela();
   }
   function renderBadges() {
     const t = hoje();
@@ -3257,11 +3338,161 @@ body.portal-open{overflow:hidden;}
     tabs[n].click();
   });
 
+  // ---------- cartela de clientes: a gestora distribui as empresas entre os analistas ----------
+  const ctBase = () => state.dpEmpresas.filter(e => state.dpCtTodas || ativa(e));
+  function ctLinhas() {
+    const q = state.dpCtQuery;
+    const lista = ctBase().filter(naCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, e.responsavel], q));
+    const nf = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+    const k = state.dpCtSort;
+    const cmp = k === 'resp' ? (a, b) => (a.responsavel || '￿').localeCompare(b.responsavel || '￿', 'pt-BR') || byNome(a, b)
+      : k === 'func' ? (a, b) => nf(b) - nf(a) || byNome(a, b)
+      : k === 'trib' ? (a, b) => (a.tributacao || '￿').localeCompare(b.tributacao || '￿', 'pt-BR') || byNome(a, b)
+      : byNome;
+    return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
+  }
+  function renderCartela() {
+    const ro = state.readOnly;
+    const base = ctBase();
+    const nfDe = (es) => es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
+    const grupos = dpResponsaveis().map(r => ({ key: r, nome: r, es: base.filter(e => respDe(e, r)) }));
+    const semResp = base.filter(e => !e.responsavel);
+    if (semResp.length) grupos.push({ key: SEM_RESP, nome: 'Sem responsável', es: semResp, sem: true });
+    const maxN = Math.max(1, ...grupos.map(g => g.es.length));
+    const temAlguma = (nome) => state.dpEmpresas.some(e => norm(e.responsavel) === norm(nome));
+    const sel = norm(state.dpCarteira);
+    const item = (g) => {
+      const on = sel === norm(g.key);
+      const rem = !ro && !g.sem && state.dpEquipe.some(n => norm(n) === norm(g.nome)) && !temAlguma(g.nome);
+      const av = g.sem ? '<span class="avatar" style="--av:var(--dp-late)">?</span>' : `<span class="avatar" style="--av:${corDe(g.nome)}">${escapeHtml(iniciais(g.nome))}</span>`;
+      return `<div class="ct-an${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-ct-an="${escapeHtml(g.key)}" ${ro ? '' : 'data-ct-drop'}>
+        ${av}<div style="min-width:0"><div class="ct-an-nome">${escapeHtml(g.nome)}</div><div class="ct-an-sub">${g.es.length} empresa(s) · ${nfDe(g.es)} func.</div></div>
+        <span class="ct-an-n">${g.es.length}</span>
+        <div class="ct-an-bar"><i style="width:${Math.round(g.es.length / maxN * 100)}%"></i></div>
+        ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Remover ${escapeHtml(g.nome)} da equipe" title="Remover da equipe">${ic('x', 'ic-sm')}</button>` : ''}
+      </div>`;
+    };
+    const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
+        <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfDe(base)} func.</div></div>
+        <span class="ct-an-n">${base.length}</span></div>`;
+    $('#ct-side').innerHTML = `<div class="ct-side-h">Analistas</div>${tot}${grupos.map(item).join('')}
+      ${ro ? '' : `<form class="ct-add" id="ct-add"><input id="ct-add-nome" placeholder="Nome do novo analista" maxlength="80" aria-label="Nome do novo analista"><button type="submit" class="btn btn-sm">${ic('plus', 'ic-sm')} Adicionar</button></form>`}`;
+
+    $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
+
+    const linhas = ctLinhas();
+    const vis = new Set(linhas.map(l => l.e.id));
+    state.dpCtSel.forEach(id => { if (!vis.has(id)) state.dpCtSel.delete(id); });
+    $('#ct-count').textContent = `${linhas.length} empresa(s)${state.dpCarteira ? ' · ' + carteiraNome() : ''}`;
+    const nomes = dpResponsaveis();
+    const opts = (atual) => `<option value="">— sem responsável —</option>` + nomes.map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    const th = (k, l, cls = '') => `<th${cls ? ` class="${cls}"` : ''}><button type="button" data-ct-sort="${k}" class="${state.dpCtSort === k ? 'on' : ''}" aria-pressed="${state.dpCtSort === k}">${l}${state.dpCtSort === k ? ' ↓' : ''}</button></th>`;
+    const todasSel = linhas.length > 0 && linhas.every(l => state.dpCtSel.has(l.e.id));
+    const head = `<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}<th>Situação</th>${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}</tr></thead>`;
+    const body = linhas.length ? linhas.map(({ e, nf }) => {
+      const s = state.dpCtSel.has(e.id);
+      return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}"${ro ? '' : ' draggable="true"'}>
+        ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
+        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${escapeHtml(e.nome)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button></td>
+        <td class="dp-mono">${escapeHtml(e.cnpj || '—')}</td>
+        <td>${escapeHtml(e.tributacao || '—')}</td>
+        <td><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></td>
+        <td class="num">${nf}</td>
+        <td><select data-ct-resp class="${e.responsavel ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(e.responsavel)}</select></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="7"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
+    $('#ct-table').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+    const n = state.dpCtSel.size, bulk = $('#ct-bulk');
+    bulk.hidden = ro || !n;
+    if (n) bulk.innerHTML = `<b>${n}</b> selecionada(s) · Mover para <select id="ct-bulk-dest" aria-label="Mover para"><option value="" disabled selected>Escolha o analista…</option>${nomes.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}<option value="${SEM_RESP}">Sem responsável</option></select><button type="button" class="btn btn-sm btn-primary" id="ct-bulk-go">Mover</button><button type="button" class="btn btn-sm" id="ct-bulk-clear">Limpar seleção</button>`;
+  }
+  async function moverEmpresas(ids, destino) {
+    if (state.readOnly) return;
+    const novo = destino === SEM_RESP ? '' : canonResp(destino);
+    const alvo = ids.map(findDpEmpresa).filter(e => e && e.responsavel !== novo);
+    if (!alvo.length) return;
+    const quando = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+    alvo.forEach(e => {
+      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${novo || '—'}`, autor: state.meId || '' });
+      if (e.historico.length > 200) e.historico.length = 200;
+      e.responsavel = novo; e.updatedAt = Date.now();
+    });
+    state.dpCtSel.clear();
+    renderDpActiveView();
+    const ok = await persist(async () => { for (const e of alvo) await dpStore.updateFields(e.id, { responsavel: e.responsavel, historico: e.historico, updatedAt: e.updatedAt }); });
+    if (ok) toast(alvo.length === 1 ? `“${alvo[0].nome}” agora está com ${novo || 'ninguém (sem responsável)'}.` : `${alvo.length} empresas movidas para ${novo || 'sem responsável'}.`);
+  }
+  async function salvarEquipe(nomes) { state.dpEquipe = normalizeEquipe(nomes); renderDpActiveView(); await persist(() => equipeStore.save(state.dpEquipe)); }
+
+  const ctView = $('#dp-view-cartela');
+  $('#ct-search').addEventListener('input', (e) => { state.dpCtQuery = e.target.value.trim(); renderCartela(); });
+  $('#ct-sit').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-sit]'); if (b) { state.dpCtTodas = b.dataset.ctSit === 'todas'; renderCartela(); } });
+  ctView.addEventListener('click', (e) => {
+    const rem = e.target.closest('[data-ct-rem]');
+    if (rem) { e.stopPropagation(); salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(rem.dataset.ctRem))); toast(`${rem.dataset.ctRem} saiu da equipe.`); return; }
+    const an = e.target.closest('[data-ct-an]');
+    if (an) { state.dpCtSel.clear(); setCarteira(an.dataset.ctAn); return; }
+    const so = e.target.closest('[data-ct-sort]');
+    if (so) { state.dpCtSort = so.dataset.ctSort; renderCartela(); return; }
+    if (e.target.id === 'ct-bulk-clear') { state.dpCtSel.clear(); renderCartela(); return; }
+    if (e.target.id === 'ct-bulk-go') { const d = $('#ct-bulk-dest').value; if (!d) { toast('Escolha para quem mover.'); return; } moverEmpresas([...state.dpCtSel], d); }
+  });
+  ctView.addEventListener('keydown', (e) => { const an = e.target.closest('[data-ct-an]'); if (an && e.target === an && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); an.click(); } });
+  ctView.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'ct-all') { ctLinhas().forEach(l => t.checked ? state.dpCtSel.add(l.e.id) : state.dpCtSel.delete(l.e.id)); renderCartela(); return; }
+    const tr = t.closest('[data-ct-id]');
+    if (!tr) return;
+    const id = tr.dataset.ctId;
+    if (t.matches('[data-ct-chk]')) { t.checked ? state.dpCtSel.add(id) : state.dpCtSel.delete(id); renderCartela(); return; }
+    if (t.matches('[data-ct-resp]')) moverEmpresas([id], t.value || SEM_RESP);
+  });
+  ctView.addEventListener('submit', (e) => {
+    if (e.target.id !== 'ct-add') return;
+    e.preventDefault();
+    const nome = $('#ct-add-nome').value.trim();
+    if (!nome) return;
+    if (dpResponsaveis().some(n => norm(n) === norm(nome))) { toast(`${nome} já está na equipe.`); return; }
+    salvarEquipe([...state.dpEquipe, nome]);
+    toast(`${nome} entrou na equipe.`);
+  });
+  // Arrastar: a linha (ou todas as selecionadas, se ela estiver entre elas) vai para o analista onde for solta.
+  let ctArrasto = null;
+  ctView.addEventListener('dragstart', (e) => {
+    const tr = e.target.closest?.('tr[data-ct-id]');
+    if (!tr) return;
+    const id = tr.dataset.ctId;
+    ctArrasto = state.dpCtSel.has(id) ? [...state.dpCtSel] : [id];
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', ctArrasto.length + ' empresa(s)'); } catch {}
+  });
+  ctView.addEventListener('dragend', () => { ctArrasto = null; $$('.ct-an.drop').forEach(x => x.classList.remove('drop')); });
+  ctView.addEventListener('dragover', (e) => {
+    const an = e.target.closest('[data-ct-drop]');
+    if (!an || !ctArrasto) return;
+    e.preventDefault();
+    $$('.ct-an.drop').forEach(x => { if (x !== an) x.classList.remove('drop'); });
+    an.classList.add('drop');
+  });
+  ctView.addEventListener('dragleave', (e) => { const an = e.target.closest('[data-ct-drop]'); if (an && !an.contains(e.relatedTarget)) an.classList.remove('drop'); });
+  ctView.addEventListener('drop', (e) => {
+    const an = e.target.closest('[data-ct-drop]');
+    if (!an || !ctArrasto) return;
+    e.preventDefault();
+    const ids = ctArrasto; ctArrasto = null;
+    an.classList.remove('drop');
+    moverEmpresas(ids, an.dataset.ctAn);
+  });
+
   // ---------- inicialização ----------
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
     dpStore = makeLocalStore('control-hub:dp', () => []);
     geraisStore = makeGeraisLocal();
+    equipeStore = makeEquipeLocal();
+    state.dpEquipe = normalizeEquipe(equipeStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
@@ -3302,6 +3533,12 @@ body.portal-open{overflow:hidden;}
       refreshAll();
       refreshOpenDetail();
       tryPendingEmp();
+    }, caiu);
+
+    equipeStore = equipeDb;
+    db.doc('dp_config/equipe').onSnapshot((s) => {
+      state.dpEquipe = normalizeEquipe(s.exists ? s.data().nomes : []);
+      renderDpActiveView();
     }, caiu);
 
     db.doc('dp_config/prazos_gerais').onSnapshot((s) => {
