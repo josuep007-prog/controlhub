@@ -108,6 +108,7 @@ a{color:var(--blue-deep);}
 
 /* ============ layout ============ */
 main{padding-block:8px 60px;}
+body.ag-fit main{padding-bottom:0;}
 .shell{position:relative; display:flex; align-items:flex-start;}
 /* barra lateral: 64px com ícones; abre com rótulos ao passar o mouse, pelo botão ou (celular) pelo menu do topo */
 .side-rail{position:fixed; top:var(--header-h, 64px); bottom:0; left:0; width:64px; z-index:25; background:var(--surface); border-right:1px solid var(--rule); overflow:hidden auto; overscroll-behavior:contain; scrollbar-width:none; transition:width .16s ease, box-shadow .16s ease;}
@@ -348,7 +349,20 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 @media (max-width:760px){ .ag-day{padding-inline:16px;} }
 .ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px 18px; align-items:start; padding:0 22px 24px;}
 :root{ --lemb:var(--blue-deep); --lemb-bg:color-mix(in srgb, var(--blue-deep) 16%, var(--surface)); }
-.ag-cal .agm-day{min-height:118px; cursor:pointer;}
+.ag-cal .agm-day{min-height:0; cursor:pointer; overflow:hidden;}
+.ag-toolbar select{min-width:0; max-width:190px;}
+.ag-toolbar select.on{border-color:var(--blue-deep); background:var(--blue-pale);}
+.ag-toolbar input[type="search"]{flex:1 1 160px;}
+@media (min-width:901px){
+  .ag-grid{align-items:stretch; padding-bottom:0;}
+  .ag-cal{display:flex; flex-direction:column; min-height:0; margin:0;}
+  .ag-cal .agm{flex:1; min-height:0;}
+  .ag-cal .agm-wd{padding:6px 8px 4px;}
+  .ag-side{position:static; min-height:0;}
+  .ag-lemb{height:100%; display:flex; flex-direction:column; min-height:0;}
+  .ag-lemb .ag-lemb-list{flex:1; max-height:none; min-height:0;}
+  .agm-foot{padding:6px 14px; gap:4px 16px;}
+}
 .ag-cal .agm-day:hover{background:color-mix(in srgb, var(--surface-2) 70%, var(--surface));}
 .ag-cal .agm-day.sel{box-shadow:inset 0 0 0 2px var(--blue-deep); background:color-mix(in srgb, var(--blue-pale) 55%, var(--surface));}
 .ag-cal .agm-day.tem-lemb .agm-num{box-shadow:inset 0 0 0 1.5px var(--lemb);}
@@ -366,7 +380,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .agm-foot{display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; padding:10px 14px 12px; border-top:1px solid var(--rule);}
 .ag-lemb .pn-card-head{padding-bottom:2px;}
 .ag-lemb-sub{padding:0 14px 8px; display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline;}
-.ag-lemb-list{padding:0 14px 12px; max-height:calc(100vh - var(--header-h, 64px) - 150px); min-height:200px; overflow-y:auto; overscroll-behavior:contain; border-top:1px solid var(--rule);}
+.ag-lemb-list{padding:0 14px 12px; max-height:360px; min-height:120px; overflow-y:auto; overscroll-behavior:contain; border-top:1px solid var(--rule);}
 .ag-lemb-list:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
 .ml-item.past{opacity:.6;}
 .ag-grid .list-card{margin:0;}
@@ -763,23 +777,18 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       </div>
 
       <div class="dp-view" id="dp-view-agenda" hidden>
-        <div class="dp-toolbar">
+        <div class="dp-toolbar ag-toolbar">
           <div class="dp-month" role="group" aria-label="Mês da agenda">
             <button type="button" id="dp-ag-prev" aria-label="Mês anterior"><svg class="ic"><use href="#i-left"/></svg></button>
             <span class="dp-month-label" id="dp-ag-label"></span>
             <button type="button" id="dp-ag-next" aria-label="Próximo mês"><svg class="ic"><use href="#i-right"/></svg></button>
           </div>
           <button type="button" class="btn btn-sm" id="dp-ag-hoje">Hoje</button>
-          <label class="dp-carteira" for="dp-ag-analista">Analista
-            <select id="dp-ag-analista"><option value="">Todos os analistas</option></select>
-          </label>
+          <select id="dp-ag-analista" aria-label="Analista"><option value="">Todos os analistas</option></select>
+          <select id="dp-ag-tipo-sel" aria-label="Filtrar por tipo"></select>
           <input type="search" id="dp-ag-search" placeholder="Buscar por empresa, funcionário ou texto…" autocomplete="off">
-          <button type="button" class="btn btn-sm" id="dp-btn-gerais">Prazos gerais…</button>
-        </div>
-        <div class="dp-toolbar">
-          <div class="dp-chips hide-sm" id="dp-ag-chips" role="group" aria-label="Filtrar por tipo"></div>
-          <select class="only-sm" id="dp-ag-tipo-sel" aria-label="Filtrar por tipo"></select>
           <span class="dp-count" id="dp-ag-count"></span>
+          <button type="button" class="btn btn-sm" id="dp-btn-gerais">Prazos gerais…</button>
         </div>
         <div class="ag-grid">
           <div class="list-card ag-cal" id="dp-ag-cal"></div>
@@ -1606,6 +1615,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     syncShell();
     $$('.module-view').forEach(el => { el.hidden = true; });
     $('#view-home').hidden = false;
+    document.body.classList.remove('ag-fit');
     renderFerramentas();
     renderHome();
     syncRoute();
@@ -2051,6 +2061,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
     evCacheClear();
+    if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
     refreshCarteiraOptions();
     $('#dp-sync').textContent = db ? 'Sincronizado com a equipe' : 'Salvo só neste navegador';
     renderBadges();
@@ -2294,7 +2305,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
   $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = mesDe(hoje()); state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
   $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
-  $('#dp-ag-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpAgTipo = c.dataset.f; renderDpAgenda(); } });
   $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
   $('#dp-ag-analista').addEventListener('change', (e) => { state.dpAgAnalista = e.target.value; state.prefs.dpAgAnalista = state.dpAgAnalista; savePrefs(); renderDpAgenda(); });
   $('#dp-btn-gerais').addEventListener('click', () => openGerais());
@@ -2329,21 +2339,38 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     $('#dp-ag-label').textContent = `${MESES[m]} ${y}`;
     refreshAnalistas();
     if (!state.dpLoaded) { $('#dp-ag-cal').innerHTML = ''; $('#dp-meus').innerHTML = ''; return; }
+    agFit();
     const base = agendaEventos();
     const conta = (v) => base.filter(ev => !v || ev.tipo === v).length;
-    $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}" aria-pressed="${state.dpAgTipo === v}">${l} <span class="n">${conta(v)}</span></button>`).join('');
     const sel = $('#dp-ag-tipo-sel');
     sel.innerHTML = AG_FILTROS.map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
     sel.value = state.dpAgTipo;
+    sel.classList.toggle('on', !!state.dpAgTipo);
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s) em ${MESES[m].toLowerCase()}`;
     $('#dp-ag-cal').innerHTML = agCalHtml(vis, state.dpAgMes);
     renderAgLista(vis);
   }
 
+  // No computador o calendário ocupa exatamente a altura que sobra na janela (sem rolar a página);
+  // no celular/tablet volta ao fluxo normal. Cada semana divide a altura igualmente.
+  const agAjusta = () => matchMedia('(min-width:901px)').matches;
+  function agFit() {
+    const g = $('.ag-grid');
+    if (!agAjusta() || $('#dp-view-agenda').hidden) { g.style.height = ''; state.agH = 0; document.body.classList.remove('ag-fit'); return; }
+    document.body.classList.add('ag-fit');
+    const h = Math.max(380, Math.floor(innerHeight - g.getBoundingClientRect().top - 14 + scrollY));
+    g.style.height = h + 'px';
+    state.agH = h;
+  }
+  window.addEventListener('resize', () => { if (state.activeModule === 'dp' && state.dpView === 'agenda') renderDpAgenda(); });
   function agCalHtml(vis, mes) {
     const { y, m } = mesParts(mes);
     const first = new Date(y, m, 1);
+    const semanas = Math.ceil((first.getDay() + new Date(y, m + 1, 0).getDate()) / 7);
+    // altura da linha = (altura total - cabeçalho dos dias - rodapé) / semanas; cada chip ocupa ~21px, o topo do dia ~28px
+    const linhaH = state.agH ? (state.agH - 28 - 34) / semanas : 0;
+    const maxChips = state.agH ? Math.max(0, Math.min(4, Math.floor((linhaH - 32) / 21))) : 4;
     const porDia = {};
     vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
     // Lembretes primeiro no dia (são o destaque), depois o resto na ordem da agenda.
@@ -2354,18 +2381,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
       const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
       const nLemb = list.filter(ehLembrete).length;
-      const chips = list.slice(0, 4).map(ev => {
+      const mostra = list.length > maxChips && maxChips > 0 ? maxChips - 1 : maxChips;
+      const chips = list.slice(0, mostra).map(ev => {
         const lemb = ehLembrete(ev);
         const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome : 'só você';
         return `<button type="button" class="agm-ev agm-${ev.tipo}${lemb ? ' agm-lemb' : ''}${ev.feito ? ' feito' : ''}" ${evAttrs(ev, k)} ${tipAttr(`${ev.titulo}\n${TIPOS[ev.tipo]} · ${quem}${ev.sub ? '\n' + ev.sub : ''}`)}>${lemb ? ic('bell', 'ic-sm') : ''}<span class="agm-t">${escapeHtml(ev.titulo)}</span></button>`;
       }).join('');
-      const mais = list.length > 4 ? `<button type="button" class="agm-more" data-ag-sel="${k}">+${list.length - 4} mais</button>` : '';
+      const mais = list.length > mostra ? `<button type="button" class="agm-more" data-ag-sel="${k}">${mostra ? `+${list.length - mostra} mais` : `${list.length} data(s)`}</button>` : '';
       const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.dpAgDia ? ' sel' : ''}${nLemb ? ' tem-lemb' : ''}`;
       const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
       cells.push(`<div class="${cls}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
     }
-    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele ao lado${pode ? ' · + cria um lembrete' : ''}</span></div>`;
-    return `<div class="agm">${cells.join('')}</div>${legenda}`;
+    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
+    return `<div class="agm" style="${state.agH ? `grid-template-rows:auto repeat(${semanas},minmax(0,1fr))` : ''}">${cells.join('')}</div>${legenda}`;
   }
 
   // Lista ao lado: sem dia escolhido, os lembretes do mês; com dia, tudo daquele dia (lembretes primeiro).
