@@ -498,6 +498,12 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dp-geral-item .dp-mono{margin-left:auto; font-size:11.5px; color:var(--ink-3);}
 .dp-occ{display:grid; grid-template-columns:96px minmax(0,1fr); gap:10px; align-items:center; padding:6px 0; border-top:1px solid var(--rule);}
 .dp-occ:first-child{border-top:0;}
+.dp-occ-btn{cursor:pointer; border-radius:var(--r); padding-inline:8px; margin-inline:-8px; position:relative;}
+.dp-occ-btn:hover,.dp-occ-btn:focus-visible{background:var(--surface-2); outline:none;}
+.dp-occ-btn:focus-visible{box-shadow:inset 0 0 0 2px var(--blue-deep);}
+.dp-occ-go{position:absolute; right:8px; top:50%; transform:translateY(-50%); display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; color:var(--blue-deep); opacity:0; transition:opacity .12s;}
+.dp-occ-btn:hover .dp-occ-go,.dp-occ-btn:focus-visible .dp-occ-go{opacity:1;}
+@media (hover:none){ .dp-occ-go{opacity:.8;} }
 .dlg-actions .spacer{flex:1;}
 .ro-note{font-size:12px; color:var(--ink-3); background:var(--surface-2); padding:8px 10px; border-radius:var(--r);}
 .dp-view-root.ro [data-ro-hide], dialog.ro [data-ro-hide]{display:none!important;}
@@ -1899,14 +1905,14 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
         if (emps.length) out.push({ tipo:'geral', d, titulo: g.tarefa || 'Prazo geral', sub: descreveRegra(g) + (g.caminho ? ' · ' + g.caminho : ''), emps });
       });
       ativas.forEach(e => {
-        e.prazos.forEach(p => { const d = vencimento(p, m); if (dentro(d, from, to)) out.push({ tipo:'prazo', d, titulo: p.tarefa || 'Rotina', sub: descreveRegra(p) + (p.caminho ? ' · ' + p.caminho : ''), empresa:e, tab:'prazos' }); });
+        e.prazos.forEach(p => { const d = vencimento(p, m); if (dentro(d, from, to)) out.push({ tipo:'prazo', d, titulo: p.tarefa || 'Rotina', sub: descreveRegra(p) + (p.caminho ? ' · ' + p.caminho : ''), empresa:e, tab:'prazos', edit:'prazo:' + p.id }); });
         const bases = new Set([e.dataBase, ...e.estabelecimentos.map(s => s.dataBase)].filter(Boolean));
         const d1 = new Date(y, mi, 1);
-        if (bases.has(MESES[mi]) && dentro(d1, from, to)) out.push({ tipo:'database', d: d1, titulo:`Data-base em ${MESES[mi]}`, sub:'Conferir reajuste e cláusulas da CCT', empresa:e, tab:'dados' });
+        if (bases.has(MESES[mi]) && dentro(d1, from, to)) out.push({ tipo:'database', d: d1, titulo:`Data-base em ${MESES[mi]}`, sub:'Conferir reajuste e cláusulas da CCT', empresa:e, tab:'dados', edit:'database:' });
       });
     });
-    lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos' }); }));
-    ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios' }); })));
+    lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
+    ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
     return out.sort(porData);
   }
   // Próxima ocorrência de um prazo mensal a partir de hoje.
@@ -2103,7 +2109,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (meuDia) { e.stopPropagation(); state.dpAgDia = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
     if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: (state.activeModule === 'dp' && state.dpAgDia) || ymd(hoje()), novo: true }); return; }
     const open = e.target.closest('[data-open-emp]');
-    if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) openDpDetail(emp, { tab: open.dataset.tab }); return; }
+    if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) { openDpDetail(emp, { tab: open.dataset.tab }); editarDoEvento(open.dataset.edit); } return; }
     const go = e.target.closest('[data-go]');
     if (go) {
       const [view, a, b] = go.dataset.go.split(':');
@@ -2284,7 +2290,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
   const ehLembrete = (ev) => ev.tipo === 'meu' || ev.tipo === 'lembrete';
   const evAttrs = (ev, k) => ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
-    : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
+    : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"${ev.edit ? ` data-edit="${escapeHtml(ev.edit)}"` : ''}`;
   const podeCriarMeu = () => !state.meusOff && !state.readOnly;
   // Filtro por analista: datas de empresas do analista; prazos gerais contam só as empresas dele; os meus lembretes sem empresa continuam.
   function porAnalista(evs) {
@@ -2958,7 +2964,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     if (dpDraft) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Crie a empresa para ver as datas dela.</div>'; return; }
     if (!ativa(e)) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Empresa inativa: fica fora da agenda e dos alertas. Os lembretes continuam abaixo.</div>'; return; }
     const evs = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral' && ev.tipo !== 'lembrete').slice(0, 10);
-    const itens = evs.map(ev => `<div class="dp-occ">${pillRel(ev.d)}<div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div></div>`).join('');
+    const itens = evs.map(ev => `<div class="dp-occ dp-occ-btn" role="button" tabindex="0" ${ev.edit ? `data-edit="${escapeHtml(ev.edit)}"` : ''} title="${state.readOnly ? 'Ver' : 'Editar'}"><div>${pillRel(ev.d)}</div><div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${tagTipo(ev.tipo)} ${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div>${state.readOnly ? '' : `<span class="dp-occ-go">${ic('edit', 'ic-sm')} Editar</span>`}</div>`).join('');
     el.innerHTML = `<div class="dlg-section-title">Outras datas desta empresa <span class="dp-cell-sub" style="font-weight:500">rotinas, pessoal e data-base nos próximos 45 dias</span></div><div>${itens || '<div class="empty-mini">Nenhuma rotina, evento de pessoal ou data-base nos próximos 45 dias.</div>'}</div>`;
   }
   function refreshDetailDatas() { if (dpAtual && dlgDetail.open) { renderDetailProx(); renderDetailGerais(); renderDetailSec('prazos'); updateDetailHeader(); } }
@@ -3048,7 +3054,25 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     }
     return false;
   }
+  // Abre a linha configurada em modo de edição (rotina, lembrete, funcionário) ou leva ao campo (data-base).
+  function editarDoEvento(edit) {
+    if (!edit || !dpAtual) return;
+    const [tipo, id] = edit.split(':');
+    const alvo = { prazo:['prazos','prazos'], lembrete:['prazos','lembretes'], pessoal:['funcionarios','funcionarios'] }[tipo];
+    if (tipo === 'database') { setDtab('dados'); const el = $('#dp-data-base'); el.scrollIntoView({ block:'center' }); if (!el.disabled) el.focus(); return; }
+    if (!alvo) return;
+    setDtab(alvo[0]);
+    if (state.readOnly) return;
+    addAbertos.delete(alvo[1]);
+    dpEdit = { sec: alvo[1], id };
+    renderDetailSec(alvo[1]);
+    const row = $(`[data-row="${CSS.escape(id)}"]`, dlgDetail);
+    if (row) { row.scrollIntoView({ block:'center', behavior:'smooth' }); row.querySelector('[data-field]')?.focus(); }
+  }
+  dlgDetail.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.dp-occ-btn')) { e.preventDefault(); e.target.click(); } });
   dlgDetail.addEventListener('click', (e) => {
+    const occ = e.target.closest('[data-edit]');
+    if (occ) { editarDoEvento(occ.dataset.edit); return; }
     if (e.target.closest('[data-open-gerais-dlg]')) { openGerais(); return; }
     sectionClick(e, 'emp');
   });
