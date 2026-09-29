@@ -345,10 +345,32 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ag-day .wd{font-family:"IBM Plex Sans",sans-serif; font-weight:500; color:var(--ink-3); font-size:12px;}
 .ag-day .hol{font-family:"IBM Plex Sans",sans-serif; font-size:11px; color:var(--dp-today); font-weight:600;}
 @media (max-width:760px){ .ag-day{padding-inline:16px;} }
-.ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:16px 18px; align-items:start; padding:0 22px 24px;}
+.ag-grid{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px 18px; align-items:start; padding:0 22px 24px;}
+:root{ --lemb:var(--blue-deep); --lemb-bg:color-mix(in srgb, var(--blue-deep) 16%, var(--surface)); }
+.ag-cal .agm-day{min-height:118px; cursor:pointer;}
+.ag-cal .agm-day:hover{background:color-mix(in srgb, var(--surface-2) 70%, var(--surface));}
+.ag-cal .agm-day.sel{box-shadow:inset 0 0 0 2px var(--blue-deep); background:color-mix(in srgb, var(--blue-pale) 55%, var(--surface));}
+.ag-cal .agm-day.tem-lemb .agm-num{box-shadow:inset 0 0 0 1.5px var(--lemb);}
+.ag-cal .agm-day.is-today .agm-num{box-shadow:none;}
+.agm-top{display:flex; align-items:center; gap:4px; min-width:0;}
+.agm-top .agm-hol{flex:1;}
+.agm-add{margin-left:auto; width:22px; height:22px; border-radius:50%; border:0; background:none; color:var(--ink-3); display:grid; place-items:center; cursor:pointer; opacity:0; transition:opacity .12s;}
+.agm-day:hover .agm-add,.agm-add:focus-visible{opacity:1;}
+.agm-add:hover{background:var(--blue-deep); color:var(--surface);}
+@media (hover:none){ .agm-add{opacity:.7;} }
+.agm-ev.agm-lemb{background:var(--lemb-bg); border-left-color:var(--lemb); font-weight:600; display:flex; align-items:center; gap:4px;}
+.agm-ev.agm-lemb .ic{flex:none; color:var(--lemb);}
+.agm-t{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.agm-n.lemb{background:var(--lemb); color:var(--surface);}
+.agm-foot{display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; padding:10px 14px 12px; border-top:1px solid var(--rule);}
+.ag-lemb .pn-card-head{padding-bottom:2px;}
+.ag-lemb-sub{padding:0 14px 8px; display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline;}
+.ag-lemb-list{padding:0 14px 12px; max-height:calc(100vh - var(--header-h, 64px) - 150px); min-height:200px; overflow-y:auto; overscroll-behavior:contain; border-top:1px solid var(--rule);}
+.ag-lemb-list:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.ml-item.past{opacity:.6;}
 .ag-grid .list-card{margin:0;}
 .ag-side{position:sticky; top:calc(var(--header-h, 64px) + 12px);}
-@media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static; order:-1;} }
+@media (max-width:900px){ .ag-grid{grid-template-columns:minmax(0,1fr);} .ag-side{position:static;} .ag-lemb-list{max-height:360px;} }
 @media (max-width:760px){ .ag-grid{padding-inline:16px;} }
 .seg{display:inline-flex; border:1px solid var(--rule-strong); border-radius:var(--r); background:var(--surface); overflow:hidden;}
 .seg button{border:0; background:none; padding:6px 11px; font-size:12px; font-weight:600; color:var(--ink-2); cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
@@ -380,7 +402,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .agm-geral{border-left-color:var(--ink-3);} .agm-pessoal{border-left-color:var(--sector-financeiro);}
 .agm-more{border:0; background:none; font:inherit; font-size:11px; font-weight:600; color:var(--blue-deep); text-align:left; padding:1px 5px; cursor:pointer;}
 @media (max-width:760px){
-  .agm-day{min-height:56px; align-items:center; padding:4px 2px;}
+  .agm-day, .ag-cal .agm-day{min-height:56px; align-items:center; padding:4px 2px;}
+  .agm-add{display:none;}
+  .agm-top{justify-content:center;}
   .agm-evs,.agm-hol{display:none;}
   .agm-num{align-self:center; position:static;}
   .agm-num::after{content:''; position:absolute; inset:0;}
@@ -739,29 +763,27 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
       <div class="dp-view" id="dp-view-agenda" hidden>
         <div class="dp-toolbar">
-          <div class="seg" id="dp-ag-modo" role="group" aria-label="Visualização">
-            <button type="button" data-ag-modo="lista"><svg class="ic ic-sm"><use href="#i-list"/></svg> Lista</button>
-            <button type="button" data-ag-modo="mes"><svg class="ic ic-sm"><use href="#i-calendar"/></svg> Mês</button>
-          </div>
-          <div class="dp-month" role="group" aria-label="Período da agenda">
+          <div class="dp-month" role="group" aria-label="Mês da agenda">
             <button type="button" id="dp-ag-prev" aria-label="Mês anterior"><svg class="ic"><use href="#i-left"/></svg></button>
             <span class="dp-month-label" id="dp-ag-label"></span>
             <button type="button" id="dp-ag-next" aria-label="Próximo mês"><svg class="ic"><use href="#i-right"/></svg></button>
           </div>
-          <button type="button" class="btn btn-sm btn-ghost" id="dp-ag-hoje">Próximos 30 dias</button>
-          <input type="search" id="dp-ag-search" placeholder="Buscar por data, empresa ou funcionário…" autocomplete="off">
+          <button type="button" class="btn btn-sm" id="dp-ag-hoje">Hoje</button>
+          <label class="dp-carteira" for="dp-ag-analista">Analista
+            <select id="dp-ag-analista"><option value="">Todos os analistas</option></select>
+          </label>
+          <input type="search" id="dp-ag-search" placeholder="Buscar por empresa, funcionário ou texto…" autocomplete="off">
           <button type="button" class="btn btn-sm" id="dp-btn-gerais">Prazos gerais…</button>
         </div>
         <div class="dp-toolbar" style="padding-top:0">
           <div class="dp-chips hide-sm" id="dp-ag-chips" role="group" aria-label="Filtrar por tipo"></div>
           <select class="only-sm" id="dp-ag-tipo-sel" aria-label="Filtrar por tipo"></select>
-          <span id="dp-ag-dia"></span>
           <span class="dp-count" id="dp-ag-count"></span>
         </div>
         <div class="ag-grid">
-          <div class="list-card"><div class="dp-list" id="dp-ag-list"></div></div>
-          <aside class="ag-side" aria-label="Meus lembretes">
-            <section class="pn-card" id="dp-meus"></section>
+          <div class="list-card ag-cal" id="dp-ag-cal"></div>
+          <aside class="ag-side" aria-label="Lembretes">
+            <section class="pn-card ag-lemb" id="dp-meus"></section>
           </aside>
         </div>
       </div>
@@ -1078,7 +1100,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome',
-    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgModo: 'lista',
+    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
     meId: null,
@@ -2056,7 +2078,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function irAgenda({ dia = '', tipo = '', mes } = {}) {
     state.dpAgDia = dia;
     state.dpAgTipo = tipo;
-    state.dpAgMes = mes || (dia ? dia.slice(0, 7) : '');
+    state.dpAgMes = mes || (dia ? dia.slice(0, 7) : mesDe(hoje()));
     openDpModule('agenda');
   }
   // Delegação: abrir empresa, atalhos do painel, filtros
@@ -2066,8 +2088,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const meu = e.target.closest('[data-meu]');
     if (meu) { const l = state.meus.find(x => x.id === meu.dataset.meu); if (l) openMeu({ lembrete: l, dia: meu.dataset.dia }); return; }
     const meuDia = e.target.closest('[data-meu-dia]');
-    if (meuDia) { state.meusSel = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
-    if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: state.meusSel || ymd(hoje()), novo: true }); return; }
+    if (meuDia) { e.stopPropagation(); state.dpAgDia = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
+    if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: (state.activeModule === 'dp' && state.dpAgDia) || ymd(hoje()), novo: true }); return; }
     const open = e.target.closest('[data-open-emp]');
     if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) openDpDetail(emp, { tab: open.dataset.tab }); return; }
     const go = e.target.closest('[data-go]');
@@ -2246,129 +2268,135 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span class="heat-key">menos ${[1,2,3,4,5].map(i => `<i style="background:var(--heat-${i})"></i>`).join('')} mais datas</span><span>Riscado = feriado</span></div>`;
   }
 
-  // ---------- agenda ----------
+  // ---------- agenda: calendário do mês + lista de lembretes ----------
   const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
-  const AG_COLS = 'style="--cols:112px minmax(0,2.2fr) minmax(0,1.4fr) 104px; --cols-sm:minmax(0,1fr) auto"';
+  const ehLembrete = (ev) => ev.tipo === 'meu' || ev.tipo === 'lembrete';
   const evAttrs = (ev, k) => ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
     : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"`;
-  // Lista: sem mês escolhido mostra os próximos 30 dias; as setas passam para meses inteiros. Mês: grade do mês.
-  function setAgModo(modo) {
-    state.dpAgModo = modo === 'mes' ? 'mes' : 'lista';
-    state.prefs.dpAgModo = state.dpAgModo; savePrefs();
-    if (state.dpAgModo === 'mes') { state.dpAgDia = ''; if (!state.dpAgMes) state.dpAgMes = mesDe(hoje()); }
-    renderDpAgenda();
+  const podeCriarMeu = () => !state.meusOff && !state.readOnly;
+  // Filtro por analista: datas de empresas do analista; prazos gerais contam só as empresas dele; os meus lembretes sem empresa continuam.
+  function porAnalista(evs) {
+    const a = state.dpAgAnalista;
+    if (!a) return evs;
+    return evs.map(ev => {
+      if (ev.emps) { const emps = ev.emps.filter(e => respDe(e, a)); return emps.length ? { ...ev, emps } : null; }
+      if (ev.empresa) return respDe(ev.empresa, a) ? ev : null;
+      return ev;
+    }).filter(Boolean);
   }
-  $('#dp-ag-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-ag-modo]'); if (b) setAgModo(b.dataset.agModo); });
-  $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = state.dpAgMes ? mesShift(state.dpAgMes, -1) : mesDe(hoje()); state.dpAgDia = ''; renderDpAgenda(); });
+  function agendaEventos() {
+    const { y, m } = mesParts(state.dpAgMes);
+    return porAnalista(todosEventos(new Date(y, m, 1), new Date(y, m + 1, 0)))
+      .filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
+  }
+  $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
   $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = state.dpAgModo === 'mes' ? mesDe(hoje()) : ''; state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = mesDe(hoje()); state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
   $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
   $('#dp-ag-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpAgTipo = c.dataset.f; renderDpAgenda(); } });
   $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
-  $('#dp-ag-dia').addEventListener('click', (e) => { if (e.target.closest('button')) { state.dpAgDia = ''; renderDpAgenda(); } });
-  $('#dp-ag-list').addEventListener('click', (e) => { const d = e.target.closest('[data-ag-dia]'); if (d) { e.stopPropagation(); state.dpAgMes = d.dataset.agDia.slice(0, 7); setAgModo('lista'); state.dpAgDia = d.dataset.agDia; renderDpAgenda(); } });
+  $('#dp-ag-analista').addEventListener('change', (e) => { state.dpAgAnalista = e.target.value; state.prefs.dpAgAnalista = state.dpAgAnalista; savePrefs(); renderDpAgenda(); });
   $('#dp-btn-gerais').addEventListener('click', () => openGerais());
+  // Clique num dia (fora dos eventos) seleciona o dia; clicar de novo tira a seleção.
+  $('#dp-ag-cal').addEventListener('click', (e) => {
+    if (e.target.closest('[data-meu],[data-open-emp],[data-open-gerais],[data-meu-dia]')) return;
+    const d = e.target.closest('[data-ag-sel]');
+    if (!d) return;
+    e.stopPropagation();
+    state.dpAgDia = state.dpAgDia === d.dataset.agSel ? '' : d.dataset.agSel;
+    renderDpAgenda();
+    if (state.dpAgDia && matchMedia('(max-width:900px)').matches) $('#dp-meus').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('#dp-meus').addEventListener('click', (e) => { if (e.target.closest('[data-ag-limpa]')) { e.stopPropagation(); state.dpAgDia = ''; renderDpAgenda(); } });
+
+  function refreshAnalistas() {
+    const sel = $('#dp-ag-analista');
+    const resp = dpResponsaveis();
+    let opts = '<option value="">Todos os analistas</option>' + resp.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    if (state.dpEmpresas.some(e => !e.responsavel)) opts += `<option value="${SEM_RESP}">Sem responsável</option>`;
+    if (state.dpAgAnalista && state.dpAgAnalista !== SEM_RESP && !resp.some(r => norm(r) === norm(state.dpAgAnalista))) opts += `<option value="${escapeHtml(state.dpAgAnalista)}">${escapeHtml(state.dpAgAnalista)}</option>`;
+    sel.innerHTML = opts;
+    sel.value = state.dpAgAnalista;
+    sel.classList.toggle('on', !!state.dpAgAnalista);
+  }
+
   function renderDpAgenda() {
-    const list = $('#dp-ag-list');
     const t = hoje();
-    const mesModo = state.dpAgModo === 'mes';
-    if (mesModo && !state.dpAgMes) state.dpAgMes = mesDe(t);
-    let from, to;
-    if (state.dpAgMes) { const { y, m } = mesParts(state.dpAgMes); from = new Date(y, m, 1); to = new Date(y, m + 1, 0); $('#dp-ag-label').textContent = `${MESES[m]} ${y}`; }
-    else { from = t; to = addDays(t, 30); $('#dp-ag-label').textContent = `${fmtDM(from)} a ${fmtDM(to)}`; }
-    $$('[data-ag-modo]').forEach(b => { const on = b.dataset.agModo === state.dpAgModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    const hojeBtn = $('#dp-ag-hoje');
-    hojeBtn.textContent = mesModo ? 'Mês atual' : 'Próximos 30 dias';
-    hojeBtn.hidden = mesModo ? state.dpAgMes === mesDe(t) : (!state.dpAgMes && !state.dpAgDia);
-    renderMeus();
-    if (!state.dpLoaded) { list.innerHTML = ''; return; }
-    let all = todosEventos(from, to).filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
-    if (state.dpAgDia && !mesModo) all = all.filter(ev => ymd(ev.d) === state.dpAgDia);
-    const base = all;
+    if (!state.dpAgMes) state.dpAgMes = state.dpAgDia ? state.dpAgDia.slice(0, 7) : mesDe(t);
+    if (state.dpAgDia && state.dpAgDia.slice(0, 7) !== state.dpAgMes) state.dpAgDia = '';
+    const { y, m } = mesParts(state.dpAgMes);
+    $('#dp-ag-label').textContent = `${MESES[m]} ${y}`;
+    refreshAnalistas();
+    if (!state.dpLoaded) { $('#dp-ag-cal').innerHTML = ''; $('#dp-meus').innerHTML = ''; return; }
+    const base = agendaEventos();
     const conta = (v) => base.filter(ev => !v || ev.tipo === v).length;
     $('#dp-ag-chips').innerHTML = AG_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpAgTipo === v ? ' on' : ''}" data-f="${v}" aria-pressed="${state.dpAgTipo === v}">${l} <span class="n">${conta(v)}</span></button>`).join('');
     const sel = $('#dp-ag-tipo-sel');
     sel.innerHTML = AG_FILTROS.map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
     sel.value = state.dpAgTipo;
-    $('#dp-ag-dia').innerHTML = state.dpAgDia && !mesModo ? `<span class="dp-filter-pill">Dia ${escapeHtml(fmtDMY(parseYmd(state.dpAgDia)))}<button type="button" aria-label="Ver o período inteiro">${ic('x', 'ic-sm')}</button></span>` : '';
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
-    $('#dp-ag-count').textContent = `${vis.length} data(s)`;
-    const semDatas = !state.dpGerais.length && !state.meus.length && !state.dpEmpresas.some(e => e.prazos.length || e.lembretes.length || e.funcionarios.length);
-    if (semDatas && !mesModo) {
-      list.innerHTML = `<div class="dp-empty"><strong>A agenda está vazia</strong><span>Ela junta os seus lembretes, os prazos gerais, as rotinas e os lembretes de cada empresa e as datas de funcionários (experiência, férias, rescisão).</span><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center" data-ro-hide><button type="button" class="btn btn-sm btn-primary" data-sugeridos>Usar prazos legais sugeridos</button><button type="button" class="btn btn-sm" data-open-gerais>Prazos gerais…</button></div></div>`;
-      return;
-    }
-    if (mesModo) { list.innerHTML = agMesHtml(vis, state.dpAgMes); return; }
-    if (!vis.length) { list.innerHTML = `<div class="dp-empty">${state.dpAgMes ? 'Nenhuma data neste mês com este filtro.' : 'Nenhuma data nos próximos 30 dias com este filtro.'}</div>`; return; }
-    const grupos = new Map();
-    vis.forEach(ev => { const k = ymd(ev.d); if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(ev); });
-    list.innerHTML = [...grupos.entries()].map(([k, evs]) => {
-      const d = parseYmd(k), hol = feriado(d), dd = diffDays(d, t);
-      const rel = dd === 0 ? 'hoje' : dd === 1 ? 'amanhã' : dd === -1 ? 'ontem' : '';
-      const past = dd < 0 ? ' past' : '';
-      return `<div class="ag-day${past}">${fmtDM(d)} <span class="wd">${wd(d)}${rel ? ' · ' + rel : ''}</span>${hol ? `<span class="hol">${escapeHtml(hol)}</span>` : ''}</div>` + evs.map(ev => {
-        const quem = ev.meu ? `<div class="dp-cell-main" style="font-weight:500">Só você</div>${ev.empresa ? `<div class="dp-cell-sub">${escapeHtml(ev.empresa.nome)}</div>` : ''}`
-          : ev.emps ? empLink(ev) : `<div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.empresa.nome)}</div><div class="dp-cell-sub">${escapeHtml(ev.empresa.responsavel || 'Sem responsável')}</div>`;
-        const onde = ev.meu ? (ev.empresa ? escapeHtml(ev.empresa.nome) : 'só você') : ev.emps ? `${ev.emps.length} empresa(s)` : escapeHtml(ev.empresa.nome);
-        const texto = `<div style="min-width:0;flex:1"><div class="dp-cell-main">${escapeHtml(ev.titulo)}</div>${ev.sub ? `<div class="dp-cell-sub">${escapeHtml(ev.sub)}</div>` : ''}<div class="dp-cell-sub dp-show-sm">${TIPOS[ev.tipo]} · ${onde}</div></div>`;
-        return `<div class="dp-row${past}${ev.feito ? ' feito' : ''}" ${AG_COLS} role="button" tabindex="0" ${evAttrs(ev, k)}><div class="dp-hide-sm">${tagTipo(ev.tipo)}</div><div style="display:flex;align-items:center;gap:10px;min-width:0">${ev.meu ? chkMeu(ev) : ''}${texto}</div><div class="dp-hide-sm">${quem}</div><div>${pillRel(ev.d)}</div></div>`;
-      }).join('');
-    }).join('');
+    $('#dp-ag-count').textContent = `${vis.length} data(s) em ${MESES[m].toLowerCase()}`;
+    $('#dp-ag-cal').innerHTML = agCalHtml(vis, state.dpAgMes);
+    renderAgLista(vis);
   }
-  function agMesHtml(vis, mes) {
+
+  function agCalHtml(vis, mes) {
     const { y, m } = mesParts(mes);
     const first = new Date(y, m, 1);
     const porDia = {};
     vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
+    // Lembretes primeiro no dia (são o destaque), depois o resto na ordem da agenda.
+    Object.values(porDia).forEach(l => l.sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b)));
     const cells = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="agm-wd">${d}</div>`);
     for (let i = 0; i < first.getDay(); i++) cells.push('<div class="agm-day blank"></div>');
-    const t = hoje(), tk = ymd(t);
+    const t = hoje(), tk = ymd(t), pode = podeCriarMeu();
     for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
       const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
-      const chips = list.slice(0, 3).map(ev => `<button type="button" class="agm-ev agm-${ev.tipo}${ev.feito ? ' feito' : ''}" ${evAttrs(ev, k)} title="${escapeHtml(`${TIPOS[ev.tipo]}: ${ev.titulo}${ev.emps ? ` · ${ev.emps.length} empresa(s)` : ev.empresa ? ' · ' + ev.empresa.nome : ''}`)}">${escapeHtml(ev.titulo)}</button>`).join('');
-      const mais = list.length > 3 ? `<button type="button" class="agm-more" data-ag-dia="${k}">+${list.length - 3} mais</button>` : '';
-      const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
-      cells.push(`<div class="${cls}"><button type="button" class="agm-num" data-ag-dia="${k}" aria-label="${fmtDMY(d)}: ${list.length} data(s). Ver em lista">${d.getDate()}</button>${list.length ? `<span class="agm-n">${list.length}</span>` : ''}${hol ? `<span class="agm-hol">${escapeHtml(hol)}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
+      const nLemb = list.filter(ehLembrete).length;
+      const chips = list.slice(0, 4).map(ev => {
+        const lemb = ehLembrete(ev);
+        const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome : 'só você';
+        return `<button type="button" class="agm-ev agm-${ev.tipo}${lemb ? ' agm-lemb' : ''}${ev.feito ? ' feito' : ''}" ${evAttrs(ev, k)} ${tipAttr(`${ev.titulo}\n${TIPOS[ev.tipo]} · ${quem}${ev.sub ? '\n' + ev.sub : ''}`)}>${lemb ? ic('bell', 'ic-sm') : ''}<span class="agm-t">${escapeHtml(ev.titulo)}</span></button>`;
+      }).join('');
+      const mais = list.length > 4 ? `<button type="button" class="agm-more" data-ag-sel="${k}">+${list.length - 4} mais</button>` : '';
+      const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.dpAgDia ? ' sel' : ''}${nLemb ? ' tem-lemb' : ''}`;
+      const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
+      cells.push(`<div class="${cls}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
     }
-    return `<div class="agm">${cells.join('')}</div><div class="cal-legend" style="padding:10px 14px 12px">Clique no número do dia para ver tudo em lista.</div>`;
+    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele ao lado${pode ? ' · + cria um lembrete' : ''}</span></div>`;
+    return `<div class="agm">${cells.join('')}</div>${legenda}`;
   }
 
-  // ---------- meus lembretes: painel ao lado da agenda ----------
-  const podeCriarMeu = () => !state.meusOff && !state.readOnly;
-  function renderMeus() {
+  // Lista ao lado: sem dia escolhido, os lembretes do mês; com dia, tudo daquele dia (lembretes primeiro).
+  function renderAgLista(vis) {
     const el = $('#dp-meus');
-    const aberto = !!el.querySelector('details[open]');
     const t = hoje();
-    const head = `<div class="pn-card-head"><h3>Meus lembretes</h3>${podeCriarMeu() && state.meusLoaded ? '<button type="button" class="btn btn-sm btn-primary" data-meu-novo>' + ic('plus', 'ic-sm') + ' Novo</button>' : ''}</div>`;
-    if (state.meusOff) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">${escapeHtml(state.meusOff)}</div></div>`; return; }
-    if (!state.meusLoaded) { el.innerHTML = `${head}<div class="pn-card-body"><div class="empty-mini">Carregando…</div></div>`; return; }
-
-    const mes = state.dpAgMes || mesDe(t);
-    const { y, m } = mesParts(mes);
-    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
-    const porDia = {};
-    meusEventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
-    const cells = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-wd">${d}</div>`);
-    for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-day blank"></div>');
-    const tk = ymd(t);
-    for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
-      const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
-      const clicavel = list.length || podeCriarMeu();
-      const title = `${fmtDMY(d)}${hol ? ' · ' + hol : ''}${list.length ? ' · ' + list.map(ev => ev.titulo).join('; ') : podeCriarMeu() ? ' · clique para cadastrar' : ''}`;
-      const cls = `cal-day${hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.meusSel ? ' sel' : ''}`;
-      cells.push(`<button type="button" class="${cls}" ${clicavel ? `data-meu-dia="${k}"` : 'tabindex="-1"'} title="${escapeHtml(title)}"><span>${d.getDate()}</span>${list.length ? `<span class="cal-n meu">${list.length}</span>` : ''}</button>`);
+    const pode = podeCriarMeu();
+    const novo = pode && state.meusLoaded ? `<button type="button" class="btn btn-sm btn-primary" data-meu-novo>${ic('plus', 'ic-sm')} Novo</button>` : '';
+    const item = (ev) => {
+      if (ev.meu) return meuItem(ev);
+      const k = ymd(ev.d);
+      const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome + (ev.empresa.responsavel && !state.dpAgAnalista ? ' · ' + ev.empresa.responsavel : '') : '';
+      return `<div class="ml-item${ev.d < t ? ' past' : ''}" role="button" tabindex="0" ${evAttrs(ev, k)}>${pillRel(ev.d)}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${ehLembrete(ev) ? '' : tagTipo(ev.tipo) + ' '}${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml(quem) || '&nbsp;'}</div></div></div>`;
+    };
+    let titulo, sub, lista, vazio;
+    if (state.dpAgDia) {
+      const d = parseYmd(state.dpAgDia);
+      lista = vis.filter(ev => ymd(ev.d) === state.dpAgDia).sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b));
+      titulo = `${fmtDM(d)}, ${wd(d)}`;
+      sub = `${feriado(d) ? feriado(d) + ' · ' : ''}${lista.length} data(s) <button type="button" class="pn-link" data-ag-limpa>ver lembretes do mês</button>`;
+      vazio = 'Nada neste dia.';
+    } else {
+      lista = vis.filter(ehLembrete);
+      const futuro = lista.filter(ev => ev.d >= t), passado = lista.filter(ev => ev.d < t);
+      lista = [...futuro, ...passado.reverse()];
+      titulo = 'Lembretes';
+      sub = `${MESES[mesParts(state.dpAgMes).m].toLowerCase()} · ${lista.length}`;
+      vazio = state.meusOff && !lista.length ? escapeHtml(state.meusOff) : 'Nenhum lembrete neste mês. Clique no + de um dia do calendário para criar.';
     }
-    const cal = `<div class="dp-cell-sub" style="font-weight:600;padding-bottom:6px">${MESES[m]} ${y}</div><div class="cal ml-cal">${cells.join('')}</div><div class="cal-legend"><span>${podeCriarMeu() ? 'Clique num dia para ver ou cadastrar lembretes' : 'Clique num dia marcado para ver os lembretes'}</span></div>`;
-
-    const prox = meusEventos(t, addDays(t, 60)).slice(0, 8);
-    const proxHtml = prox.length ? prox.map(ev => meuItem(ev)).join('')
-      : `<div class="empty-mini">${state.meus.length ? 'Nenhum lembrete nos próximos 60 dias.' : 'Você ainda não tem lembretes. Clique num dia do calendário para cadastrar o primeiro.'}</div>`;
-
-    const todos = [...state.meus].sort((a, b) => a.data.localeCompare(b.data) || a.hora.localeCompare(b.hora));
-    const allHtml = todos.length ? `<details class="ml-all"${aberto ? ' open' : ''}><summary>Todos os meus lembretes (${todos.length})</summary>${todos.map(l => `<div class="ml-item" role="button" tabindex="0" data-meu="${escapeHtml(l.id)}" data-dia="${escapeHtml(l.data)}"><span class="dp-mono dp-cell-sub">${escapeHtml(fmtDateStr(l.data))}</span><div style="min-width:0"><div class="dp-cell-main">${escapeHtml(l.texto || 'Lembrete')}</div><div class="dp-cell-sub">${escapeHtml(descreveRep(l))}</div></div></div>`).join('')}</details>` : '';
-
-    el.innerHTML = `${head}<div class="pn-card-body">${cal}<div class="dlg-section-title" style="padding:14px 0 4px;font-size:12.5px">Próximos</div>${proxHtml}${allHtml}</div>`;
+    el.innerHTML = `<div class="pn-card-head"><h3>${titulo}</h3>${novo}</div><div class="ag-lemb-sub dp-cell-sub">${sub}</div><div class="ag-lemb-list" tabindex="0" aria-label="Lista de lembretes">${lista.length ? lista.map(item).join('') : `<div class="empty-mini" style="padding:10px 0">${vazio}</div>`}</div>`;
   }
+  const renderMeus = () => { if (state.activeModule === 'dp' && state.dpView === 'agenda') renderDpAgenda(); };
 
   // ---------- meus lembretes: janela ----------
   const dlgMeu = $('#dlg-meu'), formMeu = $('#form-meu');
@@ -2440,7 +2468,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     setMeuLocal(novo); refreshAll();
     if (!(await meusWrite(() => meusStore.save(novo)))) { setMeuLocal(l); refreshAll(); }
   }
-  function afterMeuChange(dia) { if (dia) state.meusSel = dia; renderDpActiveView(); }
+  function afterMeuChange(dia) { if (dia && state.dpView === 'agenda') { state.dpAgDia = dia; state.dpAgMes = dia.slice(0, 7); } refreshAll(); }
   formMeu.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!podeCriarMeu()) return;
@@ -3209,7 +3237,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   applyTheme();
   syncHeaderHeight();
   state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
-  state.dpAgModo = state.prefs.dpAgModo === 'mes' ? 'mes' : 'lista';
+  state.dpAgAnalista = typeof state.prefs.dpAgAnalista === 'string' ? state.prefs.dpAgAnalista : '';
   state.dpEmpModo = state.prefs.dpEmpModo === 'lista' ? 'lista' : 'cards';
   state.dpFuncModo = state.prefs.dpFuncModo === 'lista' ? 'lista' : 'tempo';
   if (HOSTED) startShared(); else startLocal();
