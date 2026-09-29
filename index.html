@@ -1213,16 +1213,17 @@ body.portal-open{overflow:hidden;}
 </dialog>
 
 <dialog id="dlg-transf" class="dlg">
-  <div class="dlg-head"><h2>Transferir cartela</h2><button type="button" class="icon-btn dlg-close" id="dlg-transf-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-head"><h2 id="tr-title">Transferir cartela</h2><button type="button" class="icon-btn dlg-close" id="dlg-transf-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <form class="dlg-body" id="form-transf">
     <p id="tr-desc" style="margin:0"></p>
-    <p class="dp-sec-note" style="margin:0">É uma troca definitiva de responsável. Para ausência com data de volta, use “Ausência”.</p>
+    <p class="dp-sec-note" style="margin:0" id="tr-nota">É uma troca definitiva de responsável. Para ausência com data de volta, use “Ausência”.</p>
     <label class="ct-chk"><input type="radio" name="modo" value="um" checked> Para um analista</label>
     <label class="field" id="tr-um-wrap"><select id="tr-um" aria-label="Analista de destino"></select></label>
     <label class="ct-chk"><input type="radio" name="modo" value="dividir"> Dividir igualmente entre…</label>
     <div id="tr-div" class="ct-tr-div" hidden></div>
+    <label class="ct-chk" id="tr-nenhum-wrap" hidden><input type="radio" name="modo" value="nenhum"> Deixar as empresas sem responsável</label>
     <label class="ct-chk" id="tr-remover-wrap"><input type="checkbox" name="remover"> Tirar da equipe depois de transferir</label>
-    <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" id="btn-tr-cancelar">Cancelar</button><button type="submit" class="btn btn-primary">Transferir</button></div>
+    <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" id="btn-tr-cancelar">Cancelar</button><button type="submit" class="btn btn-primary" id="btn-tr-ok">Transferir</button></div>
   </form>
 </dialog>
 
@@ -3610,7 +3611,7 @@ body.portal-open{overflow:hidden;}
       const proxAus = g.sem || aus ? null : state.dpCob.ausencias.filter(a => norm(a.analista) === norm(g.nome) && a.inicio > t).sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
       const cobrindo = g.sem ? 0 : base.filter(e => ativa(e) && norm(e.responsavel) !== norm(g.nome) && norm(respEf(e)) === norm(g.nome)).length;
       const temEmpresa = state.dpEmpresas.some(e => norm(ctResp(e)) === norm(g.nome));
-      const rem = !ro && !sim && !g.sem && state.dpEquipe.some(n => norm(n) === norm(g.nome)) && !state.dpEmpresas.some(e => norm(e.responsavel) === norm(g.nome));
+      const rem = !ro && !g.sem;
       const tr = !ro && !g.sem && temEmpresa;
       const av = g.sem ? '<span class="avatar" style="--av:var(--dp-late)">?</span>' : `<span class="avatar" style="--av:${corDe(g.nome)}">${escapeHtml(iniciais(g.nome))}</span>`;
       const delta = sim ? g.es.length - g.orig.length : 0;
@@ -3621,7 +3622,7 @@ body.portal-open{overflow:hidden;}
         ${tags ? `<div class="ct-an-tags">${tags}</div>` : ''}
         <div class="ct-an-bar"><i style="width:${Math.round(g.es.length / maxN * 100)}%"></i></div>
         ${tr ? `<button type="button" class="icon-btn ct-an-tr" data-ct-transf="${escapeHtml(g.nome)}" aria-label="Transferir a cartela de ${escapeHtml(g.nome)}" title="Transferir toda a cartela…">${ic('right', 'ic-sm')}</button>` : ''}
-        ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Remover ${escapeHtml(g.nome)} da equipe" title="Remover da equipe">${ic('x', 'ic-sm')}</button>` : ''}
+        ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Excluir ${escapeHtml(g.nome)}" title="Excluir analista">${ic('trash', 'ic-sm')}</button>` : ''}
       </div>`;
     };
     const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
@@ -3858,29 +3859,37 @@ body.portal-open{overflow:hidden;}
 
   // ----- transferir a cartela inteira -----
   const dlgTr = $('#dlg-transf'), formTr = $('#form-transf');
-  let trNome = '';
-  function abrirTransf(nome) {
+  let trNome = '', trExcluir = false;
+  function abrirTransf(nome, excluir = false) {
     if (state.readOnly) return;
-    trNome = nome;
+    trNome = nome; trExcluir = excluir;
     const emps = state.dpEmpresas.filter(e => norm(ctResp(e)) === norm(nome));
     const outros = dpResponsaveis().filter(n => norm(n) !== norm(nome));
-    if (!outros.length) { toast('Cadastre outro analista antes de transferir.'); return; }
-    $('#tr-desc').textContent = `${emps.length} empresa(s) de ${nome}${state.dpCtSim ? ' (simulação: nada será salvo agora)' : ''}.`;
+    if (!outros.length && !excluir) { toast('Cadastre outro analista antes de transferir.'); return; }
+    $('#tr-title').textContent = excluir ? `Excluir ${nome}` : 'Transferir cartela';
+    $('#tr-nota').textContent = excluir ? 'As ausências deste analista serão apagadas e ele deixa de ser reserva ou substituto nas demais. Escolha para onde vão as empresas dele.' : 'É uma troca definitiva de responsável. Para ausência com data de volta, use “Ausência”.';
+    $('#btn-tr-ok').textContent = excluir ? 'Excluir analista' : 'Transferir';
+    $('#btn-tr-ok').classList.toggle('btn-danger', excluir);
+    $('#tr-nenhum-wrap').hidden = !excluir;
+    $('#tr-desc').textContent = `${emps.length} empresa(s) de ${nome}${state.dpCtSim && !excluir ? ' (simulação: nada será salvo agora)' : ''}.`;
     $('#tr-um').innerHTML = outros.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
     $('#tr-div').innerHTML = outros.map(n => `<label class="ct-chk"><input type="checkbox" value="${escapeHtml(n)}"> ${escapeHtml(n)}</label>`).join('');
     formTr.elements.modo.value = 'um';
     formTr.elements.remover.checked = false;
-    $('#tr-remover-wrap').hidden = !!state.dpCtSim || !state.dpEquipe.some(n => norm(n) === norm(nome));
-    $('#tr-um-wrap').hidden = false; $('#tr-div').hidden = true;
+    $('#tr-remover-wrap').hidden = excluir || !!state.dpCtSim || !state.dpEquipe.some(n => norm(n) === norm(nome));
+    $('#tr-um-wrap').hidden = !outros.length; $('#tr-div').hidden = true;
+    if (!outros.length) formTr.elements.modo.value = 'nenhum';
     if (!dlgTr.open) dlgTr.showModal();
   }
-  formTr.addEventListener('change', () => { const dividir = formTr.elements.modo.value === 'dividir'; $('#tr-um-wrap').hidden = dividir; $('#tr-div').hidden = !dividir; });
+  formTr.addEventListener('change', () => { const m = formTr.elements.modo.value; $('#tr-um-wrap').hidden = m !== 'um'; $('#tr-div').hidden = m !== 'dividir'; });
   formTr.addEventListener('submit', async (e) => {
     e.preventDefault();
     const emps = state.dpEmpresas.filter(x => norm(ctResp(x)) === norm(trNome)).sort(byNome);
     if (!emps.length) { dlgTr.close(); return; }
     const mapa = {};
-    if (formTr.elements.modo.value === 'um') emps.forEach(x => { mapa[x.id] = $('#tr-um').value; });
+    const modo = formTr.elements.modo.value;
+    if (modo === 'nenhum') emps.forEach(x => { mapa[x.id] = SEM_RESP; });
+    else if (modo === 'um') emps.forEach(x => { mapa[x.id] = $('#tr-um').value; });
     else {
       const dest = $$('#tr-div input:checked').map(i => i.value);
       if (dest.length < 2) { toast('Marque pelo menos dois analistas para dividir.'); return; }
@@ -3888,14 +3897,44 @@ body.portal-open{overflow:hidden;}
       emps.forEach(x => { const n = dest.reduce((a, b) => carga[b] < carga[a] ? b : a); mapa[x.id] = n; carga[n]++; });
     }
     const remover = formTr.elements.remover.checked && !state.dpCtSim;
-    const sim = !!state.dpCtSim;
+    const sim = !!state.dpCtSim, excluir = trExcluir, nome = trNome;
     dlgTr.close();
     const ok = await aplicarMovimentos(mapa);
-    if (ok && !sim) toast(`Cartela de ${trNome} transferida (${emps.length} empresa(s)).`);
-    if (ok && remover) await salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(trNome)));
+    if (excluir && ok) { await finalizarExclusao(nome); return; }
+    if (ok && !sim) toast(`Cartela de ${nome} transferida (${emps.length} empresa(s)).`);
+    if (ok && remover) await salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(nome)));
   });
   $('#btn-tr-cancelar').addEventListener('click', () => dlgTr.close());
   $('#dlg-transf-close').addEventListener('click', () => dlgTr.close());
+
+  // ----- excluir analista -----
+  async function excluirAnalista(nome) {
+    if (state.readOnly) return;
+    if (state.dpCtSim) { toast('Aplique ou descarte a simulação antes de excluir um analista.'); return; }
+    const emps = state.dpEmpresas.filter(e => norm(e.responsavel) === norm(nome));
+    if (emps.length) { abrirTransf(nome, true); return; }
+    const ok = await ask(`Excluir ${nome}?\nEle não tem empresas na cartela. Ausências, reserva e substituições dele também serão removidas.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (ok) await finalizarExclusao(nome);
+  }
+  // Tira o analista da equipe, limpa a reserva das empresas e apaga as ausências (e coberturas) em que ele aparece.
+  async function finalizarExclusao(nome) {
+    const doNome = (n) => norm(n) === norm(nome);
+    const comReserva = state.dpEmpresas.filter(e => doNome(e.reserva));
+    comReserva.forEach(e => {
+      e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva} → — (analista excluído)`, autor: state.meId || '' });
+      if (e.historico.length > 200) e.historico.length = 200;
+      e.reserva = ''; e.updatedAt = Date.now();
+    });
+    state.dpEquipe = normalizeEquipe(state.dpEquipe.filter(n => !doNome(n)));
+    if (state.dpCarteira && doNome(state.dpCarteira)) setCarteira('');
+    if (state.dpAgAnalista && doNome(state.dpAgAnalista)) { state.dpAgAnalista = ''; state.prefs.dpAgAnalista = ''; savePrefs(); }
+    await salvarCob(c => {
+      c.ausencias = c.ausencias.filter(a => !doNome(a.analista));
+      c.ausencias.forEach(a => { if (doNome(a.padrao)) a.padrao = ''; Object.keys(a.porEmpresa).forEach(id => { if (doNome(a.porEmpresa[id])) delete a.porEmpresa[id]; }); });
+    }, `Excluiu o analista ${nome}`);
+    await persist(async () => { await equipeStore.save(state.dpEquipe); for (const e of comReserva) await dpStore.updateFields(e.id, { reserva: e.reserva, historico: e.historico, updatedAt: e.updatedAt }); });
+    toast(`${nome} foi excluído.`);
+  }
 
   // ----- exportar e imprimir -----
   function ctDadosExport(todos) {
@@ -3941,7 +3980,7 @@ body.portal-open{overflow:hidden;}
   ctView.addEventListener('click', async (e) => {
     const t = e.target;
     const rem = t.closest('[data-ct-rem]');
-    if (rem) { e.stopPropagation(); salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(rem.dataset.ctRem))); toast(`${rem.dataset.ctRem} saiu da equipe.`); return; }
+    if (rem) { e.stopPropagation(); excluirAnalista(rem.dataset.ctRem); return; }
     const tr = t.closest('[data-ct-transf]');
     if (tr) { e.stopPropagation(); abrirTransf(tr.dataset.ctTransf); return; }
     const an = t.closest('[data-ct-an]');
