@@ -245,6 +245,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <div class="dp-toolbar">
         <input type="search" id="dp-search" placeholder="Buscar por empresa, CNPJ ou responsável…" autocomplete="off">
         <select id="dp-filtro-responsavel"><option value="">Todos os responsáveis</option></select>
+        <button type="button" class="btn btn-sm btn-primary" id="dp-btn-nova">＋ Nova empresa</button>
         <button type="button" class="btn btn-sm" id="dp-btn-export">⬇️ Exportar</button>
         <label class="btn btn-sm" title="Importar backup">⬆️ Importar<input type="file" id="dp-import-input" accept="application/json" hidden></label>
       </div>
@@ -304,6 +305,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <div class="dlg-section-title">Dados gerais</div>
       <div class="dp-field-grid">
         <label class="field">Razão social / nome<input id="dp-nome"></label>
+        <label class="field">Código<input id="dp-cod"></label>
         <label class="field">CNPJ<input id="dp-cnpj"></label>
         <label class="field">Código Domínio<input id="dp-codigo-dominio"></label>
         <label class="field">Tributação
@@ -463,9 +465,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       shared:false,
       load() { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : defaultsFn(); } catch { return defaultsFn(); } },
       persistAll(list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch { toast('Não foi possível salvar no navegador.'); } },
-      async saveOne(list) { this.persistAll(list); },
-      async saveMany(list) { this.persistAll(list); },
-      async deleteOne(list) { this.persistAll(list); },
+      async saveOne(item) { const list = this.load(); const i = list.findIndex(x => x.id === item.id); if (i >= 0) list[i] = item; else list.push(item); this.persistAll(list); },
+      async saveMany(items) { const list = this.load(); items.forEach(item => { const i = list.findIndex(x => x.id === item.id); if (i >= 0) list[i] = item; else list.push(item); }); this.persistAll(list); },
+      async deleteOne(id) { this.persistAll(this.load().filter(x => x.id !== id)); },
     };
   }
   function makeDbStore(collection) {
@@ -521,7 +523,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   function normalizeDpRow(row, fields) {
     if (!row) return null;
-    const out = {};
+    const out = { id: validId(row.id) ? row.id : uid() };
     let hasAny = false;
     fields.forEach(f => { const v = String(row[f.key]||'').trim(); out[f.key] = v; if (v) hasAny = true; });
     return hasAny ? out : null;
@@ -717,7 +719,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
   }
   function dpHasParticularidades(e) {
-    return !!(e.fechamento || e.observacoes || e.rubricas.length || e.rpa.length || e.pensao.length || e.prazos.length || e.historico.length);
+    return !!(e.fechamento || e.observacoes || e.estabelecimentos.length || e.rubricas.length || e.rpa.length || e.pensao.length || e.prazos.length || e.historico.length);
   }
   function visibleDpEmpresas() {
     return state.dpEmpresas
@@ -739,7 +741,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function renderDp() {
     const list = visibleDpEmpresas();
-    $('#dp-count').textContent = `${state.dpEmpresas.length} empresa(s)`;
+    const filtered = !!(state.dpQuery || state.dpResponsavel);
+    $('#dp-count').textContent = filtered ? `${list.length} de ${state.dpEmpresas.length} empresa(s)` : `${state.dpEmpresas.length} empresa(s)`;
+    $('#dp-btn-nova').hidden = state.readOnly;
     const container = $('#dp-list');
     if (!state.dpLoaded) { container.innerHTML = ''; return; }
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada.</div>'; return; }
@@ -759,6 +763,17 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   $('#dp-search').addEventListener('input', (e) => { state.dpQuery = e.target.value.trim(); renderDp(); });
   $('#dp-filtro-responsavel').addEventListener('change', (e) => { state.dpResponsavel = e.target.value; renderDp(); });
   $('#dp-back').addEventListener('click', () => goHome());
+
+  $('#dp-btn-nova').addEventListener('click', () => {
+    if (state.readOnly) return;
+    const order = Math.max(-1, ...state.dpEmpresas.map(e => e.order)) + 1;
+    const empresa = normalizeDpEmpresa({ nome:'Nova empresa', order });
+    state.dpEmpresas.push(empresa);
+    persist(() => dpStore.saveOne(empresa));
+    renderDp();
+    openDpDetail(empresa);
+    const nomeInput = $('#dp-nome'); nomeInput.focus(); nomeInput.select();
+  });
 
   $('#dp-btn-export').addEventListener('click', async () => {
     const filename = `control-hub-dp-${new Date().toISOString().slice(0,10)}.json`;
@@ -808,6 +823,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     $('#dp-detail-title').textContent = empresa.nome;
     $('#dp-id').value = empresa.id;
     $('#dp-nome').value = empresa.nome;
+    $('#dp-cod').value = empresa.cod;
     $('#dp-cnpj').value = empresa.cnpj;
     $('#dp-codigo-dominio').value = empresa.codigoDominio;
     $('#dp-tributacao').value = empresa.tributacao;
@@ -827,6 +843,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   function commitDpMainFields() {
     if (!dpAtual) return;
     dpAtual.nome = $('#dp-nome').value.trim() || 'Sem nome';
+    dpAtual.cod = $('#dp-cod').value.trim();
     dpAtual.cnpj = $('#dp-cnpj').value.trim();
     dpAtual.codigoDominio = $('#dp-codigo-dominio').value.trim();
     dpAtual.tributacao = $('#dp-tributacao').value;
@@ -841,7 +858,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     saveDpEmpresa(dpAtual);
     renderDp();
   }
-  ['dp-nome','dp-cnpj','dp-codigo-dominio','dp-tributacao','dp-responsavel','dp-uf','dp-data-base','dp-contato','dp-adiantamento','dp-fechamento','dp-observacoes']
+  ['dp-nome','dp-cod','dp-cnpj','dp-codigo-dominio','dp-tributacao','dp-responsavel','dp-uf','dp-data-base','dp-contato','dp-adiantamento','dp-fechamento','dp-observacoes']
     .forEach(id => $('#'+id).addEventListener('change', commitDpMainFields));
 
   $('#dlg-dp-detail').addEventListener('click', (e) => {
