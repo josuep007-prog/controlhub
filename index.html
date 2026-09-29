@@ -769,7 +769,6 @@ body.portal-open{overflow:hidden;}
     <!-- ===== módulo: DP ===== -->
     <section id="view-dp" class="module-view dp-view-root" hidden>
       <div class="module-view-head">
-        <button type="button" class="icon-btn" id="dp-back" aria-label="Voltar para o início" title="Início"><svg class="ic"><use href="#i-back"/></svg></button>
         <h2>Departamento Pessoal</h2>
         <span class="save-state" aria-live="polite"></span>
         <span class="dp-sync" id="dp-sync"></span>
@@ -2664,7 +2663,6 @@ body.portal-open{overflow:hidden;}
   $('#dp-filtro-trib').addEventListener('change', (e) => { state.dpTrib = e.target.value; renderDp(); });
   $('#dp-filtro-sit').addEventListener('change', (e) => { state.dpSit = e.target.value; renderDp(); });
   $('#dp-filtro-gap').addEventListener('change', (e) => { state.dpGap = e.target.value; renderDp(); });
-  $('#dp-back').addEventListener('click', () => goHome());
 
   // ---------- funcionários ----------
   const FUNC_FILTROS = [['','Todos'],['alerta','Com alerta'],['Ativo','Ativos'],['Férias','Em férias'],['Afastado','Afastados'],['Desligado','Desligados']];
