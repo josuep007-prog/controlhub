@@ -520,6 +520,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     <symbol id="i-t-gestta" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="3.5" rx="1"/><path d="m8.5 11.5 1.4 1.4 2.4-2.6M14.5 11.8H16M8.5 17l1.4 1.4 2.4-2.6M14.5 17.3H16"/></symbol>
     <symbol id="i-t-dp" viewBox="0 0 24 24"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8Z"/><path d="M14 3v5h5"/><circle cx="12" cy="12.6" r="2.1"/><path d="M8.4 18.6a3.6 3.6 0 0 1 7.2 0"/></symbol>
     <symbol id="i-t-fiscal" viewBox="0 0 24 24"><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21Z"/><path d="M9.2 14.8 14.8 9.2"/><circle cx="9.6" cy="9.6" r="1"/><circle cx="14.4" cy="14.4" r="1"/></symbol>
+    <symbol id="i-t-contabil" viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="2"/><rect x="8" y="5.5" width="8" height="3.5" rx=".8"/><path d="M8.5 13h1M14.5 13h1M8.5 17h1M14.5 17h1M12 12.2v1.6M12 16.2v1.6"/></symbol>
     <symbol id="i-t-portal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="9.3" cy="9.2" r="1.7"/><path d="M6.4 14a2.9 2.9 0 0 1 5.8 0"/><path d="M14.5 9h3.5M14.5 12h2.5"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
   </defs>
@@ -1343,7 +1344,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   // Ícones desenhados para os módulos principais. Só valem enquanto a ferramenta ainda usa o emoji original;
   // se alguém trocar o ícone no cadastro, vale o que a pessoa escolheu.
-  const TOOL_SVG = { 'gestta':['📈','gestta'], 'planilha-dp':['👥','dp'], 'planilha-fiscal':['🧾','fiscal'], 'portal-cliente':['🧑‍💼','portal'] };
+  const TOOL_SVG = { 'gestta':['📈','gestta'], 'planilha-dp':['👥','dp'], 'planilha-fiscal':['🧾','fiscal'], 'planilha-contabil':['📒','contabil'], 'portal-cliente':['🧑‍💼','portal'] };
   function toolIcon(t) {
     const m = TOOL_SVG[t.id];
     return m && t.icon === m[0] ? ic('t-' + m[1]) : escapeHtml(t.icon);
