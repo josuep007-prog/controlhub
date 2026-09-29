@@ -121,11 +121,13 @@ main{padding-block:22px 90px;}
 .side-rail.open .side-rail-label, .side-rail.hovering .side-rail-label{opacity:1;}
 .side-rail-label i{width:4px; height:4px; border-radius:50%; background:var(--brand-red); display:block; flex:none;}
 .rail-sep{height:1px; background:var(--rule); margin:8px 4px 0;}
-.main-content{flex:1; min-width:0; margin-left:64px;}
+.main-content{flex:1; min-width:0; margin-left:0;}
+body.in-module .main-content{margin-left:64px;}
+body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!important;}
 @media (max-width:760px){
   .side-rail{width:0; border-right:0;}
   .side-rail.open{width:min(280px, 86vw); border-right:1px solid var(--rule);}
-  .main-content{margin-left:0;}
+  body.in-module .main-content{margin-left:0;}
 }
 .card.nav-on{background:var(--surface-2);}
 .card.nav-on::before{opacity:1;}
@@ -1404,7 +1406,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 
   function goHome() {
     state.activeModule = null;
-    closeRail();
+    syncShell();
     $$('.module-view').forEach(el => { el.hidden = true; });
     $('#view-home').hidden = false;
     renderFerramentas();
@@ -1414,6 +1416,8 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
 
   // ---------- barra lateral ----------
+  // A barra lateral só existe dentro de um módulo.
+  function syncShell() { document.body.classList.toggle('in-module', !!state.activeModule); if (!state.activeModule) closeRail(); }
   function closeRail() {
     $('#side-rail').classList.remove('open', 'hovering');
     $('#btn-rail').setAttribute('aria-expanded', 'false');
@@ -1830,6 +1834,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     const entrando = state.activeModule !== 'dp';
     $('#view-home').hidden = true;
     state.activeModule = 'dp';
+    syncShell();
     closeRail();
     $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
     applyDpReadOnly();
