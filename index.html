@@ -281,6 +281,57 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .ct-bulk select{min-width:180px;}
 .ct-hint{font-size:12px; color:var(--ink-3); margin:8px 2px 0;}
 @media (max-width:860px){ .ct-layout{grid-template-columns:minmax(0,1fr);} .ct-side{position:static; max-height:none;} }
+.ct-alertas{display:flex; flex-direction:column; gap:6px; padding:0 22px 12px;}
+.ct-al{display:flex; align-items:center; gap:8px; text-align:left; border:1px solid var(--rule); border-left-width:4px; background:var(--surface); border-radius:var(--r); padding:7px 12px; font:inherit; font-size:12.5px; color:var(--ink); cursor:pointer;}
+.ct-al.late{border-left-color:var(--dp-late);} .ct-al.warn{border-left-color:var(--dp-today);}
+.ct-al:hover{background:var(--surface-2);}
+.ct-sim{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 22px 12px; padding:9px 14px; border:1px dashed var(--blue-deep); background:var(--blue-pale); border-radius:var(--r); font-size:13px;}
+.ct-sim .spacer{flex:1;}
+#ct-sim-btn.on{background:var(--blue-pale); border-color:var(--blue-deep); color:var(--blue-deep); font-weight:700;}
+.ct-an-tags{grid-column:2 / 4; display:flex; gap:4px; flex-wrap:wrap;}
+.ct-tag{font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:9px; background:var(--surface-3); color:var(--ink-2);}
+.ct-tag.late{background:var(--dp-late-bg); color:var(--dp-late);} .ct-tag.soon{background:var(--dp-soon-bg); color:var(--ink);}
+.ct-delta{display:block; font-size:10.5px; font-weight:700; text-align:right;} .ct-delta.up{color:var(--dp-ok);} .ct-delta.down{color:var(--dp-late);}
+.ct-an-tr{position:absolute; top:2px; right:24px; padding:3px; font-size:12px; opacity:0;}
+.ct-an:hover .ct-an-tr,.ct-an-tr:focus-visible{opacity:1;}
+@media (hover:none){ .ct-an-tr{opacity:1;} }
+.ct-table tbody tr.mudou{background:color-mix(in srgb, var(--dp-today-bg) 60%, var(--surface));}
+.ct-antes{font-size:11px; color:var(--ink-3); margin-top:2px;}
+.ct-pane{padding:0 22px 24px;} .ct-pane-in{display:flex; flex-direction:column; gap:12px;}
+.ct-h3{font-family:"Archivo",sans-serif; font-size:14px; margin:6px 0 -4px;}
+.ct-tl-nav{display:flex; align-items:center; gap:8px; flex-wrap:wrap;} .ct-tl-nav b{min-width:140px; text-align:center;}
+.ct-leg{margin-left:auto; display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--ink-2);} .ct-leg span{display:inline-flex; align-items:center; gap:5px;}
+.ct-dot{display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--c); margin-right:6px;} .ct-leg .ct-dot{margin:0;} .ct-dot.dois{background:var(--dp-today-bg); box-shadow:inset 0 0 0 1px var(--dp-today);}
+.ct-tl-wrap{overflow-x:auto;} .ct-tl{min-width:760px;}
+.ct-tl-row{display:grid; grid-template-columns:170px minmax(0,1fr); align-items:stretch; border-bottom:1px solid var(--rule);} .ct-tl-row:last-child{border-bottom:0;}
+.ct-tl-name{display:flex; align-items:center; gap:8px; padding:6px 10px; font-weight:600; font-size:12.5px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+.ct-tl-name .avatar{width:24px; height:24px; font-size:10px;}
+.ct-tl-track{display:grid; grid-template-columns:repeat(var(--dias), minmax(0,1fr)); grid-auto-rows:34px; align-items:stretch; position:relative;}
+.ct-tl-h .ct-tl-track{grid-auto-rows:26px;}
+.ct-tl-track .d{border-left:1px solid var(--rule); pointer-events:none;} .ct-tl-track .d.wk{background:var(--surface-2);} .ct-tl-track .d.dois{background:var(--dp-today-bg);} .ct-tl-track .d.hoje{box-shadow:inset 2px 0 0 var(--blue-deep), inset -2px 0 0 var(--blue-deep);}
+.ct-tl-track .dn{font-size:10.5px; color:var(--ink-3); text-align:center; align-self:center; grid-row:1;} .ct-tl-track .dn.hoje{color:var(--blue-deep); font-weight:700;}
+.ct-bar{grid-row:1; margin:5px 1px; border:0; border-left:3px solid var(--c); background:color-mix(in srgb, var(--c) 24%, var(--surface)); color:var(--ink); border-radius:4px; font:inherit; font-size:11.5px; font-weight:600; text-align:left; padding:0 6px; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; position:relative; z-index:1;}
+.ct-bar:hover,.ct-bar:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
+.ct-bar.sem{box-shadow:inset 0 -3px 0 var(--dp-late);}
+.ct-sem{color:var(--dp-late); font-weight:600;}
+.ct-acoes{white-space:nowrap; text-align:right;} .ct-acoes .btn{margin-right:4px;}
+.ct-enc summary{cursor:pointer; font-size:12.5px; color:var(--ink-2); padding:4px 2px; margin-bottom:8px;}
+.aus-emps{display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto;}
+.aus-row{display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:10px; align-items:center;}
+.aus-emp{font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} .aus-emp small{display:block; font-size:11px; color:var(--ink-3);}
+.ct-chk{display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;} .ct-tr-div{display:flex; flex-direction:column; gap:6px; padding-left:24px;}
+#ct-print{display:none;}
+@media print{
+  body.ct-printing > *:not(#ct-print){display:none!important;}
+  body.ct-printing{background:#fff!important;}
+  body.ct-printing #ct-print{display:block; font:11px/1.35 Arial,sans-serif; color:#000; background:#fff;}
+  #ct-print h1{font-size:16px; margin:0 0 2px;} .ct-pr-sub{margin:0 0 12px; color:#444;}
+  .ct-pr-an{break-after:page; margin-bottom:16px;} .ct-pr-an:last-child{break-after:auto;}
+  #ct-print h2{font-size:14px; margin:0 0 6px; border-bottom:2px solid #000; padding-bottom:3px;} #ct-print h2 small{font-weight:400; font-size:11px; color:#444; margin-left:8px;}
+  .ct-pr-aus{margin:0 0 6px; font-weight:700;}
+  #ct-print table{width:100%; border-collapse:collapse;} #ct-print th,#ct-print td{border-bottom:1px solid #bbb; padding:3px 6px; text-align:left;} #ct-print th{font-size:10px; text-transform:uppercase; background:#eee;}
+}
+@media (max-width:860px){ .aus-row{grid-template-columns:minmax(0,1fr);} .ct-alertas,.ct-sim,.ct-pane{padding-inline:16px; margin-inline:0;} }
 @media (max-width:760px){ .ct-layout{padding-inline:16px;} }
 .dp-toolbar .filtro-on{border-color:var(--blue-deep); background-color:var(--blue-pale); color:var(--blue-deep); font-weight:600; box-shadow:inset 0 0 0 1px var(--blue-deep);}
 .dp-count{font-size:12px; color:var(--ink-3); white-space:nowrap; margin-left:auto; font-variant-numeric:tabular-nums;}
@@ -829,7 +880,7 @@ body.portal-open{overflow:hidden;}
         <button type="button" class="dp-tab" role="tab" data-dp-view="agenda">Agenda <span class="dp-tab-badge" id="dp-badge-agenda" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="empresas">Empresas</button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
-        <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes</button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes <span class="dp-tab-badge" id="ct-badge" hidden></span></button>
       </div>
 
       <div class="dp-view" id="dp-view-painel">
@@ -909,21 +960,40 @@ body.portal-open{overflow:hidden;}
 
       <div class="dp-view" id="dp-view-cartela" hidden>
         <div class="dp-toolbar">
+          <div class="seg" id="ct-modo" role="group" aria-label="Visão da cartela">
+            <button type="button" data-ct-modo="cartela">Cartela</button>
+            <button type="button" data-ct-modo="aus">Ausências</button>
+            <button type="button" data-ct-modo="mov">Movimentações</button>
+          </div>
           <input type="search" id="ct-search" placeholder="Buscar empresa, CNPJ ou código…" autocomplete="off">
           <div class="seg" id="ct-sit" role="group" aria-label="Situação">
             <button type="button" data-ct-sit="">Ativas</button>
             <button type="button" data-ct-sit="todas">Incluir inativas</button>
           </div>
           <span class="dp-count" id="ct-count"></span>
+          <button type="button" class="btn btn-sm" id="ct-sim-btn" data-ro-hide aria-pressed="false" title="Testar redistribuições sem salvar">Simular</button>
+          <button type="button" class="btn btn-sm btn-primary" id="ct-aus-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Ausência</button>
+          <details class="menu">
+            <summary class="btn btn-sm" aria-label="Exportar"><svg class="ic ic-sm"><use href="#i-download"/></svg> Exportar</summary>
+            <div class="menu-list">
+              <button type="button" class="menu-item" id="ct-csv">CSV da cartela (filtro atual)</button>
+              <button type="button" class="menu-item" id="ct-csv-todos">CSV de todos os analistas</button>
+              <button type="button" class="menu-item" id="ct-print-btn">Imprimir cartelas (uma página por analista)</button>
+            </div>
+          </details>
         </div>
-        <div class="ct-layout">
+        <div class="ct-alertas" id="ct-alertas" hidden></div>
+        <div class="ct-sim" id="ct-sim" hidden></div>
+        <div class="ct-layout" id="ct-pane-cartela">
           <aside class="ct-side" id="ct-side" aria-label="Analistas"></aside>
           <div class="ct-main">
             <div class="ct-bulk" id="ct-bulk" hidden></div>
             <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table" id="ct-table"></table></div></div>
-            <p class="ct-hint" data-ro-hide>Troque o responsável na própria linha, selecione várias para mover em lote ou arraste as linhas até um analista à esquerda.</p>
+            <p class="ct-hint" data-ro-hide>Troque o responsável na própria linha, selecione várias para mover em lote ou arraste as linhas até um analista à esquerda. A reserva é quem cobre primeiro nas ausências.</p>
           </div>
         </div>
+        <div class="ct-pane" id="ct-pane-aus" hidden></div>
+        <div class="ct-pane" id="ct-pane-mov" hidden></div>
       </div>
     </section>
   </main>
@@ -1110,6 +1180,49 @@ body.portal-open{overflow:hidden;}
   </form>
 </dialog>
 
+<dialog id="dlg-aus" class="dlg dlg-lg">
+  <div class="dlg-head"><h2 id="dlg-aus-title">Registrar ausência</h2><button type="button" class="icon-btn dlg-close" id="dlg-aus-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <form class="dlg-body" id="form-aus">
+    <div class="form-row">
+      <label class="field">Analista ausente *<select name="analista"></select></label>
+      <label class="field">Motivo<select name="motivo"><option>Férias</option><option>Afastamento</option><option>Licença</option><option>Outro</option></select></label>
+    </div>
+    <div class="form-row">
+      <label class="field">Primeiro dia *<input name="inicio" type="date" required></label>
+      <label class="field">Último dia *<input name="fim" type="date" required></label>
+    </div>
+    <label class="field">Quem cobre (padrão)<select name="padrao"></select><span class="field-hint" id="aus-hint"></span></label>
+    <div class="dlg-section">
+      <div class="dlg-section-title">Empresas de <span id="aus-nome">…</span></div>
+      <p class="dp-sec-note" style="margin:0">Deixe “= padrão acima” para quem cobre igual a todas, ou escolha outro analista para dividir. A reserva de cada empresa já vem escolhida.</p>
+      <div id="aus-emps" class="aus-emps"></div>
+    </div>
+    <label class="field">Observação<input name="obs" maxlength="200" autocomplete="off" placeholder="Ex.: atestado de 15 dias"></label>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-danger" id="btn-aus-excluir" hidden>Excluir</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-aus-cancelar">Cancelar</button>
+      <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-transf" class="dlg">
+  <div class="dlg-head"><h2>Transferir cartela</h2><button type="button" class="icon-btn dlg-close" id="dlg-transf-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <form class="dlg-body" id="form-transf">
+    <p id="tr-desc" style="margin:0"></p>
+    <p class="dp-sec-note" style="margin:0">É uma troca definitiva de responsável. Para ausência com data de volta, use “Ausência”.</p>
+    <label class="ct-chk"><input type="radio" name="modo" value="um" checked> Para um analista</label>
+    <label class="field" id="tr-um-wrap"><select id="tr-um" aria-label="Analista de destino"></select></label>
+    <label class="ct-chk"><input type="radio" name="modo" value="dividir"> Dividir igualmente entre…</label>
+    <div id="tr-div" class="ct-tr-div" hidden></div>
+    <label class="ct-chk" id="tr-remover-wrap"><input type="checkbox" name="remover"> Tirar da equipe depois de transferir</label>
+    <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" id="btn-tr-cancelar">Cancelar</button><button type="submit" class="btn btn-primary">Transferir</button></div>
+  </form>
+</dialog>
+
+<div id="ct-print" aria-hidden="true"></div>
+
 <!-- ===== confirmação genérica ===== -->
 <dialog id="dlg-ask" class="dlg" style="width:min(420px, calc(100vw - 32px))">
   <div class="dlg-body">
@@ -1192,6 +1305,7 @@ body.portal-open{overflow:hidden;}
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
+    dpCob: { ausencias: [], log: [] }, dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
@@ -1490,6 +1604,7 @@ body.portal-open{overflow:hidden;}
       cnpj: String(e.cnpj || ''),
       tributacao: String(e.tributacao || ''),
       responsavel: String(e.responsavel || '').trim(),
+      reserva: String(e.reserva || '').trim(),
       situacao: ['Ativa','Sem movimento','Inativa'].includes(e.situacao) ? e.situacao : 'Ativa',
       uf: String(e.uf || ''),
       dataBase: mesDeTexto(e.dataBase || ''),
@@ -1537,6 +1652,16 @@ body.portal-open{overflow:hidden;}
   }
   const equipeDb = { async save(nomes) { await db.doc('dp_config/equipe').set({ nomes }); } };
   let equipeStore = makeEquipeLocal();
+  // Ausências e coberturas (temporárias): o responsável do cadastro não muda, só quem responde hoje.
+  function makeCobLocal() {
+    const KEY = 'control-hub:dp-cobertura';
+    return {
+      load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } },
+      async save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const cobDb = { async save(v) { await db.doc('dp_config/cobertura').set(v); } };
+  let cobStore = makeCobLocal();
   const normalizeEquipe = (v) => { const out = []; (Array.isArray(v) ? v : []).forEach(n => { const t = String(n || '').trim().slice(0, 80); if (t && !out.some(x => norm(x) === norm(t))) out.push(t); }); return out; };
 
   // Meus lembretes: no servidor ficam em data/users/<id>/, área que só o próprio usuário lê e grava.
@@ -1943,7 +2068,20 @@ body.portal-open{overflow:hidden;}
     return [...map.values()].sort((a,b) => a.localeCompare(b,'pt-BR'));
   }
   const canonResp = (v) => { const t = String(v || '').trim(); return t ? (dpResponsaveis().find(r => norm(r) === norm(t)) || t) : ''; };
-  const respDe = (e, carteira) => carteira === SEM_RESP ? !e.responsavel : norm(e.responsavel) === norm(carteira);
+  // Responsável efetivo: quem responde pela empresa em uma data, considerando as ausências cadastradas na Cartela de clientes.
+  const ausAtiva = (a, dia) => a.inicio <= dia && dia <= a.fim;
+  function coberturaDe(e, dia) {
+    dia = dia || ymd(hoje());
+    const t = e.responsavel;
+    if (!t) return { titular: '', efetivo: '', aus: null, coberta: false };
+    const aus = state.dpCob.ausencias.find(a => norm(a.analista) === norm(t) && ausAtiva(a, dia));
+    if (!aus) return { titular: t, efetivo: t, aus: null, coberta: false };
+    const quem = aus.porEmpresa[e.id] || aus.padrao || '';
+    if (!quem || norm(quem) === norm(t)) return { titular: t, efetivo: t, aus, coberta: false };
+    return { titular: t, efetivo: quem, aus, coberta: true };
+  }
+  const respEf = (e, dia) => coberturaDe(e, dia).efetivo;
+  const respDe = (e, carteira, dia) => carteira === SEM_RESP ? !respEf(e, dia) : norm(respEf(e, dia)) === norm(carteira);
   const naCarteira = (e) => !state.dpCarteira || respDe(e, state.dpCarteira);
   const empresasCarteira = () => state.dpEmpresas.filter(naCarteira);
   const carteiraNome = () => state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira;
@@ -2135,7 +2273,7 @@ body.portal-open{overflow:hidden;}
     ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
     : ev.emps
     ?`<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
-    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${escapeHtml(ev.empresa.nome)}${ev.empresa.responsavel && !state.dpCarteira ? ' · ' + escapeHtml(ev.empresa.responsavel) : ''}</button>`;
+    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${escapeHtml(ev.empresa.nome)}${respEf(ev.empresa, ymd(ev.d)) && !state.dpCarteira ? ' · ' + escapeHtml(respEf(ev.empresa, ymd(ev.d))) : ''}</button>`;
 
   // ---------- cadastro ----------
   const GAPS = [
@@ -2209,6 +2347,7 @@ body.portal-open{overflow:hidden;}
     ba.title = `${n} data(s) hoje`;
     const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
     const bf = $('#dp-badge-func'); bf.hidden = !nf; bf.textContent = nf;
+    renderCtAlertas();
   }
 
   function applyDpReadOnly() {
@@ -2425,8 +2564,8 @@ body.portal-open{overflow:hidden;}
     const a = state.dpAgAnalista;
     if (!a) return evs;
     return evs.map(ev => {
-      if (ev.emps) { const emps = ev.emps.filter(e => respDe(e, a)); return emps.length ? { ...ev, emps } : null; }
-      if (ev.empresa) return respDe(ev.empresa, a) ? ev : null;
+      if (ev.emps) { const dia = ymd(ev.d); const emps = ev.emps.filter(e => respDe(e, a, dia)); return emps.length ? { ...ev, emps } : null; }
+      if (ev.empresa) return respDe(ev.empresa, a, ymd(ev.d)) ? ev : null;
       return ev;
     }).filter(Boolean);
   }
@@ -2539,7 +2678,7 @@ body.portal-open{overflow:hidden;}
     const item = (ev) => {
       if (ev.meu) return meuItem(ev);
       const k = ymd(ev.d);
-      const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome + (ev.empresa.responsavel && !state.dpAgAnalista ? ' · ' + ev.empresa.responsavel : '') : '';
+      const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome + (respEf(ev.empresa, ymd(ev.d)) && !state.dpAgAnalista ? ' · ' + respEf(ev.empresa, ymd(ev.d)) : '') : '';
       return `<div class="ml-item${ev.d < t ? ' past' : ''}" role="button" tabindex="0" ${evAttrs(ev, k)}>${pillRel(ev.d)}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml(quem) || '&nbsp;'}</div></div></div>`;
     };
     let titulo, sub, lista, vazio;
@@ -2746,7 +2885,7 @@ body.portal-open{overflow:hidden;}
       return `<div class="dp-row" style="--cols:${EMP_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
         <div><div class="dp-cell-main">${escapeHtml(e.nome)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>
         <div class="dp-hide-sm dp-cell-sub" style="font-size:12px">${escapeHtml(e.tributacao || '—')}</div>
-        <div class="dp-hide-sm">${escapeHtml(e.responsavel || '—')}</div>
+        <div class="dp-hide-sm">${escapeHtml(e.responsavel || '—')}${coberturaDe(e).coberta ? `<div class="dp-cell-sub" title="Cobertura por ausência de ${escapeHtml(e.responsavel)}">hoje: ${escapeHtml(coberturaDe(e).efetivo)}</div>` : ''}</div>
         <div class="dp-hide-sm">${escapeHtml(e.dataBase || '—')}</div>
         <div class="dp-hide-sm" style="min-width:0">${p ? `<div class="dp-prox">${pillRel(p.d)}<span class="dp-cell-sub" title="${escapeHtml(p.titulo)}">${escapeHtml(p.titulo)}</span></div>` : '<span class="dp-cell-sub">—</span>'}</div>
         <div><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>
@@ -3339,105 +3478,483 @@ body.portal-open{overflow:hidden;}
   });
 
   // ---------- cartela de clientes: a gestora distribui as empresas entre os analistas ----------
+  const MOTIVOS_AUS = ['Férias', 'Afastamento', 'Licença', 'Outro'];
+  const COR_MOTIVO = { 'Férias':'var(--viz-1)', 'Afastamento':'var(--viz-2)', 'Licença':'var(--viz-3)', 'Outro':'var(--viz-4)' };
+
+  function normalizeAus(a) {
+    if (!a || typeof a !== 'object') return null;
+    const inicio = toYmd(a.inicio), fim = toYmd(a.fim), analista = String(a.analista || '').trim();
+    if (!analista || !parseYmd(inicio) || !parseYmd(fim) || fim < inicio) return null;
+    const porEmpresa = {};
+    if (a.porEmpresa && typeof a.porEmpresa === 'object') Object.entries(a.porEmpresa).forEach(([id, n]) => { const t = String(n || '').trim(); if (t) porEmpresa[id] = t.slice(0, 80); });
+    return { id: validId(a.id) ? a.id : uid(), analista: analista.slice(0, 80), motivo: MOTIVOS_AUS.includes(a.motivo) ? a.motivo : 'Outro', inicio, fim, padrao: String(a.padrao || '').trim().slice(0, 80), porEmpresa, obs: String(a.obs || '').slice(0, 200), criadoEm: Number(a.criadoEm) || 0, autor: String(a.autor || '') };
+  }
+  function normalizeCob(v) {
+    v = v && typeof v === 'object' ? v : {};
+    return {
+      ausencias: (Array.isArray(v.ausencias) ? v.ausencias : []).map(normalizeAus).filter(Boolean),
+      log: (Array.isArray(v.log) ? v.log : []).filter(x => x && typeof x.texto === 'string').map(x => ({ id: String(x.id || uid()), em: String(x.em || ''), texto: x.texto.slice(0, 400), autor: String(x.autor || '') })).slice(0, 300),
+    };
+  }
+  async function salvarCob(mut, logTxt) {
+    if (state.readOnly) return false;
+    mut(state.dpCob);
+    if (logTxt) state.dpCob.log.unshift({ id: uid(), em: new Date().toISOString(), texto: logTxt, autor: state.meId || '' });
+    state.dpCob.log = state.dpCob.log.slice(0, 300);
+    renderDpActiveView();
+    const snap = JSON.parse(JSON.stringify(state.dpCob));
+    return persist(() => cobStore.save(snap));
+  }
+
+  const ctResp = (e) => state.dpCtSim && Object.prototype.hasOwnProperty.call(state.dpCtSim, e.id) ? state.dpCtSim[e.id] : e.responsavel;
   const ctBase = () => state.dpEmpresas.filter(e => state.dpCtTodas || ativa(e));
+  function ctNaCarteira(e) {
+    const c = state.dpCarteira;
+    if (!c) return true;
+    const r = ctResp(e);
+    if (c === SEM_RESP) return !r;
+    return norm(r) === norm(c) || norm(respEf(e)) === norm(c);
+  }
   function ctLinhas() {
     const q = state.dpCtQuery;
-    const lista = ctBase().filter(naCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, e.responsavel], q));
+    const lista = ctBase().filter(ctNaCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, ctResp(e)], q));
     const nf = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
     const k = state.dpCtSort;
-    const cmp = k === 'resp' ? (a, b) => (a.responsavel || '￿').localeCompare(b.responsavel || '￿', 'pt-BR') || byNome(a, b)
+    const vazio = '￿';
+    const cmp = k === 'resp' ? (a, b) => (ctResp(a) || vazio).localeCompare(ctResp(b) || vazio, 'pt-BR') || byNome(a, b)
       : k === 'func' ? (a, b) => nf(b) - nf(a) || byNome(a, b)
-      : k === 'trib' ? (a, b) => (a.tributacao || '￿').localeCompare(b.tributacao || '￿', 'pt-BR') || byNome(a, b)
+      : k === 'trib' ? (a, b) => (a.tributacao || vazio).localeCompare(b.tributacao || vazio, 'pt-BR') || byNome(a, b)
       : byNome;
     return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
   }
+  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
+  const fmtYmdBR = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
+  const fmtYmdDM = (s) => { const d = parseYmd(s); return d ? fmtDM(d) : s; };
+
+  // Avisos: ausência próxima ou em curso sem cobertura, substituto também ausente e substituto com carga bem acima da média.
+  function ctAlertas() {
+    const out = [];
+    if (!state.dpCob.ausencias.length) return out;
+    const t = ymd(hoje()), em7 = ymd(addDays(hoje(), 7));
+    const ativasDe = (nome) => state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(nome));
+    const nAnalistas = dpResponsaveis().length;
+    const media = nAnalistas ? state.dpEmpresas.filter(e => ativa(e) && e.responsavel).length / nAnalistas : 0;
+    state.dpCob.ausencias.filter(a => a.fim >= t && a.inicio <= em7).forEach(a => {
+      const emps = ativasDe(a.analista);
+      const quemDe = (e) => { const q = a.porEmpresa[e.id] || a.padrao; return q && norm(q) !== norm(a.analista) ? q : ''; };
+      const sem = emps.filter(e => !quemDe(e));
+      const quando = a.inicio <= t ? 'está ausente' : `se ausenta em ${fmtYmdDM(a.inicio)}`;
+      if (sem.length) out.push({ nivel:'late', ausId:a.id, txt:`${a.analista} ${quando} e ${sem.length} de ${emps.length} empresa(s) estão sem cobertura.` });
+      const quem = [...new Set(emps.map(quemDe).filter(Boolean))];
+      quem.forEach(q => {
+        const b = state.dpCob.ausencias.find(x => x.id !== a.id && norm(x.analista) === norm(q) && x.inicio <= a.fim && x.fim >= a.inicio);
+        if (b) out.push({ nivel:'warn', ausId:a.id, txt:`${q} cobre ${a.analista}, mas também estará ausente de ${fmtYmdDM(b.inicio)} a ${fmtYmdDM(b.fim)}.` });
+        if (nAnalistas >= 3) {
+          const total = ativasDe(q).length + emps.filter(e => norm(quemDe(e)) === norm(q)).length;
+          if (total > media * 1.5) out.push({ nivel:'warn', ausId:a.id, txt:`${q} ficará com ${total} empresas durante a ausência de ${a.analista} (média da equipe: ${Math.round(media)}).` });
+        }
+      });
+    });
+    return out;
+  }
+  function renderCtAlertas() {
+    const box = $('#ct-alertas'), al = ctAlertas();
+    box.hidden = !al.length;
+    box.innerHTML = al.map(a => `<button type="button" class="ct-al ${a.nivel}" data-ct-aus="${escapeHtml(a.ausId)}"><span class="al-dot ${a.nivel}"></span>${escapeHtml(a.txt)}</button>`).join('');
+    const b = $('#ct-badge'); b.hidden = !al.length; b.textContent = al.length; b.title = `${al.length} aviso(s) de cobertura`;
+  }
+
   function renderCartela() {
-    const ro = state.readOnly;
+    const modo = state.dpCtModo, ro = state.readOnly;
+    $$('#ct-modo [data-ct-modo]').forEach(b => { const on = b.dataset.ctModo === modo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    ['cartela', 'aus', 'mov'].forEach(m => { $('#ct-pane-' + m).hidden = m !== modo; });
+    $('#ct-sit').hidden = modo !== 'cartela';
+    $('#ct-search').hidden = modo === 'aus';
+    $('#ct-sim-btn').hidden = modo !== 'cartela' || ro;
+    $('#ct-sim-btn').classList.toggle('on', !!state.dpCtSim);
+    $('#ct-sim-btn').setAttribute('aria-pressed', String(!!state.dpCtSim));
+    $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
+    renderCtAlertas();
+    renderCtSim();
+    if (modo === 'aus') renderCtAus(); else if (modo === 'mov') renderCtMov(); else renderCtCartela();
+  }
+  function ctMudancas() {
+    if (!state.dpCtSim) return [];
+    return Object.entries(state.dpCtSim).filter(([id, novo]) => { const e = findDpEmpresa(id); return e && e.responsavel !== novo; });
+  }
+  function renderCtSim() {
+    const box = $('#ct-sim'), on = !!state.dpCtSim && state.dpCtModo === 'cartela';
+    box.hidden = !on;
+    if (!on) return;
+    const n = ctMudancas().length;
+    box.innerHTML = `<div><b>Modo simulação</b> · ${n ? `${n} empresa(s) com mudança` : 'mexa nas cartelas à vontade'} · nada foi salvo ainda.</div><span class="spacer"></span><button type="button" class="btn btn-sm btn-primary" id="ct-sim-aplicar"${n ? '' : ' disabled'}>Aplicar ${n || ''} mudança(s)</button><button type="button" class="btn btn-sm" id="ct-sim-descartar">Descartar</button>`;
+  }
+
+  function renderCtCartela() {
+    const ro = state.readOnly, sim = !!state.dpCtSim;
     const base = ctBase();
-    const nfDe = (es) => es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
-    const grupos = dpResponsaveis().map(r => ({ key: r, nome: r, es: base.filter(e => respDe(e, r)) }));
-    const semResp = base.filter(e => !e.responsavel);
-    if (semResp.length) grupos.push({ key: SEM_RESP, nome: 'Sem responsável', es: semResp, sem: true });
+    const t = ymd(hoje());
+    const grupos = dpResponsaveis().map(r => ({ key: r, nome: r, es: base.filter(e => norm(ctResp(e)) === norm(r)), orig: base.filter(e => norm(e.responsavel) === norm(r)) }));
+    const semResp = base.filter(e => !ctResp(e));
+    if (semResp.length) grupos.push({ key: SEM_RESP, nome: 'Sem responsável', es: semResp, orig: base.filter(e => !e.responsavel), sem: true });
     const maxN = Math.max(1, ...grupos.map(g => g.es.length));
-    const temAlguma = (nome) => state.dpEmpresas.some(e => norm(e.responsavel) === norm(nome));
     const sel = norm(state.dpCarteira);
     const item = (g) => {
       const on = sel === norm(g.key);
-      const rem = !ro && !g.sem && state.dpEquipe.some(n => norm(n) === norm(g.nome)) && !temAlguma(g.nome);
+      const aus = g.sem ? null : state.dpCob.ausencias.find(a => norm(a.analista) === norm(g.nome) && ausAtiva(a, t));
+      const proxAus = g.sem || aus ? null : state.dpCob.ausencias.filter(a => norm(a.analista) === norm(g.nome) && a.inicio > t).sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+      const cobrindo = g.sem ? 0 : base.filter(e => ativa(e) && norm(e.responsavel) !== norm(g.nome) && norm(respEf(e)) === norm(g.nome)).length;
+      const temEmpresa = state.dpEmpresas.some(e => norm(ctResp(e)) === norm(g.nome));
+      const rem = !ro && !sim && !g.sem && state.dpEquipe.some(n => norm(n) === norm(g.nome)) && !state.dpEmpresas.some(e => norm(e.responsavel) === norm(g.nome));
+      const tr = !ro && !g.sem && temEmpresa;
       const av = g.sem ? '<span class="avatar" style="--av:var(--dp-late)">?</span>' : `<span class="avatar" style="--av:${corDe(g.nome)}">${escapeHtml(iniciais(g.nome))}</span>`;
+      const delta = sim ? g.es.length - g.orig.length : 0;
+      const tags = [aus ? `<span class="ct-tag late">${escapeHtml(aus.motivo)} até ${fmtYmdDM(aus.fim)}</span>` : '', proxAus ? `<span class="ct-tag soon">${escapeHtml(proxAus.motivo)} em ${fmtYmdDM(proxAus.inicio)}</span>` : '', cobrindo ? `<span class="ct-tag">cobrindo ${cobrindo}</span>` : ''].join('');
       return `<div class="ct-an${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-ct-an="${escapeHtml(g.key)}" ${ro ? '' : 'data-ct-drop'}>
-        ${av}<div style="min-width:0"><div class="ct-an-nome">${escapeHtml(g.nome)}</div><div class="ct-an-sub">${g.es.length} empresa(s) · ${nfDe(g.es)} func.</div></div>
-        <span class="ct-an-n">${g.es.length}</span>
+        ${av}<div style="min-width:0"><div class="ct-an-nome">${escapeHtml(g.nome)}</div><div class="ct-an-sub">${g.es.length} empresa(s) · ${nfAtivos(g.es)} func.</div></div>
+        <span class="ct-an-n">${g.es.length}${delta ? `<small class="ct-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
+        ${tags ? `<div class="ct-an-tags">${tags}</div>` : ''}
         <div class="ct-an-bar"><i style="width:${Math.round(g.es.length / maxN * 100)}%"></i></div>
+        ${tr ? `<button type="button" class="icon-btn ct-an-tr" data-ct-transf="${escapeHtml(g.nome)}" aria-label="Transferir a cartela de ${escapeHtml(g.nome)}" title="Transferir toda a cartela…">${ic('right', 'ic-sm')}</button>` : ''}
         ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Remover ${escapeHtml(g.nome)} da equipe" title="Remover da equipe">${ic('x', 'ic-sm')}</button>` : ''}
       </div>`;
     };
     const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
-        <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfDe(base)} func.</div></div>
+        <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfAtivos(base)} func.</div></div>
         <span class="ct-an-n">${base.length}</span></div>`;
     $('#ct-side').innerHTML = `<div class="ct-side-h">Analistas</div>${tot}${grupos.map(item).join('')}
       ${ro ? '' : `<form class="ct-add" id="ct-add"><input id="ct-add-nome" placeholder="Nome do novo analista" maxlength="80" aria-label="Nome do novo analista"><button type="submit" class="btn btn-sm">${ic('plus', 'ic-sm')} Adicionar</button></form>`}`;
 
     $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
 
     const linhas = ctLinhas();
     const vis = new Set(linhas.map(l => l.e.id));
     state.dpCtSel.forEach(id => { if (!vis.has(id)) state.dpCtSel.delete(id); });
     $('#ct-count').textContent = `${linhas.length} empresa(s)${state.dpCarteira ? ' · ' + carteiraNome() : ''}`;
     const nomes = dpResponsaveis();
-    const opts = (atual) => `<option value="">— sem responsável —</option>` + nomes.map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    const opts = (atual, excluir) => `<option value="">— sem responsável —</option>` + nomes.filter(n => !excluir || norm(n) !== norm(excluir)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    const optsRes = (atual, titular) => `<option value="">—</option>` + nomes.filter(n => norm(n) !== norm(titular)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
     const th = (k, l, cls = '') => `<th${cls ? ` class="${cls}"` : ''}><button type="button" data-ct-sort="${k}" class="${state.dpCtSort === k ? 'on' : ''}" aria-pressed="${state.dpCtSort === k}">${l}${state.dpCtSort === k ? ' ↓' : ''}</button></th>`;
     const todasSel = linhas.length > 0 && linhas.every(l => state.dpCtSel.has(l.e.id));
-    const head = `<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}<th>Situação</th>${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}</tr></thead>`;
+    const head = `<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}<th>Situação</th>${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}<th title="Quem cobre primeiro nas ausências">Reserva</th><th>Hoje com</th></tr></thead>`;
     const body = linhas.length ? linhas.map(({ e, nf }) => {
-      const s = state.dpCtSel.has(e.id);
-      return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}"${ro ? '' : ' draggable="true"'}>
+      const s = state.dpCtSel.has(e.id), r = ctResp(e), mudou = sim && r !== e.responsavel;
+      const cob = coberturaDe(e);
+      const hoje_ = !e.responsavel ? '<span class="dp-cell-sub">—</span>' : cob.coberta ? `<span class="pill pill-today" title="${escapeHtml(cob.titular)} está de ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdBR(cob.aus.fim)}">${escapeHtml(cob.efetivo)}</span>` : cob.aus ? '<span class="pill pill-late" title="Titular ausente e ninguém cobrindo esta empresa">sem cobertura</span>' : '<span class="dp-cell-sub">titular</span>';
+      return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}${mudou ? ' mudou' : ''}"${ro ? '' : ' draggable="true"'}>
         ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
         <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${escapeHtml(e.nome)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button></td>
         <td class="dp-mono">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
         <td><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></td>
         <td class="num">${nf}</td>
-        <td><select data-ct-resp class="${e.responsavel ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(e.responsavel)}</select></td>
+        <td><select data-ct-resp class="${r ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(r)}</select>${mudou ? `<div class="ct-antes">antes: ${escapeHtml(e.responsavel || 'sem responsável')}</div>` : ''}</td>
+        <td><select data-ct-reserva aria-label="Reserva de ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${optsRes(e.reserva, r)}</select></td>
+        <td>${hoje_}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
+    }).join('') : `<tr><td colspan="9"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
     $('#ct-table').innerHTML = head + '<tbody>' + body + '</tbody>';
 
     const n = state.dpCtSel.size, bulk = $('#ct-bulk');
     bulk.hidden = ro || !n;
     if (n) bulk.innerHTML = `<b>${n}</b> selecionada(s) · Mover para <select id="ct-bulk-dest" aria-label="Mover para"><option value="" disabled selected>Escolha o analista…</option>${nomes.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}<option value="${SEM_RESP}">Sem responsável</option></select><button type="button" class="btn btn-sm btn-primary" id="ct-bulk-go">Mover</button><button type="button" class="btn btn-sm" id="ct-bulk-clear">Limpar seleção</button>`;
   }
-  async function moverEmpresas(ids, destino) {
-    if (state.readOnly) return;
-    const novo = destino === SEM_RESP ? '' : canonResp(destino);
-    const alvo = ids.map(findDpEmpresa).filter(e => e && e.responsavel !== novo);
-    if (!alvo.length) return;
+
+  // Aplica (ou, no modo simulação, só registra no rascunho) as trocas de responsável: mapa empresa → analista.
+  async function aplicarMovimentos(mapa) {
+    if (state.readOnly) return false;
+    const canon = (n) => n === SEM_RESP || !n ? '' : canonResp(n);
+    const pares = Object.entries(mapa).map(([id, n]) => [findDpEmpresa(id), canon(n)]).filter(([e, n]) => e && e.responsavel !== n);
+    if (!pares.length) return false;
+    if (state.dpCtSim) {
+      pares.forEach(([e, n]) => { state.dpCtSim[e.id] = n; });
+      Object.keys(state.dpCtSim).forEach(id => { const e = findDpEmpresa(id); if (!e || e.responsavel === state.dpCtSim[id]) delete state.dpCtSim[id]; });
+      state.dpCtSel.clear();
+      renderDpActiveView();
+      return true;
+    }
     const quando = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
-    alvo.forEach(e => {
-      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${novo || '—'}`, autor: state.meId || '' });
+    pares.forEach(([e, n]) => {
+      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${n || '—'}`, autor: state.meId || '' });
       if (e.historico.length > 200) e.historico.length = 200;
-      e.responsavel = novo; e.updatedAt = Date.now();
+      e.responsavel = n; e.updatedAt = Date.now();
     });
     state.dpCtSel.clear();
     renderDpActiveView();
-    const ok = await persist(async () => { for (const e of alvo) await dpStore.updateFields(e.id, { responsavel: e.responsavel, historico: e.historico, updatedAt: e.updatedAt }); });
-    if (ok) toast(alvo.length === 1 ? `“${alvo[0].nome}” agora está com ${novo || 'ninguém (sem responsável)'}.` : `${alvo.length} empresas movidas para ${novo || 'sem responsável'}.`);
+    return persist(async () => { for (const [e] of pares) await dpStore.updateFields(e.id, { responsavel: e.responsavel, historico: e.historico, updatedAt: e.updatedAt }); });
+  }
+  async function moverEmpresas(ids, destino) {
+    const mapa = {}; ids.forEach(id => { mapa[id] = destino; });
+    const sim = !!state.dpCtSim;
+    const ok = await aplicarMovimentos(mapa);
+    if (ok && !sim) { const n = ids.length, nome = destino === SEM_RESP || !destino ? 'sem responsável' : canonResp(destino); toast(n === 1 ? `“${findDpEmpresa(ids[0])?.nome}” agora está com ${nome}.` : `${n} empresas movidas para ${nome}.`); }
+  }
+  async function definirReserva(id, nome) {
+    const e = findDpEmpresa(id);
+    if (!e || state.readOnly) return;
+    const novo = nome ? canonResp(nome) : '';
+    if ((e.reserva || '') === novo) return;
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva || '—'} → ${novo || '—'}`, autor: state.meId || '' });
+    if (e.historico.length > 200) e.historico.length = 200;
+    e.reserva = novo; e.updatedAt = Date.now();
+    renderDpActiveView();
+    persist(() => dpStore.updateFields(e.id, { reserva: e.reserva, historico: e.historico, updatedAt: e.updatedAt }));
   }
   async function salvarEquipe(nomes) { state.dpEquipe = normalizeEquipe(nomes); renderDpActiveView(); await persist(() => equipeStore.save(state.dpEquipe)); }
 
+  // ----- ausências: linha do tempo e lista -----
+  function statusAus(a, t = ymd(hoje())) { return a.fim < t ? 'encerrada' : a.inicio > t ? 'futura' : 'andamento'; }
+  function resumoCobertura(a) {
+    const emps = state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(a.analista));
+    const cont = new Map(); let sem = 0;
+    emps.forEach(e => { const q = a.porEmpresa[e.id] || a.padrao; if (!q || norm(q) === norm(a.analista)) sem++; else cont.set(q, (cont.get(q) || 0) + 1); });
+    return { emps: emps.length, sem, quem: [...cont.entries()].sort((x, y) => y[1] - x[1]) };
+  }
+  function renderCtAus() {
+    const ro = state.readOnly, hojeS = ymd(hoje());
+    const mes = state.dpCtMes || mesDe(hoje());
+    const { y, m } = mesParts(mes), nd = new Date(y, m + 1, 0).getDate();
+    const ini = `${mes}-01`, fim = `${mes}-${pad2(nd)}`;
+    const noMes = state.dpCob.ausencias.filter(a => a.inicio <= fim && a.fim >= ini);
+    const nomes = [...new Set([...dpResponsaveis(), ...state.dpCob.ausencias.map(a => a.analista)].map(n => dpResponsaveis().find(r => norm(r) === norm(n)) || n))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const dias = Array.from({ length: nd }, (_, i) => { const d = new Date(y, m, i + 1), s = ymd(d); return { s, d, n: noMes.filter(a => a.inicio <= s && a.fim >= s).length }; });
+    const cel = (dd, i) => `<i class="d${dd.d.getDay() === 0 || dd.d.getDay() === 6 ? ' wk' : ''}${dd.s === hojeS ? ' hoje' : ''}${dd.n >= 2 ? ' dois' : ''}" style="grid-column:${i + 1};grid-row:1"${dd.n >= 2 ? ` title="${dd.n} pessoas ausentes neste dia"` : ''}></i>`;
+    const linhaDe = (nome) => {
+      const bars = noMes.filter(a => norm(a.analista) === norm(nome)).map(a => {
+        const c1 = Math.max(1, +a.inicio.slice(8) + (a.inicio < ini ? 0 : 0)), a1 = a.inicio < ini ? 1 : +a.inicio.slice(8), b1 = a.fim > fim ? nd : +a.fim.slice(8);
+        const r = resumoCobertura(a);
+        const tip = `${a.analista} · ${a.motivo}\n${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}\n` + (r.quem.length ? 'Cobre: ' + r.quem.map(([q, n]) => `${q} (${n})`).join(', ') : 'Sem cobertura definida') + (r.sem && r.quem.length ? `\n${r.sem} empresa(s) sem cobertura` : '');
+        return `<button type="button" class="ct-bar${r.sem ? ' sem' : ''}" style="grid-column:${a1} / ${b1 + 1};grid-row:1;--c:${COR_MOTIVO[a.motivo]}" data-ct-aus="${escapeHtml(a.id)}" ${tipAttr(tip)}><span>${escapeHtml(a.motivo)}${r.quem.length ? ' → ' + escapeHtml(r.quem.map(q => q[0].split(' ')[0]).join(', ')) : ''}</span></button>`;
+      }).join('');
+      return `<div class="ct-tl-row"><span class="ct-tl-name"><span class="avatar" style="--av:${corDe(nome)}">${escapeHtml(iniciais(nome))}</span>${escapeHtml(nome)}</span><div class="ct-tl-track" style="--dias:${nd}">${dias.map(cel).join('')}${bars}</div></div>`;
+    };
+    const head = `<div class="ct-tl-row ct-tl-h"><span class="ct-tl-name"></span><div class="ct-tl-track" style="--dias:${nd}">${dias.map((dd, i) => `<span class="dn${dd.s === hojeS ? ' hoje' : ''}" style="grid-column:${i + 1}">${dd.d.getDate()}</span>`).join('')}</div></div>`;
+    const linhas = state.dpCob.ausencias.slice().sort((a, b) => b.inicio.localeCompare(a.inicio));
+    const item = (a) => {
+      const st = statusAus(a, hojeS), r = resumoCobertura(a);
+      const cobTxt = r.emps ? [r.quem.map(([q, n]) => `${escapeHtml(q)} (${n})`).join(', '), r.sem ? `<span class="ct-sem">${r.sem} sem cobertura</span>` : ''].filter(Boolean).join(' · ') : '<span class="dp-cell-sub">sem empresas ativas</span>';
+      const pill = st === 'andamento' ? '<span class="pill pill-today">Em andamento</span>' : st === 'futura' ? '<span class="pill pill-soon">Futura</span>' : '<span class="pill pill-muted">Encerrada</span>';
+      return `<tr class="${st === 'encerrada' ? 'inativa' : ''}"><td><b>${escapeHtml(a.analista)}</b>${a.obs ? `<div class="dp-cell-sub">${escapeHtml(a.obs)}</div>` : ''}</td><td><span class="ct-dot" style="--c:${COR_MOTIVO[a.motivo]}"></span>${escapeHtml(a.motivo)}</td><td>${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</td><td>${cobTxt}</td><td>${pill}</td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-ct-aus="${escapeHtml(a.id)}">Editar</button>${st !== 'encerrada' ? `<button type="button" class="btn btn-sm" data-ct-prorrogar="${escapeHtml(a.id)}" title="Adiar o fim em 7 dias">+7 dias</button>` : ''}<button type="button" class="icon-btn" data-ct-aus-del="${escapeHtml(a.id)}" aria-label="Excluir ausência" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td></tr>`;
+    };
+    const tabela = (lista) => `<div class="ct-scroll"><table class="ct-table"><thead><tr><th>Analista</th><th>Motivo</th><th>Período</th><th>Cobertura</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(item).join('')}</tbody></table></div>`;
+    const abertas = linhas.filter(a => statusAus(a, hojeS) !== 'encerrada'), enc = linhas.filter(a => statusAus(a, hojeS) === 'encerrada');
+    $('#ct-count').textContent = `${state.dpCob.ausencias.length} ausência(s) registrada(s)`;
+    $('#ct-pane-aus').innerHTML = `<div class="ct-pane-in">
+      <div class="ct-tl-nav"><button type="button" class="icon-btn" data-ct-mes="-1" aria-label="Mês anterior">${ic('left')}</button><b>${MESES[m]} de ${y}</b><button type="button" class="icon-btn" data-ct-mes="1" aria-label="Próximo mês">${ic('right')}</button><button type="button" class="btn btn-sm" data-ct-mes="0">Hoje</button>
+        <span class="ct-leg">${MOTIVOS_AUS.map(x => `<span><i class="ct-dot" style="--c:${COR_MOTIVO[x]}"></i>${x}</span>`).join('')}<span><i class="ct-dot dois"></i>2+ ausentes</span></span></div>
+      <div class="list-card ct-sheet"><div class="ct-tl-wrap"><div class="ct-tl">${head}${nomes.map(linhaDe).join('') || '<div class="dp-empty">Cadastre analistas para ver a linha do tempo.</div>'}</div></div></div>
+      <h3 class="ct-h3">Ausências e coberturas</h3>
+      ${abertas.length ? `<div class="list-card ct-sheet">${tabela(abertas)}</div>` : '<div class="list-card ct-sheet"><div class="dp-empty">Nenhuma ausência em andamento ou prevista.</div></div>'}
+      ${enc.length ? `<details class="ct-enc"><summary>Encerradas (${enc.length})</summary><div class="list-card ct-sheet">${tabela(enc)}</div></details>` : ''}</div>`;
+  }
+
+  // ----- movimentações -----
+  function parseQuando(s) {
+    const m = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})\D+(\d{1,2}):(\d{2})/.exec(String(s || ''));
+    if (!m) return 0;
+    let y = +m[3]; if (y < 100) y += 2000;
+    return new Date(y, +m[2] - 1, +m[1], +m[4], +m[5]).getTime();
+  }
+  function ctMovimentos() {
+    const out = [];
+    state.dpEmpresas.forEach(e => e.historico.forEach(h => {
+      if (/^(Responsável|Reserva):/.test(h.alteracao || '')) out.push({ ts: parseQuando(h.data), quando: h.data, texto: h.alteracao, empresa: e.nome, empId: e.id, autor: h.autor });
+    }));
+    state.dpCob.log.forEach(l => out.push({ ts: Date.parse(l.em) || 0, quando: l.em ? new Date(l.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }) : '', texto: l.texto, empresa: '', autor: l.autor }));
+    return out.sort((a, b) => b.ts - a.ts);
+  }
+  function renderCtMov() {
+    const q = state.dpCtQuery;
+    const todos = ctMovimentos().filter(m => matchQ([m.texto, m.empresa], q));
+    $('#ct-count').textContent = `${todos.length} movimentação(ões)`;
+    const lista = todos.slice(0, 300);
+    $('#ct-pane-mov').innerHTML = `<div class="ct-pane-in"><div class="list-card ct-sheet">${lista.length ? `<div class="ct-scroll"><table class="ct-table"><thead><tr><th>Quando</th><th>O que mudou</th><th>Empresa</th><th>Por</th></tr></thead><tbody>${lista.map(m => `<tr><td class="dp-mono" style="white-space:nowrap">${escapeHtml(m.quando)}</td><td>${escapeHtml(m.texto)}</td><td>${m.empId ? `<button type="button" class="ct-emp" data-open-emp="${escapeHtml(m.empId)}"><div class="dp-cell-main">${escapeHtml(m.empresa)}</div></button>` : '<span class="dp-cell-sub">—</span>'}</td><td>${m.autor ? `<span data-uid="${escapeHtml(m.autor)}">Alguém da equipe</span>` : '—'}</td></tr>`).join('')}</tbody></table></div>${todos.length > lista.length ? `<p class="ct-hint" style="padding:0 12px 10px">Mostrando as ${lista.length} mais recentes de ${todos.length}.</p>` : ''}` : '<div class="dp-empty">Nenhuma troca de responsável ou reserva registrada ainda.</div>'}</div></div>`;
+    fillNames($('#ct-pane-mov'));
+  }
+
+  // ----- janela de ausência -----
+  const dlgAus = $('#dlg-aus'), formAus = $('#form-aus');
+  let ausEditId = null;
+  function ausOpcoes(sel, excluir, vazio) { return `<option value="">${vazio}</option>` + dpResponsaveis().filter(n => !excluir || norm(n) !== norm(excluir)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(sel) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join(''); }
+  function renderAusEmps(porEmpresaInicial) {
+    const f = formAus.elements, analista = f.analista.value;
+    const emps = state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(analista)).sort(byNome);
+    const atuais = porEmpresaInicial || Object.fromEntries($$('[data-aus-emp]', dlgAus).map(s => [s.dataset.ausEmp, s.value]));
+    $('#aus-nome').textContent = analista || '…';
+    $('#aus-emps').innerHTML = emps.length ? emps.map(e => {
+      const v = atuais[e.id] !== undefined ? atuais[e.id] : (e.reserva && norm(e.reserva) !== norm(analista) ? e.reserva : '');
+      return `<div class="aus-row"><span class="aus-emp" title="${escapeHtml(e.nome)}">${escapeHtml(e.nome)}${e.reserva ? `<small>reserva: ${escapeHtml(e.reserva)}</small>` : ''}</span><select data-aus-emp="${escapeHtml(e.id)}" aria-label="Quem cobre ${escapeHtml(e.nome)}">${ausOpcoes(v, analista, '= padrão acima')}</select></div>`;
+    }).join('') : '<div class="dp-cell-sub">Este analista não tem empresas ativas na cartela.</div>';
+    atualizaAusHint();
+  }
+  function atualizaAusHint() {
+    const f = formAus.elements, padrao = f.padrao.value;
+    const sels = $$('[data-aus-emp]', dlgAus);
+    const sem = sels.filter(s => !s.value && !padrao).length;
+    $('#aus-hint').textContent = sels.length ? (sem ? `${sem} de ${sels.length} empresa(s) ainda sem cobertura.` : `${sels.length} empresa(s) cobertas.`) : '';
+    $('#aus-hint').style.color = sem ? 'var(--dp-late)' : '';
+  }
+  function abrirAus({ id, analista } = {}) {
+    if (state.readOnly) return;
+    const a = id ? state.dpCob.ausencias.find(x => x.id === id) : null;
+    ausEditId = a ? a.id : null;
+    const f = formAus.elements;
+    $('#dlg-aus-title').textContent = a ? 'Editar ausência' : 'Registrar ausência';
+    f.analista.innerHTML = ausOpcoes(a ? a.analista : analista || '', '', 'Escolha o analista…');
+    f.analista.required = true;
+    f.motivo.value = a ? a.motivo : 'Férias';
+    f.inicio.value = a ? a.inicio : ymd(hoje());
+    f.fim.value = a ? a.fim : ymd(addDays(hoje(), 14));
+    f.obs.value = a ? a.obs : '';
+    f.padrao.innerHTML = ausOpcoes(a ? a.padrao : '', a ? a.analista : analista || '', '— definir por empresa —');
+    $('#btn-aus-excluir').hidden = !a;
+    renderAusEmps(a ? a.porEmpresa : null);
+    if (!dlgAus.open) dlgAus.showModal();
+  }
+  formAus.elements.analista.addEventListener('change', () => { formAus.elements.padrao.innerHTML = ausOpcoes('', formAus.elements.analista.value, '— definir por empresa —'); renderAusEmps({}); });
+  formAus.elements.padrao.addEventListener('change', atualizaAusHint);
+  $('#aus-emps').addEventListener('change', atualizaAusHint);
+  formAus.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = formAus.elements;
+    const analista = canonResp(f.analista.value), inicio = f.inicio.value, fim = f.fim.value;
+    if (!analista) { toast('Escolha o analista ausente.'); return; }
+    if (!inicio || !fim || fim < inicio) { toast('A data final não pode ser anterior à inicial.'); return; }
+    const conflito = state.dpCob.ausencias.find(x => x.id !== ausEditId && norm(x.analista) === norm(analista) && x.inicio <= fim && x.fim >= inicio);
+    if (conflito) { toast(`${analista} já tem uma ausência de ${fmtYmdBR(conflito.inicio)} a ${fmtYmdBR(conflito.fim)}. Edite essa em vez de criar outra.`); return; }
+    const porEmpresa = {};
+    $$('[data-aus-emp]', dlgAus).forEach(s => { if (s.value) porEmpresa[s.dataset.ausEmp] = canonResp(s.value); });
+    const novo = normalizeAus({ id: ausEditId || uid(), analista, motivo: f.motivo.value, inicio, fim, padrao: f.padrao.value ? canonResp(f.padrao.value) : '', porEmpresa, obs: f.obs.value.trim(), criadoEm: Date.now(), autor: state.meId || '' });
+    const antigo = ausEditId ? state.dpCob.ausencias.find(x => x.id === ausEditId) : null;
+    if (antigo) { novo.criadoEm = antigo.criadoEm; novo.autor = antigo.autor; }
+    const r = resumoCobertura(novo);
+    const avisos = [];
+    if (r.sem) avisos.push(`${r.sem} de ${r.emps} empresa(s) ficarão sem cobertura.`);
+    r.quem.forEach(([q]) => { const b = state.dpCob.ausencias.find(x => x.id !== novo.id && norm(x.analista) === norm(q) && x.inicio <= fim && x.fim >= inicio); if (b) avisos.push(`${q} também estará ausente de ${fmtYmdDM(b.inicio)} a ${fmtYmdDM(b.fim)}.`); });
+    if (avisos.length) { const ok = await ask(avisos.join('\n') + '\n\nSalvar mesmo assim?', [{ label:'Voltar', value:false }, { label:'Salvar mesmo assim', kind:'btn-primary', value:true }]); if (!ok) return; }
+    dlgAus.close();
+    const resumo = `${analista} · ${novo.motivo} · ${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}` + (r.quem.length ? ` · cobertura: ${r.quem.map(([q, n]) => `${q} (${n})`).join(', ')}` : '');
+    await salvarCob(c => { const i = c.ausencias.findIndex(x => x.id === novo.id); if (i >= 0) c.ausencias[i] = novo; else c.ausencias.push(novo); }, `${antigo ? 'Alterou' : 'Registrou'} ausência: ${resumo}`);
+    toast(antigo ? 'Ausência atualizada.' : 'Ausência registrada.');
+  });
+  $('#btn-aus-cancelar').addEventListener('click', () => dlgAus.close());
+  $('#dlg-aus-close').addEventListener('click', () => dlgAus.close());
+  async function excluirAus(id) {
+    const a = state.dpCob.ausencias.find(x => x.id === id);
+    if (!a) return;
+    const ok = await ask(`Excluir a ausência de ${a.analista} (${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)})?\nA cobertura deixa de valer e as empresas voltam à titular.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    if (dlgAus.open) dlgAus.close();
+    await salvarCob(c => { c.ausencias = c.ausencias.filter(x => x.id !== id); }, `Excluiu ausência: ${a.analista} · ${a.motivo} · ${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}`);
+    toast('Ausência excluída.');
+  }
+  $('#btn-aus-excluir').addEventListener('click', () => { if (ausEditId) excluirAus(ausEditId); });
+
+  // ----- transferir a cartela inteira -----
+  const dlgTr = $('#dlg-transf'), formTr = $('#form-transf');
+  let trNome = '';
+  function abrirTransf(nome) {
+    if (state.readOnly) return;
+    trNome = nome;
+    const emps = state.dpEmpresas.filter(e => norm(ctResp(e)) === norm(nome));
+    const outros = dpResponsaveis().filter(n => norm(n) !== norm(nome));
+    if (!outros.length) { toast('Cadastre outro analista antes de transferir.'); return; }
+    $('#tr-desc').textContent = `${emps.length} empresa(s) de ${nome}${state.dpCtSim ? ' (simulação: nada será salvo agora)' : ''}.`;
+    $('#tr-um').innerHTML = outros.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    $('#tr-div').innerHTML = outros.map(n => `<label class="ct-chk"><input type="checkbox" value="${escapeHtml(n)}"> ${escapeHtml(n)}</label>`).join('');
+    formTr.elements.modo.value = 'um';
+    formTr.elements.remover.checked = false;
+    $('#tr-remover-wrap').hidden = !!state.dpCtSim || !state.dpEquipe.some(n => norm(n) === norm(nome));
+    $('#tr-um-wrap').hidden = false; $('#tr-div').hidden = true;
+    if (!dlgTr.open) dlgTr.showModal();
+  }
+  formTr.addEventListener('change', () => { const dividir = formTr.elements.modo.value === 'dividir'; $('#tr-um-wrap').hidden = dividir; $('#tr-div').hidden = !dividir; });
+  formTr.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emps = state.dpEmpresas.filter(x => norm(ctResp(x)) === norm(trNome)).sort(byNome);
+    if (!emps.length) { dlgTr.close(); return; }
+    const mapa = {};
+    if (formTr.elements.modo.value === 'um') emps.forEach(x => { mapa[x.id] = $('#tr-um').value; });
+    else {
+      const dest = $$('#tr-div input:checked').map(i => i.value);
+      if (dest.length < 2) { toast('Marque pelo menos dois analistas para dividir.'); return; }
+      const carga = Object.fromEntries(dest.map(n => [n, state.dpEmpresas.filter(x => norm(ctResp(x)) === norm(n)).length]));
+      emps.forEach(x => { const n = dest.reduce((a, b) => carga[b] < carga[a] ? b : a); mapa[x.id] = n; carga[n]++; });
+    }
+    const remover = formTr.elements.remover.checked && !state.dpCtSim;
+    const sim = !!state.dpCtSim;
+    dlgTr.close();
+    const ok = await aplicarMovimentos(mapa);
+    if (ok && !sim) toast(`Cartela de ${trNome} transferida (${emps.length} empresa(s)).`);
+    if (ok && remover) await salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(trNome)));
+  });
+  $('#btn-tr-cancelar').addEventListener('click', () => dlgTr.close());
+  $('#dlg-transf-close').addEventListener('click', () => dlgTr.close());
+
+  // ----- exportar e imprimir -----
+  function ctDadosExport(todos) {
+    const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => (ctResp(a) || '￿').localeCompare(ctResp(b) || '￿', 'pt-BR') || byNome(a, b));
+    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length }; });
+  }
+  function ctCsv(todos) {
+    const rows = [['Analista','Reserva','Hoje com (cobertura)','Empresa','Código','CNPJ/CPF','Tributação','Situação','Funcionários ativos']];
+    ctDadosExport(todos).forEach(({ e, resp, hoje: h, nf }) => rows.push([resp, e.reserva, h, e.nome, e.cod, e.cnpj, e.tributacao, e.situacao, nf]));
+    offerFile(`dp-cartela-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  }
+  function ctImprimir() {
+    const dados = ctDadosExport(true).filter(d => ativa(d.e));
+    const por = new Map();
+    dados.forEach(d => { if (!por.has(d.resp)) por.set(d.resp, []); por.get(d.resp).push(d); });
+    const t = ymd(hoje());
+    const aus = (nome) => state.dpCob.ausencias.filter(a => norm(a.analista) === norm(nome) && a.fim >= t).sort((a, b) => a.inicio.localeCompare(b.inicio));
+    $('#ct-print').innerHTML = `<h1>Cartela de clientes · DP</h1><p class="ct-pr-sub">Emitida em ${fmtDMY(hoje())} · empresas ativas</p>` + [...por.entries()].map(([nome, ds]) => `
+      <section class="ct-pr-an"><h2>${escapeHtml(nome)} <small>${ds.length} empresa(s) · ${ds.reduce((n, d) => n + d.nf, 0)} func.</small></h2>
+      ${aus(nome).map(a => `<p class="ct-pr-aus">${escapeHtml(a.motivo)}: ${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</p>`).join('')}
+      <table><thead><tr><th>Empresa</th><th>Cód.</th><th>CNPJ / CPF</th><th>Tributação</th><th>Func.</th><th>Reserva</th></tr></thead><tbody>${ds.map(d => `<tr><td>${escapeHtml(d.e.nome)}${d.hoje ? ` <em>(hoje com ${escapeHtml(d.hoje)})</em>` : ''}</td><td>${escapeHtml(d.e.cod)}</td><td>${escapeHtml(d.e.cnpj)}</td><td>${escapeHtml(d.e.tributacao)}</td><td>${d.nf}</td><td>${escapeHtml(d.e.reserva)}</td></tr>`).join('')}</tbody></table></section>`).join('');
+    document.body.classList.add('ct-printing');
+    const off = () => { document.body.classList.remove('ct-printing'); $('#ct-print').innerHTML = ''; window.removeEventListener('afterprint', off); };
+    window.addEventListener('afterprint', off);
+    try { window.print(); } catch { off(); toast('Não foi possível abrir a impressão aqui. Use o CSV.'); return; }
+    setTimeout(() => window.addEventListener('pointerdown', off, { once: true }), 400);
+  }
+
+  // ----- eventos da aba -----
   const ctView = $('#dp-view-cartela');
   $('#ct-search').addEventListener('input', (e) => { state.dpCtQuery = e.target.value.trim(); renderCartela(); });
   $('#ct-sit').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-sit]'); if (b) { state.dpCtTodas = b.dataset.ctSit === 'todas'; renderCartela(); } });
-  ctView.addEventListener('click', (e) => {
-    const rem = e.target.closest('[data-ct-rem]');
+  $('#ct-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-modo]'); if (b) { state.dpCtModo = b.dataset.ctModo; state.dpCtSel.clear(); renderCartela(); } });
+  $('#ct-aus-novo').addEventListener('click', () => abrirAus({ analista: state.dpCarteira && state.dpCarteira !== SEM_RESP ? state.dpCarteira : '' }));
+  $('#ct-sim-btn').addEventListener('click', async () => {
+    if (!state.dpCtSim) { state.dpCtSim = {}; toast('Simulação ligada: as trocas só valem depois de aplicar.'); renderCartela(); return; }
+    if (ctMudancas().length && !(await ask('Descartar as mudanças simuladas?', [{ label:'Continuar simulando', value:false }, { label:'Descartar', kind:'btn-danger', value:true }]))) return;
+    state.dpCtSim = null; renderCartela();
+  });
+  $('#ct-csv').addEventListener('click', (e) => { e.target.closest('details').open = false; ctCsv(false); });
+  $('#ct-csv-todos').addEventListener('click', (e) => { e.target.closest('details').open = false; ctCsv(true); });
+  $('#ct-print-btn').addEventListener('click', (e) => { e.target.closest('details').open = false; ctImprimir(); });
+  ctView.addEventListener('click', async (e) => {
+    const t = e.target;
+    const rem = t.closest('[data-ct-rem]');
     if (rem) { e.stopPropagation(); salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(rem.dataset.ctRem))); toast(`${rem.dataset.ctRem} saiu da equipe.`); return; }
-    const an = e.target.closest('[data-ct-an]');
+    const tr = t.closest('[data-ct-transf]');
+    if (tr) { e.stopPropagation(); abrirTransf(tr.dataset.ctTransf); return; }
+    const an = t.closest('[data-ct-an]');
     if (an) { state.dpCtSel.clear(); setCarteira(an.dataset.ctAn); return; }
-    const so = e.target.closest('[data-ct-sort]');
+    const so = t.closest('[data-ct-sort]');
     if (so) { state.dpCtSort = so.dataset.ctSort; renderCartela(); return; }
-    if (e.target.id === 'ct-bulk-clear') { state.dpCtSel.clear(); renderCartela(); return; }
-    if (e.target.id === 'ct-bulk-go') { const d = $('#ct-bulk-dest').value; if (!d) { toast('Escolha para quem mover.'); return; } moverEmpresas([...state.dpCtSel], d); }
+    const aus = t.closest('[data-ct-aus]');
+    if (aus) { if (state.readOnly) { state.dpCtModo = 'aus'; renderCartela(); } else abrirAus({ id: aus.dataset.ctAus }); return; }
+    const del = t.closest('[data-ct-aus-del]');
+    if (del) { excluirAus(del.dataset.ctAusDel); return; }
+    const pro = t.closest('[data-ct-prorrogar]');
+    if (pro) { const a = state.dpCob.ausencias.find(x => x.id === pro.dataset.ctProrrogar); if (a) { const novoFim = ymd(addDays(parseYmd(a.fim), 7)); await salvarCob(c => { const x = c.ausencias.find(y => y.id === a.id); if (x) x.fim = novoFim; }, `Prorrogou ausência de ${a.analista} até ${fmtYmdBR(novoFim)}`); toast(`Ausência de ${a.analista} vai até ${fmtYmdBR(novoFim)}.`); } return; }
+    const mes = t.closest('[data-ct-mes]');
+    if (mes) { const d = +mes.dataset.ctMes; state.dpCtMes = d === 0 ? '' : mesShift(state.dpCtMes || mesDe(hoje()), d); renderCartela(); return; }
+    if (t.id === 'ct-sim-aplicar') { const mapa = Object.fromEntries(ctMudancas()); state.dpCtSim = null; const ok = await aplicarMovimentos(mapa); if (ok) toast('Mudanças aplicadas e salvas.'); else renderCartela(); return; }
+    if (t.id === 'ct-sim-descartar') { state.dpCtSim = null; renderCartela(); return; }
+    if (t.id === 'ct-bulk-clear') { state.dpCtSel.clear(); renderCartela(); return; }
+    if (t.id === 'ct-bulk-go') { const d = $('#ct-bulk-dest').value; if (!d) { toast('Escolha para quem mover.'); return; } moverEmpresas([...state.dpCtSel], d); }
   });
   ctView.addEventListener('keydown', (e) => { const an = e.target.closest('[data-ct-an]'); if (an && e.target === an && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); an.click(); } });
   ctView.addEventListener('change', (e) => {
@@ -3448,6 +3965,7 @@ body.portal-open{overflow:hidden;}
     const id = tr.dataset.ctId;
     if (t.matches('[data-ct-chk]')) { t.checked ? state.dpCtSel.add(id) : state.dpCtSel.delete(id); renderCartela(); return; }
     if (t.matches('[data-ct-resp]')) moverEmpresas([id], t.value || SEM_RESP);
+    if (t.matches('[data-ct-reserva]')) definirReserva(id, t.value);
   });
   ctView.addEventListener('submit', (e) => {
     if (e.target.id !== 'ct-add') return;
@@ -3493,6 +4011,8 @@ body.portal-open{overflow:hidden;}
     geraisStore = makeGeraisLocal();
     equipeStore = makeEquipeLocal();
     state.dpEquipe = normalizeEquipe(equipeStore.load());
+    cobStore = makeCobLocal();
+    state.dpCob = normalizeCob(cobStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
@@ -3533,6 +4053,12 @@ body.portal-open{overflow:hidden;}
       refreshAll();
       refreshOpenDetail();
       tryPendingEmp();
+    }, caiu);
+
+    cobStore = cobDb;
+    db.doc('dp_config/cobertura').onSnapshot((s) => {
+      state.dpCob = normalizeCob(s.exists ? s.data() : null);
+      renderDpActiveView();
     }, caiu);
 
     equipeStore = equipeDb;
