@@ -880,6 +880,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       <select name="moduleKey">
         <option value="">— nenhum (link normal) —</option>
         <option value="dp">DP — particularidades de folha</option>
+        <option value="portal">Portal do Cliente — implantação</option>
       </select>
     </label>
     <div class="form-row">
@@ -1146,7 +1147,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   // ---------- normalização: ferramentas ----------
   const DEFAULT_TOOLS = [
     { id:'gestta', name:'Gestta', url:'https://app.gestta.com.br', icon:'📈', category:'Acompanhamento', color:'#0F7A55', description:'Andamento das empresas.', tags:['empresas'] },
-    { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['cliente'] },
+    { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Painel de implantação do Portal do Cliente.', tags:['cliente'], moduleKey:'portal' },
     { id:'planilha-dp', name:'DP', url:'', icon:'👥', category:'Atalhos', color:'#9A6B00', description:'Particularidades de folha por empresa.', tags:['dp','folha'], moduleKey:'dp' },
     { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','fiscal'] },
     { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','contábil'] },
@@ -1168,7 +1169,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
       notes: t.notes || '',
       favorite: !!t.favorite,
       newTab: t.newTab !== false,
-      moduleKey: t.moduleKey || '',
+      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : ''),
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
       lastUsed: t.lastUsed || null,
@@ -1618,6 +1619,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     document.activeElement?.blur();
     closeRail();
     if (key === 'dp') openDpModule();
+    else if (key === 'portal') location.href = 'portal.html';
   }
 
   function goHome() {
