@@ -681,6 +681,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .tl-mark.late{background:var(--dp-late);}
 .tl-mark:hover,.tl-mark:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
 .tl-foot{display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; padding:10px 0 0;}
+.portal-frame{position:fixed; inset:0; width:100%; height:100%; border:0; z-index:500; background:var(--page);}
+.portal-frame[hidden]{display:none;}
+body.portal-open{overflow:hidden;}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1619,7 +1622,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
     document.activeElement?.blur();
     closeRail();
     if (key === 'dp') openDpModule();
-    else if (key === 'portal') location.href = 'portal.html';
+    else if (key === 'portal') openPortal();
   }
 
   function goHome() {
@@ -1778,10 +1781,35 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   }
   function applyRoute(r) {
     const parts = String(r || '').split('/');
+    if (parts[0] === 'portal') { if (!state.activeModule) renderHome(); openPortal(); return; }
+    closePortal();
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
     openDpModule(DP_VIEWS.includes(parts[1]) ? parts[1] : 'painel');
   }
+  // Portal do Cliente: página própria (portal.html) aberta por cima do Hub, na mesma origem,
+  // para usar a conexão com o banco desta página.
+  function openPortal() {
+    let f = $('#portal-frame');
+    if (!f) {
+      f = document.createElement('iframe');
+      f.id = 'portal-frame'; f.className = 'portal-frame'; f.title = 'Portal do Cliente'; f.src = 'portal.html';
+      document.body.appendChild(f);
+    }
+    f.hidden = false;
+    document.body.classList.add('portal-open');
+    try { if (location.hash !== '#portal') history.replaceState(null, '', '#portal'); } catch {}
+    f.focus();
+  }
+  function closePortal() {
+    const f = $('#portal-frame');
+    if (!f || f.hidden) return;
+    f.hidden = true;
+    document.body.classList.remove('portal-open');
+    try { if (location.hash === '#portal') history.replaceState(null, '', location.pathname + location.search); } catch {}
+  }
+  window.__hubClosePortal = closePortal;
+
   function tryPendingEmp() {
     if (!pendingEmp || !state.dpLoaded) return;
     const e = findDpEmpresa(pendingEmp);
