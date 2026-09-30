@@ -1407,7 +1407,8 @@ body.portal-open{overflow:hidden;}
           </div>
           <div id="sd-rev-wrap" hidden>
             <p class="ct-hint" style="margin:0 0 8px">“Ajustar no Domínio”: cadastros sem nome, sem CNPJ ou de exemplo, e códigos usados nas empresas que não existem lá. “Completar aqui”: sindicatos com empresas vinculadas sem data-base ou sem vigência da CCT.</p>
-            <div class="list-card ct-sheet"><table class="ct-table"><colgroup><col style="width:150px"><col style="width:84px"><col><col style="width:28%"><col style="width:84px"><col style="width:96px"></colgroup><thead><tr><th>Onde</th><th>Código</th><th>Sindicato</th><th>O que falta</th><th class="num">Empresas</th><th></th></tr></thead><tbody id="sd-rev"></tbody></table></div>
+            <div class="sd-selbar" id="sd-rev-selbar" hidden></div>
+            <div class="list-card ct-sheet"><table class="ct-table" id="sd-rev-table"><colgroup><col style="width:36px"><col style="width:150px"><col style="width:84px"><col><col style="width:28%"><col style="width:84px"><col style="width:132px"></colgroup><thead><tr><th class="sd-selc"><input type="checkbox" id="sd-rev-todos" aria-label="Selecionar todos os cadastros sem empresas"></th><th>Onde</th><th>Código</th><th>Sindicato</th><th>O que falta</th><th class="num">Empresas</th><th></th></tr></thead><tbody id="sd-rev"></tbody></table></div>
           </div>
           <div id="sd-sem-wrap">
             <h3 class="ct-h3">Empresas sem sindicato cadastrado <span class="dp-tab-badge" id="sd-sem-n"></span></h3>
@@ -4449,14 +4450,22 @@ body.portal-open{overflow:hidden;}
   }
   function renderSindRevisar(itens) {
     const ro = state.readOnly;
-    $('#sd-rev').innerHTML = itens.length ? itens.map(r => `<tr>
+    $('#sd-rev-table').classList.toggle('sem-sel', ro);
+    [...state.dpSindSel].forEach(id => { if (!state.dpSind.some(x => x.id === id)) state.dpSindSel.delete(id); });
+    const ids = [...new Set(itens.filter(r => r.s && !r.n).map(r => r.s.id))], nSel = state.dpSindSel.size;
+    $('#sd-rev').innerHTML = itens.length ? itens.map(r => `<tr data-sd-rrow="${r.s ? escapeHtml(r.s.id) : ''}"${r.s && !r.n ? ' data-sd-rvazio' : ''} class="${r.s && state.dpSindSel.has(r.s.id) ? 'sel' : ''}">
+      <td class="sd-selc">${ro || !r.s ? '' : `<input type="checkbox" data-sd-sel="${escapeHtml(r.s.id)}" aria-label="Selecionar ${escapeHtml(rotuloSind(r.s))}"${state.dpSindSel.has(r.s.id) ? ' checked' : ''}>`}</td>
       <td><span class="pill ${r.onde === 'Domínio' ? 'pill-soon' : 'pill-today'}">${r.onde === 'Domínio' ? 'Ajustar no Domínio' : 'Completar aqui'}</span></td>
       <td class="dp-mono">${escapeHtml(r.s ? r.s.cod : r.cod)}</td>
       <td>${r.s ? `<div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(r.s))}</div>${r.s.cnpj ? `<div class="dp-cell-sub">${escapeHtml(r.s.cnpj)}</div>` : ''}` : '<span class="dp-cell-sub">—</span>'}</td>
       <td>${escapeHtml(r.txt)}</td>
       <td class="num">${r.n || '—'}</td>
-      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
-      : '<tr><td colspan="6"><div class="dp-empty">Nada para revisar.</div></td></tr>';
+      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir">${ic('trash', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
+      : '<tr><td colspan="7"><div class="dp-empty">Nada para revisar.</div></td></tr>';
+    const todos = $('#sd-rev-todos'); todos.checked = !!ids.length && ids.every(id => state.dpSindSel.has(id)); todos.disabled = !ids.length;
+    const bar = $('#sd-rev-selbar');
+    bar.hidden = ro || !ids.length;
+    bar.innerHTML = nSel ? `<b>${nSel} selecionado(s)</b><button type="button" class="btn btn-sm btn-danger" data-sd-del-sel>${ic('trash', 'ic-sm')} Excluir selecionados</button><button type="button" class="linkish" data-sd-sel-limpar>Limpar seleção</button>` : `<span class="dp-cell-sub">Cadastros sem empresas podem ser excluídos:</span><button type="button" class="linkish" data-sd-rev-sel-todos>Selecionar os ${ids.length} sem empresas</button>`;
   }
 
   // ----- importar a lista de sindicatos do Domínio (relatório "Cadastro de Sindicatos dos Empregados") -----
@@ -4830,6 +4839,8 @@ body.portal-open{overflow:hidden;}
     if (ed) { if (!state.readOnly) abrirSind(ed.dataset.sdEdit); return; }
     const tg = t.closest('[data-sd-toggle]');
     if (tg) { const id = tg.dataset.sdToggle; state.dpSindAberto.has(id) ? state.dpSindAberto.delete(id) : state.dpSindAberto.add(id); renderSindicatos(); return; }
+    const revAll = t.closest('#sd-rev-todos, [data-sd-rev-sel-todos]');
+    if (revAll) { const marcar = revAll.id === 'sd-rev-todos' ? revAll.checked : true; $$('[data-sd-rvazio]', sdView).map(r => r.dataset.sdRrow).forEach(id => marcar ? state.dpSindSel.add(id) : state.dpSindSel.delete(id)); renderSindicatos(); return; }
     const selT = t.closest('[data-sd-sel-todos]');
     if (selT) { const ids = $$('[data-sd-row]', sdView).map(r => r.dataset.sdRow); ids.forEach(id => selT.checked ? state.dpSindSel.add(id) : state.dpSindSel.delete(id)); renderSindicatos(); return; }
     const selO = t.closest('[data-sd-sel]');
