@@ -201,7 +201,26 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:linear-gradient(90deg, #C2000C, rgba(107,170,201,.5) 45%, transparent);}
 @keyframes hhIn{from{opacity:0; transform:translateY(8px);}}
 .hh-eyebrow{display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8FA0AD;}
-.hh-eyebrow i{width:6px; height:6px; border-radius:50%; background:#E8474B; box-shadow:0 0 10px rgba(232,71,75,.9);}
+.hh-eyebrow i{width:7px; height:7px; border-radius:50%; background:#E8474B; box-shadow:0 0 10px rgba(232,71,75,.9); animation:hhVivo 1.8s ease-out infinite;}
+@keyframes hhVivo{0%{box-shadow:0 0 0 0 rgba(232,71,75,.75), 0 0 10px rgba(232,71,75,.9); transform:scale(1);} 50%{transform:scale(1.15);} 70%{box-shadow:0 0 0 8px rgba(232,71,75,0), 0 0 14px rgba(232,71,75,.6);} 100%{box-shadow:0 0 0 0 rgba(232,71,75,0), 0 0 10px rgba(232,71,75,.9); transform:scale(1);}}
+/* letreiro contínuo */
+.hh-ticker{display:flex; align-items:stretch; margin:-6px 0 22px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,.035); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+.tk-live{flex:none; display:flex; align-items:center; gap:7px; padding:0 14px; font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:linear-gradient(90deg, #C2000C, #8E0A10); position:relative; z-index:1;}
+.tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
+@keyframes hhVivoB{50%{opacity:.25;}}
+.tk-view{flex:1; min-width:0; overflow:hidden; -webkit-mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);}
+.tk-trilho{display:flex; width:max-content; animation:tkCorre var(--dur, 60s) linear infinite;}
+.hh-ticker:hover .tk-trilho,.hh-ticker:focus-within .tk-trilho{animation-play-state:paused;}
+@keyframes tkCorre{from{transform:translateX(0);} to{transform:translateX(-50%);}}
+.tk-faixa{display:flex; align-items:center; flex:none;}
+.tk-it{all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:8px; padding:11px 4px; white-space:nowrap; font-size:13px; color:#B9C5CF; transition:color .15s;}
+.tk-it:hover span{color:#fff; text-decoration:underline; text-decoration-color:rgba(255,255,255,.35); text-underline-offset:3px;} .tk-it:focus-visible{outline:2px solid #6BAAC9; outline-offset:-2px;}
+.tk-it i{width:7px; height:7px; border-radius:50%; background:var(--c); box-shadow:0 0 8px var(--c);}
+.tk-it em{font-style:normal; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--c);}
+.tk-it b{font-size:11.5px; font-weight:700; color:#fff; padding:1px 6px; border-radius:3px; background:rgba(255,255,255,.08);}
+.tk-it.late{--c:#FF6B6F;} .tk-it.warn{--c:#FF8070;} .tk-it.info{--c:#8CC6EC;} .tk-it.ok{--c:#4ECC8B;}
+.tk-sep{flex:none; width:1px; height:16px; margin:0 18px; background:rgba(255,255,255,.14);}
+@media (prefers-reduced-motion: reduce){ .tk-trilho{animation:none;} .tk-view{overflow-x:auto;} .hh-eyebrow i,.tk-live i{animation:none;} }
 .hh-tx h1{margin:8px 0 4px; font-family:"Archivo",sans-serif; font-size:30px; font-weight:700; letter-spacing:-.02em; color:#fff; line-height:1.1;}
 .hh-tx p{margin:0; font-size:13.5px; color:#B9C5CF;} .hh-tx p b{color:#fff;}
 .hh-stats{display:flex; flex-wrap:wrap; gap:10px; position:relative;}
@@ -2670,6 +2689,34 @@ body.portal-open{overflow:hidden;}
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
   }
+  // Letreiro da tela inicial: informações vivas de todos os módulos, passando sem parar.
+  function tickerItens() {
+    const out = [], t = hoje(), ts = ymd(t);
+    const add = (mod, cls, txt, attrs = '', quando = '') => out.push({ mod, cls, txt, attrs, quando });
+    if (state.meusLoaded && !state.meusOff) meusEventos(t, t).slice(0, 4).forEach(ev => add('Lembrete', 'info', ev.meu?.texto || ev.titulo || 'Lembrete', `data-go="agenda:tipo:meu"`, ev.meu?.hora || 'hoje'));
+    if (state.dpLoaded && state.dpEmpresas.length) {
+      eventos(t, addDays(t, 7)).filter(ev => ev.tipo !== 'meu').slice(0, 8).forEach(ev => add('Agenda', ymd(ev.d) === ts ? 'late' : 'info', `${ev.titulo}${ev.empresa ? ' · ' + ev.empresa.nome : ev.emps ? ' · ' + ev.emps.length + ' empresa(s)' : ''}`, `data-go="agenda"`, ymd(ev.d) === ts ? 'hoje' : fmtDM(ev.d)));
+      alertasPessoal().filter(a => a.nivel !== 'soon').slice(0, 5).forEach(a => add('Pessoal', 'late', `${a.func ? (a.func.nome || 'Funcionário') + ' · ' : ''}${a.txt} · ${a.empresa.nome}`, `data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"`));
+      try {
+        const { linhas, sem } = convencoesDaCarteira();
+        linhas.filter(l => l.sit !== 'emdia').slice(0, 6).forEach(l => add('Convenções', l.sit === 'vencida' || l.sit === 'vencendo' ? 'late' : 'warn', `${tituloCurto(l.c)}: ${l.acoes[0]?.txt || ''}`, `data-go="sindicatos:cct:${escapeHtml(l.c.id)}"`));
+        if (sem.length) add('Convenções', 'warn', `${sem.length} empresa(s) sem convenção cadastrada`, `data-go="sindicatos"`);
+      } catch {}
+      (state.dpCob?.ausencias || []).filter(a => a.inicio <= ts && ts <= a.fim).forEach(a => add('Cartela', 'info', `${a.analista} ausente (${a.motivo.toLowerCase()}) até ${fmtYmdBR(a.fim).slice(0, 5)}`, `data-go="cartela"`));
+      const ativas = state.dpEmpresas.filter(ativa), nf = ativas.reduce((n, e) => n + nfEmp(e), 0);
+      add('Empresas', 'ok', `${ativas.length} empresa(s) ativa(s) · ${nf} funcionário(s)`, `data-go="empresas"`);
+      const semResp = ativas.filter(e => !e.responsavel).length; if (semResp) add('Empresas', 'warn', `${semResp} empresa(s) sem responsável`, `data-go="empresas"`);
+    }
+    return out;
+  }
+  function tickerHtml() {
+    const it = tickerItens();
+    if (!it.length) return '';
+    const item = (x) => `<button type="button" class="tk-it ${x.cls}" ${x.attrs}><i></i><em>${escapeHtml(x.mod)}</em>${x.quando ? `<b>${escapeHtml(x.quando)}</b>` : ''}<span>${escapeHtml(x.txt)}</span></button>`;
+    const faixa = it.map(item).join('<span class="tk-sep" aria-hidden="true"></span>');
+    const dur = Math.max(30, it.length * 7);
+    return `<div class="hh-ticker" role="marquee" aria-label="Novidades dos módulos"><span class="tk-live"><i></i>Ao vivo</span><div class="tk-view"><div class="tk-trilho" style="--dur:${dur}s"><div class="tk-faixa">${faixa}<span class="tk-sep"></span></div><div class="tk-faixa" aria-hidden="true">${faixa}<span class="tk-sep"></span></div></div></div></div>`;
+  }
   function renderHome() {
     const root = $('#home-root');
     evCacheClear();
@@ -2716,6 +2763,7 @@ body.portal-open{overflow:hidden;}
         <div class="hh-tools"><button type="button" class="hh-search" data-cmdk>${ic('search', 'ic-sm')}<span>Buscar empresa, funcionário…</span><kbd>/</kbd></button><button type="button" class="hh-theme" data-theme-toggle><span class="theme-ico"></span></button></div>
         <div class="hh-stats">${stat(nLemb, 'lembrete(s) seus hoje', 'agenda:tipo:meu')}${stat(nEq, 'data(s) da equipe hoje', 'agenda:hoje')}${stat(nAl, 'alerta(s) de pessoal', 'funcionarios:alerta', nAl ? 'late' : '')}</div>
       </section>
+      ${tickerHtml()}
       <div class="home-grid">${cardHtml('Meus lembretes de hoje', '', meusBody, meusAcoes)}${equipeCard}${alertCard}</div>
       <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2><span>favoritas primeiro</span></div>${qa}</section>`;
     applyTheme();
