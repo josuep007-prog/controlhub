@@ -354,7 +354,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-hero-steps{padding:18px 20px; border-left:1px solid var(--rule); background:color-mix(in srgb, var(--surface-2) 70%, transparent); min-width:0; display:flex; flex-direction:column;}
 .cv-hero-steps h3{margin:0 0 10px; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3);}
 .cv-hero-steps ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
-.cv-steps-l{max-height:300px; overflow-y:auto; overscroll-behavior:contain; padding-right:6px !important; scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--ink) 22%, transparent) transparent;}
+.cv-steps-l{position:relative; max-height:300px; overflow-y:auto; overscroll-behavior:contain; padding-right:6px !important; scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--ink) 22%, transparent) transparent;}
 .cv-steps-l::-webkit-scrollbar{width:5px;} .cv-steps-l::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--ink) 20%, transparent); border-radius:3px;} .cv-steps-l::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb, var(--ink) 38%, transparent);} .cv-steps-l::-webkit-scrollbar-track{background:transparent;}
 .cv-steps-l.rola{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 0, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, #000 0, #000 calc(100% - 22px), transparent 100%);}
 .cv-steps-l.rola.topo{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%);}
@@ -5629,7 +5629,18 @@ body.portal-open{overflow:hidden;}
   // A barra de progresso é o relógio: ao terminar cada volta (animationiteration) o carrossel avança; pausar a barra pausa tudo.
   function cvTkIniciar() {
     const lst = $('#cv-hero .cv-steps-l');
-    if (lst) { const marca = () => { lst.classList.toggle('rola', lst.scrollHeight - lst.clientHeight > 4); lst.classList.toggle('fim', lst.scrollTop + lst.clientHeight >= lst.scrollHeight - 4); lst.classList.toggle('topo', lst.scrollTop > 4); }; marca(); lst.addEventListener('scroll', marca, { passive: true }); requestAnimationFrame(marca); }
+    if (lst) {
+      // Mede pelo layout (não pelo scrollHeight, que conta o deslocamento das animações de entrada): o esmaecido só aparece se o conteúdo passa da caixa.
+      const marca = () => {
+        const ult = lst.lastElementChild, conteudo = ult ? ult.offsetTop + ult.offsetHeight : 0, cab = lst.clientHeight;
+        const passa = conteudo - cab > 2;
+        lst.classList.toggle('rola', passa);
+        lst.classList.toggle('fim', !passa || lst.scrollTop + cab >= conteudo - 2);
+        lst.classList.toggle('topo', passa && lst.scrollTop > 2);
+      };
+      marca(); lst.addEventListener('scroll', marca, { passive: true }); requestAnimationFrame(marca); setTimeout(marca, 1700);
+      if (window.ResizeObserver) new ResizeObserver(marca).observe(lst);
+    }
     const root = $('#cv-hero .cv-tick'); if (!root) return;
     root.classList.toggle('pausado', cvTkPausa);
     if ($$('.cv-tk', root).length < 2) { root.classList.add('uno'); return; }
