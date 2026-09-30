@@ -330,7 +330,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-emps{font-size:12.5px;} .cv-emps td{vertical-align:top;}
 .cv-cad-head{display:flex; align-items:center; gap:12px; padding:12px 22px 0;} .cv-cad-head h2{margin:0; font-size:15px;}
 /* ---- Convenções v2: painel de saúde, radar, cartões ---- */
-#cv-hero:empty,#cv-radar:empty{display:none;}
+#cv-hero:empty{display:none;}
 .cv-main-bg{}
 .s-vencida{--c:var(--dp-late);} .s-vencendo{--c:var(--cv-soon);} .s-pendente{--c:var(--cv-pend);} .s-sem{--c:var(--cv-sem);} .s-emdia{--c:var(--dp-ok);}
 /* hero */
@@ -366,34 +366,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-mais{margin:8px 0 0; font-size:11.5px; color:var(--ink-3);}
 .cv-zen{display:flex; align-items:center; gap:10px; padding:14px; border-radius:8px; color:var(--dp-ok); font-weight:600; font-size:13px; background:color-mix(in srgb, var(--dp-ok) 9%, transparent);}
 .cv-zen.big{justify-content:center; padding:40px; color:var(--ink-3); background:var(--surface); border:1px dashed var(--rule-strong);}
-/* radar */
-.cv-rd{border:1px solid var(--rule); border-radius:12px; background:var(--surface); padding:14px 18px 12px;}
-.cv-rd-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap;} .cv-rd-head h3{margin:0; font-size:13.5px; display:flex; align-items:center; gap:6px;} .cv-rd-head .spacer{flex:1;}
-.cv-rd-leg{display:flex; gap:12px; font-size:11.5px; color:var(--ink-3); flex-wrap:wrap;} .cv-rd-leg span{display:inline-flex; align-items:center; gap:5px;}
-.cv-rd-leg i{width:9px; height:9px; border-radius:50%; background:var(--cv-base);} .cv-rd-leg i.t-fim{background:var(--dp-late); border-radius:2px; transform:rotate(45deg);} .cv-rd-leg i.t-contrib{background:var(--ink-3); border-radius:2px;}
-.cv-rd-stage{position:relative; height:calc(var(--lanes) * 44px + 52px); margin:10px 8px 0 4px;}
-.cv-rd-axis{position:absolute; left:0; right:0; bottom:18px; height:2px; background:linear-gradient(90deg, var(--blue-deep), color-mix(in srgb, var(--blue-deep) 15%, var(--rule)));  border-radius:2px;}
-.cv-rd-hoje{position:absolute; left:0; top:8px; font-size:10.5px; font-weight:700; color:var(--blue-deep); text-transform:uppercase; letter-spacing:.06em;}
-.cv-rd-hoje{top:9px; left:-6px; padding:1px 5px; border-radius:3px; background:var(--blue-deep); color:var(--surface); font-size:9.5px;}
-.cv-rd-axis::before{content:""; position:absolute; left:-5px; top:-4px; width:10px; height:10px; border-radius:50%; background:var(--blue-deep); animation:cvPulse 2.2s infinite;}
-@keyframes cvPulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb, var(--blue-deep) 25%, transparent);} 50%{box-shadow:0 0 0 7px color-mix(in srgb, var(--blue-deep) 0%, transparent);}}
-.cv-rd-m{position:absolute; top:6px; font-size:10.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; transform:translateX(-50%);}
-.cv-rd-m::before{content:""; position:absolute; left:50%; top:-10px; width:1px; height:6px; background:var(--rule-strong);}
-.cv-rd-ev{all:unset; cursor:pointer; position:absolute; bottom:13px; display:flex; flex-direction:column; align-items:flex-start; transform:translateX(-6px);}
-.cv-rd-ev.dir{align-items:flex-end; transform:translateX(calc(-100% + 6px));}
-.cv-rd-dot{width:12px; height:12px; border-radius:50%; background:var(--cv-base); border:2px solid var(--surface); box-sizing:border-box; box-shadow:0 0 0 1px var(--cv-base); order:3; transition:transform .15s;}
-.cv-rd-ev.t-fim .cv-rd-dot{border-radius:2px; transform:rotate(45deg); background:var(--cv-soon); box-shadow:0 0 0 1px var(--cv-soon);} .cv-rd-ev.t-fim.n-late .cv-rd-dot{background:var(--dp-late); box-shadow:0 0 0 1px var(--dp-late);}
-.cv-rd-ev.t-contrib .cv-rd-dot,.cv-rd-ev.t-prazo .cv-rd-dot{border-radius:3px; background:var(--ink-3); box-shadow:0 0 0 1px var(--ink-3);}
-.cv-rd-stem{order:2; width:1px; height:calc(var(--lane) * 44px + 8px); margin-left:5.5px; background:repeating-linear-gradient(to bottom, var(--rule-strong) 0 3px, transparent 3px 6px);}
-.cv-rd-ev.dir .cv-rd-stem{margin:0 5.5px 0 0;}
-.cv-rd-lbl{order:1; max-width:190px; padding:4px 8px; border-radius:6px; background:var(--surface); border:1px solid var(--rule); box-shadow:0 2px 8px rgba(16,24,32,.06); font-size:11.5px; line-height:1.3; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:border-color .15s, box-shadow .15s;}
-.cv-rd-lbl b{color:var(--cv-base);} .cv-rd-ev.t-fim .cv-rd-lbl b{color:var(--cv-soon);} .cv-rd-ev.t-fim.n-late .cv-rd-lbl b{color:var(--dp-late);} .cv-rd-ev.t-contrib .cv-rd-lbl b,.cv-rd-ev.t-prazo .cv-rd-lbl b{color:var(--ink-2);}
-.cv-rd-lbl small{display:block; color:var(--ink-3); font-size:10.5px; overflow:hidden; text-overflow:ellipsis;}
-.cv-rd-ev:hover .cv-rd-lbl,.cv-rd-ev:focus-visible .cv-rd-lbl{border-color:var(--blue-deep); box-shadow:0 6px 18px rgba(16,24,32,.14); z-index:3; max-width:320px;} .cv-rd-ev:hover{z-index:5;} .cv-rd-ev:hover .cv-rd-dot{transform:scale(1.25);} .cv-rd-ev.t-fim:hover .cv-rd-dot{transform:rotate(45deg) scale(1.25);}
-.cv-rd-list{display:none; list-style:none; margin:10px 0 0; padding:0; flex-direction:column; gap:2px;}
-.cv-rd-list button{all:unset; cursor:pointer; box-sizing:border-box; width:100%; display:grid; grid-template-columns:10px 44px minmax(0,1fr); gap:8px; align-items:baseline; padding:7px 4px; border-bottom:1px solid var(--rule); font-size:12.5px;}
-.cv-rd-list i{width:9px; height:9px; border-radius:50%; background:var(--cv-base);} .cv-rd-list .t-fim i{background:var(--cv-soon); border-radius:2px;} .cv-rd-list .t-contrib i,.cv-rd-list .t-prazo i{background:var(--ink-3); border-radius:2px;}
-.cv-rd-list small{display:block; color:var(--ink-3); font-size:11px;}
 /* carrossel de pendências */
 .cv-tick{position:relative; margin:6px 0 0; padding:0; min-width:0;}
 .cv-tick-stage{position:relative; min-height:64px; min-width:0;}
@@ -531,14 +503,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 @keyframes cvUp{from{opacity:0; transform:translateY(10px);}}
 @keyframes cvDraw{from{stroke-dasharray:0 100;}}
 @keyframes cvGrow{from{clip-path:inset(0 100% 0 0);}}
-@keyframes cvPop{0%{opacity:0; transform:translateX(-6px) scale(.6);} 100%{opacity:1;}}
-.cv-anim .cv-hero,.cv-anim .cv-rd,.cv-anim .cv-sit,.cv-anim .cv-card,.cv-anim .cv-hero-steps li{animation:cvUp .55s cubic-bezier(.2,.7,.2,1) both; animation-delay:calc(var(--i, 0) * 55ms);}
-.cv-anim .cv-rd-ev{animation:cvPop .45s cubic-bezier(.3,1.4,.5,1) both; animation-delay:calc(200ms + var(--i, 0) * 40ms);}
+.cv-anim .cv-hero,.cv-anim .cv-sit,.cv-anim .cv-card,.cv-anim .cv-hero-steps li{animation:cvUp .55s cubic-bezier(.2,.7,.2,1) both; animation-delay:calc(var(--i, 0) * 55ms);}
 .cv-anim .cv-donut .seg,.cv-anim .cv-ring .fg{animation:cvDraw 1.1s cubic-bezier(.3,.7,.2,1) both; animation-delay:.15s;}
 .cv-anim .cv-tl-bar{animation:cvGrow .8s cubic-bezier(.3,.7,.2,1) both; animation-delay:calc(var(--i, 0) * 50ms);}
 .cv-anim .cv-sit-bar i{animation:cvGrow .9s .2s cubic-bezier(.3,.7,.2,1) both;}
 @media (max-width:1180px){ .cv-hero{grid-template-columns:minmax(0,1fr);} .cv-hero-steps{border-left:0; border-top:1px solid var(--rule);} .cv-sit-row{grid-template-columns:repeat(3, minmax(0,1fr));} }
-@media (max-width:900px){ .cv-rd-stage{display:none;} .cv-rd-list{display:flex;} .cv-rd-leg{display:none;} }
 @media (max-width:760px){
   .cv-hero-g{flex-direction:column; align-items:flex-start; gap:14px; padding:18px 16px;} .cv-donut-w{width:124px; height:124px; align-self:center;}
   .cv-hero-tx h2{font-size:20px;} .cv-hero-steps{padding:14px 16px;}
@@ -546,7 +515,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
   .cv-grid{grid-template-columns:minmax(0,1fr);}
   .cv-tl{--nome:130px;} .cv-tl-track em.m{display:none;} .cv-tl-nome small{display:none;} .cv-tl-bar span{display:none;}
   .cv-pn-kpis{grid-template-columns:repeat(2, minmax(0,1fr));}
-  .cv-rd{padding:12px 14px;}
   #cv-modo button{padding:6px 9px;}
 }
 @media (max-width:760px){
@@ -1365,7 +1333,6 @@ body.portal-open{overflow:hidden;}
           </div>
           <div id="cv-vazio"></div>
           <div id="cv-hero"></div>
-          <div id="cv-radar"></div>
           <div id="cv-sits"></div>
           <div id="cv-cards"></div>
           <div id="cv-lista" hidden></div>
@@ -5356,7 +5323,6 @@ body.portal-open{overflow:hidden;}
     const filt = (l) => matchQ([l.c.titulo, l.c.registro, ...l.c.partes.map(p => `${p.nome} ${p.cnpj} ${cnpjDig(p.cnpj)}`), ...sindsDaCct(l.c).map(s => `${s.cod} ${rotuloSind(s)}`), ...l.emps.map(e => `${e.nome} ${e.cod} ${e.cnpj}`)], q);
     const vis = linhas.filter(l => (!f || f === l.sit) && filt(l));
     const semVis = (!f || f === 'sem') ? sem.filter(x => matchQ([x.e.nome, x.e.cod, x.e.cnpj, ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`)], q)) : [];
-    $('#cv-radar').innerHTML = linhas.length && state.dpConvModo !== 'tempo' ? cvRadarHtml(vis) : '';
     $('#cv-count').textContent = `${vis.length} convenção(ões)${semVis.length ? ` · ${semVis.length} sem CCT` : ''}`;
     $$('#cv-modo [data-cv-modo]').forEach(b => { const on = b.dataset.cvModo === state.dpConvModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#cv-search').classList.toggle('filtro-on', !!q);
@@ -5488,23 +5454,6 @@ body.portal-open{overflow:hidden;}
     root.classList.toggle('pausado', cvTkPausa);
     if ($$('.cv-tk', root).length < 2) { root.classList.add('uno'); return; }
     $('.cv-tick-bar i', root).addEventListener('animationiteration', () => { if (!document.hidden && root.isConnected) cvTkIr(root, 1); });
-  }
-  function cvRadarHtml(vis) {
-    const dias = 90, t = hoje();
-    const evs = vis.flatMap(l => eventosConv(l, dias)).sort((a, b) => a.d.localeCompare(b.d) || a.tipo.localeCompare(b.tipo));
-    const x = (d) => diffDays(parseYmd(d), t) / dias * 100;
-    const lanes = [];
-    const pos = evs.map(e => { const xx = x(e.d); let k = lanes.findIndex(v => xx - v >= 17); if (k < 0) { if (lanes.length < 4) { k = lanes.length; lanes.push(-99); } else k = lanes.indexOf(Math.min(...lanes)); } lanes[k] = xx; return { e, xx, k }; });
-    const meses = []; for (let i = 0; i <= 3; i++) { const d = new Date(t.getFullYear(), t.getMonth() + i + 1, 1); const xx = diffDays(d, t) / dias * 100; if (xx <= 100) meses.push(`<span class="cv-rd-m" style="left:${xx}%">${MESES[d.getMonth()].slice(0, 3).toLowerCase()}</span>`); }
-    const tipoRot = { fim:'Fim de vigência', base:'Data-base', contrib:'Contribuição', prazo:'Prazo' };
-    return `<section class="cv-rd" style="--i:1"><div class="cv-rd-head"><h3>${ic('calendar', 'ic-sm')} Radar dos próximos 90 dias</h3><span class="dp-cell-sub">${evs.length} evento(s)</span><span class="spacer"></span>
-        <span class="cv-rd-leg"><span><i class="t-fim"></i>fim de vigência</span><span><i class="t-base"></i>data-base</span><span><i class="t-contrib"></i>contribuição / prazo</span></span></div>
-      ${evs.length ? `<div class="cv-rd-stage" style="--lanes:${Math.max(1, lanes.length)}">
-        <div class="cv-rd-axis"><span class="cv-rd-hoje">hoje</span>${meses.join('')}</div>
-        ${pos.map(({ e, xx, k }, i) => `<button type="button" class="cv-rd-ev t-${e.tipo} n-${e.nivel}${xx > 72 ? ' dir' : ''}" style="left:${xx.toFixed(2)}%;--lane:${k};--i:${i + 3}" data-cv-abrir="${escapeHtml(e.id)}" title="${escapeHtml(`${tipoRot[e.tipo]} · ${fmtYmdBR(e.d)}\n${e.txt}\n${e.nome}`)}"><span class="cv-rd-lbl"><b>${fmtYmdBR(e.d).slice(0, 5)}</b> ${escapeHtml(e.txt)}<small>${escapeHtml(e.nome)}</small></span><i class="cv-rd-stem"></i><i class="cv-rd-dot"></i></button>`).join('')}
-      </div>
-      <ol class="cv-rd-list">${evs.slice(0, 8).map(e => `<li><button type="button" class="t-${e.tipo}" data-cv-abrir="${escapeHtml(e.id)}"><i></i><b>${fmtYmdBR(e.d).slice(0, 5)}</b><span>${escapeHtml(e.txt)}<small>${escapeHtml(e.nome)}</small></span></button></li>`).join('')}${evs.length > 8 ? `<li class="dp-cell-sub">+${evs.length - 8} evento(s)</li>` : ''}</ol>`
-      : '<div class="cv-zen">' + ic('check') + '<span>Nada vence nos próximos 90 dias.</span></div>'}</section>`;
   }
   const CV_GRUPOS = [['vencida', 'Vencidas', 'alert'], ['vencendo', 'Vencendo', 'clock'], ['pendente', 'Pendentes', 'hourglass'], ['sem', 'Sem convenção', 'help'], ['emdia', 'Em dia', 'shield']];
   function renderConvCards(vis, semVis) {
