@@ -267,6 +267,97 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-det-row{display:grid; grid-template-columns:20px 80px minmax(0,1fr) 140px 90px; gap:8px; align-items:center;}
 @media (max-width:760px){ .sd-body{padding-inline:16px;} .sd-meses{grid-template-columns:repeat(6, minmax(0,1fr));} .sd-table{table-layout:auto; min-width:760px;} .sd-det-row{grid-template-columns:20px 70px minmax(0,1fr);} .sd-det-row select,.sd-det-row .dp-cell-sub{grid-column:3;} .list-card.ct-sheet{overflow-x:auto;} }
 #sd-ordem{flex:0 0 auto;}
+/* ---- Convenções (tela principal da aba) ---- */
+#cv-main{display:flex; flex-direction:column; gap:12px; padding-bottom:24px;}
+#cv-main > :not(.dp-toolbar):not(.cv-painel){margin-inline:22px;}
+#cv-main > .dp-toolbar{padding-bottom:0;}
+#cv-vazio:empty,#cv-sits:empty{display:none;}
+.cv-menu .menu-list hr{border:0; border-top:1px solid var(--rule); margin:4px 2px;}
+.cv-menu summary .ic{margin-left:2px;}
+.cv-cart{font-size:13px; color:var(--ink-2); margin-bottom:8px;} .cv-cart b{color:var(--ink);}
+.cv-sit-row{display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px;}
+.cv-sit{all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; gap:2px; padding:10px 12px; background:var(--surface); border:1px solid var(--rule); border-left:4px solid var(--rule-strong); border-radius:6px; min-width:0;}
+.cv-sit b{font-size:24px; line-height:1.1; font-variant-numeric:tabular-nums; color:var(--ink);}
+.cv-sit span{font-size:13px; font-weight:600; color:var(--ink);}
+.cv-sit small{font-size:11.5px; color:var(--ink-3); line-height:1.3;}
+.cv-sit.late{border-left-color:var(--dp-late);} .cv-sit.warn{border-left-color:var(--dp-today);} .cv-sit.ok{border-left-color:var(--dp-ok);}
+.cv-sit.late:not(.zero) b{color:var(--dp-late);} .cv-sit.warn:not(.zero) b{color:var(--dp-today);}
+.cv-sit.zero{opacity:.62;}
+.cv-sit:hover{border-color:var(--rule-strong);} .cv-sit:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
+.cv-sit.on{box-shadow:0 0 0 2px var(--blue-deep); opacity:1;}
+.cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:var(--dp-today-bg); border-radius:6px; font-size:13px;}
+.cv-passos > div{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+.cv-table{table-layout:fixed;} .cv-table td{vertical-align:top; overflow-wrap:anywhere;}
+.cv-row{cursor:pointer;} .cv-row:hover td{background:var(--surface-2);} .cv-row.sel td{background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface));}
+.cv-row:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.cv-grp td{background:var(--surface); font-size:12px; font-weight:700; color:var(--ink-2); padding-top:14px; border-bottom:1px solid var(--rule);}
+.cv-grp td span{font-weight:600; color:var(--ink-3); margin-left:4px;}
+.cv-grp.late td{color:var(--dp-late);} .cv-grp.warn td{color:var(--dp-today);} .cv-grp.ok td{color:var(--dp-ok);}
+.cv-num{font-size:12.5px; font-weight:600;}
+.cv-acao{font-size:12.5px; font-weight:600; line-height:1.35; padding-left:10px; position:relative;}
+.cv-acao::before{content:""; position:absolute; left:0; top:.45em; width:6px; height:6px; border-radius:50%; background:var(--ink-3);}
+.cv-acao.late{color:var(--dp-late);} .cv-acao.late::before{background:var(--dp-late);}
+.cv-acao.warn{color:var(--dp-today);} .cv-acao.warn::before{background:var(--dp-today);}
+.cv-acao.ok{color:var(--dp-ok);} .cv-acao.ok::before{background:var(--dp-ok);}
+.cv-acao.info{color:var(--ink-2); font-weight:500;}
+.cv-vig{display:flex; flex-direction:column; gap:3px; margin-bottom:2px;}
+.cv-vig-bar{position:relative; height:6px; border-radius:3px; background:var(--surface-2); border:1px solid var(--rule);}
+.cv-vig-bar i{position:absolute; inset:0 auto 0 0; border-radius:3px; background:color-mix(in srgb, var(--blue-deep) 35%, transparent);}
+.cv-vig-bar b{position:absolute; top:-4px; width:2px; height:12px; margin-left:-1px; background:var(--ink);}
+.cv-vig-txt{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums;}
+/* linha do tempo */
+.cv-tl{padding:0 0 10px; position:relative; --nome:210px;}
+.cv-tl-row{display:grid; grid-template-columns:var(--nome) minmax(0,1fr); align-items:center; min-height:34px; border-bottom:1px solid var(--rule); cursor:pointer;}
+.cv-tl-row:hover{background:var(--surface-2);} .cv-tl-row:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.cv-tl-h{cursor:default; min-height:28px; background:var(--surface-2);} .cv-tl-h:hover{background:var(--surface-2);}
+.cv-tl-nome{padding:4px 10px; font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cv-tl-nome small{display:block; font-weight:400; font-size:11px; color:var(--ink-3);}
+.cv-tl-track{position:relative; height:100%; min-height:28px;}
+.cv-tl-track em{position:absolute; top:7px; font-size:10.5px; font-style:normal; color:var(--ink-3); transform:translateX(2px); white-space:nowrap;}
+.cv-tl-bar{position:absolute; top:50%; height:12px; margin-top:-6px; border-radius:3px; background:var(--dp-ok);}
+.cv-tl-bar.warn{background:var(--dp-today);} .cv-tl-bar.late{background:var(--dp-late);}
+.cv-tl-db,.cv-tl-ad{position:absolute; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background:var(--surface); border:2px solid var(--ink); box-sizing:border-box;}
+.cv-tl-ad{border-radius:1px; transform:rotate(45deg); border-color:var(--blue-deep); background:var(--blue-deep);}
+.cv-tl-body{position:relative;}
+.cv-tl-hoje{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--brand-red); pointer-events:none;}
+.cv-tl-leg{display:flex; flex-wrap:wrap; gap:6px 16px; padding:10px 12px 0; font-size:11.5px; color:var(--ink-3);}
+.cv-tl-leg span{display:inline-flex; align-items:center; gap:6px;}
+.cv-tl-leg i{display:inline-block; width:14px; height:8px; border-radius:2px; background:var(--dp-ok);} .cv-tl-leg i.warn{background:var(--dp-today);} .cv-tl-leg i.late{background:var(--dp-late);} .cv-tl-leg i.hoje{width:2px; height:12px; background:var(--brand-red);}
+.cv-tl-leg .cv-tl-db,.cv-tl-leg .cv-tl-ad{position:static; margin:0;}
+/* painel lateral */
+.cv-painel{position:fixed; top:0; right:0; bottom:0; width:min(520px, 100vw); z-index:60; background:var(--surface); border-left:1px solid var(--rule); box-shadow:var(--shadow-2); display:flex; flex-direction:column; outline:none;}
+.cv-pn-head{display:flex; align-items:flex-start; gap:8px; padding:14px 16px 10px; border-bottom:1px solid var(--rule);}
+.cv-pn-head > div{flex:1;} .cv-pn-head h3{margin:6px 0 0; font-size:16px; line-height:1.3;}
+.cv-pn-tabs{display:flex; gap:2px; padding:0 12px; border-bottom:1px solid var(--rule); overflow-x:auto;}
+.cv-pn-tabs button{all:unset; cursor:pointer; padding:9px 10px; font-size:12.5px; font-weight:600; color:var(--ink-3); border-bottom:2px solid transparent; white-space:nowrap;}
+.cv-pn-tabs button.on{color:var(--ink); border-bottom-color:var(--blue-deep);} .cv-pn-tabs button:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.cv-pn-body{flex:1; overflow:auto; padding:14px 16px 24px; font-size:13px;}
+.cv-pn-body h4{margin:16px 0 6px; font-size:12px; color:var(--ink-2);} .cv-pn-body h4 small{font-weight:400; color:var(--ink-3);}
+.cv-acoes{list-style:none; margin:0 0 12px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; background:var(--surface-2); border-radius:6px;}
+.cv-kv{display:grid; grid-template-columns:96px minmax(0,1fr); gap:10px 12px; align-items:start;}
+.cv-kv > span{font-size:12px; color:var(--ink-3); padding-top:1px;}
+.cv-mini{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:4px;} .cv-mini td{padding:4px 0; border-bottom:1px solid var(--rule);} .cv-mini td.num{text-align:right; font-weight:600; white-space:nowrap; padding-left:10px;}
+.cv-partes,.cv-lista{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px;}
+.cv-partes li{display:flex; gap:6px; align-items:baseline; flex-wrap:wrap;}
+.cv-lista li.passado{color:var(--ink-3);}
+.cv-contrib{display:flex; flex-direction:column; gap:4px; padding:10px 0; border-bottom:1px solid var(--rule);}
+.cv-emps{font-size:12.5px;} .cv-emps td{vertical-align:top;}
+.cv-cad-head{display:flex; align-items:center; gap:12px; padding:12px 22px 0;} .cv-cad-head h2{margin:0; font-size:15px;}
+@media (max-width:1100px){ .cv-sit-row{grid-template-columns:repeat(3, minmax(0,1fr));} }
+@media (max-width:760px){
+  #cv-main > :not(.dp-toolbar):not(.cv-painel){margin-inline:16px;}
+  .cv-sit-row{grid-template-columns:repeat(2, minmax(0,1fr));}
+  .cv-table colgroup{display:none;} .cv-table thead{display:none;}
+  .cv-table,.cv-table tbody{display:block;}
+  .cv-table tr.cv-row{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 10px; padding:10px 12px; border-bottom:1px solid var(--rule);}
+  .cv-table tr.cv-row td{display:block; padding:0; border:0;}
+  .cv-table tr.cv-row td:nth-child(1){grid-column:1 / -1;} .cv-table tr.cv-row td:nth-child(4),.cv-table tr.cv-row td:nth-child(5),.cv-table tr.cv-row td[colspan]{grid-column:1 / -1;} .cv-table tr.cv-row td.num{text-align:left;} .cv-table tr.cv-row td:last-child{grid-column:1 / -1;} .cv-table tr.cv-row td:empty{display:none;}
+  .cv-table tr.cv-row td:nth-child(4)::after{content:" empresa(s)"; font-size:11px; color:var(--ink-3); font-weight:400;}
+  .cv-table tr.cv-grp{display:block;} .cv-table tr.cv-grp td{display:block; padding:12px 12px 6px;}
+  .cv-tl{--nome:120px;} .cv-tl-track em.m{display:none;}
+  .cv-pn-head{padding-top:12px;}
+  .cv-cad-head{padding-inline:16px;}
+}
 .cct-bar{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:10px;} .cct-bar .spacer{flex:1;} .cct-bar .ct-hint{max-width:720px;}
 .cct-table{table-layout:fixed;} .cct-table td,.cct-table th{overflow-wrap:anywhere;}
 .cct-parte{display:flex; gap:6px; align-items:baseline; font-size:12px; line-height:1.35;} .cct-parte b{font-family:"IBM Plex Mono",monospace; font-weight:600; white-space:nowrap; flex:none;}
@@ -959,7 +1050,7 @@ body.portal-open{overflow:hidden;}
         <button type="button" class="dp-tab" role="tab" data-dp-view="agenda">Agenda <span class="dp-tab-badge" id="dp-badge-agenda" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="empresas">Empresas</button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
-        <button type="button" class="dp-tab" role="tab" data-dp-view="sindicatos">Sindicatos <span class="dp-tab-badge" id="sd-badge" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="sindicatos">Convenções <span class="dp-tab-badge" id="sd-badge" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes <span class="dp-tab-badge" id="ct-badge" hidden></span></button>
       </div>
 
@@ -1039,6 +1130,36 @@ body.portal-open{overflow:hidden;}
       </div>
 
       <div class="dp-view" id="dp-view-sindicatos" hidden>
+        <div id="cv-main">
+          <div class="dp-toolbar">
+            <input type="search" id="cv-search" placeholder="Buscar empresa, sindicato, código ou CNPJ…" autocomplete="off">
+            <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="lista">Lista</button><button type="button" data-cv-modo="tempo">Linha do tempo</button></div>
+            <span class="dp-count" id="cv-count"></span>
+            <details class="menu cv-menu">
+              <summary class="btn btn-sm">Cadastro <svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></summary>
+              <div class="menu-list">
+                <button type="button" class="menu-item" data-cv-acao="nova" data-ro-hide>Nova convenção</button>
+                <button type="button" class="menu-item" data-cv-acao="carregar" id="cv-m-carregar" data-ro-hide>Carregar convenções analisadas</button>
+                <button type="button" class="menu-item" data-cv-cad="ccts">Todas as convenções cadastradas</button>
+                <hr>
+                <button type="button" class="menu-item" data-cv-cad="uso">Sindicatos em uso</button>
+                <button type="button" class="menu-item" data-cv-cad="todos">Lista de sindicatos do Domínio</button>
+                <button type="button" class="menu-item" data-cv-cad="revisar">Revisar cadastro</button>
+                <button type="button" class="menu-item" data-cv-acao="importar" data-ro-hide>Importar do Domínio (PDF)</button>
+                <hr>
+                <button type="button" class="menu-item" data-cv-acao="pasta">Copiar pasta das CCTs</button>
+                <button type="button" class="menu-item" data-cv-acao="csv">Exportar CSV (empresas × convenção)</button>
+              </div>
+            </details>
+          </div>
+          <div id="cv-vazio"></div>
+          <div id="cv-sits"></div>
+          <div id="cv-lista"></div>
+          <div id="cv-tempo" hidden></div>
+          <aside class="cv-painel" id="cv-painel" tabindex="-1" aria-label="Detalhe da convenção" hidden></aside>
+        </div>
+        <div id="cv-cad" hidden>
+        <div class="cv-cad-head"><button type="button" class="btn btn-sm" id="cv-cad-voltar">‹ Convenções</button><h2>Cadastro de sindicatos e convenções</h2></div>
         <div class="dp-toolbar">
           <input type="search" id="sd-search" placeholder="Buscar sindicato, código ou empresa…" autocomplete="off">
           <select id="sd-ordem" aria-label="Ordenar sindicatos"><option value="data">Próxima data-base</option><option value="nome">Nome</option><option value="cod">Código</option><option value="emps">Mais empresas</option><option value="vig">Fim da vigência</option></select>
@@ -1086,6 +1207,7 @@ body.portal-open{overflow:hidden;}
             <p class="ct-hint" style="margin:6px 0 10px">Empresas ativas cujo código de sindicato não está informado ou ainda não foi cadastrado acima. Sem vínculo, a data-base vem do que está na própria empresa.</p>
             <div class="list-card ct-sheet"><table class="ct-table"><colgroup><col style="width:30%"><col><col style="width:130px"><col style="width:300px"></colgroup><thead><tr><th>Empresa</th><th>Informado na empresa</th><th>Data-base atual</th><th>Vincular a</th></tr></thead><tbody id="sd-sem"></tbody></table></div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -1567,7 +1689,7 @@ body.portal-open{overflow:hidden;}
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
-    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
+    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpConvSit: '', dpConvModo: 'lista', dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
@@ -2639,7 +2761,8 @@ body.portal-open{overflow:hidden;}
     else if (v === 'empresas') renderDp();
     else if (v === 'funcionarios') renderDpFuncionarios();
     else if (v === 'cartela') renderCartela();
-    else if (v === 'sindicatos') renderSindicatos();
+    else if (v === 'sindicatos') renderSindTab();
+    if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
   }
   function renderBadges() {
     const t = hoje();
@@ -2649,7 +2772,7 @@ body.portal-open{overflow:hidden;}
     const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
     const bf = $('#dp-badge-func'); bf.hidden = !nf; bf.textContent = nf;
     renderCtAlertas();
-    const ns = sindAlertasN(); const bs = $('#sd-badge'); bs.hidden = !ns; bs.textContent = ns; bs.title = `${ns} sindicato(s) com reajuste pendente ou CCT vencida`;
+    const ns = sindTabBadge(); const bs = $('#sd-badge'); bs.hidden = !ns; bs.textContent = ns; bs.title = `${ns} convenção(ões) ${state.dpCarteira ? 'da carteira ' : ''}vencida(s), vencendo ou pendente(s)`;
   }
 
   function applyDpReadOnly() {
@@ -2682,8 +2805,8 @@ body.portal-open{overflow:hidden;}
       if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
       if (view === 'funcionarios') state.dpFuncFiltro = a || '';
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
-      if (view === 'sindicatos' && a === 'cct') { state.dpSindVisao = 'ccts'; state.dpCctAbrir = b || ''; }
-      else if (view === 'sindicatos' && a) { state.dpSindAberto.add(a); state.dpSindFoco = a; }
+      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
+      else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
       openDpModule(view);
       return;
     }
@@ -4916,6 +5039,264 @@ body.portal-open{overflow:hidden;}
     if (await salvarCcts([...state.dpCcts, ...novos])) toast(`${novos.length} convenção(ões) carregada(s).`);
   });
   $('#dp-view-sindicatos').addEventListener('click', (e) => { const a = e.target.closest('[data-cct-abrir]'); if (a) { e.stopPropagation(); abrirCct(a.dataset.cctAbrir); } }, true);
+
+  // ---------- Convenções: tela principal da aba (controle das CCTs da carteira do analista) ----------
+  const CV_SITS = [
+    { k:'vencida', l:'Vencidas', d:'terminaram sem nova CCT cadastrada', cls:'late' },
+    { k:'vencendo', l:'Vencendo', d:'terminam em até 60 dias', cls:'warn' },
+    { k:'pendente', l:'Pendentes', d:'registro, aditivo ou reajuste em aberto', cls:'warn' },
+    { k:'sem', l:'Sem CCT', d:'empresas sem convenção cadastrada', cls:'late' },
+    { k:'emdia', l:'Em dia', d:'vigentes e sem pendência', cls:'ok' },
+  ];
+  const temSucessora = (c) => state.dpCcts.some(o => o !== c && o.tipo === 'cct' && o.status !== 'substituida' && o.vigIni > c.vigFim && o.partes.some(p => c.partes.some(q => cnpjDig(q.cnpj) === cnpjDig(p.cnpj))));
+  const quandoTxt = (ymdS) => { const d = parseYmd(ymdS); if (!d) return '—'; const n = diffDays(d, hoje()); return `${fmtDM(d)}${n === 0 ? ' · hoje' : n > 0 ? ` · em ${n} dia(s)` : ` · há ${-n} dia(s)`}`; };
+  // Todas as ações pendentes de uma convenção para as empresas da carteira, da mais urgente para a menos.
+  function acoesCct(c, emps) {
+    const out = [], t = ymd(hoje());
+    const aditivos = state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida');
+    if (c.status === 'rascunho') out.push({ nivel:'late', sit:'pendente', txt:'Aguardar o registro no Mediador (ainda é rascunho)' });
+    if (c.tipo === 'cct' && c.vigFim && !temSucessora(c)) {
+      const n = diffDays(parseYmd(c.vigFim), hoje());
+      const prox = c.vigFim ? `${+c.vigFim.slice(0, 4)}/${+c.vigFim.slice(0, 4) + 1}` : '';
+      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`Cadastrar a CCT ${prox}: venceu em ${fmtYmdBR(c.vigFim)}` });
+      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`Cadastrar a CCT ${prox}: vence ${quandoTxt(c.vigFim)}` });
+    }
+    aditivos.filter(a => a.status === 'acordada' || a.status === 'rascunho').forEach(a => out.push({ nivel:'warn', sit:'pendente', txt:`Aguardar termo aditivo registrado (${CCT_TIPOS[a.tipo].toLowerCase()} de ${a.vigIni ? fmtYmdBR(a.vigIni) : '—'})` }));
+    const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+    if (ini && fim && diffDays(fim, ini) > 400) {
+      const base2 = ymd(addYears(ini, 1));
+      if (t >= base2 && t <= c.vigFim && !aditivos.some(a => a.vigIni >= base2)) out.push({ nivel:'warn', sit:'pendente', txt:`Cadastrar o aditivo da data-base de ${fmtYmdBR(base2)}` });
+    }
+    // Reajuste da data-base ainda não aplicado nas empresas da carteira.
+    let pend = 0, tot = 0;
+    sindsDaCct(c).forEach(s => { const es = emps.filter(e => empresaSinds(e).includes(s)); if (!es.length) return; const r = reajusteStatus(s, es); if (r && r.cobrando && !r.reg.semReajuste && !r.rascunho) { tot += r.total; pend += r.pend.length; } });
+    if (pend) out.push({ nivel:'warn', sit:'pendente', txt:`Aplicar o reajuste: falta em ${pend} de ${tot} empresa(s)` });
+    // Próximos compromissos (45 dias): contribuições, vencimentos e prazos, da CCT e dos aditivos.
+    const lim = ymd(addDays(hoje(), 45)), camadas = [c, ...aditivos];
+    const prox = [];
+    camadas.forEach(x => {
+      x.contribs.forEach(k => {
+        if (k.vencimento && k.vencimento >= t && k.vencimento <= lim) prox.push({ d:k.vencimento, txt:`${k.quem === 'empresa' ? 'Pagar' : 'Recolher'} ${k.nome.toLowerCase()} até ${fmtYmdBR(k.vencimento)}` });
+        (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); const d = ymd(new Date(y, m - 1, 1)); const fimMes = ymd(new Date(y, m, 0)); if (fimMes >= t && d <= lim) prox.push({ d, txt:`${k.quem === 'empresa' ? 'Contribuição' : 'Descontar'} ${k.nome.toLowerCase()} na folha de ${pad2(m)}/${y}` }); });
+      });
+      x.prazos.forEach(p => { if (p.data >= t && p.data <= lim) prox.push({ d:p.data, txt:`${p.desc} (${fmtYmdBR(p.data)})` }); });
+    });
+    prox.sort((a, b) => a.d.localeCompare(b.d)).forEach(p => out.push({ nivel:'info', sit:null, txt:p.txt }));
+    return out;
+  }
+  function situacaoCct(acoes) {
+    for (const k of ['vencida', 'vencendo', 'pendente']) if (acoes.some(a => a.sit === k)) return k;
+    return 'emdia';
+  }
+  // Convenções que atingem as empresas da carteira (+ empresas sem convenção).
+  function convencoesDaCarteira() {
+    const emps = empresasCarteira().filter(ativa);
+    const mapa = new Map(), sem = [];
+    emps.forEach(e => {
+      const vs = empresaCcts(e);
+      if (!vs.length) { const ss = empresaSinds(e).filter(s => !ehSemSind(s)); if (!empresaSinds(e).some(ehSemSind)) sem.push({ e, ss }); return; }
+      vs.forEach(v => { if (!mapa.has(v.cct)) mapa.set(v.cct, []); mapa.get(v.cct).push(e); });
+    });
+    const linhas = [...mapa.entries()].map(([c, es]) => { const acoes = acoesCct(c, es); return { c, emps: es, acoes, sit: situacaoCct(acoes) }; });
+    return { linhas, sem, emps };
+  }
+  const tituloCurto = (c) => c.titulo.replace(/\s*\((.*?)\)\s*$/, '');
+  function barraVig(c) {
+    const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+    if (!ini || !fim) return '<span class="dp-cell-sub">vigência não informada</span>';
+    const tot = Math.max(1, diffDays(fim, ini)), pos = Math.min(100, Math.max(0, diffDays(hoje(), ini) / tot * 100));
+    return `<div class="cv-vig"><div class="cv-vig-bar"><i style="width:${pos}%"></i><b style="left:${pos}%"></b></div><div class="cv-vig-txt"><span>${fmtDM(ini)}/${String(ini.getFullYear()).slice(2)}</span><span>${fmtDM(fim)}/${String(fim.getFullYear()).slice(2)}</span></div></div>`;
+  }
+  function renderConvencoes() {
+    const ro = state.readOnly, q = state.dpConvQuery;
+    // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
+    if (!state.prefs.convAuto && userNs && state.meId) {
+      state.prefs.convAuto = true; savePrefs();
+      if (!state.dpCarteira) userNs.profiles([state.meId]).then(ps => {
+        const n = norm(ps?.[state.meId]?.name || ''); if (!n) return;
+        const r = dpResponsaveis().find(x => norm(x) === n) || dpResponsaveis().find(x => norm(x).split(' ')[0] === n.split(' ')[0]);
+        if (r) setCarteira(r);
+      }).catch(() => {});
+    }
+    $('#cv-m-carregar').hidden = ro || !CCTS_ANALISADAS.some(x => !cctPorId(x.id));
+    const { linhas, sem, emps } = convencoesDaCarteira();
+    const cont = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
+    const contE = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
+    linhas.forEach(l => { cont[l.sit]++; contE[l.sit] += l.emps.length; });
+    const f = state.dpConvSit;
+    $('#cv-sits').innerHTML = `<div class="cv-cart">${state.dpCarteira ? `Carteira de <b>${escapeHtml(carteiraNome())}</b> · ${emps.length} empresa(s) ativa(s) <button type="button" class="linkish" data-cv-equipe>ver equipe toda</button>` : `<b>Equipe toda</b> · ${emps.length} empresa(s) ativa(s) · escolha sua carteira no topo para ver só as suas`}</div>
+      <div class="cv-sit-row">${CV_SITS.map(s => `<button type="button" class="cv-sit ${s.cls}${f === s.k ? ' on' : ''}${!cont[s.k] ? ' zero' : ''}" data-cv-sit="${s.k}" aria-pressed="${f === s.k}"><b>${cont[s.k]}</b><span>${s.l}</span><small>${s.k === 'sem' ? `${cont.sem} empresa(s)` : `${contE[s.k]} empresa(s) · ${s.d}`}</small></button>`).join('')}</div>`;
+    // Estado vazio que ensina o próximo passo.
+    const semDominio = !state.dpSind.some(s => s.origem === 'dominio'), semCcts = !state.dpCcts.length;
+    $('#cv-vazio').innerHTML = semDominio || semCcts ? `<div class="cv-passos">${semDominio ? `<div><b>1.</b> Importe a lista de sindicatos do Domínio para ligar as empresas aos sindicatos. ${ro ? '' : '<button type="button" class="btn btn-sm btn-primary" data-cv-acao="importar">Importar do Domínio</button>'}</div>` : ''}${semCcts ? `<div><b>${semDominio ? '2' : '1'}.</b> Cadastre as convenções. ${ro ? '' : `<button type="button" class="btn btn-sm${semDominio ? '' : ' btn-primary'}" data-cv-acao="carregar">Carregar as ${CCTS_ANALISADAS.length} convenções analisadas</button>`}</div>` : ''}</div>` : '';
+    const filt = (l) => matchQ([l.c.titulo, l.c.registro, ...l.c.partes.map(p => `${p.nome} ${p.cnpj} ${cnpjDig(p.cnpj)}`), ...sindsDaCct(l.c).map(s => `${s.cod} ${rotuloSind(s)}`), ...l.emps.map(e => `${e.nome} ${e.cod} ${e.cnpj}`)], q);
+    const vis = linhas.filter(l => (!f || f === l.sit) && filt(l));
+    const semVis = (!f || f === 'sem') ? sem.filter(x => matchQ([x.e.nome, x.e.cod, x.e.cnpj, ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`)], q)) : [];
+    $('#cv-count').textContent = `${vis.length} convenção(ões)${semVis.length ? ` · ${semVis.length} empresa(s) sem CCT` : ''}`;
+    $$('#cv-modo [data-cv-modo]').forEach(b => { const on = b.dataset.cvModo === state.dpConvModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    $('#cv-search').classList.toggle('filtro-on', !!q);
+    const tempo = state.dpConvModo === 'tempo';
+    $('#cv-lista').hidden = tempo; $('#cv-tempo').hidden = !tempo;
+    if (tempo) renderConvTempo(vis); else renderConvLista(vis, semVis);
+    const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
+    if (abrir && cctPorId(abrir)) abrirPainelCct(abrir);
+    else if (state.dpConvPainel) renderPainelCct();
+  }
+  function renderConvLista(vis, semVis) {
+    const ordem = ['vencida', 'vencendo', 'pendente', 'emdia'];
+    const grupos = ordem.map(k => ({ k, ls: vis.filter(l => l.sit === k).sort((a, b) => a.c.vigFim.localeCompare(b.c.vigFim)) })).filter(g => g.ls.length);
+    const acaoHtml = (l) => { const a = l.acoes[0]; return a ? `<div class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</div>${l.acoes.length > 1 ? `<div class="dp-cell-sub">+${l.acoes.length - 1} outra(s)</div>` : ''}` : '<div class="cv-acao ok">Tudo em dia</div>'; };
+    const linha = (l) => {
+      const c = l.c, ef = cctEfetiva(cctVigente(sindsDaCct(c)[0]) || { cct: c, aditivos: [] });
+      const lab = sindsDaCct(c).filter(s => c.partes.some(p => p.papel !== 'patronal' && cnpjDig(p.cnpj) === cnpjDig(s.cnpj))).map(rotuloSind);
+      const pat = c.partes.filter(p => p.papel === 'patronal').map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return s ? rotuloSind(s) : p.nome; });
+      return `<tr class="cv-row${state.dpConvPainel === c.id ? ' sel' : ''}" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0">
+        <td><div class="dp-cell-main" style="white-space:normal">${escapeHtml(tituloCurto(c))}</div><div class="dp-cell-sub" style="white-space:normal">${escapeHtml([lab.join(', '), pat.join(', ')].filter(Boolean).join(' × ') || c.partes.map(p => p.nome).join(' × '))}</div></td>
+        <td>${barraVig(c)}<div class="dp-cell-sub">data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></td>
+        <td><div class="cv-num">${escapeHtml(resumoReajuste(ef) || '—')}</div><div class="dp-cell-sub">${ef.pisos.val.length ? `piso ${escapeHtml(ef.pisos.val[0].valor)}${ef.pisos.val.length > 1 ? ` +${ef.pisos.val.length - 1}` : ''}` : 'sem piso cadastrado'}</div></td>
+        <td class="num"><b>${l.emps.length}</b></td>
+        <td>${acaoHtml(l)}</td></tr>`;
+    };
+    const semHtml = semVis.length ? `<tr class="cv-grp late"><td colspan="5">Sem CCT <span>${semVis.length}</span></td></tr>` + semVis.sort((a, b) => byNome(a.e, b.e)).map(x => `<tr class="cv-row"><td colspan="3"><button type="button" class="ct-emp" data-open-emp="${escapeHtml(x.e.id)}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(x.e.nome)}</div></button><div class="dp-cell-sub">${escapeHtml(x.e.responsavel || 'sem responsável')}</div></td><td></td><td><div class="cv-acao late">${x.ss.length ? `Cadastrar a CCT de ${escapeHtml(x.ss.map(rotuloSind).join(', '))}` : 'Informar o sindicato da empresa (código no estabelecimento)'}</div></td></tr>`).join('') : '';
+    const rotG = { vencida:'Vencidas', vencendo:'Vencendo', pendente:'Pendentes', emdia:'Em dia' }, clsG = { vencida:'late', vencendo:'warn', pendente:'warn', emdia:'ok' };
+    const corpo = grupos.filter(g => g.k !== 'emdia').map(g => `<tr class="cv-grp ${clsG[g.k]}"><td colspan="5">${rotG[g.k]} <span>${g.ls.length}</span></td></tr>` + g.ls.map(linha).join('')).join('') + semHtml + grupos.filter(g => g.k === 'emdia').map(g => `<tr class="cv-grp ok"><td colspan="5">${rotG[g.k]} <span>${g.ls.length}</span></td></tr>` + g.ls.map(linha).join('')).join('');
+    $('#cv-lista').innerHTML = `<div class="list-card ct-sheet"><table class="ct-table cv-table"><colgroup><col><col style="width:170px"><col style="width:150px"><col style="width:92px"><col style="width:32%"></colgroup>
+      <thead><tr><th>Convenção</th><th>Vigência</th><th>Reajuste · piso</th><th class="num">Empresas</th><th>Próxima ação</th></tr></thead><tbody>${corpo || `<tr><td colspan="5"><div class="dp-empty">${state.dpConvSit || state.dpConvQuery ? 'Nada com esse filtro.' : 'Nenhuma convenção nesta carteira ainda.'}</div></td></tr>`}</tbody></table></div>`;
+  }
+  // Linha do tempo: 24 meses (11 para trás, 12 para frente), uma barra por convenção, hoje marcado e data-bases como pontos.
+  function renderConvTempo(vis) {
+    const t = hoje(), ini = new Date(t.getFullYear(), t.getMonth() - 11, 1), fim = new Date(t.getFullYear(), t.getMonth() + 13, 0);
+    const tot = diffDays(fim, ini), x = (d) => Math.min(100, Math.max(0, diffDays(d, ini) / tot * 100));
+    const meses = Array.from({ length: 24 }, (_, i) => new Date(ini.getFullYear(), ini.getMonth() + i, 1));
+    const corSit = { vencida:'late', vencendo:'warn', pendente:'warn', emdia:'ok' };
+    const rows = vis.sort((a, b) => a.c.vigFim.localeCompare(b.c.vigFim)).map(l => {
+      const c = l.c, a = parseYmd(c.vigIni), b = parseYmd(c.vigFim);
+      const bar = a && b ? `<i class="cv-tl-bar ${corSit[l.sit]}" style="left:${x(a)}%;width:${Math.max(0.6, x(b) - x(a))}%" title="${escapeHtml(`${c.titulo}\n${fmtYmdBR(c.vigIni)} a ${fmtYmdBR(c.vigFim)}`)}"></i>` : '';
+      const mi = MESES.indexOf(c.dataBase);
+      const dots = mi < 0 ? '' : [ini.getFullYear(), ini.getFullYear() + 1, ini.getFullYear() + 2].map(y => new Date(y, mi, 1)).filter(d => d >= ini && d <= fim).map(d => `<b class="cv-tl-db" style="left:${x(d)}%" title="Data-base ${fmtDMY(d)}"></b>`).join('');
+      const ads = state.dpCcts.filter(o => o.mae === c.id && o.vigIni).map(o => `<b class="cv-tl-ad" style="left:${x(parseYmd(o.vigIni))}%" title="${escapeHtml(o.titulo)}"></b>`).join('');
+      return `<div class="cv-tl-row" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0" role="button"><span class="cv-tl-nome">${escapeHtml(tituloCurto(c))}<small>${l.emps.length} empresa(s)</small></span><span class="cv-tl-track">${bar}${dots}${ads}</span></div>`;
+    }).join('');
+    $('#cv-tempo').innerHTML = `<div class="list-card ct-sheet cv-tl">
+      <div class="cv-tl-row cv-tl-h"><span class="cv-tl-nome"></span><span class="cv-tl-track">${meses.map((m, i) => `<em${m.getMonth() === 0 && i > 0 ? '' : ' class="m"'} style="left:${x(m)}%">${m.getMonth() === 0 && i > 0 ? `${MESES[m.getMonth()].slice(0, 3)}/${String(m.getFullYear()).slice(2)}` : MESES[m.getMonth()].slice(0, 1)}</em>`).join('')}</span></div>
+      <div class="cv-tl-body">${rows || '<div class="dp-empty">Nada com esse filtro.</div>'}<i class="cv-tl-hoje" style="left:calc(var(--nome) + (100% - var(--nome)) * ${x(t) / 100})"></i></div>
+      <div class="cv-tl-leg"><span><i class="ok"></i>em dia</span><span><i class="warn"></i>vencendo ou pendente</span><span><i class="late"></i>vencida</span><span><b class="cv-tl-db"></b>data-base</span><span><b class="cv-tl-ad"></b>aditivo/ofício</span><span><i class="hoje"></i>hoje</span></div></div>`;
+  }
+
+  // ----- painel lateral da convenção -----
+  function abrirPainelCct(id) { state.dpConvPainel = id; state.dpConvPainelAba = state.dpConvPainelAba || 'resumo'; renderPainelCct(); $('#cv-painel').focus(); }
+  function fecharPainelCct() { state.dpConvPainel = ''; $('#cv-painel').hidden = true; document.body.classList.remove('cv-painel-on'); $$('.cv-row.sel').forEach(r => r.classList.remove('sel')); }
+  function renderPainelCct() {
+    const c = cctPorId(state.dpConvPainel), pn = $('#cv-painel');
+    if (!c) { fecharPainelCct(); return; }
+    pn.hidden = false; document.body.classList.add('cv-painel-on');
+    $$('.cv-row').forEach(r => r.classList.toggle('sel', r.dataset.cvAbrir === c.id));
+    const ro = state.readOnly, aba = state.dpConvPainelAba;
+    const empsCart = empsDaCct(c, empresasCarteira().filter(ativa));
+    const empsVig = empsCart.filter(e => empresaCcts(e).some(v => v.cct === c));
+    const acoes = acoesCct(c, empsVig.length ? empsVig : empsCart);
+    const sit = situacaoCct(acoes);
+    const aditivos = state.dpCcts.filter(a => a.mae === c.id);
+    const v = { cct: c, aditivos: aditivos.filter(a => a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni)) };
+    const ef = cctEfetiva(v);
+    const sitRot = { vencida:['pill-late', 'Vencida'], vencendo:['pill-today', 'Vencendo'], pendente:['pill-today', 'Pendente'], emdia:['pill-ok', 'Em dia'] }[sit];
+    const abas = [['resumo', 'Resumo'], ['empresas', `Empresas (${empsCart.length})`], ['contrib', 'Contribuições e prazos'], ['docs', 'Documento']];
+    let corpo = '';
+    if (aba === 'resumo') {
+      const partes = c.partes.map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b class="dp-mono">${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `${escapeHtml(p.nome)} <span class="dp-cell-sub">fora do Domínio</span>`}</li>`; }).join('');
+      corpo = `${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
+        <div class="cv-kv"><span>Vigência</span><div>${barraVig(c)}<div class="dp-cell-sub">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></div>
+          <span>Situação</span><div><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status])}</span>${c.registro ? ` <span class="dp-mono">${escapeHtml(c.registro)}</span>` : ''}</div>
+          <span>Reajuste</span><div><b>${escapeHtml(resumoReajuste(ef) || '—')}</b>${ef.reajusteItens.de !== c ? ` <span class="dp-cell-sub">(pelo ${escapeHtml(CCT_TIPOS[ef.reajusteItens.de.tipo].toLowerCase())})</span>` : ''}${c.reajuste.base ? `<div class="dp-cell-sub" style="white-space:normal">${escapeHtml((ef.reajusteItens.de.reajuste.base || c.reajuste.base))}</div>` : ''}${ef.tabela.val.length ? `<table class="cv-mini"><tbody>${ef.tabela.val.map(r => `<tr><td>admitidos em ${r.mes.slice(5)}/${r.mes.slice(0, 4)}</td><td class="num">${escapeHtml(r.pct)}</td></tr>`).join('')}</tbody></table>` : ''}</div>
+          <span>Partes</span><div><ul class="cv-partes">${partes}</ul></div></div>
+        ${ef.pisos.val.length ? `<h4>Pisos${ef.pisos.de !== c ? ' <small>(pelo ' + escapeHtml(CCT_TIPOS[ef.pisos.de.tipo].toLowerCase()) + ')</small>' : ''}</h4><table class="cv-mini"><tbody>${ef.pisos.val.map(p => `<tr><td>${escapeHtml(p.nome)}</td><td class="num">${escapeHtml(p.valor)}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${ef.beneficios.val.length ? `<h4>Benefícios</h4><table class="cv-mini"><tbody>${ef.beneficios.val.map(p => `<tr><td>${escapeHtml(p.nome)}</td><td class="num">${escapeHtml(p.valor)}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${aditivos.length ? `<h4>Aditivos e ofícios</h4><ul class="cv-lista">${aditivos.map(a => `<li><span class="pill ${CCT_STATUS_PILL[a.status]}">${escapeHtml(CCT_STATUS[a.status].split(' (')[0])}</span> <button type="button" class="linkish" data-cv-abrir="${escapeHtml(a.id)}">${escapeHtml(a.titulo)}</button></li>`).join('')}</ul>` : ''}`;
+    } else if (aba === 'empresas') {
+      const pat = [c, ...v.aditivos].flatMap(x => x.contribs).filter(k => k.quem === 'empresa' && k.calc?.tipo);
+      corpo = empsCart.length ? `<table class="ct-table cv-emps"><thead><tr><th>Empresa</th><th>Reajuste aplicado</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${empsCart.sort(byNome).map(e => {
+        const s = empresaSinds(e).find(x => sindsDaCct(c).includes(x));
+        const r = s && reajusteStatus(s, [e]);
+        const chk = !r ? '<span class="dp-cell-sub">—</span>' : r.reg.semReajuste ? '<span class="dp-cell-sub">sem reajuste</span>' : `<label class="sd-chk"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro || r.rascunho ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `em ${fmtYmdDM(r.reg.aplicado[e.id])}` : `${s.dataBase.slice(0, 3).toLowerCase()}/${r.ano}`}</label>`;
+        return `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button><div class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</div></td><td>${chk}</td>${pat.map(k => { const x = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(x?.det || '')}">${x && Number.isFinite(x.v) ? brl(x.v) : `<span class="dp-cell-sub">${escapeHtml(x?.det || '—')}</span>`}</td>`; }).join('')}</tr>`;
+      }).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note">Estimativas pelo cadastro da empresa (funcionários, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub">Nenhuma empresa desta carteira nesta convenção.</p>';
+    } else if (aba === 'contrib') {
+      const ks = [c, ...v.aditivos].flatMap(x => x.contribs), pz = [c, ...v.aditivos].flatMap(x => x.prazos).sort((a, b) => a.data.localeCompare(b.data));
+      corpo = (ks.length ? ks.map(k => `<div class="cv-contrib"><div><span class="pill ${k.quem === 'empresa' ? '' : 'pill-soon'}">${k.quem === 'empresa' ? 'Empresa paga' : 'Desconto do empregado'}</span> <b>${escapeHtml(k.nome)}</b></div>
+          ${k.competencias ? `<div><span class="dp-cell-sub">Quando:</span> ${escapeHtml(k.competencias)}</div>` : ''}${k.vencimento ? `<div><span class="dp-cell-sub">Vencimento:</span> ${escapeHtml(quandoTxt(k.vencimento))}</div>` : ''}
+          ${k.regra ? `<div>${escapeHtml(k.regra)}</div>` : ''}${k.oposicao ? `<div><span class="dp-cell-sub">Oposição:</span> ${escapeHtml(k.oposicao)}</div>` : ''}</div>`).join('') : '<p class="dp-cell-sub">Nenhuma contribuição cadastrada.</p>')
+        + (pz.length ? `<h4>Prazos</h4><ul class="cv-lista">${pz.map(p => `<li class="${p.data < ymd(hoje()) ? 'passado' : ''}"><b>${escapeHtml(quandoTxt(p.data))}</b> · ${escapeHtml(p.desc)}</li>`).join('')}</ul>` : '');
+    } else {
+      const sub = c.substitui && cctPorId(c.substitui), por = c.substituidaPor && cctPorId(c.substituidaPor);
+      corpo = `<div class="cv-kv"><span>Tipo</span><div>${escapeHtml(CCT_TIPOS[c.tipo])}</div>
+          <span>Registro</span><div>${c.registro ? `<span class="dp-mono">${escapeHtml(c.registro)}</span>` : '<span class="dp-cell-sub">sem número do Mediador</span>'} · <a href="${MEDIADOR_URL}" target="_blank" rel="noopener">consultar no Mediador</a></div>
+          <span>Arquivo</span><div><button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ cct: c.arquivo }))}">${ic('link', 'ic-sm')} ${c.arquivo ? 'copiar caminho do PDF' : 'copiar pasta das CCTs'}</button>${c.arquivo ? `<div class="dp-cell-sub">${escapeHtml(c.arquivo)}</div>` : ''}</div>
+          ${sub ? `<span>Substitui</span><div><button type="button" class="linkish" data-cv-abrir="${escapeHtml(sub.id)}">${escapeHtml(sub.titulo)}</button></div>` : ''}${por ? `<span>Substituída por</span><div><button type="button" class="linkish" data-cv-abrir="${escapeHtml(por.id)}">${escapeHtml(por.titulo)}</button></div>` : ''}
+          ${c.obs ? `<span>Observações</span><div style="white-space:pre-line">${escapeHtml(c.obs)}</div>` : ''}
+          ${c.atualizadoEm ? `<span>Atualizada</span><div>${new Date(c.atualizadoEm).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })}</div>` : ''}</div>`;
+    }
+    pn.innerHTML = `<div class="cv-pn-head"><div style="min-width:0"><span class="pill ${sitRot[0]}">${sitRot[1]}</span><h3>${escapeHtml(c.titulo)}</h3></div>
+        ${ro ? '' : `<button type="button" class="btn btn-sm" data-cv-editar="${escapeHtml(c.id)}">${ic('edit', 'ic-sm')} Editar</button>`}<button type="button" class="icon-btn" data-cv-fechar aria-label="Fechar">${ic('x')}</button></div>
+      <div class="cv-pn-tabs" role="tablist">${abas.map(([k, l]) => `<button type="button" role="tab" data-cv-aba="${k}" class="${aba === k ? 'on' : ''}" aria-selected="${aba === k}">${escapeHtml(l)}</button>`).join('')}</div>
+      <div class="cv-pn-body">${corpo}</div>`;
+  }
+  function csvConvencoes() {
+    const rows = [['Empresa','Responsável','Convenção','Situação','Vigência início','Vigência fim','Data-base','Reajuste','Piso','Próxima ação']];
+    const { linhas, sem } = convencoesDaCarteira();
+    const rotS = { vencida:'Vencida', vencendo:'Vencendo', pendente:'Pendente', emdia:'Em dia' };
+    linhas.forEach(l => { const ef = cctEfetiva({ cct: l.c, aditivos: state.dpCcts.filter(a => a.mae === l.c.id && a.status !== 'substituida') }); l.emps.forEach(e => rows.push([e.nome, e.responsavel, l.c.titulo, rotS[l.sit], fmtDateStr(l.c.vigIni), fmtDateStr(l.c.vigFim), l.c.dataBase, resumoReajuste(ef), ef.pisos.val[0]?.valor || '', l.acoes[0]?.txt || 'Tudo em dia'])); });
+    sem.forEach(x => rows.push([x.e.nome, x.e.responsavel, '', 'Sem CCT', '', '', '', '', '', x.ss.length ? `Cadastrar a CCT de ${x.ss.map(rotuloSind).join(', ')}` : 'Informar o sindicato']));
+    offerFile(`dp-convencoes-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  }
+  function renderSindTab() {
+    const cad = !!state.dpConvCad;
+    $('#cv-main').hidden = cad; $('#cv-cad').hidden = !cad;
+    if (cad) { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); }
+    else renderConvencoes();
+  }
+  function sindTabBadge() {
+    const { linhas, sem } = convencoesDaCarteira();
+    return linhas.filter(l => l.sit !== 'emdia').length + (sem.length ? 1 : 0);
+  }
+
+  // ----- eventos -----
+  $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
+  $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b) { state.dpConvModo = b.dataset.cvModo; renderConvencoes(); } });
+  $('#cv-cad-voltar').addEventListener('click', () => { state.dpConvCad = false; renderSindTab(); });
+  const cvMain = $('#dp-view-sindicatos');
+  cvMain.addEventListener('click', async (e) => {
+    const t = e.target;
+    const cad = t.closest('[data-cv-cad]');
+    if (cad) { t.closest('details') && (t.closest('details').open = false); state.dpConvCad = true; state.dpSindVisao = cad.dataset.cvCad; renderSindTab(); return; }
+    const ac = t.closest('[data-cv-acao]');
+    if (ac) {
+      const d = t.closest('details'); if (d) d.open = false;
+      const k = ac.dataset.cvAcao;
+      if (k === 'importar') abrirImportDominio();
+      else if (k === 'carregar') $('#cct-carregar').click();
+      else if (k === 'nova') abrirCct(null);
+      else if (k === 'pasta') { try { await navigator.clipboard.writeText(PASTA_CCT); toast('Pasta das convenções copiada.'); } catch { toast(PASTA_CCT); } }
+      else if (k === 'csv') csvConvencoes();
+      return;
+    }
+    if (t.closest('[data-cv-equipe]')) { setCarteira(''); return; }
+    const sit = t.closest('[data-cv-sit]');
+    if (sit) { state.dpConvSit = state.dpConvSit === sit.dataset.cvSit ? '' : sit.dataset.cvSit; renderConvencoes(); return; }
+    const ed = t.closest('[data-cv-editar]');
+    if (ed) { abrirCct(ed.dataset.cvEditar); return; }
+    if (t.closest('[data-cv-fechar]')) { fecharPainelCct(); return; }
+    const aba = t.closest('[data-cv-aba]');
+    if (aba) { state.dpConvPainelAba = aba.dataset.cvAba; renderPainelCct(); return; }
+    if (t.closest('[data-open-emp],[data-sd-copy],a,label,input')) return;
+    const ab = t.closest('[data-cv-abrir]');
+    if (ab) { if (state.dpConvPainel !== ab.dataset.cvAbrir) state.dpConvPainelAba = 'resumo'; abrirPainelCct(ab.dataset.cvAbrir); }
+  });
+  cvMain.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.dpConvPainel) { fecharPainelCct(); return; }
+    const ab = e.target.closest('[data-cv-abrir]');
+    if (ab && e.target === ab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ab.click(); }
+  });
+
 
 
   // ---------- cartela de clientes: a gestora distribui as empresas entre os analistas ----------
