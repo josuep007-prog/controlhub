@@ -1346,6 +1346,7 @@ body.portal-open{overflow:hidden;}
                 <button type="button" class="menu-item" data-cv-cad="revisar">Revisar cadastro</button>
                 <button type="button" class="menu-item" data-cv-acao="importar" data-ro-hide>Importar do Domínio (PDF)</button>
                 <hr>
+                <button type="button" class="menu-item" data-cv-acao="dedup" data-ro-hide>Unificar cadastros duplicados</button>
                 <button type="button" class="menu-item" data-cv-acao="pasta">Copiar pasta das CCTs</button>
                 <button type="button" class="menu-item" data-cv-acao="csv">Exportar CSV (empresas × convenção)</button>
               </div>
@@ -4324,6 +4325,7 @@ body.portal-open{overflow:hidden;}
     state.dpSind.forEach(s => { const r = reajusteStatus(s, vincDe(s)); if (r && r.pendente) av.push(`<button type="button" class="ct-al warn" data-sd-abrir="${escapeHtml(s.id)}"><span class="al-dot today"></span>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano} de ${escapeHtml(rotuloSind(s))}: falta aplicar em ${r.pend.length} de ${r.total} empresa(s).</button>`); });
     vencendo.filter(s => !s.cctId).forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(rotuloSind(s))}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
     cctAlertas().forEach(a => av.push(`<button type="button" class="ct-al ${a.nivel}" data-cct-abrir="${escapeHtml(a.id)}"><span class="al-dot ${a.nivel === 'late' ? 'late' : 'today'}"></span>${escapeHtml(a.txt)}</button>`));
+    if (!ro && nDuplicados()) av.push(`<button type="button" class="ct-al warn" data-cv-acao="dedup"><span class="al-dot today"></span>${nDuplicados()} código(s) com cadastro duplicado. Clique para unificar.</button>`);
     if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ${state.dpSind.some(x => x.origem === 'dominio') ? 'não existem na lista do Domínio' : 'ainda não estão cadastrados'}. Clique para ${state.dpSind.some(x => x.origem === 'dominio') ? 'ver' : 'cadastrar'}.</button>`);
     $('#sd-alertas').innerHTML = av.join(''); $('#sd-alertas').hidden = !av.length;
     const sum = [`${state.dpSind.length} sindicato(s)`, emps.length ? `${cobertas}% das empresas com sindicato` : '', nPend ? `${nPend} reajuste(s) pendente(s)` : '', vencendo.length ? `${vencendo.length} CCT(s) vencida(s) ou vencendo` : ''].filter(Boolean);
@@ -4731,6 +4733,59 @@ body.portal-open{overflow:hidden;}
     if (!ok) return;
     alvo.forEach(x => state.dpSindSel.delete(x.id));
     if (await salvarSinds(state.dpSind.filter(x => !ids.includes(x.id)))) toast(alvo.length === 1 ? 'Sindicato excluído.' : `${alvo.length} sindicatos excluídos.`);
+  }
+  // ----- duplicados: sindicatos com o mesmo código e convenções repetidas -----
+  const campos = (x) => ['cnpj', 'dataBase', 'vigIni', 'vigFim', 'cct', 'uf', 'obs', 'percentual', 'piso', 'registro', 'contato', 'contribMes', 'apelido', 'cctId'].filter(k => x[k]).length + (x.origem === 'dominio' ? 3 : 0) + Object.keys(x.ciclos || {}).length;
+  function duplicadosSinds() {
+    const g = new Map();
+    state.dpSind.forEach(x => { if (!x.cod) return; if (!g.has(x.cod)) g.set(x.cod, []); g.get(x.cod).push(x); });
+    return [...g.values()].filter(l => l.length > 1);
+  }
+  const chaveCct = (c) => `${norm(c.titulo)}|${c.tipo}|${c.vigIni}|${c.vigFim}`;
+  function duplicadosCcts() {
+    const g = new Map();
+    state.dpCcts.forEach(c => { const k = chaveCct(c); if (!g.has(k)) g.set(k, []); g.get(k).push(c); });
+    return [...g.values()].filter(l => l.length > 1);
+  }
+  const nDuplicados = () => duplicadosSinds().length + duplicadosCcts().length;
+  async function unificarDuplicados() {
+    const ds = duplicadosSinds(), dc = duplicadosCcts();
+    if (!ds.length && !dc.length) { toast('Nenhum cadastro duplicado.'); return; }
+    const extraS = ds.reduce((n, l) => n + l.length - 1, 0), extraC = dc.reduce((n, l) => n + l.length - 1, 0);
+    const lista = [...ds.slice(0, 6).map(l => `• código ${l[0].cod}: ${l.length} cadastros → 1 (${rotuloSind(l[0])})`), ...dc.slice(0, 4).map(l => `• convenção “${l[0].titulo}”: ${l.length} → 1`)].join('\n');
+    const ok = await ask(`Unificar cadastros duplicados?\n${extraS ? `${extraS} sindicato(s) repetido(s) em ${ds.length} código(s)` : ''}${extraS && extraC ? '\n' : ''}${extraC ? `${extraC} convenção(ões) repetida(s)` : ''}\n\n${lista}${ds.length + dc.length > 10 ? '\n• …' : ''}\n\nFica o cadastro mais completo; o que faltar nele é preenchido com os dados dos outros, e reajustes já marcados e histórico são somados.`, [{ label:'Cancelar', value:false }, { label:'Unificar', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    // convenções: mantém a de melhor situação/mais recente e redireciona referências
+    const troca = new Map(), fora = new Set();
+    dc.forEach(l => {
+      const ord = l.slice().sort((a, b) => (CCT_RANK[b.status] - CCT_RANK[a.status]) || ((b.atualizadoEm || 0) - (a.atualizadoEm || 0)) || (b.arquivo ? 1 : 0) - (a.arquivo ? 1 : 0));
+      const k = ord[0];
+      ord.slice(1).forEach(o => { troca.set(o.id, k.id); fora.add(o.id); ['registro', 'arquivo', 'obs', 'dataBase'].forEach(f => { if (!k[f] && o[f]) k[f] = o[f]; }); if (!k.partes.length) k.partes = o.partes; });
+    });
+    const cctsNovas = state.dpCcts.filter(c => !fora.has(c.id)).map(c => ({ ...c, mae: troca.get(c.mae) || c.mae, substitui: troca.get(c.substitui) || c.substitui, substituidaPor: troca.get(c.substituidaPor) || c.substituidaPor }));
+    // sindicatos: junta no cadastro mais completo
+    const sai = new Set();
+    const sindsNovos = state.dpSind.map(x => ({ ...x, hist: [...x.hist], ciclos: JSON.parse(JSON.stringify(x.ciclos || {})) }));
+    ds.forEach(l => {
+      const mesmos = l.map(a => sindsNovos.find(y => y.id === a.id));
+      mesmos.sort((a, b) => campos(b) - campos(a) || state.dpEmpresas.filter(e => empresaSinds(e).includes(b)).length - state.dpEmpresas.filter(e => empresaSinds(e).includes(a)).length);
+      const k = mesmos[0];
+      mesmos.slice(1).forEach(o => {
+        ['cnpj', 'dataBase', 'vigIni', 'vigFim', 'cct', 'uf', 'percentual', 'piso', 'registro', 'contato', 'contribMes', 'apelido', 'dominioEm'].forEach(f => { if (!k[f] && o[f]) k[f] = o[f]; });
+        if (o.obs && !k.obs.includes(o.obs)) k.obs = (k.obs ? k.obs + '\n' : '') + o.obs;
+        if (!k.cctId && o.cctId) k.cctId = o.cctId;
+        if (o.origem === 'dominio') k.origem = 'dominio';
+        Object.entries(o.ciclos || {}).forEach(([ano, c]) => { const a = k.ciclos[ano] = k.ciclos[ano] || { aplicado: {}, semReajuste: false }; Object.assign(a.aplicado, c.aplicado); a.semReajuste = a.semReajuste || c.semReajuste; });
+        k.hist = [...k.hist, ...o.hist].sort((a, b) => String(b.em).localeCompare(String(a.em))).slice(0, 60);
+        sai.add(o.id);
+      });
+      histSind(k, `Unificado com ${mesmos.length - 1} cadastro(s) de mesmo código`);
+    });
+    const sindsFinal = sindsNovos.filter(x => !sai.has(x.id)).map(x => ({ ...x, cctId: troca.get(x.cctId) || x.cctId }));
+    state.dpSindSel.clear();
+    const okC = dc.length ? await salvarCcts(cctsNovas, true) : true;
+    const okS = await salvarSinds(sindsFinal);
+    if (okC && okS) toast(`Unificado: ${extraS} sindicato(s) e ${extraC} convenção(ões) duplicados removidos.`);
   }
   $('#btn-sind-cancelar').addEventListener('click', () => dlgSind.close());
   $('#dlg-sind-close').addEventListener('click', () => dlgSind.close());
@@ -5709,6 +5764,7 @@ body.portal-open{overflow:hidden;}
       if (k === 'importar') abrirImportDominio();
       else if (k === 'carregar') $('#cct-carregar').click();
       else if (k === 'nova') abrirCct(null);
+      else if (k === 'dedup') unificarDuplicados();
       else if (k === 'pasta') { try { await navigator.clipboard.writeText(PASTA_CCT); toast('Pasta das convenções copiada.'); } catch { toast(PASTA_CCT); } }
       else if (k === 'csv') csvConvencoes();
       return;
