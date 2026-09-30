@@ -267,6 +267,19 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-det-row{display:grid; grid-template-columns:20px 80px minmax(0,1fr) 140px 90px; gap:8px; align-items:center;}
 @media (max-width:760px){ .sd-body{padding-inline:16px;} .sd-meses{grid-template-columns:repeat(6, minmax(0,1fr));} .sd-table{table-layout:auto; min-width:760px;} .sd-det-row{grid-template-columns:20px 70px minmax(0,1fr);} .sd-det-row select,.sd-det-row .dp-cell-sub{grid-column:3;} .list-card.ct-sheet{overflow-x:auto;} }
 #sd-ordem{flex:0 0 auto;}
+.cct-bar{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:10px;} .cct-bar .spacer{flex:1;} .cct-bar .ct-hint{max-width:720px;}
+.cct-table{table-layout:fixed;} .cct-table td,.cct-table th{overflow-wrap:anywhere;}
+.cct-parte{display:flex; gap:6px; align-items:baseline; font-size:12px; line-height:1.35;} .cct-parte b{font-family:"IBM Plex Mono",monospace; font-weight:600; white-space:nowrap; flex:none;}
+.cct-papel{flex:none; font-size:10px; font-weight:700; width:16px; height:16px; border-radius:4px; display:inline-grid; place-items:center; background:var(--surface-3); color:var(--ink-2);}
+.cct-papel.laboral{background:color-mix(in srgb, var(--viz-1) 22%, var(--surface)); color:var(--ink);} .cct-papel.patronal{background:color-mix(in srgb, var(--viz-2) 22%, var(--surface)); color:var(--ink);}
+.cct-resumo{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--sector-pessoal); border-radius:var(--r); padding:10px 12px; margin-bottom:10px; font-size:12.5px;}
+.cct-resumo-h{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;} .cct-resumo-h .linkish{font-size:13px;}
+.cct-cols{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 20px;} .cct-cols p{margin:2px 0 8px;} .cct-cols ul{margin:2px 0 8px; padding-left:18px;} .cct-cols li{margin:1px 0;}
+.cct-contribs{display:flex; flex-direction:column; gap:10px;}
+.cct-contrib{border:1px solid var(--rule); border-radius:var(--r); padding:10px 12px; margin:0; display:flex; flex-direction:column; gap:8px; min-width:0;}
+.cct-contrib .linkish{align-self:flex-start; color:var(--dp-late);}
+.cct-emp-tab{font-size:12.5px; margin-top:6px;} .cct-emp-tab td,.cct-emp-tab th{padding:5px 8px;}
+@media (max-width:760px){ .cct-cols{grid-template-columns:minmax(0,1fr);} .cct-table{table-layout:auto; min-width:720px;} }
 .sd-visao-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
 #sd-visao small{font-size:11px; font-weight:700; opacity:.75; margin-left:2px;}
 .si-prev{display:flex; flex-direction:column; gap:10px;}
@@ -584,7 +597,7 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .agm-ev:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
 .agm-ev.feito{text-decoration:line-through; color:var(--ink-3);}
 .agm-meu{border-left-color:var(--blue-deep);} .agm-lembrete{border-left-color:var(--sector-pessoal);}
-.agm-prazo{border-left-color:var(--sector-contabil);} .agm-database{border-left-color:var(--sector-fiscal);}
+.agm-prazo{border-left-color:var(--sector-contabil);} .agm-database{border-left-color:var(--sector-fiscal);} .agm-sindical{border-left-color:var(--sector-pessoal);}
 .agm-geral{border-left-color:var(--ink-3);} .agm-pessoal{border-left-color:var(--sector-financeiro);}
 .agm-more{border:0; background:none; font:inherit; font-size:11px; font-weight:600; color:var(--blue-deep); text-align:left; padding:1px 5px; cursor:pointer;}
 @media (max-width:760px){
@@ -1053,10 +1066,16 @@ body.portal-open{overflow:hidden;}
             <button type="button" data-sd-visao="uso">Em uso <small></small></button>
             <button type="button" data-sd-visao="todos">Todos do Domínio <small></small></button>
             <button type="button" data-sd-visao="revisar">Revisar cadastro <small></small></button>
+            <button type="button" data-sd-visao="ccts">Convenções <small></small></button>
           </div><span class="dp-cell-sub" id="sd-dom-info"></span></div>
           <div id="sd-lista-wrap">
           <div class="dp-chips sd-filtros" id="sd-filtros" role="group" aria-label="Filtrar sindicatos"></div>
           <div class="list-card ct-sheet"><table class="ct-table sd-table" id="sd-table"></table></div>
+          </div>
+          <div id="sd-cct-wrap" hidden>
+            <div class="cct-bar"><p class="ct-hint" style="margin:0">Cada convenção se liga aos sindicatos pelo CNPJ das partes. A mais atual em vigor define data-base, vigência, reajuste e piso do sindicato; aditivos e ofícios valem por cima dela a partir da própria data.</p><span class="spacer"></span><button type="button" class="btn btn-sm" id="cct-carregar" hidden></button><button type="button" class="btn btn-sm btn-primary" id="cct-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Convenção</button></div>
+            <p class="sd-renov" id="cct-aviso" hidden style="background:var(--dp-today-bg);color:var(--ink)">Importe a lista de sindicatos do Domínio (botão “Importar do Domínio”) para as convenções se ligarem aos códigos das empresas.</p>
+            <div class="list-card ct-sheet"><table class="ct-table cct-table" id="cct-table"></table></div>
           </div>
           <div id="sd-rev-wrap" hidden>
             <p class="ct-hint" style="margin:0 0 8px">“Ajustar no Domínio”: cadastros sem nome, sem CNPJ ou de exemplo, e códigos usados nas empresas que não existem lá. “Completar aqui”: sindicatos com empresas vinculadas sem data-base ou sem vigência da CCT.</p>
@@ -1182,6 +1201,8 @@ body.portal-open{overflow:hidden;}
         <label class="field">Cidade / UF<input id="dp-uf" autocomplete="off"></label>
         <label class="field">Data-base (mês)<select id="dp-data-base"></select><span class="field-hint" id="dp-db-hint" hidden></span></label>
         <label class="field">Contato do cliente<input id="dp-contato" autocomplete="off"></label>
+        <label class="field">Capital social<input id="dp-capital" inputmode="decimal" autocomplete="off" placeholder="Ex.: 100.000,00"><span class="field-hint">Usado para estimar taxas patronais por faixa de capital.</span></label>
+        <label class="field">Associada ao sindicato patronal<select id="dp-assoc-patronal"></select></label>
       </div>
       <div class="dlg-section" id="dp-section-estabelecimentos"></div>
       <div class="dlg-section">
@@ -1391,6 +1412,61 @@ body.portal-open{overflow:hidden;}
     <div class="dlg-actions"><span class="dp-cell-sub" id="sv-n"></span><span class="spacer"></span><button type="button" class="btn" id="sv-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="sv-ok">Salvar vínculos</button></div>
   </div>
 </dialog>
+<dialog id="dlg-cct" class="dlg dlg-lg">
+  <div class="dlg-head"><h2 id="dlg-cct-title">Convenção</h2><button type="button" class="icon-btn dlg-close" id="dlg-cct-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <form class="dlg-body" id="form-cct">
+    <div class="dlg-section">
+      <label class="field">Título *<input name="titulo" required maxlength="160" placeholder="Ex.: SINDICOMERCIÁRIOS x FECOMÉRCIO 2026/2027"></label>
+      <div class="form-row">
+        <label class="field">Tipo<select name="tipo"><option value="cct">CCT</option><option value="aditivo">Termo aditivo</option><option value="oficio">Ofício / circular</option></select></label>
+        <label class="field">Situação<select name="status"><option value="registrada">Registrada no Mediador</option><option value="assinada">Assinada (sem nº do Mediador)</option><option value="acordada">Acordada (sem aditivo registrado)</option><option value="rascunho">Rascunho, não transmitida</option><option value="substituida">Substituída</option></select></label>
+        <label class="field">Registro no MTE<input name="registro" maxlength="60" placeholder="ES000123/2026"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Vigência: início<input name="vigIni" type="date"></label>
+        <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
+        <label class="field">Data-base<select name="dataBase"></select></label>
+      </div>
+      <div class="form-row">
+        <label class="field">Complementa a CCT (aditivo/ofício)<select name="mae"></select></label>
+        <label class="field">Substitui a CCT<select name="substitui"></select></label>
+      </div>
+      <label class="field">Arquivo (dentro da pasta das CCTs)<span style="display:flex;gap:6px"><input name="arquivo" maxlength="400" style="flex:1" placeholder="2026-2027\ARQUIVO.pdf"><button type="button" class="btn btn-sm" id="cct-copiar-arquivo">Copiar caminho</button></span></label>
+      <label class="field">Partes (uma por linha: CNPJ | nome | laboral, patronal ou federação)<textarea name="partes" rows="3"></textarea></label>
+    </div>
+    <div class="dlg-section">
+      <div class="dlg-section-title">Reajuste</div>
+      <div class="form-row">
+        <label class="field">Percentuais (um por linha: “Geral = 6%”, “Micro e pequenas = 4,5%”)<textarea name="reajItens" rows="3"></textarea></label>
+        <label class="field">Tabela por mês de admissão (opcional: “03/2025 = 6,00%”)<textarea name="reajTabela" rows="3"></textarea></label>
+      </div>
+      <label class="field">Base de cálculo e regras (compensação, proporcionalidade, teto)<textarea name="reajBase" rows="2" maxlength="600"></textarea></label>
+    </div>
+    <div class="dlg-section">
+      <div class="form-row">
+        <label class="field">Pisos (um por linha: “Função = 1.850,00”)<textarea name="pisos" rows="4"></textarea></label>
+        <label class="field">Benefícios (“Cartão alimentação = 1.300,00”)<textarea name="beneficios" rows="4"></textarea></label>
+      </div>
+    </div>
+    <div class="dlg-section">
+      <div class="dlg-section-title">Contribuições <span class="dp-cell-sub" style="font-weight:400">competências e vencimentos viram lembretes na Agenda para as empresas vinculadas</span></div>
+      <div id="cct-contribs" class="cct-contribs"></div>
+      <button type="button" class="btn btn-sm" id="cct-add-contrib" style="align-self:flex-start"><svg class="ic ic-sm"><use href="#i-plus"/></svg> Contribuição</button>
+    </div>
+    <div class="dlg-section">
+      <label class="field">Prazos (um por linha: “08/09/2026 = Retroativo 1ª parcela”; entram na Agenda)<textarea name="prazos" rows="3"></textarea></label>
+      <label class="field">Observações<textarea name="obs" rows="2" maxlength="1500"></textarea></label>
+    </div>
+    <div class="dlg-section"><div class="dlg-section-title">Sindicatos e empresas</div><div id="cct-emps"></div></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn btn-danger" id="btn-cct-excluir" hidden>Excluir</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="btn-cct-cancelar">Fechar</button>
+      <button type="submit" class="btn btn-primary" id="btn-cct-salvar">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-sind-import" class="dlg dlg-lg">
   <div class="dlg-head"><h2>Importar sindicatos do Domínio</h2><button type="button" class="icon-btn dlg-close" id="dlg-sind-import-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <div class="dlg-body">
@@ -1491,7 +1567,7 @@ body.portal-open{overflow:hidden;}
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
-    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
+    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
@@ -1797,6 +1873,8 @@ body.portal-open{overflow:hidden;}
       uf: String(e.uf || ''),
       dataBase: mesDeTexto(e.dataBase || ''),
       contato: String(e.contato || ''),
+      capitalSocial: String(e.capitalSocial || ''),
+      assocPatronal: ['Sim', 'Não'].includes(e.assocPatronal) ? e.assocPatronal : '',
       codigoDominio: String(e.codigoDominio || ''),
       adiantamento: String(e.adiantamento || ''),
       estabelecimentos,
@@ -1859,6 +1937,15 @@ body.portal-open{overflow:hidden;}
   }
   const sindDb = { async save(itens) { await db.doc('dp_config/sindicatos').set({ itens }); } };
   let sindStore = makeSindLocal();
+  function makeCctLocal() {
+    const KEY = 'control-hub:dp-ccts';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const cctDb = { async save(itens) { await db.doc('dp_config/ccts').set({ itens }); } };
+  let cctStore = makeCctLocal();
   const normalizeEquipe = (v) => { const out = []; (Array.isArray(v) ? v : []).forEach(n => { const t = String(n || '').trim().slice(0, 80); if (t && !out.some(x => norm(x) === norm(t))) out.push(t); }); return out; };
 
   // Meus lembretes: no servidor ficam em data/users/<id>/, área que só o próprio usuário lê e grava.
@@ -2339,8 +2426,8 @@ body.portal-open{overflow:hidden;}
   }
 
   // ---------- agenda: todas as datas de um período ----------
-  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', geral:'Prazo geral' };
-  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, geral:4 };
+  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', sindical:'Sindical (CCT)', geral:'Prazo geral' };
+  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, sindical:3.5, geral:4 };
   const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.hora || '').localeCompare(b.hora || '') || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
   const dentro = (d, from, to) => !!d && d >= from && d <= to;
   function mesesEntre(from, to) { const out = []; for (let m = mesDe(from); m <= mesDe(to); m = mesShift(m, 1)) out.push(m); return out; }
@@ -2381,9 +2468,10 @@ body.portal-open{overflow:hidden;}
       const emps = ativas.filter(e => empresaSinds(e).includes(s));
       if (!emps.length) return;
       const fim = parseYmd(s.vigFim);
-      if (dentro(fim, from, to)) out.push({ tipo:'database', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
-      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'database', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
+      if (dentro(fim, from, to)) out.push({ tipo:'sindical', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
+      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
     });
+    out.push(...eventosCct(from, to, ativas));
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
     ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
     return out.sort(porData);
@@ -2594,7 +2682,8 @@ body.portal-open{overflow:hidden;}
       if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
       if (view === 'funcionarios') state.dpFuncFiltro = a || '';
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
-      if (view === 'sindicatos' && a) { state.dpSindAberto.add(a); state.dpSindFoco = a; }
+      if (view === 'sindicatos' && a === 'cct') { state.dpSindVisao = 'ccts'; state.dpCctAbrir = b || ''; }
+      else if (view === 'sindicatos' && a) { state.dpSindAberto.add(a); state.dpSindFoco = a; }
       openDpModule(view);
       return;
     }
@@ -2770,9 +2859,9 @@ body.portal-open{overflow:hidden;}
   }
 
   // ---------- agenda: calendário do mês + lista de lembretes ----------
-  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base']];
+  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base'],['sindical','Sindical (CCT)']];
   const ehLembrete = (ev) => ev.tipo === 'meu' || ev.tipo === 'lembrete';
-  const evAttrs = (ev, k) => ev.sind ? `data-go="sindicatos:${escapeHtml(ev.sind)}"` : ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
+  const evAttrs = (ev, k) => ev.goto ? `data-go="${escapeHtml(ev.goto)}"` : ev.sind ? `data-go="sindicatos:${escapeHtml(ev.sind)}"` : ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
     : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"${ev.edit ? ` data-edit="${escapeHtml(ev.edit)}"` : ''}`;
   const podeCriarMeu = () => !state.meusOff && !state.readOnly;
   // Filtro por analista: datas de empresas do analista; prazos gerais contam só as empresas dele; os meus lembretes sem empresa continuam.
@@ -2881,7 +2970,7 @@ body.portal-open{overflow:hidden;}
       const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
       cells.push(`<div class="${cls}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
     }
-    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
+    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-pessoal)"></i>Sindical</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
     return `<div class="agm" style="${state.agH ? `grid-template-rows:auto repeat(${semanas},minmax(0,1fr))` : ''}">${cells.join('')}</div>${legenda}`;
   }
 
@@ -3217,14 +3306,14 @@ body.portal-open{overflow:hidden;}
     offerFile(`dp-funcionarios-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#dp-btn-export').addEventListener('click', () => {
-    const json = JSON.stringify({ app:'control-hub', kind:'dp_empresas', exportedAt:new Date().toISOString(), empresas: state.dpEmpresas, prazosGerais: state.dpGerais, sindicatos: state.dpSind, equipe: state.dpEquipe, cobertura: state.dpCob }, null, 2);
+    const json = JSON.stringify({ app:'control-hub', kind:'dp_empresas', exportedAt:new Date().toISOString(), empresas: state.dpEmpresas, prazosGerais: state.dpGerais, sindicatos: state.dpSind, convencoes: state.dpCcts, equipe: state.dpEquipe, cobertura: state.dpCob }, null, 2);
     offerFile(`control-hub-dp-${hojeArq()}.json`, json, 'application/json');
   });
   $('#dp-import-input').addEventListener('change', async (e) => {
     const file = e.target.files[0]; e.target.value = '';
     if (!file || state.readOnly) return;
-    let empresas, gerais = [], sinds = [], equipe = [], cob = null;
-    try { const json = JSON.parse(await file.text()); empresas = Array.isArray(json) ? json : json.empresas; gerais = Array.isArray(json.prazosGerais) ? json.prazosGerais : []; sinds = Array.isArray(json.sindicatos) ? json.sindicatos : []; equipe = Array.isArray(json.equipe) ? json.equipe : []; cob = json.cobertura || null; if (!Array.isArray(empresas)) throw new Error(); }
+    let empresas, gerais = [], sinds = [], equipe = [], cob = null, cctsImp = [];
+    try { const json = JSON.parse(await file.text()); empresas = Array.isArray(json) ? json : json.empresas; gerais = Array.isArray(json.prazosGerais) ? json.prazosGerais : []; sinds = Array.isArray(json.sindicatos) ? json.sindicatos : []; cctsImp = Array.isArray(json.convencoes) ? json.convencoes : []; equipe = Array.isArray(json.equipe) ? json.equipe : []; cob = json.cobertura || null; if (!Array.isArray(empresas)) throw new Error(); }
     catch { toast('Arquivo inválido: use um backup JSON exportado pelo Control Hub.'); return; }
     const mode = await ask(`Importar ${empresas.length} empresa(s) no módulo DP.\nSubstituir a lista atual ou juntar com ela?`, [{label:'Cancelar',value:null},{label:'Juntar',value:'merge'},{label:'Substituir',value:'replace',kind:'btn-danger'}]);
     if (!mode) return;
@@ -3241,6 +3330,8 @@ body.portal-open{overflow:hidden;}
     const equipeNova = !state.dpEquipe.length && equipe.length ? normalizeEquipe(equipe) : null;
     if (equipeNova) state.dpEquipe = equipeNova;
     const cobNova = !state.dpCob.ausencias.length && cob ? normalizeCob(cob) : null;
+    const cctsNovas = normalizeCcts(cctsImp).filter(x => !state.dpCcts.some(y => y.id === x.id));
+    if (cctsNovas.length) state.dpCcts = [...state.dpCcts, ...cctsNovas];
     if (cobNova) state.dpCob = cobNova;
     renderDpActiveView();
     await persist(async () => {
@@ -3249,6 +3340,7 @@ body.portal-open{overflow:hidden;}
       if (sindsNovos.length) await sindStore.save(JSON.parse(JSON.stringify(state.dpSind)));
       if (equipeNova) await equipeStore.save(equipeNova);
       if (cobNova) await cobStore.save(JSON.parse(JSON.stringify(cobNova)));
+      if (cctsNovas.length) await cctStore.save(JSON.parse(JSON.stringify(state.dpCcts)));
     });
     toast(`${incoming.length} empresa(s) importada(s).${[novosGerais && ' Prazos gerais', sindsNovos.length && ` ${sindsNovos.length} sindicato(s)`, equipeNova && ' Equipe', cobNova && ' Ausências'].filter(Boolean).join(',')}${novosGerais || sindsNovos.length || equipeNova || cobNova ? ' também.' : ''}`);
   });
@@ -3271,7 +3363,7 @@ body.portal-open{overflow:hidden;}
   const MAIN_FIELDS = [
     ['dp-nome','nome','Nome'], ['dp-cod','cod','Código'], ['dp-cnpj','cnpj','CNPJ'], ['dp-codigo-dominio','codigoDominio','Código Domínio'],
     ['dp-tributacao','tributacao','Tributação'], ['dp-situacao','situacao','Situação'], ['dp-responsavel','responsavel','Responsável'],
-    ['dp-uf','uf','Cidade/UF'], ['dp-data-base','dataBase','Data-base'], ['dp-contato','contato','Contato do cliente'],
+    ['dp-uf','uf','Cidade/UF'], ['dp-data-base','dataBase','Data-base'], ['dp-contato','contato','Contato do cliente'], ['dp-capital','capitalSocial','Capital social'], ['dp-assoc-patronal','assocPatronal','Associada ao sindicato patronal'],
     ['dp-adiantamento','adiantamento','Adiantamento salarial'], ['dp-fechamento','fechamento','o procedimento de fechamento', true], ['dp-observacoes','observacoes','as observações gerais', true],
   ];
   const SEC_NOME = { lembretes:'lembrete', estabelecimentos:'estabelecimento', rubricas:'rubrica', rpa:'RPA', pensao:'pensão', prazos:'prazo', historico:'nota', funcionarios:'funcionário', gerais:'prazo geral' };
@@ -3289,6 +3381,7 @@ body.portal-open{overflow:hidden;}
       if (onlyUnfocused && document.activeElement === el) return;
       if (key === 'tributacao') fillSelect(el, TRIBUTACOES, e.tributacao, '—');
       else if (key === 'dataBase') fillSelect(el, MESES, e.dataBase, '—');
+      else if (key === 'assocPatronal') fillSelect(el, ['Sim', 'Não'], e.assocPatronal, '—');
       else el.value = e[key] ?? '';
     });
     updateCnpjHint();
@@ -3406,7 +3499,8 @@ body.portal-open{overflow:hidden;}
     }
     if (sec === 'funcionarios') {
       const st = funcStatus(row); const al = funcAlertas(row)[0]; const ev = al || funcProx(row);
-      return `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[st] || ''}">${escapeHtml(st)}</span>${ev ? `<span style="display:block;font-size:11.5px;margin-top:3px${al && al.nivel !== 'soon' ? ';color:var(--dp-late)' : ''}">${escapeHtml(ev.txt)} <b>${fmtDM(ev.d)}</b></span>` : ''}</span></div>`;
+      const rj = dpAtual && reajusteFunc(dpAtual, row);
+      return (rj ? `<div class="dp-section-cell" style="flex:1.4 1 150px"><span class="dp-section-cell-label">Reajuste pela CCT</span><span class="dp-section-cell-val" title="${escapeHtml(rj.cct.titulo)}">${escapeHtml(rj.txt)}</span></div>` : '') + `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[st] || ''}">${escapeHtml(st)}</span>${ev ? `<span style="display:block;font-size:11.5px;margin-top:3px${al && al.nivel !== 'soon' ? ';color:var(--dp-late)' : ''}">${escapeHtml(ev.txt)} <b>${fmtDM(ev.d)}</b></span>` : ''}</span></div>`;
     }
     if (sec === 'estabelecimentos') {
       const cods = codigosDe(row), ss = estabSinds(row);
@@ -3469,7 +3563,8 @@ body.portal-open{overflow:hidden;}
     const h = $('#dp-db-hint'); if (!h || !dpAtual) return;
     const ss = empresaSinds(dpAtual).filter(x => x.dataBase);
     h.hidden = !ss.length;
-    h.textContent = ss.length ? `Pela CCT: ${[...new Set(ss.map(x => x.dataBase))].join(', ')} (${ss.map(rotuloSind).join(', ')}). Este campo só vale sem sindicato.` : '';
+    const cv = empresaCcts(dpAtual)[0];
+    h.textContent = ss.length ? `Pela CCT: ${[...new Set(ss.map(x => x.dataBase))].join(', ')} (${ss.map(rotuloSind).join(', ')})${cv ? ` · ${cv.cct.titulo}, reajuste ${resumoReajuste(cctEfetiva(cv)) || '—'}` : ''}. Este campo só vale sem sindicato.` : '';
   }
   function renderDetailProx() {
     evCacheClear();
@@ -3801,7 +3896,7 @@ body.portal-open{overflow:hidden;}
       id: validId(x.id) ? x.id : uid(), cod, nome: nome || `Sindicato ${cod}`, apelido: txt(String(x.apelido || '').normalize('NFC'), 60), origem: x.origem === 'dominio' ? 'dominio' : '', dominioEm: toYmd(x.dominioEm), dataBase: mes(x.dataBase),
       vigIni: toYmd(x.vigIni), vigFim: toYmd(x.vigFim), cct: txt(x.cct, 400), uf: txt(x.uf, 40), obs: String(x.obs || '').slice(0, 800),
       percentual: txt(x.percentual, 30), piso: txt(x.piso, 30), registro: txt(x.registro, 40), cnpj: txt(x.cnpj, 20), contato: txt(x.contato, 200), contribMes: mes(x.contribMes),
-      ciclos,
+      ciclos, cctId: String(x.cctId || '').slice(0, 80),
       hist: (Array.isArray(x.hist) ? x.hist : []).filter(h => h && h.texto).map(h => ({ em: String(h.em || ''), texto: String(h.texto).slice(0, 300), autor: String(h.autor || '') })).slice(0, 60),
     };
   }
@@ -3837,7 +3932,8 @@ body.portal-open{overflow:hidden;}
     const reg = s.ciclos[c.ano] || { aplicado: {}, semReajuste: false };
     const feitas = emps.filter(e => reg.aplicado[e.id]);
     const pend = reg.semReajuste ? [] : emps.filter(e => !reg.aplicado[e.id]);
-    return { ...c, reg, total: emps.length, feitas: feitas.length, pend, pendente: c.cobrando && !reg.semReajuste && pend.length > 0 };
+    const rascunho = s.cctId && state.dpCcts.find(x => x.id === s.cctId)?.status === 'rascunho';
+    return { ...c, reg, total: emps.length, feitas: feitas.length, pend, rascunho, pendente: c.cobrando && !reg.semReajuste && !rascunho && pend.length > 0 };
   }
   const nfEmp = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
 
@@ -3878,7 +3974,7 @@ body.portal-open{overflow:hidden;}
     const semSind = emps.filter(e => !empresaSinds(e).length);
     const pendentes = state.dpSind.map(s => reajusteStatus(s, vincDe(s))).filter(r => r && r.pendente);
     const nPend = pendentes.reduce((n, r) => n + r.pend.length, 0);
-    const vencendo = state.dpSind.filter(s => { const v = vigStatus(s); return v.n !== null && v.n <= 60; });
+    const vencendo = state.dpSind.filter(s => { const v = vigStatus(s); return v.n !== null && v.n <= 60 && vincDe(s).length > 0; });
     const cobertas = emps.length ? Math.round((emps.length - semSind.length) / emps.length * 100) : 0;
     $('#sd-kpis').innerHTML = [
       ['', state.dpSind.length, 'sindicatos cadastrados', state.dpSind.some(x => x.origem === 'dominio') ? `${state.dpSind.filter(x => vincDe(x).length).length} com empresas vinculadas` : ''],
@@ -3894,7 +3990,8 @@ body.portal-open{overflow:hidden;}
     if (nAgora) av.push(`<button type="button" class="ct-al warn" data-sd-mes="${mesAgora}"><span class="al-dot today"></span>${nAgora} empresa(s) com data-base em ${mesAgora} (este mês): conferir a nova CCT e aplicar o reajuste.</button>`);
     if (nProx) av.push(`<button type="button" class="ct-al" data-sd-mes="${mesProx}"><span class="al-dot soon"></span>${nProx} empresa(s) com data-base em ${mesProx} (próximo mês).</button>`);
     state.dpSind.forEach(s => { const r = reajusteStatus(s, vincDe(s)); if (r && r.pendente) av.push(`<button type="button" class="ct-al warn" data-sd-abrir="${escapeHtml(s.id)}"><span class="al-dot today"></span>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano} de ${escapeHtml(rotuloSind(s))}: falta aplicar em ${r.pend.length} de ${r.total} empresa(s).</button>`); });
-    vencendo.forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(rotuloSind(s))}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
+    vencendo.filter(s => !s.cctId).forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(rotuloSind(s))}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
+    cctAlertas().forEach(a => av.push(`<button type="button" class="ct-al ${a.nivel}" data-cct-abrir="${escapeHtml(a.id)}"><span class="al-dot ${a.nivel === 'late' ? 'late' : 'today'}"></span>${escapeHtml(a.txt)}</button>`));
     if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ${state.dpSind.some(x => x.origem === 'dominio') ? 'não existem na lista do Domínio' : 'ainda não estão cadastrados'}. Clique para ${state.dpSind.some(x => x.origem === 'dominio') ? 'ver' : 'cadastrar'}.</button>`);
     $('#sd-alertas').innerHTML = av.join(''); $('#sd-alertas').hidden = !av.length;
     $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
@@ -3902,15 +3999,16 @@ body.portal-open{overflow:hidden;}
     $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
 
     // tabela de sindicatos
-    const emUso = (s) => vincDe(s).length > 0 || !!(s.dataBase || s.vigFim || s.cct || s.percentual) || s.origem !== 'dominio';
+    const emUso = (s) => vincDe(s).length > 0 || s.origem !== 'dominio' || (!s.cctId && !!(s.dataBase || s.vigFim || s.cct || s.percentual));
     const temDominio = state.dpSind.some(x => x.origem === 'dominio');
     const nUso = state.dpSind.filter(emUso).length;
     const revisar = sindRevisar(emps);
-    $$('#sd-visao [data-sd-visao]').forEach(b => { const v = b.dataset.sdVisao, on = v === state.dpSindVisao; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.querySelector('small').textContent = v === 'uso' ? nUso : v === 'todos' ? state.dpSind.length : revisar.length; });
-    $('#sd-visao').hidden = !temDominio && !revisar.length;
+    $$('#sd-visao [data-sd-visao]').forEach(b => { const v = b.dataset.sdVisao, on = v === state.dpSindVisao; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.querySelector('small').textContent = v === 'uso' ? nUso : v === 'todos' ? state.dpSind.length : v === 'ccts' ? state.dpCcts.length : revisar.length; });
+    $('#sd-visao').hidden = false;
     $('#sd-dom-info').textContent = temDominio ? `Lista do Domínio de ${fmtYmdBR(state.dpSind.filter(x => x.dominioEm).map(x => x.dominioEm).sort().pop() || '') || '—'}` : '';
     const revisando = state.dpSindVisao === 'revisar';
-    $('#sd-rev-wrap').hidden = !revisando; $('#sd-lista-wrap').hidden = revisando;
+    const nasCcts = state.dpSindVisao === 'ccts';
+    $('#sd-rev-wrap').hidden = !revisando; $('#sd-lista-wrap').hidden = revisando || nasCcts; $('#sd-cct-wrap').hidden = !nasCcts;
     if (revisando) renderSindRevisar(revisar);
     let lista = state.dpSind.filter(s => (state.dpSindVisao !== 'uso' || !temDominio || emUso(s))).filter(s => { const vs = vincDe(s); return matchQ([s.cod, s.nome, s.apelido, s.uf, s.obs, s.cct, s.dataBase, s.registro, s.cnpj, String(s.cnpj || '').replace(/\D/g, ''), ...vs.map(e => e.nome)], q) && sindFiltra(s, vs); });
     if (state.dpSindMes) lista = lista.filter(s => s.dataBase === state.dpSindMes);
@@ -3919,7 +4017,8 @@ body.portal-open{overflow:hidden;}
     lista.sort((a, b) => ord(a, b) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const filtrado = !!(q || state.dpSindMes || state.dpSindFiltro);
     $('#sd-count').textContent = revisando ? `${revisar.length} ponto(s) para revisar` : `${filtrado || lista.length !== state.dpSind.length ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
-    const cctHtml = (s) => ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
+    const cctHtml = (s0) => { const cv = s0.cctId && state.dpCcts.find(x => x.id === s0.cctId); const s = cv && cv.arquivo && !s0.cct ? { ...s0, cct: cv.arquivo } : s0; return cctHtml0(s); };
+    const cctHtml0 = (s) => ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
       : s.cct ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct(s))}" title="${escapeHtml(caminhoCct(s))}">${ic('link', 'ic-sm')} copiar caminho</button><div class="dp-cell-sub" title="${escapeHtml(arquivoCct(s))}">${escapeHtml(arquivoCct(s))}</div>`
       : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} pasta das CCTs</button>`;
     const reajHtml = (s, vs) => {
@@ -3939,6 +4038,7 @@ body.portal-open{overflow:hidden;}
         const chk = (e) => r && !r.reg.semReajuste ? `<label class="sd-chk" title="Reajuste de ${s.dataBase.toLowerCase()}/${r.ano} aplicado na folha"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `aplicado ${fmtYmdDM(r.reg.aplicado[e.id])}` : 'reajuste pendente'}</label>` : '';
         const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
         det = `<tr class="sd-det"><td colspan="8">
+          ${cctResumoHtml(s)}
           ${infos ? `<div class="sd-infos">${infos}</div>` : ''}
           ${r && vs.length ? `<div class="sd-det-h"><b>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano}</b> <span class="dp-cell-sub">${r.reg.semReajuste ? 'marcado como sem reajuste neste ciclo' : `${r.feitas} de ${r.total} aplicado(s)`}</span>${ro ? '' : `<span class="spacer"></span>${r.reg.semReajuste ? '' : `<button type="button" class="linkish" data-sd-apl-todas="${escapeHtml(s.id)}">marcar todas como aplicadas</button>`}<button type="button" class="linkish" data-sd-semreaj="${escapeHtml(s.id)}">${r.reg.semReajuste ? 'desfazer “sem reajuste”' : 'não haverá reajuste neste ciclo'}</button>`}</div>` : ''}
           <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
@@ -3978,13 +4078,14 @@ body.portal-open{overflow:hidden;}
         <td>${b.length ? escapeHtml(b.join(', ')) : '<span class="dp-cell-sub">—</span>'}</td>
         <td>${ro ? '' : state.dpSind.length ? `<div class="sd-vinc"><select data-sd-emp-sel="${escapeHtml(e.id)}" aria-label="Sindicato de ${escapeHtml(e.nome)}">${optsSind}</select><button type="button" class="btn btn-sm" data-sd-emp-vinc="${escapeHtml(e.id)}">Vincular</button></div>` : '<span class="dp-cell-sub">cadastre um sindicato primeiro</span>'}</td></tr>`;
     }).join('') || '<tr><td colspan="4"><div class="dp-empty">Nenhuma empresa sem sindicato com esses filtros.</div></td></tr>';
+    if (nasCcts) renderCcts();
     const focar = state.dpSindFoco; state.dpSindFoco = '';
     if (focar) { const tr = $(`[data-sd-row="${CSS.escape(focar)}"]`); if (tr) tr.scrollIntoView({ block:'center' }); }
   }
   function sindAlertasN() {
-    if (!state.dpSind.length) return 0;
+    if (!state.dpSind.length && !state.dpCcts.length) return 0;
     const emps = state.dpEmpresas.filter(ativa);
-    return state.dpSind.filter(s => { const r = reajusteStatus(s, emps.filter(e => empresaSinds(e).includes(s))); const v = vigStatus(s); return (r && r.pendente) || (v.n !== null && v.n < 0); }).length;
+    return state.dpSind.filter(s => { const r = reajusteStatus(s, emps.filter(e => empresaSinds(e).includes(s))); const v = vigStatus(s); return (r && r.pendente) || (v.n !== null && v.n < 0); }).length + cctAlertas().filter(a => a.nivel === 'late').length;
   }
 
   // Pontos para revisar: cadastros ruins no Domínio, sindicatos em uso sem dados e códigos das empresas que não existem no cadastro.
@@ -4127,7 +4228,7 @@ body.portal-open{overflow:hidden;}
     d.novos.forEach(r => { const x = normalizeSind({ ...r, origem: 'dominio', dominioEm: em }); if (x) { histSind(x, `Cadastrado pela lista do Domínio de ${quando}`); itens.push(x); } });
     dlgImp.close();
     state.dpSindVisao = 'uso';
-    if (await salvarSinds(itens)) toast(`Lista do Domínio importada: ${d.novos.length} novo(s), ${d.mud.length} atualizado(s).`);
+    if (await salvarSinds(itens)) { await sincronizaSindsComCcts(); renderDpActiveView(); toast(`Lista do Domínio importada: ${d.novos.length} novo(s), ${d.mud.length} atualizado(s).`); }
   });
   $('#si-cancelar').addEventListener('click', () => dlgImp.close());
   $('#dlg-sind-import-close').addEventListener('click', () => dlgImp.close());
@@ -4396,6 +4497,425 @@ body.portal-open{overflow:hidden;}
     const ap = e.target.closest('[data-sd-apl]');
     if (ap) { const [sid, eid] = ap.dataset.sdApl.split('|'); marcarReajuste(sid, [eid], ap.checked); }
   });
+
+
+  // Convenções lidas em 30/09/2026 a partir dos PDFs enviados (carga inicial; conferir e completar na plataforma).
+  const CCTS_ANALISADAS = [
+    { id:'cct-seanmes-2026', titulo:'SEANMES x SINDAMARES 2026/2027', tipo:'cct', status:'rascunho', registro:'MR057609/2026 (solicitação)', vigIni:'2026-08-01', vigFim:'2027-07-31', dataBase:'Agosto',
+      partes:[{ cnpj:'31.698.780/0001-19', nome:'SEANMES (empregados de agências de navegação e operadores portuários ES)', papel:'laboral' }, { cnpj:'36.049.682/0001-74', nome:'SINDAMARES (agências de navegação marítima ES)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Salário de agosto/2025; admitidos após 01/08/2025 recebem proporcional aos meses até 31/07/2026. Pode compensar antecipações.', tabela:[] },
+      pisos:[{ nome:'Piso salarial (salário mínimo + 20%)', valor:'1.945,20' }], beneficios:[],
+      contribs:[{ nome:'Contribuição de custeio sindical', quem:'empresa', competencias:'mensal', vencimento:'', regra:'R$ 20,00 por empregado por mês, depósito na conta do sindicato', oposicao:'', calc:{ tipo:'porEmpregado', valor:'20,00' } },
+        { nome:'Desconto do empregado (cláusula anterior à 34ª)', quem:'empregado', competencias:'09/2026', vencimento:'', regra:'Descontar na folha de setembro/2026 e repassar até o 5º dia do mês seguinte', oposicao:'', calc:{ tipo:'' } }],
+      prazos:[], obs:'Extrato do Mediador com aviso "Instrumento coletivo ainda não transmitido, passível de alteração". Aguardar o registro antes de aplicar.' },
+    { id:'cct-sindimetal-2025', titulo:'SINDFER x SINDIMETAL-ES 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'27.067.586/0001-68', nome:'SINDIFER', papel:'patronal' }, { cnpj:'30.978.340/0001-52', nome:'SINDIMETAL-ES', papel:'laboral' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }, { rotulo:'Micro e pequenas empresas', pct:'4,5%' }], base:'Salários vigentes em 31/10/2025; compensa reajustes de 01/11/2024 a 31/10/2025.', tabela:[] },
+      pisos:[], beneficios:[{ nome:'Cartão alimentação (grandes complexos industriais)', valor:'1.100,00' }, { nome:'Cartão alimentação/cesta (fora dos complexos, exceto ME/EPP)', valor:'420,00' }],
+      contribs:[], prazos:[], obs:'PDF do próprio sindicato, sem número do Mediador. Piso e contribuições não localizados nas páginas lidas.' },
+    { id:'cct-sintpicc-2026', titulo:'SINTPICC/RJ x SINDUSCON Norte Fluminense 2026/2027', tipo:'cct', status:'registrada', registro:'RJ001823/2026', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'31.504.483/0001-95', nome:'SINTPICC/RJ', papel:'laboral' }, { cnpj:'30.405.401/0001-92', nome:'Sind. da Indústria da Construção Civil do Norte Fluminense', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Sobre os salários vigentes em 01/05/2025.', tabela:[] },
+      pisos:[{ nome:'On-shore · Servente', valor:'1.946,73' }, { nome:'On-shore · ½ Oficial / Vigia / Aux. escritório', valor:'2.006,14' }, { nome:'On-shore · Apontador, Ferramenteiro', valor:'2.368,34' }, { nome:'On-shore · Escriturário, Armador, Carpinteiro, Pedreiro, Pintor, Eletricista e demais', valor:'2.775,79' }, { nome:'On-shore · Montador de torre, Operador de grua', valor:'3.036,10' }, { nome:'On-shore · Encarregado de categoria', valor:'4.501,80' }, { nome:'On-shore · Técnicos em geral', valor:'5.200,71' }, { nome:'On-shore · Encarregado de obras', valor:'5.509,12' }, { nome:'On-shore · Mestre de obras', valor:'5.636,45' },
+        { nome:'Off-shore · Servente', valor:'2.142,91' }, { nome:'Off-shore · ½ Oficial / Vigia / Aux. escritório', valor:'2.477,22' }, { nome:'Off-shore · Escriturário, Ferramenteiro', valor:'2.832,40' }, { nome:'Off-shore · Armador, Carpinteiro, Pedreiro e demais', valor:'3.062,30' }, { nome:'Off-shore · Almoxarife, Eletricista, Marceneiro…', valor:'3.114,17' }, { nome:'Off-shore · Pintor', valor:'3.254,87' }, { nome:'Off-shore · Encarregado', valor:'5.360,83' }, { nome:'Off-shore · Técnico em geral', valor:'5.516,60' }, { nome:'Off-shore · Mestre de obras', valor:'6.131,97' }],
+      beneficios:[],
+      contribs:[{ nome:'Taxa de custeio dos empregados', quem:'empregado', competencias:'mensal', vencimento:'', regra:'1% do salário nominal todo mês, recolher até o dia 10; base limitada ao dobro do maior piso', oposicao:'30 dias a partir da assinatura (novas contratações: 30 dias da admissão), por escrito na sede do sindicato em Macaé', calc:{ tipo:'' } }],
+      prazos:[{ data:'2026-09-08', desc:'Retroativo mai–jul/2026 (6%): 1ª parcela até o 5º dia útil de setembro' }, { data:'2026-10-07', desc:'Retroativo mai–jul/2026 (6%): 2ª parcela até o 5º dia útil de outubro' }, { data:'2026-10-05', desc:'Retroativo de demitidos antes da assinatura: parcela única' }],
+      obs:'' },
+    { id:'cct-sintrabares-2025', titulo:'SINTRABARES 2025/2026 (bares e restaurantes)', tipo:'cct', status:'substituida', registro:'ES000042/2025', vigIni:'2025-01-01', vigFim:'2026-12-31', dataBase:'Janeiro', substituidaPor:'cct-sintrabares-2026',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'19.937.306/0001-05', nome:'SINTRABARES', papel:'laboral' }, { cnpj:'36.404.374/0001-10', nome:'Sind. dos Restaurantes, Bares e Similares ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'7%' }], base:'Salários de dezembro/2024.', tabela:[] },
+      pisos:[{ nome:'Piso salarial único', valor:'1.590,00' }], beneficios:[], contribs:[], prazos:[], obs:'Substituída pela CCT 2026/2027 (ES000650/2025).' },
+    { id:'cct-sintrabares-2026', titulo:'SINTRABARES 2026/2027 (bares e restaurantes)', tipo:'cct', status:'registrada', registro:'ES000650/2025', vigIni:'2026-01-01', vigFim:'2027-12-31', dataBase:'Janeiro', substitui:'cct-sintrabares-2025',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'19.937.306/0001-05', nome:'SINTRABARES', papel:'laboral' }, { cnpj:'36.404.374/0001-10', nome:'Sind. dos Restaurantes, Bares e Similares ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'7,5%' }], base:'INPC 2025 + ganho real (PIB), sobre os salários de dezembro/2025.', tabela:[] },
+      pisos:[{ nome:'Piso admissional único', valor:'1.705,00' }], beneficios:[],
+      contribs:[{ nome:'Desconto assistencial (1 dia de salário)', quem:'empregado', competencias:'01/2026', vencimento:'2026-02-05', regra:'1 dia de salário de todos os empregados na folha de janeiro/2026, guia no SINDIFACIL/SINTRAHOTEIS-ES', oposicao:'', calc:{ tipo:'' } },
+        { nome:'Mensalidade sindical (associados)', quem:'empregado', competencias:'mensal', vencimento:'', regra:'2% do salário base dos associados, repassar até o 5º dia do mês seguinte', oposicao:'', calc:{ tipo:'' } },
+        { nome:'Taxa de homologação', quem:'empresa', competencias:'', vencimento:'', regra:'R$ 100,00 por homologação', oposicao:'', calc:{ tipo:'' } }],
+      prazos:[], obs:'Vigência de 2 anos com reajuste definido só para janeiro/2026: a data-base de janeiro/2027 depende de aditivo.' },
+    { id:'cct-sintrahoteis-2026', titulo:'SINTRAHOTEIS / SINTRANORTE 2026/2027 (hotéis)', tipo:'cct', status:'registrada', registro:'ES000009/2026', vigIni:'2026-01-01', vigFim:'2027-12-31', dataBase:'Janeiro',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'36.364.883/0001-66', nome:'SINTRAHOTEIS', papel:'laboral' }, { cnpj:'26.248.568/0001-10', nome:'SINTRANORTE', papel:'laboral' }, { cnpj:'30.963.136/0001-68', nome:'Sind. de Hotéis e Meios de Hospedagem ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Acima do piso admissional', pct:'8%' }], base:'Salário de dezembro/2025; admitidos após 01/01/2026: proporcional (1/12 por mês).', tabela:[] },
+      pisos:[{ nome:'Camareiras 4 ou 5 estrelas', valor:'2.181,44' }, { nome:'Outros trabalhadores 4 ou 5 estrelas', valor:'2.190,51' }, { nome:'Camareiras demais meios de hospedagem', valor:'1.818,26' }, { nome:'Outros trabalhadores demais meios de hospedagem', valor:'1.825,82' }],
+      beneficios:[], contribs:[], prazos:[], obs:'Contribuições não conferidas (PDF em imagem). Vigência de 2 anos: a data-base de janeiro/2027 depende de aditivo.' },
+    { id:'cct-construcao-es-2025', titulo:'Construção Civil ES 2025/2027 (SINDUSCON-ES)', tipo:'cct', status:'registrada', registro:'ES000255/2025', vigIni:'2025-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'28.164.473/0001-43', nome:'SINDUSCON-ES', papel:'patronal' }, { cnpj:'28.164.291/0001-72', nome:'Sind. Trab. Ind. Construção Civil, Pavimentação e Terraplenagem', papel:'laboral' }, { cnpj:'36.022.382/0001-00', nome:'SINTRACON-ES', papel:'laboral' }, { cnpj:'27.466.507/0001-91', nome:'Sind. Trab. Construção Civil do Norte do Estado', papel:'laboral' }, { cnpj:'27.368.273/0001-40', nome:'Sind. Trab. Ind. Construção Civil Sul ES', papel:'laboral' }, { cnpj:'07.857.013/0001-20', nome:'FETRACONMAG-ES (federação)', papel:'federacao' }],
+      reajuste:{ itens:[{ rotulo:'Auxiliar de obras, mensageiro, aux. escritório, vigia', pct:'10%' }, { rotulo:'Demais salários', pct:'8%' }], base:'01/05/2025 sobre salários de novembro/2024; acima de R$ 4.987,04: aumento mínimo de R$ 369,41. Em 01/05/2026: renegociação só das cláusulas econômicas.', tabela:[] },
+      pisos:[], beneficios:[], contribs:[], prazos:[], obs:'Tabelas de salário por função nos Anexos II e III.' },
+    { id:'cct-construcao-es-2026-oficio', titulo:'Construção Civil ES · valores de maio/2026 (Of. Circ. 004/2026)', tipo:'oficio', status:'acordada', registro:'', mae:'cct-construcao-es-2025', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'28.164.473/0001-43', nome:'SINDUSCON-ES', papel:'patronal' }, { cnpj:'28.164.291/0001-72', nome:'Sind. Trab. Ind. Construção Civil, Pavimentação e Terraplenagem', papel:'laboral' }, { cnpj:'36.022.382/0001-00', nome:'SINTRACON-ES', papel:'laboral' }, { cnpj:'27.466.507/0001-91', nome:'Sind. Trab. Construção Civil do Norte do Estado', papel:'laboral' }, { cnpj:'27.368.273/0001-40', nome:'Sind. Trab. Ind. Construção Civil Sul ES', papel:'laboral' }],
+      reajuste:{ itens:[], base:'Salários referenciais a partir de 01/05/2026 (tabela abaixo). Montagem industrial segue a tabela de 01/05/2025.', tabela:[] },
+      pisos:[{ nome:'Auxiliar de obras / Mensageiro / Aux. escritório / Vigia (R$ 8,19/h)', valor:'1.800,81' }, { nome:'Ajudante prático (R$ 9,13/h)', valor:'2.007,96' }, { nome:'Oficial (R$ 10,83/h)', valor:'2.382,25' }, { nome:'Oficial pleno (R$ 12,75/h)', valor:'2.805,97' }, { nome:'Oficial polivalente (R$ 14,06/h)', valor:'3.093,16' }, { nome:'Encarregado (R$ 15,07/h)', valor:'3.314,43' }],
+      beneficios:[{ nome:'Diferença da alimentação pronta (por dia)', valor:'35,60' }, { nome:'Cartão alimentação', valor:'1.300,00' }, { nome:'Diferença da cesta alimentação', valor:'850,00' }, { nome:'Cesta natalina', valor:'220,00' }, { nome:'Café da manhã (por dia, se não fornecido)', valor:'8,00' }],
+      contribs:[], prazos:[], obs:'Ofício do sindicato patronal de 27/05/2026: aplicar desde já. Ainda pendentes: alimentação complementar de alojados (cl. 22ª) e compensação dos dias de greve. O termo aditivo será registrado depois.' },
+    { id:'cct-saoluis-2025', titulo:'Fecomércio-MA x Comerciários de São Luís 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'06.052.757/0001-05', nome:'Fecomércio-MA', papel:'patronal' }, { cnpj:'06.302.632/0001-96', nome:'Sind. dos Empregados no Comércio de São Luís', papel:'laboral' }],
+      reajuste:{ itens:[{ rotulo:'Salários acima do piso', pct:'6%' }], base:'Salário de novembro/2024 já reajustado; compensa aumentos de nov/2024 a out/2025.', tabela:[] },
+      pisos:[{ nome:'Piso salarial normativo', valor:'1.787,30' }], beneficios:[{ nome:'Quebra de caixa (sobre o salário-base)', valor:'17%' }],
+      contribs:[], prazos:[], obs:'Nenhum salário abaixo do mínimo + 10%. Datas exatas da vigência não localizadas: conferir no PDF.' },
+    { id:'cct-brusque-2025', titulo:'Comércio de Brusque 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'82.991.837/0001-04', nome:'Sind. dos Empregados no Comércio de Brusque', papel:'laboral' }, { cnpj:'82.991.738/0001-22', nome:'Sind. do Comércio Varejista e Atacadista de Brusque', papel:'patronal' }],
+      reajuste:{ itens:[], base:'Cláusula de reajuste não conferida (PDF em imagem).', tabela:[] },
+      pisos:[{ nome:'Salário normativo', valor:'2.100,00' }, { nome:'1º emprego (6 primeiros meses)', valor:'1.762,00' }, { nome:'REPIS (com certidão de adesão)', valor:'2.000,00' }, { nome:'REPIS · 1º emprego', valor:'1.693,00' }], beneficios:[],
+      contribs:[{ nome:'Taxa negocial patronal', quem:'empresa', competencias:'', vencimento:'2026-03-31', regra:'Tabela por número de empregados, por CNPJ (filiais: no máximo 2x a do CNPJ com mais funcionários)', oposicao:'', calc:{ tipo:'faixaEmpregados', tabela:'0-3 = 156,00\n4-6 = 280,00\n7-11 = 447,00\n12-18 = 695,00\n19-30 = 894,00\n31-40 = 1.094,00\n41-50 = 1.217,00\n51-60 = 1.409,00\n61-80 = 1.864,00\n81-100 = 2.092,00\n101-130 = 2.263,00\n131-999999 = 2.466,00' } }],
+      prazos:[], obs:'' },
+    { id:'cct-secbhr-2026', titulo:'SECBHR x Fecomércio-MG 2026/2027 (comércio de BH)', tipo:'cct', status:'assinada', registro:'', vigIni:'2026-03-01', vigFim:'2027-02-28', dataBase:'Março',
+      partes:[{ cnpj:'17.220.179/0001-95', nome:'SECBHR (comerciários de BH e região)', papel:'laboral' }, { cnpj:'17.271.982/0001-59', nome:'Fecomércio-MG', papel:'patronal' }],
+      reajuste:{ itens:[], base:'Proporcional ao mês de admissão; salários acima de R$ 10.089,38: índice até esse valor e livre negociação acima. Já compensados aumentos de 01/03/2025 a 28/02/2026.',
+        tabela:[['2025-03','6,00%'],['2025-04','5,50%'],['2025-05','5,00%'],['2025-06','4,50%'],['2025-07','4,00%'],['2025-08','3,50%'],['2025-09','3,00%'],['2025-10','2,50%'],['2025-11','2,00%'],['2025-12','1,50%'],['2026-01','1,00%'],['2026-02','0,50%']].map(([mes, pct]) => ({ mes, pct })) },
+      pisos:[{ nome:'Office-boy, copeiro, faxineiro, servente, empacotador, entregador, vigia e demais', valor:'1.850,00' }, { nome:'Vendedores / balconistas', valor:'1.900,00' }, { nome:'REPIS (ME/EPP com certificado de adesão)', valor:'1.780,00' }], beneficios:[],
+      contribs:[{ nome:'Contribuição assistencial dos empregados', quem:'empregado', competencias:'08/2026, 11/2026', vencimento:'', regra:'R$ 60,00 por parcela, descontada em agosto e novembro/2026, boleto até o dia 15 do mês seguinte', oposicao:'15 dias a partir do 1º desconto, pessoalmente ou por escrito no sindicato', calc:{ tipo:'' } },
+        { nome:'Contribuição assistencial das empresas 2026', quem:'empresa', competencias:'', vencimento:'', regra:'Valor anual por enquadramento tributário (à vista ou 12x) + R$ 13,00 por empregado, teto R$ 15.000,00', oposicao:'', calc:{ tipo:'tributacao', tabela:'', adicional:'13,00', teto:'15.000,00' } },
+        { nome:'Taxa de adesão ao REPIS', quem:'empresa', competencias:'', vencimento:'', regra:'R$ 15,58 (só para quem aderir ao REPIS)', oposicao:'', calc:{ tipo:'fixo', valor:'15,58' } }],
+      prazos:[], obs:'A tabela da contribuição patronal por enquadramento não foi transcrita: preencha em Contribuições.' },
+    { id:'cct-itajai-2026', titulo:'Comércio Atacadista de Itajaí 2026/2027', tipo:'cct', status:'assinada', registro:'', vigIni:'2026-08-01', vigFim:'2027-07-31', dataBase:'Agosto',
+      partes:[{ cnpj:'84.307.370/0001-66', nome:'Sind. dos Empregados no Comércio de Itajaí', papel:'laboral' }, { cnpj:'05.021.016/0001-02', nome:'Sind. do Comércio Atacadista de Itajaí (SINCADI)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Salários de julho/2025, parcela única; compensa antecipações de 01/08/2025 a 31/07/2026. Diferenças do retroativo na folha seguinte à assinatura.', tabela:[] },
+      pisos:[{ nome:'Na admissão (experiência)', valor:'2.155,00' }, { nome:'Após o contrato de experiência', valor:'2.380,00' }], beneficios:[],
+      contribs:[{ nome:'Contribuição negocial laboral', quem:'empregado', competencias:'11/2026, 07/2027', vencimento:'', regra:'3% da remuneração, limitado a R$ 80,00 por empregado a cada desconto; guia até o dia 10 do mês seguinte', oposicao:'04 a 13/11/2026 (novembro) e 07 a 16/07/2027 (julho), carta de próprio punho no sindicato', calc:{ tipo:'' } },
+        { nome:'Taxa negocial patronal', quem:'empresa', competencias:'', vencimento:'2026-08-31', regra:'Tabela por capital social, parcela única', oposicao:'', calc:{ tipo:'faixaCapital', tabela:'0-50000 = 240,00\n50000,01-100000 = 480,00\n100000,01-250000 = 600,00\n250000,01-500000 = 720,00\n500000,01-1000000 = 840,00\n1000000,01-5000000 = 1.260,00\n5000000,01-10000000 = 2.520,00\n10000000,01-50000000 = 5.040,00\n50000000,01-100000000 = 7.560,00\n100000000,01-999999999999 = 10.080,00' } }],
+      prazos:[], obs:'' },
+    { id:'cct-engenheiros-2026', titulo:'Engenheiros ES x SINAENCO 2026/2027', tipo:'cct', status:'registrada', registro:'ES000475/2026', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'30.962.575/0001-56', nome:'Sind. dos Engenheiros no Estado do ES', papel:'laboral' }, { cnpj:'59.940.957/0001-60', nome:'SINAENCO (arquitetura e engenharia consultiva)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'4,11%' }], base:'Salários de 30/04/2026, praticado a partir da assinatura; se não alcançar o piso, aplica-se o piso.', tabela:[] },
+      pisos:[{ nome:'Agrimensores, agrônomos, engenheiros, geógrafos, geólogos e meteorologistas (Lei 4.950-A/66)', valor:'12.139,13' }], beneficios:[],
+      contribs:[{ nome:'Contribuição assistencial patronal 2026', quem:'empresa', competencias:'', vencimento:'2026-09-15', regra:'R$ 250,00; associadas ao SINAENCO-ES em dia: R$ 125,00', oposicao:'', calc:{ tipo:'fixo', valor:'250,00', valorAssociada:'125,00' } }],
+      prazos:[{ data:'2026-08-31', desc:'Retroativo mai–jul/2026 (reajuste e piso) até a folha de agosto/2026' }], obs:'Rescisões complementares: diferença paga em 60 dias da assinatura.' },
+  ];
+  // ---------- convenções coletivas (CCT, aditivos e ofícios) ligadas aos sindicatos pelo CNPJ das partes ----------
+  const CCT_TIPOS = { cct:'CCT', aditivo:'Termo aditivo', oficio:'Ofício / circular' };
+  const CCT_STATUS = { registrada:'Registrada no Mediador', assinada:'Assinada (sem nº do Mediador)', acordada:'Acordada (sem aditivo registrado)', rascunho:'Rascunho, não transmitida', substituida:'Substituída' };
+  const CCT_STATUS_PILL = { registrada:'pill-ok', assinada:'', acordada:'pill-today', rascunho:'pill-late', substituida:'pill-muted' };
+  const CCT_RANK = { registrada:4, assinada:3, acordada:2, rascunho:1, substituida:0 };
+  const CALC_TIPOS = { '':'Não calcular', fixo:'Valor fixo', porEmpregado:'Valor por empregado (mensal)', faixaEmpregados:'Tabela por nº de empregados', faixaCapital:'Tabela por capital social', tributacao:'Tabela por enquadramento tributário' };
+  const cnpjDig = (c) => String(c || '').replace(/\D/g, '');
+  const numBR = (v) => { const t = String(v || '').replace(/[^\d,.-]/g, ''); if (!t) return NaN; return Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t); };
+  const brl = (n) => Number.isFinite(n) ? n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) : '—';
+  function normalizeCct(x) {
+    if (!x || typeof x !== 'object') return null;
+    const txt = (v, n) => String(v ?? '').normalize('NFC').trim().slice(0, n);
+    const titulo = txt(x.titulo, 160);
+    if (!titulo) return null;
+    const lista = (v, f) => (Array.isArray(v) ? v : []).map(f).filter(Boolean);
+    const par = (a, b, n1, n2) => (r) => { const p = txt(r && r[a], n1); return p ? { [a]: p, [b]: txt(r[b], n2) } : null; };
+    const mes = (v) => { const m = mesDeTexto(v || ''); return MESES.includes(m) ? m : ''; };
+    const r = x.reajuste && typeof x.reajuste === 'object' ? x.reajuste : {};
+    return {
+      id: String(x.id || '').match(/^[\w-]{1,80}$/) ? x.id : uid(), titulo,
+      tipo: CCT_TIPOS[x.tipo] ? x.tipo : 'cct', status: CCT_STATUS[x.status] ? x.status : 'assinada',
+      registro: txt(x.registro, 60), vigIni: toYmd(x.vigIni), vigFim: toYmd(x.vigFim), dataBase: mes(x.dataBase),
+      mae: txt(x.mae, 80), substitui: txt(x.substitui, 80), substituidaPor: txt(x.substituidaPor, 80), arquivo: txt(x.arquivo, 400),
+      partes: lista(x.partes, p => p && cnpjDig(p.cnpj).length >= 8 ? { cnpj: txt(p.cnpj, 20), nome: txt(p.nome, 160), papel: ['laboral', 'patronal', 'federacao'].includes(p.papel) ? p.papel : 'laboral' } : null),
+      reajuste: { itens: lista(r.itens, par('rotulo', 'pct', 120, 20)), base: txt(r.base, 600), tabela: lista(r.tabela, t => t && /^\d{4}-\d{2}$/.test(t.mes) ? { mes: t.mes, pct: txt(t.pct, 20) } : null) },
+      pisos: lista(x.pisos, par('nome', 'valor', 200, 30)), beneficios: lista(x.beneficios, par('nome', 'valor', 200, 30)),
+      contribs: lista(x.contribs, c => c && txt(c.nome, 120) ? { nome: txt(c.nome, 120), quem: c.quem === 'empresa' ? 'empresa' : 'empregado', competencias: txt(c.competencias, 120), vencimento: toYmd(c.vencimento), regra: txt(c.regra, 400), oposicao: txt(c.oposicao, 300),
+        calc: { tipo: CALC_TIPOS[c.calc?.tipo] !== undefined ? c.calc.tipo : '', valor: txt(c.calc?.valor, 30), valorAssociada: txt(c.calc?.valorAssociada, 30), tabela: txt(c.calc?.tabela, 2000), adicional: txt(c.calc?.adicional, 30), teto: txt(c.calc?.teto, 30) } } : null),
+      prazos: lista(x.prazos, p => p && toYmd(p.data) && txt(p.desc, 300) ? { data: toYmd(p.data), desc: txt(p.desc, 300) } : null),
+      obs: txt(x.obs, 1500), atualizadoEm: Number(x.atualizadoEm) || 0,
+    };
+  }
+  const normalizeCcts = (v) => (Array.isArray(v) ? v : []).map(normalizeCct).filter(Boolean);
+  async function salvarCcts(itens, silencioso) {
+    state.dpCcts = normalizeCcts(itens);
+    const ok = await persist(() => cctStore.save(JSON.parse(JSON.stringify(state.dpCcts))));
+    await sincronizaSindsComCcts();
+    if (!silencioso) renderDpActiveView();
+    return ok;
+  }
+
+  // Sindicato ↔ CCT: pelo CNPJ das partes (o cadastro do Domínio traz o CNPJ de cada código).
+  let cctIdx = null, cctIdxDe = null, cctIdxSind = null;
+  function cctsDoSind(s) {
+    if (cctIdxDe !== state.dpCcts || cctIdxSind !== state.dpSind) {
+      cctIdx = new Map();
+      state.dpCcts.forEach(c => c.partes.forEach(p => { const d = cnpjDig(p.cnpj); if (!cctIdx.has(d)) cctIdx.set(d, []); cctIdx.get(d).push(c); }));
+      cctIdxDe = state.dpCcts; cctIdxSind = state.dpSind;
+    }
+    const d = cnpjDig(s && s.cnpj);
+    return d && /[1-9]/.test(d) ? (cctIdx.get(d) || []) : [];
+  }
+  const sindsDaCct = (c) => { const ds = new Set(c.partes.map(p => cnpjDig(p.cnpj))); return state.dpSind.filter(s => ds.has(cnpjDig(s.cnpj))); };
+  const cctPorId = (id) => state.dpCcts.find(c => c.id === id);
+  // CCT vigente de um sindicato numa data: a que cobre a data, com o melhor status; sem nenhuma cobrindo, a mais recente.
+  function cctVigente(s, dia = ymd(hoje())) {
+    const todas = cctsDoSind(s).filter(c => c.tipo === 'cct' && c.status !== 'substituida');
+    if (!todas.length) return null;
+    const cobre = todas.filter(c => c.vigIni && c.vigFim && c.vigIni <= dia && dia <= c.vigFim);
+    const ord = (a, b) => (CCT_RANK[b.status] - CCT_RANK[a.status]) || b.vigIni.localeCompare(a.vigIni);
+    const cct = (cobre.length ? cobre.sort(ord) : todas.sort((a, b) => b.vigIni.localeCompare(a.vigIni)))[0];
+    const aditivos = state.dpCcts.filter(a => a.mae === cct.id && a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni));
+    return { cct, aditivos };
+  }
+  // Valores em vigor: o aditivo/ofício mais recente já iniciado prevalece campo a campo sobre a CCT-mãe.
+  function cctEfetiva(v, dia = ymd(hoje())) {
+    const camadas = [v.cct, ...v.aditivos.filter(a => !a.vigIni || a.vigIni <= dia)];
+    const ult = (f) => { for (let i = camadas.length - 1; i >= 0; i--) { const x = f(camadas[i]); if (x && x.length) return { val: x, de: camadas[i] }; } return { val: [], de: v.cct }; };
+    const r = { reajusteItens: ult(c => c.reajuste.itens), tabela: ult(c => c.reajuste.tabela), pisos: ult(c => c.pisos), beneficios: ult(c => c.beneficios) };
+    // Aditivo/ofício já em vigor que traz tabela de salários em vez de percentual: o percentual da CCT-mãe não vale mais.
+    const ad = camadas.length > 1 ? camadas[camadas.length - 1] : null;
+    if (ad && !ad.reajuste.itens.length && !ad.reajuste.tabela.length && ad.pisos.length) { r.reajusteItens = { val: [{ rotulo: 'Salários referenciais', pct: `tabela de ${ad.vigIni.slice(0, 4)}` }], de: ad }; r.tabela = { val: [], de: ad }; }
+    return r;
+  }
+  const empresaCcts = (e) => { const out = []; empresaSinds(e).forEach(s => { const v = cctVigente(s); if (v && !out.some(o => o.cct === v.cct)) out.push(v); }); return out; };
+  const empsDaCct = (c, lista = state.dpEmpresas.filter(ativa)) => { const ss = new Set(sindsDaCct(c)); return lista.filter(e => empresaSinds(e).some(s => ss.has(s))); };
+  const resumoReajuste = (ef) => ef.tabela.val.length ? `tabela por admissão (até ${ef.tabela.val[0].pct})` : ef.reajusteItens.val.map(i => ef.reajusteItens.val.length > 1 ? `${i.rotulo}: ${i.pct}` : i.pct).join(' · ');
+
+  // Os campos de data-base, vigência, registro, reajuste e piso do sindicato passam a vir da CCT vigente.
+  async function sincronizaSindsComCcts() {
+    let mudou = false;
+    const itens = state.dpSind.map(s => {
+      const v = cctVigente(s);
+      if (!v) return s;
+      const ef = cctEfetiva(v);
+      const pct = ef.tabela.val.length ? 'tabela por admissão' : ef.reajusteItens.val.map(i => i.pct).join(' / ');
+      const novo = { dataBase: v.cct.dataBase || s.dataBase, vigIni: v.cct.vigIni, vigFim: v.cct.vigFim, registro: v.cct.registro || s.registro, percentual: pct.slice(0, 30), piso: (ef.pisos.val[0]?.valor || s.piso || '').slice(0, 30), cctId: v.cct.id };
+      if (Object.keys(novo).every(k => (s[k] || '') === (novo[k] || ''))) return s;
+      mudou = true;
+      const x = { ...s, ...novo, hist: [...s.hist] };
+      histSind(x, `Dados atualizados pela ${CCT_TIPOS[v.cct.tipo]} “${v.cct.titulo}”`);
+      return x;
+    });
+    if (mudou) { state.dpSind = normalizeSinds(itens); await persist(() => sindStore.save(JSON.parse(JSON.stringify(state.dpSind)))); }
+  }
+
+  // Estimativa da contribuição patronal por empresa, com os dados do cadastro (funcionários, tributação, capital social).
+  function faixaDe(tabela, n) {
+    for (const l of String(tabela || '').split(/\n+/)) {
+      const m = /^\s*([\d.,]+)\s*-\s*([\d.,]+)\s*=\s*(.+)$/.exec(l);
+      if (m && n >= numBR(m[1]) && n <= numBR(m[2])) return numBR(m[3]);
+    }
+    return NaN;
+  }
+  function estimaContrib(c, e) {
+    const k = c.calc || {}, nf = nfEmp(e);
+    if (k.tipo === 'fixo') { const v = e.assocPatronal === 'Sim' && k.valorAssociada ? numBR(k.valorAssociada) : numBR(k.valor); return { v, det: e.assocPatronal === 'Sim' && k.valorAssociada ? 'associada' : 'valor fixo' }; }
+    if (k.tipo === 'porEmpregado') return { v: numBR(k.valor) * nf, det: `${nf} func. × ${k.valor}/mês` };
+    if (k.tipo === 'faixaEmpregados') return { v: faixaDe(k.tabela, nf), det: `${nf} funcionário(s) cadastrado(s)` };
+    if (k.tipo === 'faixaCapital') { const cap = numBR(e.capitalSocial); return Number.isFinite(cap) ? { v: faixaDe(k.tabela, cap), det: `capital ${brl(cap)}` } : { v: NaN, det: 'informe o capital social da empresa' }; }
+    if (k.tipo === 'tributacao') {
+      const linha = String(k.tabela || '').split(/\n+/).map(l => /^\s*(.+?)\s*=\s*(.+)$/.exec(l)).find(m => m && norm(m[1]) === norm(e.tributacao));
+      if (!linha) return { v: NaN, det: e.tributacao ? `preencha a tabela para ${e.tributacao}` : 'informe a tributação da empresa' };
+      let v = numBR(linha[2]) + (numBR(k.adicional) || 0) * nf;
+      if (Number.isFinite(numBR(k.teto))) v = Math.min(v, numBR(k.teto));
+      return { v, det: `${e.tributacao} + ${nf} func.` };
+    }
+    return null;
+  }
+  // Reajuste que cabe a um funcionário pela CCT vigente da empresa (tabela por mês de admissão ou percentual).
+  function reajusteFunc(e, f) {
+    const v = empresaCcts(e)[0];
+    if (!v) return null;
+    const ef = cctEfetiva(v), adm = String(f.admissao || '');
+    const tab = ef.tabela.val;
+    if (tab.length) {
+      if (!adm) return { txt: `tabela por admissão (${tab[0].pct} a ${tab[tab.length - 1].pct})`, cct: v.cct };
+      const m = adm.slice(0, 7);
+      const r = m <= tab[0].mes ? tab[0] : tab.find(t => t.mes === m);
+      return { txt: r ? `${r.pct} (admissão ${m.slice(5)}/${m.slice(0, 4)})` : 'admitido após a data-base: sem reajuste neste ciclo', cct: v.cct };
+    }
+    if (!ef.reajusteItens.val.length) return null;
+    const s = empresaSinds(e).find(x => x.cctId === v.cct.id) || empresaSinds(e)[0];
+    const ci = s && cicloDe(s), prop = ci && adm && parseYmd(adm) > addYears(ci.inicio, -1);
+    return { txt: resumoReajuste(ef) + (prop ? ' · admitido depois da data-base anterior: conferir proporcionalidade' : ''), cct: v.cct };
+  }
+
+  // Agenda: descontos e recolhimentos das contribuições, prazos de retroativo (um evento por CCT, com as empresas dela).
+  function eventosCct(from, to, ativas) {
+    const out = [];
+    state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
+      const emps = empsDaCct(c, ativas);
+      if (!emps.length) return;
+      const tag = c.status === 'rascunho' ? ' (rascunho)' : '';
+      const ev = (d, titulo, sub) => { if (dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo: titulo + tag, sub, emps, goto: `sindicatos:cct:${c.id}` }); };
+      c.contribs.forEach(k => {
+        (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); ev(new Date(y, m - 1, 1), `${k.quem === 'empresa' ? 'Contribuição da empresa' : 'Descontar na folha'}: ${k.nome}`, `${c.titulo}${k.regra ? ' · ' + k.regra : ''}`); });
+        if (k.vencimento) ev(parseYmd(k.vencimento), `${k.quem === 'empresa' ? 'Pagar' : 'Recolher'}: ${k.nome}`, `${c.titulo}${k.regra ? ' · ' + k.regra : ''}`);
+      });
+      c.prazos.forEach(p => ev(parseYmd(p.data), p.desc, c.titulo));
+    });
+    return out;
+  }
+  // Avisos das convenções: rascunho, ofício sem aditivo, vencendo sem sucessora e 2º ano de CCT bienal sem aditivo.
+  function cctAlertas() {
+    const out = [], t = ymd(hoje()), ativas = state.dpEmpresas.filter(ativa);
+    state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
+      const n = empsDaCct(c, ativas).length;
+      if (!n) return;
+      if (c.status === 'rascunho') out.push({ nivel:'late', id:c.id, txt:`${c.titulo}: ainda é rascunho (não transmitida ao Mediador). Não aplicar antes do registro. ${n} empresa(s).` });
+      if (c.tipo !== 'cct' && c.status === 'acordada') out.push({ nivel:'warn', id:c.id, txt:`${c.titulo}: valores acordados por ${CCT_TIPOS[c.tipo].toLowerCase()}, termo aditivo ainda não registrado.` });
+      if (c.tipo === 'cct' && c.vigFim) {
+        const dias = diffDays(parseYmd(c.vigFim), hoje());
+        const suc = state.dpCcts.some(o => o !== c && o.tipo === 'cct' && o.vigIni > c.vigFim && o.partes.some(p => c.partes.some(q => cnpjDig(q.cnpj) === cnpjDig(p.cnpj))));
+        if (dias <= 60 && !suc) out.push({ nivel: dias < 0 ? 'late' : 'warn', id:c.id, txt:`${c.titulo}: ${dias < 0 ? `vencida há ${-dias} dia(s)` : `vence em ${dias} dia(s)`} e a nova convenção ainda não foi cadastrada. ${n} empresa(s).` });
+        const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+        if (ini && fim && diffDays(fim, ini) > 400) {
+          const base2 = ymd(addYears(ini, 1));
+          const temAd = state.dpCcts.some(a => a.mae === c.id && a.vigIni >= base2);
+          if (t >= base2 && t <= c.vigFim && !temAd) out.push({ nivel:'warn', id:c.id, txt:`${c.titulo}: vigência de 2 anos e a data-base de ${fmtYmdBR(base2)} já passou sem aditivo ou ofício cadastrado com os novos valores.` });
+        }
+      }
+    });
+    return out;
+  }
+
+  // ----- tela: lista das convenções -----
+  function renderCcts() {
+    const ro = state.readOnly, q = state.dpSindQuery, t = ymd(hoje());
+    const faltam = CCTS_ANALISADAS.filter(x => !cctPorId(x.id)).length;
+    $('#cct-carregar').hidden = ro || !faltam;
+    $('#cct-carregar').textContent = `Carregar ${faltam} convenção(ões) analisada(s)`;
+    $('#cct-novo').hidden = ro;
+    const semDominio = !state.dpSind.some(s => s.cnpj);
+    $('#cct-aviso').hidden = !state.dpCcts.length || !semDominio;
+    const lista = state.dpCcts.filter(c => matchQ([c.titulo, c.registro, c.obs, ...c.partes.map(p => p.nome + ' ' + p.cnpj + ' ' + cnpjDig(p.cnpj)), ...sindsDaCct(c).map(s => s.cod + ' ' + rotuloSind(s))], q))
+      .sort((a, b) => (a.status === 'substituida') - (b.status === 'substituida') || (a.mae ? 1 : 0) - (b.mae ? 1 : 0) || a.titulo.localeCompare(b.titulo, 'pt-BR'));
+    $('#sd-count').textContent = `${state.dpCcts.length} convenção(ões)`;
+    const ativas = state.dpEmpresas.filter(ativa);
+    $('#cct-table').innerHTML = `<colgroup><col><col style="width:24%"><col style="width:150px"><col style="width:150px"><col style="width:140px"><col style="width:84px"></colgroup>
+      <thead><tr><th>Convenção</th><th>Partes (código no Domínio)</th><th>Vigência</th><th>Reajuste · piso</th><th>Situação</th><th class="num">Empresas</th></tr></thead><tbody>` +
+      (lista.map(c => {
+        const ss = sindsDaCct(c), n = empsDaCct(c, ativas).length;
+        const partes = c.partes.map(p => { const s = ss.find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<div class="cct-parte"><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b>${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `<span class="dp-cell-sub" title="${escapeHtml(p.cnpj)}">${escapeHtml(p.nome)} · fora do Domínio</span>`}</div>`; }).join('');
+        const cobre = c.vigIni <= t && t <= c.vigFim;
+        const reaj = c.reajuste.tabela.length ? `tabela por admissão` : c.reajuste.itens.map(i => i.pct).join(' / ');
+        return `<tr class="${c.status === 'substituida' ? 'inativa' : ''}">
+          <td><button type="button" class="ct-emp" data-cct-abrir="${escapeHtml(c.id)}"><div class="dp-cell-main" style="white-space:normal">${c.mae ? '↳ ' : ''}${escapeHtml(c.titulo)}</div></button><div class="dp-cell-sub">${escapeHtml(CCT_TIPOS[c.tipo])}${c.registro ? ' · ' + escapeHtml(c.registro) : ''}</div></td>
+          <td>${partes || '<span class="dp-cell-sub">—</span>'}</td>
+          <td><div style="font-size:12px">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</div><div class="dp-cell-sub">data-base ${escapeHtml(c.dataBase || '—')}${cobre ? ' · em vigor' : ''}</div></td>
+          <td><div style="font-size:12.5px;font-weight:600">${escapeHtml(reaj || '—')}</div><div class="dp-cell-sub">${c.pisos.length ? `piso ${escapeHtml(c.pisos[0].valor)}${c.pisos.length > 1 ? ` (+${c.pisos.length - 1})` : ''}` : 'sem piso cadastrado'}</div></td>
+          <td><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span></td>
+          <td class="num">${n}</td></tr>`;
+      }).join('') || `<tr><td colspan="6"><div class="dp-empty">${state.dpCcts.length ? 'Nenhuma convenção com essa busca.' : '<strong>Nenhuma convenção cadastrada</strong><span>Carregue as convenções já analisadas ou cadastre uma nova.</span>'}</div></td></tr>`) + '</tbody>';
+    const abrir = state.dpCctAbrir; state.dpCctAbrir = '';
+    if (abrir && cctPorId(abrir)) abrirCct(abrir);
+  }
+  // Resumo da CCT vigente dentro do sindicato aberto.
+  function cctResumoHtml(s) {
+    const v = cctVigente(s);
+    if (!v) return state.dpCcts.length && s.cnpj ? '' : '';
+    const ef = cctEfetiva(v), c = v.cct;
+    const pis = ef.pisos.val.slice(0, 4).map(p => `<li>${escapeHtml(p.nome)}: <b>${escapeHtml(p.valor)}</b></li>`).join('') + (ef.pisos.val.length > 4 ? `<li class="dp-cell-sub">+${ef.pisos.val.length - 4} na convenção</li>` : '');
+    const contr = c.contribs.map(k => `<li>${escapeHtml(k.nome)}${k.competencias ? ` · <b>${escapeHtml(k.competencias)}</b>` : ''}${k.vencimento ? ` · até <b>${fmtYmdBR(k.vencimento)}</b>` : ''}</li>`).join('');
+    const prz = [...c.prazos, ...v.aditivos.flatMap(a => a.prazos)].filter(p => p.data >= ymd(addDays(hoje(), -30))).map(p => `<li><b>${fmtYmdBR(p.data)}</b> ${escapeHtml(p.desc)}</li>`).join('');
+    return `<div class="cct-resumo">
+      <div class="cct-resumo-h"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><button type="button" class="linkish" data-cct-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button>${v.aditivos.map(a => ` <button type="button" class="linkish" data-cct-abrir="${escapeHtml(a.id)}">+ ${escapeHtml(CCT_TIPOS[a.tipo].toLowerCase())} ${a.vigIni ? a.vigIni.slice(0, 4) : ''}</button>`).join('')}</div>
+      <div class="cct-cols">
+        <div><b>Reajuste</b><p>${escapeHtml(resumoReajuste(ef) || '—')}${ef.reajusteItens.de !== c || ef.tabela.de !== c ? ' <span class="dp-cell-sub">(pelo aditivo)</span>' : ''}</p>${pis ? `<b>Pisos</b><ul>${pis}</ul>` : ''}</div>
+        <div>${contr ? `<b>Contribuições</b><ul>${contr}</ul>` : ''}${prz ? `<b>Prazos</b><ul>${prz}</ul>` : ''}${!contr && !prz ? '<p class="dp-cell-sub">Sem contribuições ou prazos cadastrados.</p>' : ''}</div>
+      </div></div>`;
+  }
+
+  // ----- janela da convenção -----
+  const dlgCct = $('#dlg-cct'), formCct = $('#form-cct');
+  let cctEditId = null;
+  const linhasPar = (arr, a, b) => arr.map(x => `${x[a]} = ${x[b]}`).join('\n');
+  const leLinhasPar = (txt, a, b) => String(txt || '').split(/\n+/).map(l => { const i = l.lastIndexOf('='); return i > 0 ? { [a]: l.slice(0, i).trim(), [b]: l.slice(i + 1).trim() } : null; }).filter(x => x && x[a]);
+  function contribRowHtml(k = { nome:'', quem:'empregado', competencias:'', vencimento:'', regra:'', oposicao:'', calc:{ tipo:'' } }) {
+    const c = k.calc || {};
+    return `<fieldset class="cct-contrib">
+      <div class="form-row"><label class="field">Contribuição<input data-k="nome" value="${escapeHtml(k.nome)}" maxlength="120"></label>
+        <label class="field" style="max-width:140px">Quem paga<select data-k="quem"><option value="empregado"${k.quem !== 'empresa' ? ' selected' : ''}>Empregado (desconto)</option><option value="empresa"${k.quem === 'empresa' ? ' selected' : ''}>Empresa</option></select></label>
+        <label class="field" style="max-width:170px">Competências<input data-k="competencias" value="${escapeHtml(k.competencias)}" placeholder="08/2026, 11/2026 ou mensal"></label>
+        <label class="field" style="max-width:150px">Vencimento<input data-k="vencimento" type="date" value="${escapeHtml(k.vencimento)}"></label></div>
+      <div class="form-row"><label class="field">Regra (base, teto, forma de recolhimento)<input data-k="regra" value="${escapeHtml(k.regra)}" maxlength="400"></label>
+        <label class="field">Oposição<input data-k="oposicao" value="${escapeHtml(k.oposicao)}" maxlength="300"></label></div>
+      <div class="form-row"><label class="field" style="max-width:230px">Estimar valor por empresa<select data-k="calc.tipo">${Object.entries(CALC_TIPOS).map(([v, l]) => `<option value="${v}"${(c.tipo || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field" style="max-width:110px">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
+      <label class="field">Tabela (uma faixa por linha: “0-3 = 156,00”; por tributação: “SIMPLES NACIONAL = 300,00”)<textarea data-k="calc.tabela" rows="2">${escapeHtml(c.tabela || '')}</textarea></label>
+      <button type="button" class="linkish" data-cct-contrib-del>Remover esta contribuição</button></fieldset>`;
+  }
+  function abrirCct(id) {
+    const c = id ? cctPorId(id) : null;
+    cctEditId = c ? c.id : null;
+    const x = c || normalizeCct({ titulo:'Nova convenção', tipo:'cct', status:'assinada' });
+    const f = formCct.elements, ro = state.readOnly;
+    $('#dlg-cct-title').textContent = c ? c.titulo : 'Nova convenção';
+    f.titulo.value = c ? c.titulo : '';
+    f.tipo.value = x.tipo; f.status.value = x.status; f.registro.value = x.registro;
+    f.vigIni.value = x.vigIni; f.vigFim.value = x.vigFim;
+    fillSelect(f.dataBase, MESES, x.dataBase, '—'); f.dataBase.value = x.dataBase;
+    const outras = state.dpCcts.filter(o => o.id !== x.id && o.tipo === 'cct');
+    f.mae.innerHTML = '<option value="">—</option>' + outras.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.titulo)}</option>`).join(''); f.mae.value = x.mae;
+    f.substitui.innerHTML = '<option value="">—</option>' + outras.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.titulo)}</option>`).join(''); f.substitui.value = x.substitui;
+    f.arquivo.value = x.arquivo;
+    f.partes.value = x.partes.map(p => `${p.cnpj} | ${p.nome} | ${p.papel}`).join('\n');
+    f.reajItens.value = linhasPar(x.reajuste.itens, 'rotulo', 'pct');
+    f.reajTabela.value = x.reajuste.tabela.map(t => `${t.mes.slice(5)}/${t.mes.slice(0, 4)} = ${t.pct}`).join('\n');
+    f.reajBase.value = x.reajuste.base;
+    f.pisos.value = linhasPar(x.pisos, 'nome', 'valor');
+    f.beneficios.value = linhasPar(x.beneficios, 'nome', 'valor');
+    f.prazos.value = x.prazos.map(p => `${fmtYmdBR(p.data)} = ${p.desc}`).join('\n');
+    f.obs.value = x.obs;
+    $('#cct-contribs').innerHTML = x.contribs.map(contribRowHtml).join('');
+    renderCctEmpresas(x);
+    $('#btn-cct-excluir').hidden = !c || ro;
+    $('#btn-cct-salvar').hidden = ro;
+    $('#cct-add-contrib').hidden = ro;
+    $$('input,select,textarea', formCct).forEach(el => { el.disabled = ro; });
+    if (!dlgCct.open) dlgCct.showModal();
+  }
+  function renderCctEmpresas(c) {
+    const emps = empsDaCct(c).sort(byNome);
+    const ss = sindsDaCct(c);
+    const semCod = c.partes.filter(p => !ss.some(s => cnpjDig(s.cnpj) === cnpjDig(p.cnpj)));
+    const pat = c.contribs.filter(k => k.quem === 'empresa' && k.calc?.tipo);
+    $('#cct-emps').innerHTML = `<p class="dp-sec-note" style="margin:0">Ligada aos códigos ${ss.length ? ss.map(s => `<b>${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}`).join(', ') : '<i>nenhum</i> (importe a lista do Domínio na aba Sindicatos)'}${semCod.length ? ` · fora do Domínio: ${semCod.map(p => escapeHtml(p.nome)).join(', ')}` : ''}.</p>` +
+      (emps.length ? `<table class="ct-table cct-emp-tab"><thead><tr><th>Empresa</th><th class="num">Func.</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${emps.map(e => `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button></td><td class="num">${nfEmp(e)}</td>${pat.map(k => { const r = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(r?.det || '')}">${r && Number.isFinite(r.v) ? brl(r.v) : `<span class="dp-cell-sub">${escapeHtml(r?.det || '—')}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note" style="margin:0">Valores estimados com o cadastro da empresa (funcionários cadastrados, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub" style="margin:0">Nenhuma empresa ativa vinculada aos sindicatos desta convenção.</p>');
+  }
+  function lerFormCct() {
+    const f = formCct.elements;
+    const contribs = $$('#cct-contribs .cct-contrib').map(fs => {
+      const g = (k) => fs.querySelector(`[data-k="${k}"]`).value;
+      return { nome: g('nome'), quem: g('quem'), competencias: g('competencias'), vencimento: g('vencimento'), regra: g('regra'), oposicao: g('oposicao'), calc: { tipo: g('calc.tipo'), valor: g('calc.valor'), valorAssociada: g('calc.valorAssociada'), adicional: g('calc.adicional'), teto: g('calc.teto'), tabela: g('calc.tabela') } };
+    });
+    const antigo = cctPorId(cctEditId);
+    return normalizeCct({
+      id: cctEditId || uid(), titulo: f.titulo.value, tipo: f.tipo.value, status: f.status.value, registro: f.registro.value, vigIni: f.vigIni.value, vigFim: f.vigFim.value, dataBase: f.dataBase.value,
+      mae: f.mae.value, substitui: f.substitui.value, substituidaPor: antigo?.substituidaPor || '', arquivo: f.arquivo.value,
+      partes: f.partes.value.split(/\n+/).map(l => { const [cnpj, nome, papel] = l.split('|').map(s => (s || '').trim()); return { cnpj, nome, papel: (papel || '').toLowerCase().startsWith('pat') ? 'patronal' : (papel || '').toLowerCase().startsWith('fed') ? 'federacao' : 'laboral' }; }),
+      reajuste: { itens: leLinhasPar(f.reajItens.value, 'rotulo', 'pct'), base: f.reajBase.value, tabela: f.reajTabela.value.split(/\n+/).map(l => { const m = /^\s*(\d{1,2})\/(\d{4})\s*=\s*(.+)$/.exec(l); return m ? { mes: `${m[2]}-${pad2(+m[1])}`, pct: m[3].trim() } : null; }).filter(Boolean) },
+      pisos: leLinhasPar(f.pisos.value, 'nome', 'valor'), beneficios: leLinhasPar(f.beneficios.value, 'nome', 'valor'),
+      prazos: f.prazos.value.split(/\n+/).map(l => { const m = /^\s*(\d{2})\/(\d{2})\/(\d{4})\s*=\s*(.+)$/.exec(l); return m ? { data: `${m[3]}-${m[2]}-${m[1]}`, desc: m[4].trim() } : null; }).filter(Boolean),
+      contribs, obs: f.obs.value, atualizadoEm: Date.now(),
+    });
+  }
+  formCct.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (state.readOnly) return;
+    const c = lerFormCct();
+    if (!c) { toast('Informe o título da convenção.'); return; }
+    if (c.vigIni && c.vigFim && c.vigFim < c.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return; }
+    let itens = cctEditId ? state.dpCcts.map(x => x.id === c.id ? c : x) : [...state.dpCcts, c];
+    // "Substitui": a anterior passa a substituída e aponta para esta.
+    if (c.substitui) itens = itens.map(x => x.id === c.substitui ? { ...x, status: 'substituida', substituidaPor: c.id } : x);
+    dlgCct.close();
+    if (await salvarCcts(itens)) toast('Convenção salva.');
+  });
+  $('#btn-cct-excluir').addEventListener('click', async () => {
+    const c = cctPorId(cctEditId); if (!c) return;
+    const ok = await ask(`Excluir “${c.titulo}”?\nOs sindicatos continuam com a data-base e a vigência atuais; lembretes e estimativas desta convenção saem da agenda.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    dlgCct.close();
+    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
+  });
+  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
+  $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
+  $('#btn-cct-cancelar').addEventListener('click', () => dlgCct.close());
+  $('#dlg-cct-close').addEventListener('click', () => dlgCct.close());
+  $('#cct-copiar-arquivo').addEventListener('click', async () => { const c = caminhoCct({ cct: formCct.elements.arquivo.value }); try { await navigator.clipboard.writeText(c); toast('Caminho copiado.'); } catch { toast(c); } });
+  $('#cct-novo').addEventListener('click', () => abrirCct(null));
+  $('#cct-carregar').addEventListener('click', async () => {
+    const novos = CCTS_ANALISADAS.filter(x => !cctPorId(x.id)).map(normalizeCct).filter(Boolean);
+    if (!novos.length) return;
+    const ok = await ask(`Carregar ${novos.length} convenção(ões) lidas dos PDFs enviados?\nElas ficam ligadas aos sindicatos pelo CNPJ e passam a definir data-base, vigência, reajuste e piso deles. Confira cada uma depois.${!state.dpSind.some(s => s.cnpj) ? '\n\nAtenção: importe antes a lista de sindicatos do Domínio, senão elas não se ligam a nenhum código.' : ''}`, [{ label:'Cancelar', value:false }, { label:'Carregar', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    if (await salvarCcts([...state.dpCcts, ...novos])) toast(`${novos.length} convenção(ões) carregada(s).`);
+  });
+  $('#dp-view-sindicatos').addEventListener('click', (e) => { const a = e.target.closest('[data-cct-abrir]'); if (a) { e.stopPropagation(); abrirCct(a.dataset.cctAbrir); } }, true);
 
 
   // ---------- cartela de clientes: a gestora distribui as empresas entre os analistas ----------
@@ -4974,6 +5494,8 @@ body.portal-open{overflow:hidden;}
     state.dpCob = normalizeCob(cobStore.load());
     sindStore = makeSindLocal();
     state.dpSind = normalizeSinds(sindStore.load());
+    cctStore = makeCctLocal();
+    state.dpCcts = normalizeCcts(cctStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
@@ -5014,6 +5536,12 @@ body.portal-open{overflow:hidden;}
       refreshAll();
       refreshOpenDetail();
       tryPendingEmp();
+    }, caiu);
+
+    cctStore = cctDb;
+    db.doc('dp_config/ccts').onSnapshot((s) => {
+      state.dpCcts = normalizeCcts(s.exists ? s.data().itens : []);
+      refreshAll();
     }, caiu);
 
     sindStore = sindDb;
