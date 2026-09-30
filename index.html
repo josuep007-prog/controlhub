@@ -293,13 +293,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-menu summary .ic{margin-left:2px;}
 .cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface)); border-radius:6px; font-size:13px;}
 .cv-passos > div{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-.cv-table{table-layout:fixed;} .cv-table td{vertical-align:top; overflow-wrap:anywhere;}
-.cv-row{cursor:pointer;} .cv-row:hover td{background:var(--surface-2);} .cv-row.sel td{background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface));}
-.cv-row:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
-.cv-grp td{background:var(--surface); font-size:12px; font-weight:700; color:var(--ink-2); padding-top:14px; border-bottom:1px solid var(--rule);}
-.cv-grp td span{font-weight:600; color:var(--ink-3); margin-left:4px;}
-.cv-grp.late td{color:var(--dp-late);} .cv-grp.warn td{color:var(--cv-soon);} .cv-grp.ok td{color:var(--dp-ok);}
-.cv-num{font-size:12.5px; font-weight:600;}
 .cv-acao{font-size:12.5px; font-weight:600; line-height:1.35; padding-left:10px; position:relative;}
 .cv-acao::before{content:""; position:absolute; left:0; top:.45em; width:6px; height:6px; border-radius:50%; background:var(--ink-3);}
 .cv-acao.late{color:var(--dp-late);} .cv-acao.late::before{background:var(--dp-late);}
@@ -517,13 +510,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 }
 @media (max-width:760px){
   #cv-main > :not(.dp-toolbar):not(.cv-painel){margin-inline:16px;}
-  .cv-table colgroup{display:none;} .cv-table thead{display:none;}
-  .cv-table,.cv-table tbody{display:block;}
-  .cv-table tr.cv-row{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 10px; padding:10px 12px; border-bottom:1px solid var(--rule);}
-  .cv-table tr.cv-row td{display:block; padding:0; border:0;}
-  .cv-table tr.cv-row td:nth-child(1){grid-column:1 / -1;} .cv-table tr.cv-row td:nth-child(4),.cv-table tr.cv-row td:nth-child(5),.cv-table tr.cv-row td[colspan]{grid-column:1 / -1;} .cv-table tr.cv-row td.num{text-align:left;} .cv-table tr.cv-row td:last-child{grid-column:1 / -1;} .cv-table tr.cv-row td:empty{display:none;}
-  .cv-table tr.cv-row td:nth-child(4)::after{content:" empresa(s)"; font-size:11px; color:var(--ink-3); font-weight:400;}
-  .cv-table tr.cv-grp{display:block;} .cv-table tr.cv-grp td{display:block; padding:12px 12px 6px;}
   .cv-cad-head{padding-inline:16px;}
 }
 .cct-bar{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:10px;} .cct-bar .spacer{flex:1;} .cct-bar .ct-hint{max-width:720px;}
@@ -559,6 +545,18 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cad-resumo .ct-alertas{padding:0; margin:0; --dp-today:var(--cv-soon);} .cad-resumo .ct-al{font-size:12.5px;}
 .cad-resumo .sd-kpi{border-top-width:1px; border-left:3px solid var(--rule-strong); padding:8px 12px;} .cad-resumo .sd-kpi b{font-size:18px;}
 .cad-resumo .sd-kpi.warn{border-top-color:var(--rule); border-left-color:var(--cv-soon);} .cad-resumo .sd-kpi.late{border-top-color:var(--rule); border-left-color:var(--dp-late);} .cad-resumo .sd-kpi.ok{border-top-color:var(--rule); border-left-color:var(--dp-ok);}
+#dlg-consulta{width:min(1120px, calc(100vw - 24px)); max-height:92vh;} #dlg-consulta[open]{display:flex; flex-direction:column;}
+#dlg-consulta .dlg-head{flex:0 0 auto; padding:14px 20px 10px; border-bottom:1px solid var(--rule);} #dlg-consulta .dlg-head h2{font-size:15px;}
+.cq-body{flex:1 1 auto; min-height:0; display:flex; flex-direction:column;}
+.cq-bar{display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--rule);} .cq-bar input{flex:1; min-width:0;}
+.cq-lista{flex:1 1 auto; overflow:auto; padding:0 0 12px; min-height:200px; max-height:68vh;}
+.cq-emp{padding:12px 20px 4px; font-size:13.5px; font-weight:700; position:sticky; top:0; background:var(--surface); z-index:1; border-top:1px solid var(--rule);} .cq-emp:first-child{border-top:0;}
+.cq-emp small{font-weight:400; color:var(--ink-3); margin-left:8px; font-size:11.5px;}
+.cq-row{display:grid; grid-template-columns:minmax(0,1.5fr) 92px minmax(0,1.3fr) 150px minmax(0,1fr) 100px; gap:6px 14px; align-items:start; padding:6px 20px 6px 32px; font-size:12.5px;}
+.cq-row + .cq-row{border-top:1px dashed var(--rule);} .cq-head{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); font-weight:600; padding-top:6px; padding-bottom:0; border-top:0 !important;}
+.cq-row .dp-cell-sub{white-space:normal;} .cq-row b{font-weight:650;}
+.cq-vazio{padding:40px 20px; text-align:center; color:var(--ink-3);}
+@media (max-width:860px){ .cq-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr); padding-left:20px;} .cq-head{display:none;} .cq-row > *:first-child{grid-column:1 / -1;} }
 #cv-cad .dp-chips{gap:8px; padding:2px 0;}
 .sd-selbar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; min-height:34px; padding:4px 2px 8px; font-size:12.5px;}
 .sd-selbar b{color:var(--ink);} .sd-selbar .btn-danger{display:inline-flex; align-items:center; gap:5px;}
@@ -1332,7 +1330,7 @@ body.portal-open{overflow:hidden;}
         <div id="cv-main">
           <div class="dp-toolbar">
             <input type="search" id="cv-search" placeholder="Buscar empresa, sindicato, código ou CNPJ…" autocomplete="off">
-            <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="cards"><svg class="ic ic-sm"><use href="#i-grid"/></svg> Cartões</button><button type="button" data-cv-modo="lista"><svg class="ic ic-sm"><use href="#i-list"/></svg> Lista</button><button type="button" data-cv-modo="tempo"><svg class="ic ic-sm"><use href="#i-gantt"/></svg> Linha do tempo</button></div>
+            <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="cards"><svg class="ic ic-sm"><use href="#i-grid"/></svg> Cartões</button><button type="button" data-cv-consultar><svg class="ic ic-sm"><use href="#i-search"/></svg> Consultar convenções</button><button type="button" data-cv-modo="tempo"><svg class="ic ic-sm"><use href="#i-gantt"/></svg> Linha do tempo</button></div>
             <span class="dp-count" id="cv-count"></span>
             <details class="menu cv-menu">
               <summary class="btn btn-sm">Cadastro <svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></summary>
@@ -1356,7 +1354,6 @@ body.portal-open{overflow:hidden;}
           <div id="cv-hero"></div>
           <div id="cv-sits"></div>
           <div id="cv-cards"></div>
-          <div id="cv-lista" hidden></div>
           <div id="cv-tempo" hidden></div>
           <aside class="cv-painel" id="cv-painel" tabindex="-1" aria-label="Detalhe da convenção" hidden></aside>
         </div>
@@ -1798,6 +1795,14 @@ body.portal-open{overflow:hidden;}
   </form>
 </dialog>
 
+<dialog id="dlg-consulta" class="dlg dlg-lg">
+  <div class="dlg-head"><h2>Consultar convenções das empresas</h2><span class="pill pill-muted">somente consulta</span><button type="button" class="icon-btn dlg-close" id="dlg-consulta-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="cq-body">
+    <div class="cq-bar"><input type="search" id="cq-busca" placeholder="Buscar empresa, CNPJ, sindicato ou código…" autocomplete="off"><span class="dp-count" id="cq-count"></span></div>
+    <div class="cq-lista" id="cq-lista"></div>
+  </div>
+</dialog>
+
 <dialog id="dlg-sind-import" class="dlg dlg-lg">
   <div class="dlg-head"><h2>Importar sindicatos do Domínio</h2><button type="button" class="icon-btn dlg-close" id="dlg-sind-import-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <div class="dlg-body">
@@ -1908,7 +1913,7 @@ body.portal-open{overflow:hidden;}
 
   let db = null, downloads = null, userNs = null;
 
-  function loadPrefs() { try { Object.assign(state.prefs, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); } catch {} if (['cards', 'lista', 'tempo'].includes(state.prefs.convModo)) state.dpConvModo = state.prefs.convModo; }
+  function loadPrefs() { try { Object.assign(state.prefs, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); } catch {} if (['cards', 'tempo'].includes(state.prefs.convModo)) state.dpConvModo = state.prefs.convModo; }
   function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(state.prefs)); } catch {} }
   const systemDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
   function currentTheme() { return document.documentElement.dataset.theme || state.prefs.theme || (systemDark() ? 'dark' : 'light'); }
@@ -5449,11 +5454,11 @@ body.portal-open{overflow:hidden;}
     $$('#cv-modo [data-cv-modo]').forEach(b => { const on = b.dataset.cvModo === state.dpConvModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#cv-search').classList.toggle('filtro-on', !!q);
     const modo = state.dpConvModo;
-    $('#cv-cards').hidden = modo !== 'cards'; $('#cv-lista').hidden = modo !== 'lista'; $('#cv-tempo').hidden = modo !== 'tempo';
+    $('#cv-cards').hidden = modo !== 'cards'; $('#cv-tempo').hidden = modo !== 'tempo';
     // Cartões e lista só aparecem com uma situação escolhida (ou busca); a linha do tempo é sempre a visão geral.
     if (modo === 'tempo') renderConvTempo(vis);
-    else if (!f && !q && linhas.length + sem.length) $(modo === 'lista' ? '#cv-lista' : '#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
-    else if (modo === 'lista') renderConvLista(vis, semVis); else renderConvCards(vis, semVis);
+    else if (!f && !q && linhas.length + sem.length) $('#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
+    else renderConvCards(vis, semVis);
     if (anim) cvAnimar(main);
     cvTkIniciar();
     const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
@@ -5608,27 +5613,6 @@ body.portal-open{overflow:hidden;}
     }).join('');
     $('#cv-cards').innerHTML = html || `<div class="cv-zen big">${ic('search')}<span>${state.dpConvSit || state.dpConvQuery ? 'Nada com esse filtro.' : 'Nenhuma convenção nesta carteira ainda.'}</span></div>`;
   }
-  function renderConvLista(vis, semVis) {
-    const ordem = ['vencida', 'vencendo', 'pendente', 'emdia'];
-    const grupos = ordem.map(k => ({ k, ls: vis.filter(l => l.sit === k).sort((a, b) => a.c.vigFim.localeCompare(b.c.vigFim)) })).filter(g => g.ls.length);
-    const acaoHtml = (l) => { const a = l.acoes[0]; return a ? `<div class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</div>${l.acoes.length > 1 ? `<div class="dp-cell-sub">+${l.acoes.length - 1} outra(s)</div>` : ''}` : '<div class="cv-acao ok">Tudo em dia</div>'; };
-    const linha = (l) => {
-      const c = l.c, ef = cctEfetiva(cctVigente(sindsDaCct(c)[0]) || { cct: c, aditivos: [] });
-      const lab = sindsDaCct(c).filter(s => c.partes.some(p => p.papel !== 'patronal' && cnpjDig(p.cnpj) === cnpjDig(s.cnpj))).map(rotuloSind);
-      const pat = c.partes.filter(p => p.papel === 'patronal').map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return s ? rotuloSind(s) : p.nome; });
-      return `<tr class="cv-row${state.dpConvPainel === c.id ? ' sel' : ''}" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0">
-        <td><div class="dp-cell-main" style="white-space:normal">${escapeHtml(tituloCurto(c))}</div><div class="dp-cell-sub" style="white-space:normal">${escapeHtml([lab.join(', '), pat.join(', ')].filter(Boolean).join(' × ') || c.partes.map(p => p.nome).join(' × '))}</div></td>
-        <td>${barraVig(c)}<div class="dp-cell-sub">data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></td>
-        <td><div class="cv-num">${escapeHtml(resumoReajuste(ef) || '—')}</div><div class="dp-cell-sub">${ef.pisos.val.length ? `piso ${escapeHtml(ef.pisos.val[0].valor)}${ef.pisos.val.length > 1 ? ` +${ef.pisos.val.length - 1}` : ''}` : 'sem piso cadastrado'}</div></td>
-        <td class="num"><b>${l.emps.length}</b></td>
-        <td>${acaoHtml(l)}</td></tr>`;
-    };
-    const semHtml = semVis.length ? `<tr class="cv-grp late"><td colspan="5">Sem CCT <span>${semVis.length}</span></td></tr>` + semVis.sort((a, b) => byNome(a.e, b.e)).map(x => `<tr class="cv-row"><td colspan="3"><button type="button" class="ct-emp" data-open-emp="${escapeHtml(x.e.id)}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(x.e.nome)}</div></button><div class="dp-cell-sub">${escapeHtml(x.e.responsavel || 'sem responsável')}</div></td><td></td><td><div class="cv-acao late">${x.ss.length ? `Cadastrar a CCT de ${escapeHtml(x.ss.map(rotuloSind).join(', '))}` : 'Informar o sindicato da empresa (código no estabelecimento)'}</div></td></tr>`).join('') : '';
-    const rotG = { vencida:'Vencidas', vencendo:'Vencendo', pendente:'Pendentes', emdia:'Em dia' }, clsG = { vencida:'late', vencendo:'warn', pendente:'warn', emdia:'ok' };
-    const corpo = grupos.filter(g => g.k !== 'emdia').map(g => `<tr class="cv-grp ${clsG[g.k]}"><td colspan="5">${rotG[g.k]} <span>${g.ls.length}</span></td></tr>` + g.ls.map(linha).join('')).join('') + semHtml + grupos.filter(g => g.k === 'emdia').map(g => `<tr class="cv-grp ok"><td colspan="5">${rotG[g.k]} <span>${g.ls.length}</span></td></tr>` + g.ls.map(linha).join('')).join('');
-    $('#cv-lista').innerHTML = `<div class="list-card ct-sheet"><table class="ct-table cv-table"><colgroup><col><col style="width:170px"><col style="width:150px"><col style="width:92px"><col style="width:32%"></colgroup>
-      <thead><tr><th>Convenção</th><th>Vigência</th><th>Reajuste · piso</th><th class="num">Empresas</th><th>Próxima ação</th></tr></thead><tbody>${corpo || `<tr><td colspan="5"><div class="dp-empty">${state.dpConvSit || state.dpConvQuery ? 'Nada com esse filtro.' : 'Nenhuma convenção nesta carteira ainda.'}</div></td></tr>`}</tbody></table></div>`;
-  }
   // Linha do tempo: 24 meses (11 para trás, 12 para frente), uma barra por convenção, hoje marcado e data-bases como pontos.
   function renderConvTempo(vis) {
     const t = hoje(), ini = new Date(t.getFullYear(), t.getMonth() - 11, 1), fim = new Date(t.getFullYear(), t.getMonth() + 13, 0);
@@ -5751,6 +5735,34 @@ body.portal-open{overflow:hidden;}
   }
 
   // ----- eventos -----
+  // ----- consulta (somente leitura): sindicatos e convenções vinculados a cada empresa -----
+  const dlgConsulta = $('#dlg-consulta');
+  function renderConsulta() {
+    const q = $('#cq-busca').value.trim();
+    const emps = empresasCarteira().filter(ativa).sort(byNome);
+    let n = 0;
+    const html = emps.map(e => {
+      const ss = empresaSinds(e).filter(x => !ehSemSind(x));
+      if (!matchQ([e.nome, e.cod, e.cnpj, e.responsavel, ...ss.map(x => `${x.cod} ${rotuloSind(x)} ${x.nome}`)], q)) return '';
+      n++;
+      const linhas = ss.map(x => {
+        const v = cctVigente(x), vg = vigStatus(x), ef = v ? cctEfetiva(v) : null, rj = ef ? resumoReajuste(ef) : (x.percentual || '');
+        const pisoV = ef && ef.pisos.val[0] ? ef.pisos.val[0].valor : x.piso;
+        return `<div class="cq-row"><div><b>${escapeHtml(rotuloSind(x))}</b><div class="dp-cell-sub">${x.cod ? 'código ' + escapeHtml(x.cod) : ''}${x.cnpj ? ' · ' + escapeHtml(x.cnpj) : ''}</div></div>
+          <div>${x.dataBase ? escapeHtml(x.dataBase) : '<span class="dp-cell-sub">—</span>'}</div>
+          <div>${v ? `${escapeHtml(tituloCurto(v.cct))}<div class="dp-cell-sub">${escapeHtml(CCT_STATUS[v.cct.status].split(' (')[0])}${v.cct.registro ? ' · ' + escapeHtml(v.cct.registro) : ''}</div>` : '<span class="dp-cell-sub">sem convenção cadastrada</span>'}</div>
+          <div>${x.vigIni || x.vigFim ? `${x.vigIni ? fmtYmdBR(x.vigIni) : '?'} a ${x.vigFim ? fmtYmdBR(x.vigFim) : '?'}<div><span class="pill ${vg.cls}">${vg.txt}</span></div>` : '<span class="dp-cell-sub">—</span>'}</div>
+          <div>${rj ? escapeHtml(rj) : '<span class="dp-cell-sub">—</span>'}</div>
+          <div>${pisoV ? escapeHtml(moeda(pisoV)) : '<span class="dp-cell-sub">—</span>'}</div></div>`;
+      }).join('');
+      return `<div class="cq-emp">${escapeHtml(e.nome)}<small>${[e.cnpj, respEf(e)].filter(Boolean).map(escapeHtml).join(' · ')}</small></div>` +
+        (ss.length ? `<div class="cq-row cq-head"><div>Sindicato</div><div>Data-base</div><div>Convenção em vigor</div><div>Vigência</div><div>Reajuste</div><div>Piso</div></div>${linhas}` : '<div class="cq-row"><span class="dp-cell-sub">Nenhum sindicato vinculado</span></div>');
+    }).join('');
+    $('#cq-lista').innerHTML = html || '<div class="cq-vazio">Nenhuma empresa encontrada.</div>';
+    $('#cq-count').textContent = `${n} empresa(s)${state.dpCarteira ? ' · carteira de ' + carteiraNome() : ''}`;
+  }
+  $('#cq-busca').addEventListener('input', renderConsulta);
+  $('#dlg-consulta-close').addEventListener('click', () => dlgConsulta.close());
   $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
   $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b && b.dataset.cvModo !== state.dpConvModo) { state.dpConvModo = b.dataset.cvModo; state.prefs.convModo = state.dpConvModo; savePrefs(); state.dpConvAnim = true; renderConvencoes(); } });
   $('#sd-resumo').open = !!state.prefs.cadResumo; $('#sd-resumo').addEventListener('toggle', () => { state.prefs.cadResumo = $('#sd-resumo').open; savePrefs(); });
@@ -5758,6 +5770,7 @@ body.portal-open{overflow:hidden;}
   const cvMain = $('#dp-view-sindicatos');
   cvMain.addEventListener('click', async (e) => {
     const t = e.target;
+    if (t.closest('[data-cv-consultar]')) { $('#cq-busca').value = ''; renderConsulta(); if (!dlgConsulta.open) dlgConsulta.showModal(); $('#cq-busca').focus(); return; }
     const cad = t.closest('[data-cv-cad]');
     if (cad) { t.closest('details') && (t.closest('details').open = false); state.dpConvCad = true; state.dpSindVisao = cad.dataset.cvCad; renderSindTab(); return; }
     const ac = t.closest('[data-cv-acao]');
