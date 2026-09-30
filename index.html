@@ -208,19 +208,26 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live{flex:none; display:flex; align-items:center; gap:7px; padding:0 14px; font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:linear-gradient(90deg, #C2000C, #8E0A10); position:relative; z-index:1;}
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
-.tk-view{flex:1; min-width:0; overflow:hidden; -webkit-mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image:linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);}
-.tk-trilho{display:flex; width:max-content; animation:tkCorre var(--dur, 60s) linear infinite;}
-.hh-ticker:hover .tk-trilho,.hh-ticker:focus-within .tk-trilho{animation-play-state:paused;}
-@keyframes tkCorre{from{transform:translateX(0);} to{transform:translateX(-50%);}}
-.tk-faixa{display:flex; align-items:center; flex:none;}
-.tk-it{all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:8px; padding:11px 4px; white-space:nowrap; font-size:13px; color:#B9C5CF; transition:color .15s;}
-.tk-it:hover span{color:#fff; text-decoration:underline; text-decoration-color:rgba(255,255,255,.35); text-underline-offset:3px;} .tk-it:focus-visible{outline:2px solid #6BAAC9; outline-offset:-2px;}
-.tk-it i{width:7px; height:7px; border-radius:50%; background:var(--c); box-shadow:0 0 8px var(--c);}
-.tk-it em{font-style:normal; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--c);}
-.tk-it b{font-size:11.5px; font-weight:700; color:#fff; padding:1px 6px; border-radius:3px; background:rgba(255,255,255,.08);}
-.tk-it.late{--c:#FF6B6F;} .tk-it.warn{--c:#FF8070;} .tk-it.info{--c:#8CC6EC;} .tk-it.ok{--c:#4ECC8B;}
-.tk-sep{flex:none; width:1px; height:16px; margin:0 18px; background:rgba(255,255,255,.14);}
-@media (prefers-reduced-motion: reduce){ .tk-trilho{animation:none;} .tk-view{overflow-x:auto;} .hh-eyebrow i,.tk-live i{animation:none;} }
+@media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* odômetro rotativo */
+.hh-od{min-height:62px; align-items:stretch;}
+.od-stage{position:relative; flex:1; min-width:0; overflow:hidden;}
+.od-it{all:unset; box-sizing:border-box; cursor:pointer; position:absolute; inset:0; display:flex; align-items:center; gap:16px; padding:0 18px; opacity:0; transform:translateY(100%); pointer-events:none; transition:opacity .5s ease, transform .55s cubic-bezier(.2,.7,.2,1); min-width:0;}
+.od-it.on{opacity:1; transform:none; pointer-events:auto;} .od-it.sai{opacity:0; transform:translateY(-100%);}
+.od-it:focus-visible{outline:2px solid #6BAAC9; outline-offset:-2px;}
+.od-it em{flex:none; font-style:normal; font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#8CC6EC; min-width:92px;}
+.odo{display:inline-flex; align-items:center; font-family:"Archivo",sans-serif; font-weight:700; font-size:30px; line-height:1; color:#fff; font-variant-numeric:tabular-nums; height:1em; flex:none;}
+.odo-d{display:inline-block; height:1em; overflow:hidden; width:.62em; text-align:center;}
+.odo-col{display:flex; flex-direction:column; transform:translateY(0); transition:transform .9s cubic-bezier(.2,.75,.2,1); transition-delay:calc(var(--k, 0) * 70ms + .15s);}
+.odo-col i{font-style:normal; display:block; height:1em; line-height:1;}
+.od-it.on .odo-col{transform:translateY(calc(var(--v) * -1em));}
+.odo-s{display:inline-block; padding:0 1px; color:#B9C5CF;} .odo-suf{margin-left:2px; font-size:.7em; color:#8CC6EC;}
+.od-tx{display:flex; flex-direction:column; gap:2px; min-width:0;} .od-tx b{font-size:13.5px; font-weight:700; color:#fff;} .od-tx small{font-size:11.5px; color:#8FA0AD;}
+.od-pts{flex:none; display:flex; flex-direction:column; justify-content:center; gap:4px; padding:0 14px;}
+.od-pts i{width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.22); transition:background .3s, transform .3s;} .od-pts i.on{background:#E8474B; transform:scale(1.5);}
+.tema-claro .od-it em{color:#3C659B;} .tema-claro .odo{color:#101820;} .tema-claro .odo-s{color:#5F6D77;} .tema-claro .odo-suf{color:#3C659B;}
+.tema-claro .od-tx b{color:#101820;} .tema-claro .od-tx small{color:#5F6D77;} .tema-claro .od-pts i{background:rgba(16,24,32,.18);} .tema-claro .od-pts i.on{background:#C2000C;}
+@media (max-width:760px){ .od-it{gap:10px; padding:0 12px;} .od-it em{min-width:0; max-width:74px; white-space:normal; line-height:1.2;} .odo{font-size:24px;} .od-tx small{display:none;} .od-pts{padding:0 10px;} }
 .hh-tx h1{margin:8px 0 4px; font-family:"Archivo",sans-serif; font-size:30px; font-weight:700; letter-spacing:-.02em; color:#fff; line-height:1.1;}
 .hh-tx p{margin:0; font-size:13.5px; color:#B9C5CF;} .hh-tx p b{color:#fff;}
 .hh-stats{display:flex; flex-wrap:wrap; gap:10px; position:relative;}
@@ -280,10 +287,6 @@ body:not(.in-module).tema-claro{background:
 .tema-claro .hh-search:hover{background:#fff; box-shadow:inset 0 0 0 1px rgba(60,101,155,.5);} .tema-claro .hh-search kbd{border-color:rgba(16,24,32,.18);}
 .tema-claro .hh-theme{color:#47545F;} .tema-claro .hh-theme:hover{color:#101820; background:#fff;}
 .tema-claro .hh-ticker{background:rgba(255,255,255,.78); box-shadow:inset 0 0 0 1px rgba(16,24,32,.11);}
-.tema-claro .tk-it{color:#47545F;} .tema-claro .tk-it:hover span{color:#101820; text-decoration-color:rgba(16,24,32,.35);}
-.tema-claro .tk-it b{color:#101820; background:rgba(16,24,32,.07);}
-.tema-claro .tk-it.late{--c:#C2000C;} .tema-claro .tk-it.warn{--c:#D2452C;} .tema-claro .tk-it.info{--c:#3C659B;} .tema-claro .tk-it.ok{--c:#167A45;}
-.tema-claro .tk-sep{background:rgba(16,24,32,.16);}
 .tema-claro .home-qa{color:var(--ink);} .tema-claro .hqa-head h2{color:#101820;}
 .tema-claro .home-qa .qa-tile{background:rgba(255,255,255,.8); border-color:rgba(16,24,32,.11); color:#101820;}
 .tema-claro .home-qa .qa-tile:hover{background:#fff; border-color:color-mix(in srgb, var(--accent, #3C659B) 55%, transparent); box-shadow:0 6px 20px color-mix(in srgb, var(--accent, #3C659B) 18%, transparent);}
@@ -2724,33 +2727,66 @@ body.portal-open{overflow:hidden;}
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
   }
-  // Letreiro da tela inicial: informações vivas de todos os módulos, passando sem parar.
-  function tickerItens() {
-    const out = [], t = hoje(), ts = ymd(t);
-    const add = (mod, cls, txt, attrs = '', quando = '') => out.push({ mod, cls, txt, attrs, quando });
-    if (state.meusLoaded && !state.meusOff) meusEventos(t, t).slice(0, 4).forEach(ev => add('Lembrete', 'info', ev.meu?.texto || ev.titulo || 'Lembrete', `data-go="agenda:tipo:meu"`, ev.meu?.hora || 'hoje'));
+  // Faixa “Ao vivo” da tela inicial: um indicador quantitativo por vez, com número em odômetro. Só totais, nada de pendências.
+  const fmtN = (n) => Number(n).toLocaleString('pt-BR');
+  function indicadores() {
+    const out = [], t = hoje();
+    const add = (mod, rot, valor, sub, go, suf = '') => { if (Number.isFinite(valor) && valor > 0) out.push({ mod, rot, valor, sub, go, suf }); };
     if (state.dpLoaded && state.dpEmpresas.length) {
-      eventos(t, addDays(t, 7)).filter(ev => ev.tipo !== 'meu').slice(0, 8).forEach(ev => add('Agenda', ymd(ev.d) === ts ? 'late' : 'info', `${ev.titulo}${ev.empresa ? ' · ' + ev.empresa.nome : ev.emps ? ' · ' + ev.emps.length + ' empresa(s)' : ''}`, `data-go="agenda"`, ymd(ev.d) === ts ? 'hoje' : fmtDM(ev.d)));
-      alertasPessoal().filter(a => a.nivel !== 'soon').slice(0, 5).forEach(a => add('Pessoal', 'late', `${a.func ? (a.func.nome || 'Funcionário') + ' · ' : ''}${a.txt} · ${a.empresa.nome}`, `data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"`));
-      try {
-        const { linhas, sem } = convencoesDaCarteira();
-        linhas.filter(l => l.sit !== 'emdia').slice(0, 6).forEach(l => add('Convenções', l.sit === 'vencida' || l.sit === 'vencendo' ? 'late' : 'warn', `${tituloCurto(l.c)}: ${l.acoes[0]?.txt || ''}`, `data-go="sindicatos:cct:${escapeHtml(l.c.id)}"`));
-        if (sem.length) add('Convenções', 'warn', `${sem.length} empresa(s) sem convenção cadastrada`, `data-go="sindicatos"`);
-      } catch {}
-      (state.dpCob?.ausencias || []).filter(a => a.inicio <= ts && ts <= a.fim).forEach(a => add('Cartela', 'info', `${a.analista} ausente (${a.motivo.toLowerCase()}) até ${fmtYmdBR(a.fim).slice(0, 5)}`, `data-go="cartela"`));
-      const ativas = state.dpEmpresas.filter(ativa), nf = ativas.reduce((n, e) => n + nfEmp(e), 0);
-      add('Empresas', 'ok', `${ativas.length} empresa(s) ativa(s) · ${nf} funcionário(s)`, `data-go="empresas"`);
-      const semResp = ativas.filter(e => !e.responsavel).length; if (semResp) add('Empresas', 'warn', `${semResp} empresa(s) sem responsável`, `data-go="empresas"`);
+      const ativas = state.dpEmpresas.filter(ativa), funcs = ativas.flatMap(e => e.funcionarios), nf = ativas.reduce((n, e) => n + nfEmp(e), 0);
+      add('Empresas', 'empresas ativas', ativas.length, `${fmtN(state.dpEmpresas.length)} cadastradas no total`, 'empresas');
+      add('Empresas', 'filiais', ativas.filter(ehFilial).length, `${fmtN(ativas.filter(e => !ehFilial(e)).length)} matrizes`, 'empresas');
+      add('Funcionários', 'funcionários ativos', funcs.filter(f => funcStatus(f) === 'Ativo').length, `${fmtN(nf)} no total, em ${fmtN(ativas.length)} empresas`, 'funcionarios');
+      add('Funcionários', 'em férias agora', funcs.filter(f => funcStatus(f) === 'Férias').length, 'hoje', 'funcionarios');
+      add('Funcionários', 'afastados', funcs.filter(f => funcStatus(f) === 'Afastado').length, 'hoje', 'funcionarios');
+      const resp = dpResponsaveis();
+      add('Cartela', 'analistas', resp.length, resp.length ? `média de ${fmtN(Math.round(ativas.length / resp.length))} empresas por analista` : '', 'cartela');
+      add('Agenda', 'datas nos próximos 7 dias', eventos(t, addDays(t, 7)).length, 'rotinas, prazos e datas da equipe', 'agenda');
+      if (state.dpCcts.length) {
+        const vig = state.dpCcts.filter(c => c.tipo === 'cct' && c.status !== 'substituida' && c.vigFim >= ymd(t)).length;
+        add('Convenções', 'convenções em vigor', vig, `${fmtN(state.dpCcts.length)} cadastradas`, 'sindicatos');
+        try { const cv = convencoesDaCarteira(), cob = cv.emps.length ? Math.round((cv.emps.length - cv.sem.length) / cv.emps.length * 100) : 0; add('Convenções', 'empresas com convenção', cob, `${fmtN(cv.emps.length - cv.sem.length)} de ${fmtN(cv.emps.length)}`, 'sindicatos', '%'); } catch {}
+      }
+      add('Sindicatos', 'sindicatos cadastrados', state.dpSind.length, `${fmtN(state.dpSind.filter(x => state.dpEmpresas.some(e => empresaSinds(e).includes(x))).length)} com empresas vinculadas`, 'sindicatos');
     }
+    if (state.meusLoaded && !state.meusOff) add('Meus lembretes', 'lembretes cadastrados', state.meus.length, 'só você vê', 'agenda:tipo:meu');
     return out;
   }
+  // Número em odômetro: cada dígito é uma coluna 0–9 que rola até o valor.
+  function odometroHtml(valor, suf) {
+    const txt = fmtN(valor);
+    let k = 0;
+    return `<span class="odo" aria-label="${escapeHtml(txt + suf)}">${[...txt].map(ch => /\d/.test(ch)
+      ? `<span class="odo-d" style="--v:${ch}; --k:${k++}" aria-hidden="true"><span class="odo-col">${'0123456789'.split('').map(d => `<i>${d}</i>`).join('')}</span></span>`
+      : `<span class="odo-s" aria-hidden="true">${ch}</span>`).join('')}${suf ? `<span class="odo-s odo-suf" aria-hidden="true">${escapeHtml(suf)}</span>` : ''}</span>`;
+  }
+  let tkTimer = 0, tkIdx = 0;
   function tickerHtml() {
-    const it = tickerItens();
+    const it = indicadores();
+    clearInterval(tkTimer); tkTimer = 0; tkIdx = 0;
     if (!it.length) return '';
-    const item = (x) => `<button type="button" class="tk-it ${x.cls}" ${x.attrs}><i></i><em>${escapeHtml(x.mod)}</em>${x.quando ? `<b>${escapeHtml(x.quando)}</b>` : ''}<span>${escapeHtml(x.txt)}</span></button>`;
-    const faixa = it.map(item).join('<span class="tk-sep" aria-hidden="true"></span>');
-    const dur = Math.max(30, it.length * 7);
-    return `<div class="hh-ticker" role="marquee" aria-label="Novidades dos módulos"><span class="tk-live"><i></i>Ao vivo</span><div class="tk-view"><div class="tk-trilho" style="--dur:${dur}s"><div class="tk-faixa">${faixa}<span class="tk-sep"></span></div><div class="tk-faixa" aria-hidden="true">${faixa}<span class="tk-sep"></span></div></div></div></div>`;
+    const slides = it.map((x, i) => `<button type="button" class="od-it${i === 0 ? ' on' : ''}" data-go="${x.go}" ${i ? 'tabindex="-1"' : ''}><em>${escapeHtml(x.mod)}</em>${odometroHtml(x.valor, x.suf)}<span class="od-tx"><b>${escapeHtml(x.rot)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</span></button>`).join('');
+    const pts = it.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
+    return `<div class="hh-ticker hh-od" aria-label="Números dos módulos"><span class="tk-live"><i></i>Ao vivo</span><div class="od-stage">${slides}</div><div class="od-pts" aria-hidden="true">${pts}</div></div>`;
+  }
+  function tickerIniciar() {
+    const box = $('.hh-od'); if (!box) return;
+    const sl = $$('.od-it', box), pts = $$('.od-pts i', box);
+    if (sl.length < 2) return;
+    const ir = (n) => {
+      const at = sl.findIndex(x => x.classList.contains('on'));
+      sl.forEach((x, i) => { x.classList.toggle('on', i === n); x.classList.toggle('sai', i === at && i !== n); x.tabIndex = i === n ? 0 : -1; });
+      pts.forEach((x, i) => x.classList.toggle('on', i === n));
+      tkIdx = n;
+    };
+    let parado = false;
+    box.addEventListener('pointerenter', () => { parado = true; }); box.addEventListener('pointerleave', () => { parado = false; });
+    box.addEventListener('focusin', () => { parado = true; }); box.addEventListener('focusout', () => { parado = false; });
+    tkTimer = setInterval(() => {
+      if (!box.isConnected) { clearInterval(tkTimer); tkTimer = 0; return; }
+      if (document.hidden || state.activeModule || parado) return;
+      ir((tkIdx + 1) % sl.length);
+    }, 4500);
   }
   function renderHome() {
     const root = $('#home-root');
@@ -2801,7 +2837,7 @@ body.portal-open{overflow:hidden;}
       ${tickerHtml()}
       <div class="home-grid">${cardHtml('Meus lembretes de hoje', '', meusBody, meusAcoes)}${equipeCard}${alertCard}</div>
       <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
-    applyTheme();
+    applyTheme(); tickerIniciar();
   }
 
   // ---------- busca global ----------
