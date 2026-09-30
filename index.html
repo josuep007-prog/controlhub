@@ -132,6 +132,43 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 }
 .card.nav-on{background:var(--surface-2);}
 .card.nav-on::before{opacity:1;}
+/* ---- barra lateral repaginada: escura (continua o cabeçalho), logo da ControlTax em marca-d'água ---- */
+.side-rail{
+  --ink:#E9EEF2; --ink-2:#B9C5CF; --ink-3:#7D8E9B; --surface:#111A21; --surface-2:rgba(255,255,255,.06); --rule:rgba(255,255,255,.08);
+  color:var(--ink); border-right:1px solid rgba(255,255,255,.06);
+  background:
+    linear-gradient(180deg, rgba(10,16,21,.90) 0%, rgba(10,16,21,.93) 55%, rgba(10,16,21,.86) 100%),
+    var(--rail-logo, none) no-repeat -64px calc(100% + 40px) / 250px auto,
+    radial-gradient(420px 320px at 0% 100%, rgba(194,0,12,.35), transparent 70%),
+    linear-gradient(180deg, #0E151B 0%, #0B1116 100%);
+  transition:width .22s cubic-bezier(.2,.7,.2,1), box-shadow .22s ease;
+}
+.side-rail::after{content:""; position:absolute; top:0; right:0; bottom:0; width:1px; background:linear-gradient(180deg, rgba(194,0,12,.55), rgba(107,170,201,.25) 45%, transparent 90%); pointer-events:none;}
+.side-rail.open,.side-rail.hovering{box-shadow:12px 0 40px rgba(0,0,0,.35);}
+.side-rail-panel{padding:14px 6px 24px; position:relative; min-height:100%; display:flex; flex-direction:column;}
+.side-rail .rail-list{gap:4px;}
+.side-rail .card{padding:8px; border-radius:4px; transition:background .15s ease, transform .15s ease;}
+.side-rail .card::before{left:-6px; top:18%; bottom:18%; width:3px; border-radius:0 2px 2px 0; background:var(--brand-red); box-shadow:0 0 12px rgba(194,0,12,.8);}
+.side-rail .card:hover{background:rgba(255,255,255,.06);}
+.side-rail .card.nav-on{background:linear-gradient(90deg, rgba(194,0,12,.22), rgba(194,0,12,.04) 70%, transparent);}
+.side-rail .card-icon{width:36px; height:36px; border-radius:4px; background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); transition:transform .18s cubic-bezier(.2,.7,.2,1), background .15s, box-shadow .15s;}
+.side-rail .card-icon .ic{color:color-mix(in srgb, var(--accent, #6BAAC9) 55%, #fff); stroke-width:1.7;}
+.side-rail .card:hover .card-icon{transform:scale(1.06); background:color-mix(in srgb, var(--accent, #6BAAC9) 22%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 55%, transparent), 0 0 18px color-mix(in srgb, var(--accent, #6BAAC9) 35%, transparent);}
+.side-rail .card.nav-on .card-icon{background:linear-gradient(135deg, #C2000C, #7A0A0E); box-shadow:0 4px 14px rgba(194,0,12,.45), inset 0 0 0 1px rgba(255,255,255,.12);}
+.side-rail .card.nav-on .card-icon .ic{color:#fff;}
+.side-rail .card-title{font-size:13px; font-weight:600; color:var(--ink-2); transition:color .15s;} .side-rail .card:hover .card-title,.side-rail .card.nav-on .card-title{color:#fff;}
+.side-rail .card.no-link .card-title{color:var(--ink-3);}
+.side-rail .card-fav,.side-rail .card-edit{background:rgba(17,26,33,.9); color:var(--ink-3);} .side-rail .card-fav.on{color:#E3A008;}
+.side-rail .rail-sep{height:1px; margin:12px 8px 2px; background:linear-gradient(90deg, rgba(255,255,255,.12), transparent);}
+.side-rail-label{color:var(--ink-3); letter-spacing:.12em; font-size:10.5px; padding:14px 12px 8px;}
+.side-rail-label i{background:var(--brand-red); box-shadow:0 0 8px rgba(194,0,12,.9);}
+.side-rail .rail-add .card-icon{background:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.14); border:0;} .side-rail .rail-add .card-icon .ic{color:var(--ink-3);} .side-rail .rail-add .card-title{color:var(--ink-3); font-weight:500;}
+.rail-foot{margin-top:auto; padding:22px 12px 0; display:flex; align-items:center; gap:10px; white-space:nowrap; opacity:0; transition:opacity .15s ease; pointer-events:none;}
+.side-rail.open .rail-foot,.side-rail.hovering .rail-foot{opacity:1;}
+.side-rail .card-title{transition:opacity .15s ease, color .15s;} .side-rail:not(.open):not(.hovering) .card-title,.side-rail:not(.open):not(.hovering) .card-fav,.side-rail:not(.open):not(.hovering) .card-edit{opacity:0 !important;}
+.rail-foot b{font-family:"Archivo",sans-serif; font-size:13px; letter-spacing:-.01em; color:#fff;} .rail-foot b em{font-style:normal; color:#E8474B;}
+.rail-foot small{display:block; font-size:10.5px; color:var(--ink-3); letter-spacing:.04em;}
+@media (max-width:760px){ .side-rail{border-right:0;} }
 
 /* ============ início: Hoje ============ */
 .home-head{display:flex; align-items:baseline; gap:8px 14px; flex-wrap:wrap; padding:4px 0 16px;}
@@ -1277,6 +1314,7 @@ body.portal-open{overflow:hidden;}
       <div class="rail-sep"></div>
       <div class="side-rail-label"><i></i>Módulos e ferramentas</div>
       <div id="ferramentas-tools" class="rail-list"></div>
+      <div class="rail-foot"><div><b>Control<em>Tax</em></b><small>Painel interno · Control Hub</small></div></div>
     </div>
   </nav>
   <main id="main" class="main-content">
@@ -2554,6 +2592,7 @@ body.portal-open{overflow:hidden;}
     $('#btn-rail').setAttribute('aria-expanded', String(open));
   });
   $('#side-rail').addEventListener('click', (e) => { if (e.target.closest('[data-nav="home"]')) goHome(); });
+  { const lg = $('.brand-ico'); if (lg) $('#side-rail').style.setProperty('--rail-logo', `url("${lg.src}")`); }
   $('#side-rail').addEventListener('mouseenter', () => $('#side-rail').classList.add('hovering'));
   $('#side-rail').addEventListener('mouseleave', () => $('#side-rail').classList.remove('hovering'));
   document.addEventListener('click', (e) => {
