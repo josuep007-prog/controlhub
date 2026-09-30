@@ -4448,7 +4448,10 @@ body.portal-open{overflow:hidden;}
       }
     });
     codigosNaoCadastrados().forEach(c => out.push({ onde: state.dpSind.some(x => x.origem === 'dominio') ? 'Domínio' : 'Plataforma', cod: c.cod, txt: state.dpSind.some(x => x.origem === 'dominio') ? `código ${c.cod} usado nas empresas não existe no Domínio` : `código ${c.cod} usado nas empresas ainda não cadastrado`, n: c.n }));
-    return out.sort((a, b) => (a.onde === b.onde ? 0 : a.onde === 'Plataforma' ? -1 : 1) || b.n - a.n);
+    // um sindicato com vários problemas aparece numa linha só
+    const mapa = new Map();
+    out.forEach(r => { if (!r.s) { mapa.set(Symbol(), r); return; } const k = r.s.id + '|' + r.onde; if (mapa.has(k)) mapa.get(k).txt += ' · ' + r.txt; else mapa.set(k, { ...r }); });
+    return [...mapa.values()].sort((a, b) => (a.onde === b.onde ? 0 : a.onde === 'Plataforma' ? -1 : 1) || b.n - a.n);
   }
   function renderSindRevisar(itens) {
     const ro = state.readOnly;
@@ -4750,7 +4753,7 @@ body.portal-open{overflow:hidden;}
   const nDuplicados = () => duplicadosSinds().length + duplicadosCcts().length;
   async function unificarDuplicados() {
     const ds = duplicadosSinds(), dc = duplicadosCcts();
-    if (!ds.length && !dc.length) { toast('Nenhum cadastro duplicado.'); return; }
+    if (!ds.length && !dc.length) { await ask(`Não há cadastros duplicados.\nNenhum código de sindicato aparece em dois cadastros e não há convenções repetidas (mesmo título, tipo e vigência).\n\nSe você viu o mesmo código em duas linhas em “Revisar cadastro”, era o mesmo sindicato com mais de um problema; agora esses problemas ficam juntos numa linha só.`, [{ label:'Ok', kind:'btn-primary', value:true }]); return; }
     const extraS = ds.reduce((n, l) => n + l.length - 1, 0), extraC = dc.reduce((n, l) => n + l.length - 1, 0);
     const lista = [...ds.slice(0, 6).map(l => `• código ${l[0].cod}: ${l.length} cadastros → 1 (${rotuloSind(l[0])})`), ...dc.slice(0, 4).map(l => `• convenção “${l[0].titulo}”: ${l.length} → 1`)].join('\n');
     const ok = await ask(`Unificar cadastros duplicados?\n${extraS ? `${extraS} sindicato(s) repetido(s) em ${ds.length} código(s)` : ''}${extraS && extraC ? '\n' : ''}${extraC ? `${extraC} convenção(ões) repetida(s)` : ''}\n\n${lista}${ds.length + dc.length > 10 ? '\n• …' : ''}\n\nFica o cadastro mais completo; o que faltar nele é preenchido com os dados dos outros, e reajustes já marcados e histórico são somados.`, [{ label:'Cancelar', value:false }, { label:'Unificar', kind:'btn-primary', value:true }]);
