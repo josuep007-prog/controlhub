@@ -171,6 +171,45 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 @media (max-width:760px){ .side-rail{border-right:0;} }
 
 /* ============ início: Hoje ============ */
+.home-hero{position:relative; overflow:hidden; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:18px 28px; margin:6px 0 18px; padding:28px 30px; border-radius:6px; color:#E9EEF2;
+  background:
+    linear-gradient(90deg, rgba(10,16,21,.97) 0%, rgba(10,16,21,.90) 55%, rgba(10,16,21,.78) 100%),
+    var(--rail-logo, none) no-repeat right -30px center / 300px auto,
+    radial-gradient(520px 300px at 100% 120%, rgba(194,0,12,.45), transparent 70%),
+    radial-gradient(420px 260px at 0% -30%, rgba(60,101,155,.35), transparent 70%),
+    #0E151B;
+  box-shadow:0 10px 30px rgba(10,16,21,.18); animation:hhIn .5s cubic-bezier(.2,.7,.2,1) both;}
+.home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg, #C2000C, rgba(107,170,201,.6) 55%, transparent);}
+@keyframes hhIn{from{opacity:0; transform:translateY(8px);}}
+.hh-eyebrow{display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8FA0AD;}
+.hh-eyebrow i{width:6px; height:6px; border-radius:50%; background:#E8474B; box-shadow:0 0 10px rgba(232,71,75,.9);}
+.hh-tx h1{margin:8px 0 4px; font-family:"Archivo",sans-serif; font-size:30px; font-weight:700; letter-spacing:-.02em; color:#fff; line-height:1.1;}
+.hh-tx p{margin:0; font-size:13.5px; color:#B9C5CF;} .hh-tx p b{color:#fff;}
+.hh-stats{display:flex; flex-wrap:wrap; gap:10px; position:relative;}
+.hh-stat{all:unset; box-sizing:border-box; cursor:pointer; min-width:132px; padding:12px 16px; border-radius:4px; background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 1px rgba(255,255,255,.09); backdrop-filter:blur(4px); transition:background .15s, box-shadow .15s, transform .15s;}
+.hh-stat b{display:block; font-family:"Archivo",sans-serif; font-size:26px; font-weight:700; line-height:1; color:#fff; font-variant-numeric:tabular-nums;}
+.hh-stat span{display:block; margin-top:5px; font-size:11.5px; color:#8FA0AD;}
+.hh-stat:hover{background:rgba(255,255,255,.09); box-shadow:inset 0 0 0 1px rgba(107,170,201,.55), 0 0 22px rgba(107,170,201,.18); transform:translateY(-2px);}
+.hh-stat:focus-visible{outline:2px solid #6BAAC9; outline-offset:2px;}
+.hh-stat.late b{color:#FF6B6F;} .hh-stat.late:hover{box-shadow:inset 0 0 0 1px rgba(232,71,75,.6), 0 0 22px rgba(232,71,75,.22);}
+.hh-stat.zero b{color:#7D8E9B;}
+.home-grid .pn-card{position:relative; overflow:hidden; transition:box-shadow .18s, transform .18s;}
+.home-grid .pn-card::before{content:""; position:absolute; left:0; top:0; right:0; height:2px; background:linear-gradient(90deg, var(--brand-red), transparent 70%); opacity:.8;}
+.home-grid .pn-card:hover{box-shadow:0 8px 24px rgba(16,24,32,.08);}
+.home-qa{position:relative; overflow:hidden; margin-top:18px; padding:18px 20px 20px; border-radius:6px; color:#E9EEF2;
+  background:
+    linear-gradient(180deg, rgba(10,16,21,.95), rgba(10,16,21,.92)),
+    var(--rail-logo, none) no-repeat right -50px bottom -90px / 260px auto,
+    radial-gradient(400px 240px at 100% 100%, rgba(194,0,12,.35), transparent 70%),
+    #0E151B;}
+.hqa-head{display:flex; align-items:baseline; gap:10px; margin-bottom:12px;} .hqa-head h2{margin:0; font-size:13.5px; font-weight:700; color:#fff;} .hqa-head span{font-size:11.5px; color:#7D8E9B;}
+.home-qa .qa-tile{background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.08); color:#E9EEF2; transition:background .15s, border-color .15s, transform .15s, box-shadow .15s;}
+.home-qa .qa-tile:hover{background:rgba(255,255,255,.08); border-color:color-mix(in srgb, var(--accent, #6BAAC9) 55%, transparent); transform:translateY(-2px); box-shadow:0 0 20px color-mix(in srgb, var(--accent, #6BAAC9) 22%, transparent);}
+.home-qa .qa-tile .card-icon{background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+.home-qa .qa-tile .card-icon .ic{color:color-mix(in srgb, var(--accent, #6BAAC9) 55%, #fff);}
+.home-qa .qa-tile:hover .card-icon{background:color-mix(in srgb, var(--accent, #6BAAC9) 24%, transparent);}
+.home-qa .empty-mini{color:#7D8E9B;}
+@media (max-width:760px){ .home-hero{padding:22px 18px;} .hh-tx h1{font-size:24px;} .hh-stat{min-width:0; flex:1 1 100px;} }
 .home-head{display:flex; align-items:baseline; gap:8px 14px; flex-wrap:wrap; padding:4px 0 16px;}
 .home-head h1{font-size:22px; font-weight:700;}
 .home-head .sub{color:var(--ink-3); font-size:13px;}
@@ -2592,7 +2631,7 @@ body.portal-open{overflow:hidden;}
     $('#btn-rail').setAttribute('aria-expanded', String(open));
   });
   $('#side-rail').addEventListener('click', (e) => { if (e.target.closest('[data-nav="home"]')) goHome(); });
-  { const lg = $('.brand-ico'); if (lg) $('#side-rail').style.setProperty('--rail-logo', `url("${lg.src}")`); }
+  { const lg = $('.brand-ico'); if (lg) document.documentElement.style.setProperty('--rail-logo', `url("${lg.src}")`); }
   $('#side-rail').addEventListener('mouseenter', () => $('#side-rail').classList.add('hovering'));
   $('#side-rail').addEventListener('mouseleave', () => $('#side-rail').classList.remove('hovering'));
   document.addEventListener('click', (e) => {
@@ -2643,9 +2682,19 @@ body.portal-open{overflow:hidden;}
     const tools = [...state.tools].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
     const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-grid">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
 
-    root.innerHTML = `<div class="home-head"><h1>Hoje</h1><span class="sub">${escapeHtml(dataLonga)}${hol ? ' · ' + escapeHtml(hol) : ''}</span></div>
+    // Nome de quem está usando, para a saudação (carrega uma vez).
+    if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
+    const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    const nLemb = state.meusLoaded && !state.meusOff ? meusEventos(t, t).length : null;
+    const nEq = state.dpLoaded ? eventos(t, t).length : null;
+    const nAl = state.dpLoaded ? alertasPessoal().filter(a => a.nivel !== 'soon').length : null;
+    const stat = (n, l, go, cls = '') => n === null ? '' : `<button type="button" class="hh-stat ${cls}${n ? '' : ' zero'}" data-go="${go}"><b>${n}</b><span>${l}</span></button>`;
+    root.innerHTML = `<section class="home-hero">
+        <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
+        <div class="hh-stats">${stat(nLemb, 'lembrete(s) seus hoje', 'agenda:tipo:meu')}${stat(nEq, 'data(s) da equipe hoje', 'agenda:hoje')}${stat(nAl, 'alerta(s) de pessoal', 'funcionarios:alerta', nAl ? 'late' : '')}</div>
+      </section>
       <div class="home-grid">${cardHtml('Meus lembretes de hoje', '', meusBody, meusAcoes)}${equipeCard}${alertCard}</div>
-      <div style="padding-top:16px">${cardHtml('Acesso rápido', 'favoritas primeiro', qa)}</div>`;
+      <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2><span>favoritas primeiro</span></div>${qa}</section>`;
   }
 
   // ---------- busca global ----------
