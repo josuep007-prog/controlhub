@@ -1155,6 +1155,7 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .emp-fx.zero{opacity:.55;} .emp-fx.zero b{color:var(--ink-3);} .emp-fx.zero.on{opacity:1;}
 .dp-filtros-list{min-width:260px; padding:12px; gap:10px; right:auto; left:0;} .dp-filtros-list .field{gap:4px;}
 .dp-filtros-n{display:inline-block; min-width:16px; padding:0 5px; margin-left:4px; border-radius:3px; background:var(--blue-deep); color:var(--surface); font-size:10.5px; font-weight:700; text-align:center;}
+.tag-filial{display:inline-block; margin-left:7px; padding:1px 5px; border-radius:3px; background:var(--surface-2); color:var(--ink-3); border:1px solid var(--rule); font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; line-height:1.3; vertical-align:1px; white-space:nowrap;}
 .cb{position:relative; display:flex;} .cb input{width:100%; padding-right:32px;}
 .cb-btn{all:unset; position:absolute; right:0; top:0; bottom:0; width:32px; display:grid; place-items:center; cursor:pointer; color:var(--ink-3);} .cb-btn:hover{color:var(--ink);} .cb-btn .ic{stroke:currentColor; fill:none; stroke-width:2;}
 .cb-lista{position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:30; max-height:220px; overflow-y:auto; background:var(--surface); border:1px solid var(--rule); border-radius:4px; box-shadow:var(--shadow-2); padding:4px; scrollbar-width:thin;}
@@ -2053,6 +2054,10 @@ body.portal-open{overflow:hidden;}
   const norm = (s='') => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const matchQ = (parts, q) => { if (!q) return true; const hay = norm(parts.join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w)); };
   const cnpjClean = (s) => String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
+  // Filial: CNPJ de 14 posições cuja ordem (9ª a 12ª) não é 0001. CPF e CNPJ vazio nunca são filial.
+  const ehFilial = (e) => { const c = cnpjClean(e && e.cnpj); return c.length === 14 && c.slice(8, 12) !== '0001' && /[1-9A-Z]/.test(c.slice(8, 12)); };
+  const filialTag = (e) => ehFilial(e) ? `<span class="tag-filial" title="Filial (final ${escapeHtml(cnpjClean(e.cnpj).slice(8, 12))} no CNPJ)">filial</span>` : '';
+  const nomeEmpHtml = (e) => `${escapeHtml(e.nome)}${filialTag(e)}`;
   function maskCnpj(v) {
     const d = cnpjClean(v).slice(0,14);
     let o = d.slice(0,2);
@@ -2971,7 +2976,7 @@ body.portal-open{overflow:hidden;}
     ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
     : ev.emps
     ?`<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
-    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${escapeHtml(ev.empresa.nome)}${respEf(ev.empresa, ymd(ev.d)) && !state.dpCarteira ? ' · ' + escapeHtml(respEf(ev.empresa, ymd(ev.d))) : ''}</button>`;
+    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${nomeEmpHtml(ev.empresa)}${respEf(ev.empresa, ymd(ev.d)) && !state.dpCarteira ? ' · ' + escapeHtml(respEf(ev.empresa, ymd(ev.d))) : ''}</button>`;
 
   // ---------- cadastro ----------
   const GAPS = [
@@ -3142,7 +3147,7 @@ body.portal-open{overflow:hidden;}
   function emptyEmpresasHtml() {
     return `<div class="dp-empty" style="grid-column:1/-1"><strong>Nenhuma empresa cadastrada no DP</strong><span>Cadastre as empresas ou importe um backup na aba Empresas.</span><button type="button" class="btn btn-primary btn-sm" data-go="empresas" data-ro-hide>Ir para Empresas</button></div>`;
   }
-  const alItem = (a) => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${escapeHtml(a.empresa.nome)}</div></div>${pillRel(a.d, a.nivel === 'late' ? 'late' : undefined)}</div>`;
+  const alItem = (a) => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${nomeEmpHtml(a.empresa)}</div></div>${pillRel(a.d, a.nivel === 'late' ? 'late' : undefined)}</div>`;
   const qItem = (ev) => `<div class="q-item">${pillRel(ev.d)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div>${empLink(ev)}</div></div>`;
   // ---------- dica dos gráficos (tooltip) ----------
   // Cada marca leva data-tip: primeira linha em destaque, as demais abaixo. Texto sempre via textContent.
@@ -3467,7 +3472,7 @@ body.portal-open{overflow:hidden;}
     f.id.value = v.id || ''; f.texto.value = v.texto || ''; f.data.value = v.data || meuDia; f.hora.value = v.hora || '';
     f.rep.value = v.rep || 'nao'; f.intervalo.value = v.intervalo || 1; f.ate.value = v.ate || ''; f.obs.value = v.obs || '';
     const emps = [...state.dpEmpresas].sort(byNome);
-    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</option>`).join('');
+    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.nome)}${ehFilial(e) ? ' (filial)' : ''}</option>`).join('');
     f.empresaId.value = emps.some(e => e.id === v.empresaId) ? v.empresaId : '';
     const titulo = l ? (ro ? 'Lembrete' : 'Editar lembrete') : 'Novo lembrete';
     $('#dlg-meu-title').textContent = titulo;
@@ -3622,7 +3627,7 @@ body.portal-open{overflow:hidden;}
     const cv = empConvTxt(e);
     const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : '';
     return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
-      <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${escapeHtml(e.nome)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
+      <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
       <div class="emp-conv${cv.ok ? '' : ' sem'}">${ic('link', 'ic-sm')}<span>${escapeHtml(cv.txt)}</span></div>
       <div class="emp-tags">${e.tributacao ? `<span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span>` : ''}<span class="chip-s">${ic('user', 'ic-sm')} ${nFunc} func.</span></div>
       ${p ? `<div class="emp-next">${pillRel(p.d)}<span>${escapeHtml(p.titulo)}</span></div>` : ''}
@@ -3655,7 +3660,7 @@ body.portal-open{overflow:hidden;}
       const inv = e.cnpj && !cnpjValido(e.cnpj);
       const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)" title="CNPJ/CPF inválido"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
       return `<div class="dp-row" style="--cols:${EMP_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
-        <div><div class="dp-cell-main">${escapeHtml(e.nome)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>
+        <div><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>
         <div class="dp-hide-sm dp-cell-sub" style="font-size:12px">${escapeHtml(e.tributacao || '—')}</div>
         <div class="dp-hide-sm">${escapeHtml(e.responsavel || '—')}${coberturaDe(e).coberta ? `<div class="dp-cell-sub" title="Cobertura por ausência de ${escapeHtml(e.responsavel)}">hoje: ${escapeHtml(coberturaDe(e).efetivo)}</div>` : ''}</div>
         <div class="dp-hide-sm"><span class="dp-cell-sub emp-conv-l${empConvTxt(e).ok ? '' : ' sem'}">${escapeHtml(empConvTxt(e).txt)}</span></div>
@@ -3742,8 +3747,8 @@ body.portal-open{overflow:hidden;}
       const ev = a || prox;
       return `
       <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
-        <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${escapeHtml(e.nome)}</span></div></div>
-        <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${escapeHtml(e.nome)}</div>
+        <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
+        <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${nomeEmpHtml(e)}</div>
         <div class="dp-hide-sm dp-mono" style="font-size:12px">${f.admissao ? escapeHtml(fmtDateStr(f.admissao)) : '—'}</div>
         <div><span class="pill ${FUNC_PILL[status] || ''}">${escapeHtml(status)}</span></div>
         <div class="dp-hide-sm">${ev ? `<div class="dp-cell-sub" style="font-size:12px;color:var(--ink-2);white-space:normal">${a ? '<span class="al-dot ' + (a.nivel === 'soon' ? '' : a.nivel) + '" style="display:inline-block;margin-right:5px"></span>' : ''}${escapeHtml(ev.txt)} ${pillRel(ev.d, a?.nivel === 'late' ? 'late' : undefined)}</div>` : '<span class="dp-cell-sub">—</span>'}</div>
@@ -3854,7 +3859,7 @@ body.portal-open{overflow:hidden;}
     updateCnpjHint();
   }
   function updateDetailHeader() {
-    $('#dp-detail-title').textContent = dpDraft ? (dpAtual.nome || 'Nova empresa') : dpAtual.nome;
+    $('#dp-detail-title').innerHTML = dpDraft ? escapeHtml(dpAtual.nome || 'Nova empresa') : nomeEmpHtml(dpAtual);
     const h = !dpDraft && dpAtual.historico[0];
     const last = $('#dp-last');
     last.innerHTML = h ? `Última alteração: ${escapeHtml(h.alteracao || '')} · ${h.autor ? `<span data-uid="${escapeHtml(h.autor)}">Alguém da equipe</span> · ` : ''}${escapeHtml(h.data || '')}` : '';
@@ -4512,7 +4517,7 @@ body.portal-open{overflow:hidden;}
           ${cctResumoHtml(s)}
           ${infos ? `<div class="sd-infos">${infos}</div>` : ''}
           ${r && vs.length ? `<div class="sd-det-h"><b>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano}</b> <span class="dp-cell-sub">${r.reg.semReajuste ? 'marcado como sem reajuste neste ciclo' : `${r.feitas} de ${r.total} aplicado(s)`}</span>${ro ? '' : `<span class="spacer"></span>${r.reg.semReajuste ? '' : `<button type="button" class="linkish" data-sd-apl-todas="${escapeHtml(s.id)}">marcar todas como aplicadas</button>`}<button type="button" class="linkish" data-sd-semreaj="${escapeHtml(s.id)}">${r.reg.semReajuste ? 'desfazer “sem reajuste”' : 'não haverá reajuste neste ciclo'}</button>`}</div>` : ''}
-          <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
+          <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
           ${ro ? '' : `<div class="sd-vinc"><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button><button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar sindicato</button></div>`}
           ${s.obs ? `<p class="sd-obs">${escapeHtml(s.obs)}</p>` : ''}</td></tr>`;
       }
@@ -4551,7 +4556,7 @@ body.portal-open{overflow:hidden;}
       const caminho0 = e.estabelecimentos.map(r => r.sindicato).find(ehCaminho), caminho = caminho0 && caminhoCct({ cct: caminho0 });
       const cods = [...new Set(e.estabelecimentos.flatMap(codigosDe))].filter(c => !sindPorCod(c));
       const b = basesEmpresa(e);
-      return `<tr class="${state.dpSemSel.has(e.id) ? 'sel' : ''}" data-sd-sem-row="${escapeHtml(e.id)}"><td class="sd-selc">${ro ? '' : `<input type="checkbox" data-sd-sem-sel="${escapeHtml(e.id)}" aria-label="Selecionar ${escapeHtml(e.nome)}"${state.dpSemSel.has(e.id) ? ' checked' : ''}>`}</td><td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(e.nome)}</div></button>${e.responsavel ? `<div class="dp-cell-sub">${escapeHtml(e.responsavel)}</div>` : ''}</td>
+      return `<tr class="${state.dpSemSel.has(e.id) ? 'sel' : ''}" data-sd-sem-row="${escapeHtml(e.id)}"><td class="sd-selc">${ro ? '' : `<input type="checkbox" data-sd-sem-sel="${escapeHtml(e.id)}" aria-label="Selecionar ${escapeHtml(e.nome)}"${state.dpSemSel.has(e.id) ? ' checked' : ''}>`}</td><td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main" style="white-space:normal">${nomeEmpHtml(e)}</div></button>${e.responsavel ? `<div class="dp-cell-sub">${escapeHtml(e.responsavel)}</div>` : ''}</td>
         <td>${inf ? `<span class="dp-cell-sub" style="white-space:normal">${escapeHtml(inf)}</span>` : caminho ? '' : '<span class="dp-cell-sub">nada informado</span>'}${caminho ? `<div><button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminho)}" title="${escapeHtml(caminho)}">${ic('link', 'ic-sm')} CCT informada (copiar caminho)</button></div>` : ''}${cods.length && !ro ? `<div><button type="button" class="linkish" data-sd-novo-cod="${escapeHtml(cods[0])}">Cadastrar o código ${escapeHtml(cods[0])}</button></div>` : ''}</td>
         <td>${b.length ? escapeHtml(b.join(', ')) : '<span class="dp-cell-sub">—</span>'}</td>
         <td>${ro ? '' : state.dpSind.length ? `<div class="sd-vinc"><select data-sd-emp-sel="${escapeHtml(e.id)}" aria-label="Sindicato de ${escapeHtml(e.nome)}">${optsSind}</select><button type="button" class="btn btn-sm" data-sd-emp-vinc="${escapeHtml(e.id)}">Vincular</button></div>` : '<span class="dp-cell-sub">cadastre um sindicato primeiro</span>'}</td></tr>`;
@@ -4961,7 +4966,7 @@ body.portal-open{overflow:hidden;}
     $('#sv-title').textContent = `Empresas de ${rotuloSind(s)}`;
     $('#sv-busca').value = '';
     const outros = (e) => empresaSinds(e).filter(x => x !== s).map(x => x.nome).join(', ');
-    $('#sv-list').innerHTML = state.dpEmpresas.filter(ativa).sort(byNome).map(e => `<label class="sv-item" data-busca="${escapeHtml(norm([e.nome, e.cod, e.cnpj, e.responsavel].join(' ')))}"><input type="checkbox" value="${escapeHtml(e.id)}"${empresaSinds(e).includes(s) ? ' checked' : ''}><span><b>${escapeHtml(e.nome)}</b><small>${escapeHtml([e.responsavel, outros(e) && 'já em: ' + outros(e)].filter(Boolean).join(' · '))}</small></span></label>`).join('');
+    $('#sv-list').innerHTML = state.dpEmpresas.filter(ativa).sort(byNome).map(e => `<label class="sv-item" data-busca="${escapeHtml(norm([e.nome, e.cod, e.cnpj, e.responsavel].join(' ')))}"><input type="checkbox" value="${escapeHtml(e.id)}"${empresaSinds(e).includes(s) ? ' checked' : ''}><span><b>${nomeEmpHtml(e)}</b><small>${escapeHtml([e.responsavel, outros(e) && 'já em: ' + outros(e)].filter(Boolean).join(' · '))}</small></span></label>`).join('');
     svConta();
     if (!dlgSv.open) dlgSv.showModal();
     $('#sv-busca').focus();
@@ -5460,7 +5465,7 @@ body.portal-open{overflow:hidden;}
     const semCod = c.partes.filter(p => !ss.some(s => cnpjDig(s.cnpj) === cnpjDig(p.cnpj)));
     const pat = c.contribs.filter(k => k.quem === 'empresa' && k.calc?.tipo);
     $('#cct-emps').innerHTML = `<p class="dp-sec-note" style="margin:0">Ligada aos códigos ${ss.length ? ss.map(s => `<b>${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}`).join(', ') : '<i>nenhum</i> (importe a lista do Domínio na aba Sindicatos)'}${semCod.length ? ` · fora do Domínio: ${semCod.map(p => escapeHtml(p.nome)).join(', ')}` : ''}.</p>` +
-      (emps.length ? `<table class="ct-table cct-emp-tab"><thead><tr><th>Empresa</th><th class="num">Func.</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${emps.map(e => `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button></td><td class="num">${nfEmp(e)}</td>${pat.map(k => { const r = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(r?.det || '')}">${r && Number.isFinite(r.v) ? brl(r.v) : `<span class="dp-cell-sub">${escapeHtml(r?.det || '—')}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note" style="margin:0">Valores estimados com o cadastro da empresa (funcionários cadastrados, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub" style="margin:0">Nenhuma empresa ativa vinculada aos sindicatos desta convenção.</p>');
+      (emps.length ? `<table class="ct-table cct-emp-tab"><thead><tr><th>Empresa</th><th class="num">Func.</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${emps.map(e => `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button></td><td class="num">${nfEmp(e)}</td>${pat.map(k => { const r = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(r?.det || '')}">${r && Number.isFinite(r.v) ? brl(r.v) : `<span class="dp-cell-sub">${escapeHtml(r?.det || '—')}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note" style="margin:0">Valores estimados com o cadastro da empresa (funcionários cadastrados, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub" style="margin:0">Nenhuma empresa ativa vinculada aos sindicatos desta convenção.</p>');
   }
   function lerFormCct() {
     const f = formCct.elements;
@@ -5774,7 +5779,7 @@ body.portal-open{overflow:hidden;}
     };
     const semOrd = semVis.slice().sort((a, b) => byNome(a.e, b.e));
     const semCard = semVis.length ? `<article class="cv-card cv-card-sem s-sem" style="--i:${i++}" data-cv-vincular tabindex="0" role="button" aria-label="Vincular empresas a sindicatos" title="Clique para vincular estas empresas a sindicatos"><header><span class="cv-chip s-sem">${ic('help', 'ic-sm')} Sem convenção</span><span class="spacer"></span><span class="cv-reg">${semVis.length} empresa(s)</span></header>
-        <ul class="cv-sem-l">${semOrd.map(x => `<li>${cvAv(x.e.nome, 'sm')}<div><b>${escapeHtml(x.e.nome)}</b><small>${x.ss.length ? `Cadastrar a CCT de ${escapeHtml(x.ss.map(rotuloSind).join(', '))}` : 'Informar o código do sindicato no estabelecimento'}</small></div></li>`).join('')}</ul>
+        <ul class="cv-sem-l">${semOrd.map(x => `<li>${cvAv(x.e.nome, 'sm')}<div><b>${nomeEmpHtml(x.e)}</b><small>${x.ss.length ? `Cadastrar a CCT de ${escapeHtml(x.ss.map(rotuloSind).join(', '))}` : 'Informar o código do sindicato no estabelecimento'}</small></div></li>`).join('')}</ul>
         <footer class="cv-cta n-sem">${ic('right', 'ic-sm')}<span>Vincular empresas a sindicatos</span></footer></article>` : '';
     const html = CV_GRUPOS.map(([k, rot, icn]) => {
       if (k === 'sem') return semCard ? `<section class="cv-sec s-sem"><h3>${ic(icn, 'ic-sm')} ${rot} <span>${semVis.length}</span></h3><div class="cv-grid">${semCard}</div></section>` : '';
@@ -5856,7 +5861,7 @@ body.portal-open{overflow:hidden;}
         const s = empresaSinds(e).find(x => sindsDaCct(c).includes(x));
         const r = s && reajusteStatus(s, [e]);
         const chk = !r ? '<span class="dp-cell-sub">—</span>' : r.reg.semReajuste ? '<span class="dp-cell-sub">sem reajuste</span>' : `<label class="sd-chk"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro || r.rascunho ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `em ${fmtYmdDM(r.reg.aplicado[e.id])}` : `${s.dataBase.slice(0, 3).toLowerCase()}/${r.ano}`}</label>`;
-        return `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button><div class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</div></td><td>${chk}</td>${pat.map(k => { const x = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(x?.det || '')}">${x && Number.isFinite(x.v) ? brl(x.v) : `<span class="dp-cell-sub">${escapeHtml(x?.det || '—')}</span>`}</td>`; }).join('')}</tr>`;
+        return `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><div class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</div></td><td>${chk}</td>${pat.map(k => { const x = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(x?.det || '')}">${x && Number.isFinite(x.v) ? brl(x.v) : `<span class="dp-cell-sub">${escapeHtml(x?.det || '—')}</span>`}</td>`; }).join('')}</tr>`;
       }).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note">Estimativas pelo cadastro da empresa (funcionários, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub">Nenhuma empresa desta carteira nesta convenção.</p>';
     } else if (aba === 'contrib') {
       const ks = [c, ...v.aditivos].flatMap(x => x.contribs), pz = [c, ...v.aditivos].flatMap(x => x.prazos).sort((a, b) => a.data.localeCompare(b.data));
@@ -5928,7 +5933,7 @@ body.portal-open{overflow:hidden;}
       return `<section class="cq-cct"><header><div class="cq-t"><h3><button type="button" class="cq-link" data-cq-cct="${escapeHtml(c.id)}" title="Abrir no cadastro">${escapeHtml(c.titulo)}</button></h3><div class="cq-tags"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.vigFim ? `<span class="pill ${vg.cls}">${vg.txt}</span>` : ''}${c.registro ? `<span class="dp-mono cq-reg">${escapeHtml(c.registro)}</span>` : ''}</div></div>
         <dl class="cq-kv"><div><dt>Vigência</dt><dd>${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</dd></div><div><dt>Data-base</dt><dd>${escapeHtml(c.dataBase || '—')}</dd></div><div><dt>Reajuste</dt><dd>${escapeHtml(rj || '—')}</dd></div><div><dt>Piso</dt><dd>${piso ? escapeHtml(moeda(piso.valor)) : '—'}${ef.pisos.val.length > 1 ? ` <small>+${ef.pisos.val.length - 1}</small>` : ''}</dd></div></dl></header>
         <div class="cq-cols"><div><h4>Sindicatos</h4><ul class="cq-partes">${partes || '<li class="dp-cell-sub">—</li>'}</ul>${ads.length ? `<h4>Aditivos e ofícios</h4><ul class="cq-partes">${ads.map(a => `<li>${escapeHtml(a.titulo)}<span class="dp-cell-sub"> ${escapeHtml(CCT_STATUS[a.status].split(' (')[0])}</span></li>`).join('')}</ul>` : ''}</div>
-        <div><h4>Empresas vinculadas <span class="cq-n">${emps.length}</span></h4>${emps.length ? `<ul class="cq-emps">${emps.map(e => `<li><button type="button" class="cq-link" data-cq-emp="${escapeHtml(e.id)}" title="Abrir cadastro da empresa">${escapeHtml(e.nome)}</button>${respEf(e) ? `<small>${escapeHtml(respEf(e))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="dp-cell-sub">Nenhuma empresa ativa vinculada.</p>'}</div></div></section>`;
+        <div><h4>Empresas vinculadas <span class="cq-n">${emps.length}</span></h4>${emps.length ? `<ul class="cq-emps">${emps.map(e => `<li><button type="button" class="cq-link" data-cq-emp="${escapeHtml(e.id)}" title="Abrir cadastro da empresa">${nomeEmpHtml(e)}</button>${respEf(e) ? `<small>${escapeHtml(respEf(e))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="dp-cell-sub">Nenhuma empresa ativa vinculada.</p>'}</div></div></section>`;
     }).join('');
     $('#cq-lista').innerHTML = html || '<div class="cq-vazio">Nenhuma convenção encontrada.</div>';
     $('#cq-count').textContent = `${n} convenção(ões)`;
@@ -6171,7 +6176,7 @@ body.portal-open{overflow:hidden;}
       const hoje_ = !e.responsavel ? '<span class="dp-cell-sub">—</span>' : cob.coberta ? `<span class="pill pill-today" title="${escapeHtml(cob.titular)} está de ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdBR(cob.aus.fim)}">${escapeHtml(cob.efetivo)}</span>` : cob.aus ? '<span class="pill pill-late" title="Titular ausente e ninguém cobrindo esta empresa">sem cobertura</span>' : '<span class="dp-cell-sub">titular</span>';
       return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}${mudou ? ' mudou' : ''}"${ro ? '' : ' draggable="true"'}>
         ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
-        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${escapeHtml(e.nome)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
+        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
         <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
         <td class="num">${nf}</td>
@@ -6311,7 +6316,7 @@ body.portal-open{overflow:hidden;}
     $('#aus-nome').textContent = analista || '…';
     $('#aus-emps').innerHTML = emps.length ? emps.map(e => {
       const v = atuais[e.id] !== undefined ? atuais[e.id] : (e.reserva && norm(e.reserva) !== norm(analista) ? e.reserva : '');
-      return `<div class="aus-row"><span class="aus-emp" title="${escapeHtml(e.nome)}">${escapeHtml(e.nome)}${e.reserva ? `<small>reserva: ${escapeHtml(e.reserva)}</small>` : ''}</span><select data-aus-emp="${escapeHtml(e.id)}" aria-label="Quem cobre ${escapeHtml(e.nome)}">${ausOpcoes(v, analista, '= padrão acima')}</select></div>`;
+      return `<div class="aus-row"><span class="aus-emp" title="${escapeHtml(e.nome)}">${nomeEmpHtml(e)}${e.reserva ? `<small>reserva: ${escapeHtml(e.reserva)}</small>` : ''}</span><select data-aus-emp="${escapeHtml(e.id)}" aria-label="Quem cobre ${escapeHtml(e.nome)}">${ausOpcoes(v, analista, '= padrão acima')}</select></div>`;
     }).join('') : '<div class="dp-cell-sub">Este analista não tem empresas ativas na cartela.</div>';
     atualizaAusHint();
   }
@@ -6476,7 +6481,7 @@ body.portal-open{overflow:hidden;}
     $('#ct-print').innerHTML = `<h1>Cartela de clientes · DP</h1><p class="ct-pr-sub">Emitida em ${fmtDMY(hoje())} · empresas ativas</p>` + [...por.entries()].map(([nome, ds]) => `
       <section class="ct-pr-an"><h2>${escapeHtml(nome)} <small>${ds.length} empresa(s) · ${ds.reduce((n, d) => n + d.nf, 0)} func.</small></h2>
       ${aus(nome).map(a => `<p class="ct-pr-aus">${escapeHtml(a.motivo)}: ${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</p>`).join('')}
-      <table><thead><tr><th>Empresa</th><th>Cód.</th><th>CNPJ / CPF</th><th>Tributação</th><th>Func.</th><th>Reserva</th></tr></thead><tbody>${ds.map(d => `<tr><td>${escapeHtml(d.e.nome)}${d.hoje ? ` <em>(hoje com ${escapeHtml(d.hoje)})</em>` : ''}</td><td>${escapeHtml(d.e.cod)}</td><td>${escapeHtml(d.e.cnpj)}</td><td>${escapeHtml(d.e.tributacao)}</td><td>${d.nf}</td><td>${escapeHtml(d.e.reserva)}</td></tr>`).join('')}</tbody></table></section>`).join('');
+      <table><thead><tr><th>Empresa</th><th>Cód.</th><th>CNPJ / CPF</th><th>Tributação</th><th>Func.</th><th>Reserva</th></tr></thead><tbody>${ds.map(d => `<tr><td>${escapeHtml(d.e.nome)}${ehFilial(d.e) ? ' (filial)' : ''}${d.hoje ? ` <em>(hoje com ${escapeHtml(d.hoje)})</em>` : ''}</td><td>${escapeHtml(d.e.cod)}</td><td>${escapeHtml(d.e.cnpj)}</td><td>${escapeHtml(d.e.tributacao)}</td><td>${d.nf}</td><td>${escapeHtml(d.e.reserva)}</td></tr>`).join('')}</tbody></table></section>`).join('');
     document.body.classList.add('ct-printing');
     const off = () => { document.body.classList.remove('ct-printing'); $('#ct-print').innerHTML = ''; window.removeEventListener('afterprint', off); };
     window.addEventListener('afterprint', off);

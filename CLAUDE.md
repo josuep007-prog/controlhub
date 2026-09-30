@@ -10,6 +10,9 @@ Painel interno da ControlTax. Arquivos: `index.html` (tudo) e `portal.html` (Por
 - Telas de consulta são somente leitura; edição fica no cadastro, e clicar no nome leva ao cadastro.
 - Sem rolagem horizontal da página em 390–1500px; testar claro e escuro.
 
+## Dados
+- **Filial** = empresa com CNPJ de 14 posições cuja ordem (9ª a 12ª) não é 0001 (`ehFilial`). Sempre que exibir o nome de uma empresa em HTML, usar `nomeEmpHtml(e)` para mostrar a marcação discreta “filial”.
+
 ## Fluxo de trabalho
 - Testar com Playwright (servidor `python3 -m http.server 8765`, pdf.js servido localmente) antes de publicar.
 - Commit + push e publicar sempre no mesmo artefato: https://claude.ai/artifact/SGDHdEfbJi2qBjfNRo3vXS (`index.html` + `portal.html`).
