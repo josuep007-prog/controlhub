@@ -547,6 +547,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cad-resumo .sd-kpi.warn{border-top-color:var(--rule); border-left-color:var(--cv-soon);} .cad-resumo .sd-kpi.late{border-top-color:var(--rule); border-left-color:var(--dp-late);} .cad-resumo .sd-kpi.ok{border-top-color:var(--rule); border-left-color:var(--dp-ok);}
 #dlg-consulta{width:min(1120px, calc(100vw - 24px)); max-height:92vh;} #dlg-consulta[open]{display:flex; flex-direction:column;}
 #dlg-consulta .dlg-head{flex:0 0 auto; padding:14px 20px 10px; border-bottom:1px solid var(--rule);} #dlg-consulta .dlg-head h2{font-size:15px;}
+.cq-link{all:unset; cursor:pointer; color:inherit; font-weight:inherit; text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--blue-deep) 35%, transparent); text-underline-offset:3px;} .cq-link:hover{color:var(--blue-deep); text-decoration-color:var(--blue-deep);} .cq-link:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px; border-radius:2px;}
 .cq-badge{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:3px; background:var(--blue-deep); color:var(--surface); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;} .cq-badge .ic{width:13px; height:13px;}
 #dlg-consulta .dlg-head h2{margin-right:0;}
 .cq-body{flex:1 1 auto; min-height:0; display:flex; flex-direction:column;}
@@ -5761,16 +5762,27 @@ body.portal-open{overflow:hidden;}
       const ef = cctEfetiva({ cct: c, aditivos: ads }), rj = resumoReajuste(ef), vg = vigStatus({ vigFim: c.vigFim });
       const piso = ef.pisos.val[0];
       const papel = (p) => p.papel === 'patronal' ? 'patronal' : p.papel === 'federacao' ? 'federação' : 'laboral';
-      const partes = c.partes.map(p => { const x = ss.find(y => cnpjDig(y.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${x ? `<b>${escapeHtml(x.cod)}</b> ${escapeHtml(rotuloSind(x))}` : escapeHtml(p.nome.replace(/\s*\(.*$/, ''))}<span class="dp-cell-sub"> ${papel(p)}${x ? '' : ' · fora do Domínio'}</span></li>`; }).join('');
-      return `<section class="cq-cct"><header><div class="cq-t"><h3>${escapeHtml(c.titulo)}</h3><div class="cq-tags"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.vigFim ? `<span class="pill ${vg.cls}">${vg.txt}</span>` : ''}${c.registro ? `<span class="dp-mono cq-reg">${escapeHtml(c.registro)}</span>` : ''}</div></div>
+      const partes = c.partes.map(p => { const x = ss.find(y => cnpjDig(y.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${x ? `<b>${escapeHtml(x.cod)}</b> <button type="button" class="cq-link" data-cq-sind="${escapeHtml(x.id)}" title="Abrir no cadastro">${escapeHtml(rotuloSind(x))}</button>` : escapeHtml(p.nome.replace(/\s*\(.*$/, ''))}<span class="dp-cell-sub"> ${papel(p)}${x ? '' : ' · fora do Domínio'}</span></li>`; }).join('');
+      return `<section class="cq-cct"><header><div class="cq-t"><h3><button type="button" class="cq-link" data-cq-cct="${escapeHtml(c.id)}" title="Abrir no cadastro">${escapeHtml(c.titulo)}</button></h3><div class="cq-tags"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.vigFim ? `<span class="pill ${vg.cls}">${vg.txt}</span>` : ''}${c.registro ? `<span class="dp-mono cq-reg">${escapeHtml(c.registro)}</span>` : ''}</div></div>
         <dl class="cq-kv"><div><dt>Vigência</dt><dd>${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</dd></div><div><dt>Data-base</dt><dd>${escapeHtml(c.dataBase || '—')}</dd></div><div><dt>Reajuste</dt><dd>${escapeHtml(rj || '—')}</dd></div><div><dt>Piso</dt><dd>${piso ? escapeHtml(moeda(piso.valor)) : '—'}${ef.pisos.val.length > 1 ? ` <small>+${ef.pisos.val.length - 1}</small>` : ''}</dd></div></dl></header>
         <div class="cq-cols"><div><h4>Sindicatos</h4><ul class="cq-partes">${partes || '<li class="dp-cell-sub">—</li>'}</ul>${ads.length ? `<h4>Aditivos e ofícios</h4><ul class="cq-partes">${ads.map(a => `<li>${escapeHtml(a.titulo)}<span class="dp-cell-sub"> ${escapeHtml(CCT_STATUS[a.status].split(' (')[0])}</span></li>`).join('')}</ul>` : ''}</div>
-        <div><h4>Empresas vinculadas <span class="cq-n">${emps.length}</span></h4>${emps.length ? `<ul class="cq-emps">${emps.map(e => `<li>${escapeHtml(e.nome)}${respEf(e) ? `<small>${escapeHtml(respEf(e))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="dp-cell-sub">Nenhuma empresa ativa vinculada.</p>'}</div></div></section>`;
+        <div><h4>Empresas vinculadas <span class="cq-n">${emps.length}</span></h4>${emps.length ? `<ul class="cq-emps">${emps.map(e => `<li><button type="button" class="cq-link" data-cq-emp="${escapeHtml(e.id)}" title="Abrir cadastro da empresa">${escapeHtml(e.nome)}</button>${respEf(e) ? `<small>${escapeHtml(respEf(e))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="dp-cell-sub">Nenhuma empresa ativa vinculada.</p>'}</div></div></section>`;
     }).join('');
     $('#cq-lista').innerHTML = html || '<div class="cq-vazio">Nenhuma convenção encontrada.</div>';
     $('#cq-count').textContent = `${n} convenção(ões)`;
   }
   $('#cq-busca').addEventListener('input', renderConsulta);
+  // Clicar num nome leva ao cadastro correspondente.
+  $('#cq-lista').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-cq-cct]'), sd = e.target.closest('[data-cq-sind]'), em = e.target.closest('[data-cq-emp]');
+    if (!c && !sd && !em) return;
+    dlgConsulta.close();
+    if (em) { const emp = findDpEmpresa(em.dataset.cqEmp); if (emp) openDpDetail(emp, {}); return; }
+    state.dpConvCad = true;
+    if (c) { state.dpSindVisao = 'ccts'; state.dpCctAbrir = c.dataset.cqCct; }
+    else { state.dpSindVisao = 'todos'; state.dpSindFiltro = ''; state.dpSindMes = ''; state.dpSindQuery = ''; $('#sd-search').value = ''; state.dpSindAberto.add(sd.dataset.cqSind); state.dpSindFoco = sd.dataset.cqSind; }
+    state.dpConvAnim = true; renderSindTab();
+  });
   $('#dlg-consulta-close').addEventListener('click', () => dlgConsulta.close());
   $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
   $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b && b.dataset.cvModo !== state.dpConvModo) { state.dpConvModo = b.dataset.cvModo; state.prefs.convModo = state.dpConvModo; savePrefs(); state.dpConvAnim = true; renderConvencoes(); } });
