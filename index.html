@@ -401,9 +401,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-card:hover{transform:translateY(-3px); box-shadow:0 14px 34px rgba(16,24,32,.13); border-color:color-mix(in srgb, var(--c) 40%, var(--rule));}
 .cv-card:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
 .cv-card.sel{border-color:var(--blue-deep); box-shadow:0 0 0 2px var(--blue-deep), 0 14px 34px rgba(16,24,32,.13);}
-.cv-card header{display:flex; align-items:center; gap:6px;} .cv-card header .spacer{flex:1;}
+.cv-card header{display:flex; align-items:center; flex-wrap:wrap; gap:6px;} .cv-card header .spacer{flex:1;}
 .cv-chip{display:inline-flex; align-items:center; gap:5px; padding:3px 9px 3px 7px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.02em; background:color-mix(in srgb, var(--c) 14%, var(--surface)); color:var(--c);}
-.cv-tag{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 6px; border-radius:4px; border:1px dashed var(--dp-late); color:var(--dp-late);}
+.cv-tag{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:3px 7px; border-radius:3px; background:color-mix(in srgb, var(--dp-late) 11%, var(--surface)); color:var(--dp-late); line-height:1.2;}
 .cv-reg{font-size:11px; color:var(--ink-3); font-family:ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap:anywhere; max-width:60%; text-align:right;}
 .cv-card-id{display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; align-items:center;}
 .cv-card-id h3{margin:0 0 5px; font-size:15px; line-height:1.25; color:var(--ink); display:block;}
@@ -1755,7 +1755,7 @@ body.portal-open{overflow:hidden;}
       <label class="field">Título *<input name="titulo" required maxlength="160" placeholder="Ex.: SINDICOMERCIÁRIOS x FECOMÉRCIO 2026/2027"></label>
       <div class="form-row">
         <label class="field">Tipo<select name="tipo"><option value="cct">CCT</option><option value="aditivo">Termo aditivo</option><option value="oficio">Ofício / circular</option></select></label>
-        <label class="field">Situação<select name="status"><option value="registrada">Registrada no Mediador</option><option value="assinada">Assinada (sem nº do Mediador)</option><option value="acordada">Acordada (sem aditivo registrado)</option><option value="rascunho">Rascunho, não transmitida</option><option value="substituida">Substituída</option></select></label>
+        <label class="field">Situação<select name="status"><option value="registrada">Registrada no Mediador</option><option value="assinada">Assinada (sem nº do Mediador)</option><option value="acordada">Acordada (sem aditivo registrado)</option><option value="rascunho">Registro no MTE não verificado</option><option value="substituida">Substituída</option></select></label>
         <label class="field">Registro no MTE<input name="registro" maxlength="60" placeholder="ES000123/2026"></label>
       </div>
       <div class="form-row">
@@ -5028,7 +5028,7 @@ body.portal-open{overflow:hidden;}
   ];
   // ---------- convenções coletivas (CCT, aditivos e ofícios) ligadas aos sindicatos pelo CNPJ das partes ----------
   const CCT_TIPOS = { cct:'CCT', aditivo:'Termo aditivo', oficio:'Ofício / circular' };
-  const CCT_STATUS = { registrada:'Registrada no Mediador', assinada:'Assinada (sem nº do Mediador)', acordada:'Acordada (sem aditivo registrado)', rascunho:'Rascunho, não transmitida', substituida:'Substituída' };
+  const CCT_STATUS = { registrada:'Registrada no Mediador', assinada:'Assinada (sem nº do Mediador)', acordada:'Acordada (sem aditivo registrado)', rascunho:'Registro no MTE não verificado', substituida:'Substituída' };
   const CCT_STATUS_PILL = { registrada:'pill-ok', assinada:'', acordada:'pill-today', rascunho:'pill-late', substituida:'pill-muted' };
   const CCT_RANK = { registrada:4, assinada:3, acordada:2, rascunho:1, substituida:0 };
   const CALC_TIPOS = { '':'Não calcular', fixo:'Valor fixo', porEmpregado:'Valor por empregado (mensal)', faixaEmpregados:'Tabela por nº de empregados', faixaCapital:'Tabela por capital social', tributacao:'Tabela por enquadramento tributário' };
@@ -5169,7 +5169,7 @@ body.portal-open{overflow:hidden;}
     state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
       const emps = empsDaCct(c, ativas);
       if (!emps.length) return;
-      const tag = c.status === 'rascunho' ? ' (rascunho)' : '';
+      const tag = c.status === 'rascunho' ? ' (registro no MTE não verificado)' : '';
       const ev = (d, titulo, sub) => { if (dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo: titulo + tag, sub, emps, goto: `sindicatos:cct:${c.id}` }); };
       c.contribs.forEach(k => {
         (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); ev(new Date(y, m - 1, 1), `${k.quem === 'empresa' ? 'Contribuição da empresa' : 'Descontar na folha'}: ${k.nome}`, `${c.titulo}${k.regra ? ' · ' + k.regra : ''}`); });
@@ -5179,13 +5179,13 @@ body.portal-open{overflow:hidden;}
     });
     return out;
   }
-  // Avisos das convenções: rascunho, ofício sem aditivo, vencendo sem sucessora e 2º ano de CCT bienal sem aditivo.
+  // Avisos das convenções: registro não verificado, ofício sem aditivo, vencendo sem sucessora e 2º ano de CCT bienal sem aditivo.
   function cctAlertas() {
     const out = [], t = ymd(hoje()), ativas = state.dpEmpresas.filter(ativa);
     state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
       const n = empsDaCct(c, ativas).length;
       if (!n) return;
-      if (c.status === 'rascunho') out.push({ nivel:'late', id:c.id, txt:`${c.titulo}: ainda é rascunho (não transmitida ao Mediador). Não aplicar antes do registro. ${n} empresa(s).` });
+      if (c.status === 'rascunho') out.push({ nivel:'late', id:c.id, txt:`${c.titulo}: registro no MTE não verificado. Não aplicar antes de confirmar o registro no Mediador. ${n} empresa(s).` });
       if (c.tipo !== 'cct' && c.status === 'acordada') out.push({ nivel:'warn', id:c.id, txt:`${c.titulo}: valores acordados por ${CCT_TIPOS[c.tipo].toLowerCase()}, termo aditivo ainda não registrado.` });
       if (c.tipo === 'cct' && c.vigFim) {
         const dias = diffDays(parseYmd(c.vigFim), hoje());
@@ -5377,7 +5377,7 @@ body.portal-open{overflow:hidden;}
   function acoesCct(c, emps) {
     const out = [], t = ymd(hoje());
     const aditivos = state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida');
-    if (c.status === 'rascunho') out.push({ nivel:'late', sit:'pendente', txt:'Aguardar o registro no Mediador (ainda é rascunho)' });
+    if (c.status === 'rascunho') out.push({ nivel:'late', sit:'pendente', txt:'Confirmar o registro no MTE (ainda não verificado)' });
     if (c.tipo === 'cct' && c.vigFim && !temSucessora(c)) {
       const n = diffDays(parseYmd(c.vigFim), hoje());
       const prox = c.vigFim ? `${+c.vigFim.slice(0, 4)}/${+c.vigFim.slice(0, 4) + 1}` : '';
@@ -5602,7 +5602,7 @@ body.portal-open{overflow:hidden;}
       const empsAv = l.emps.slice(0, 5).map(e => cvAv(e.nome, 'sm')).join('') + (l.emps.length > 5 ? `<span class="cv-av sm mais">+${l.emps.length - 5}</span>` : '');
       const mi = MESES.indexOf(c.dataBase);
       return `<article class="cv-card s-${l.sit}${state.dpConvPainel === c.id ? ' sel' : ''}" style="--i:${i++}" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0" role="button" aria-label="${escapeHtml(c.titulo)}">
-        <header><span class="cv-chip s-${l.sit}">${ic(CV_SITS.find(x => x.k === l.sit).ic, 'ic-sm')} ${CV_SITS.find(x => x.k === l.sit).l1}</span>${c.status === 'rascunho' ? '<span class="cv-tag">rascunho</span>' : ''}<span class="spacer"></span><span class="cv-reg">${escapeHtml(c.registro ? c.registro.split(' ')[0] : CCT_TIPOS[c.tipo])}</span></header>
+        <header><span class="cv-chip s-${l.sit}">${ic(CV_SITS.find(x => x.k === l.sit).ic, 'ic-sm')} ${CV_SITS.find(x => x.k === l.sit).l1}</span>${c.status === 'rascunho' ? '<span class="cv-tag">registro no MTE não verificado</span>' : ''}<span class="spacer"></span><span class="cv-reg">${escapeHtml(c.registro ? c.registro.split(' ')[0] : CCT_TIPOS[c.tipo])}</span></header>
         <div class="cv-card-id">${cvAnel(pctVig(c), diasCentro(c), 's-' + l.sit)}<div><h3>${escapeHtml(tituloCurto(c))}</h3>
           <div class="cv-duo">${pr.lab.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}${pr.pat.length ? `<em>×</em>${pr.pat.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}` : ''}</div>
           <div class="cv-vigtxt">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} → ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</div></div></div>
