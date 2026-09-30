@@ -1155,6 +1155,13 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .emp-fx.zero{opacity:.55;} .emp-fx.zero b{color:var(--ink-3);} .emp-fx.zero.on{opacity:1;}
 .dp-filtros-list{min-width:260px; padding:12px; gap:10px; right:auto; left:0;} .dp-filtros-list .field{gap:4px;}
 .dp-filtros-n{display:inline-block; min-width:16px; padding:0 5px; margin-left:4px; border-radius:3px; background:var(--blue-deep); color:var(--surface); font-size:10.5px; font-weight:700; text-align:center;}
+.cb{position:relative; display:flex;} .cb input{width:100%; padding-right:32px;}
+.cb-btn{all:unset; position:absolute; right:0; top:0; bottom:0; width:32px; display:grid; place-items:center; cursor:pointer; color:var(--ink-3);} .cb-btn:hover{color:var(--ink);} .cb-btn .ic{stroke:currentColor; fill:none; stroke-width:2;}
+.cb-lista{position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:30; max-height:220px; overflow-y:auto; background:var(--surface); border:1px solid var(--rule); border-radius:4px; box-shadow:var(--shadow-2); padding:4px; scrollbar-width:thin;}
+.cb-op{padding:8px 10px; font-size:13px; font-weight:500; color:var(--ink); border-radius:3px; cursor:pointer; border-left:3px solid transparent;}
+.cb-op:hover,.cb-op.on{background:var(--surface-2);} .cb-op.sel{border-left-color:var(--blue-deep); font-weight:700;}
+.cb-novo{color:var(--blue-deep); font-weight:600; border-top:1px solid var(--rule); border-radius:0 0 3px 3px;}
+.cb-vazio{padding:10px; font-size:12.5px; color:var(--ink-3);}
 .dp-sort-l{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-3);} .dp-sort-l select{width:auto;}
 .emp-name .dp-cell-main{white-space:normal;}
 .emp-meter{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink-3);}
@@ -1578,7 +1585,7 @@ body.portal-open{overflow:hidden;}
           <select id="dp-situacao"><option>Ativa</option><option>Sem movimento</option><option>Inativa</option></select>
           <span class="field-hint">Empresas inativas saem da agenda e dos alertas.</span>
         </label>
-        <label class="field">Responsável<input id="dp-responsavel" list="dp-resp-options" placeholder="Analista" autocomplete="off"><datalist id="dp-resp-options"></datalist></label>
+        <div class="field">Responsável<div class="cb"><input id="dp-responsavel" role="combobox" aria-expanded="false" aria-controls="dp-resp-lista" aria-autocomplete="list" placeholder="Analista" autocomplete="off"><button type="button" class="cb-btn" id="dp-resp-btn" tabindex="-1" aria-label="Ver todos os analistas"><svg class="ic ic-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button><div class="cb-lista" id="dp-resp-lista" role="listbox" hidden></div></div></div>
         <label class="field">Cidade / UF<input id="dp-uf" autocomplete="off"></label>
         <label class="field">Data-base (mês)<select id="dp-data-base"></select><span class="field-hint" id="dp-db-hint" hidden></span></label>
         <label class="field">Contato do cliente<input id="dp-contato" autocomplete="off"></label>
@@ -2988,8 +2995,42 @@ body.portal-open{overflow:hidden;}
     if (cur && cur !== SEM_RESP && !resp.some(r => norm(r) === norm(cur))) opts += `<option value="${escapeHtml(cur)}">${escapeHtml(cur)}</option>`;
     sel.innerHTML = opts;
     sel.value = cur;
-    $('#dp-resp-options').innerHTML = resp.map(r => `<option value="${escapeHtml(r)}">`).join('');
   }
+  // Campo “Responsável” da empresa: lista própria, sempre com todos os analistas (o datalist do navegador só mostrava o que combinava com o texto).
+  (() => {
+    const inp = $('#dp-responsavel'), box = $('#dp-resp-lista'), btn = $('#dp-resp-btn');
+    let digitou = false, ativo = -1, itens = [];
+    const abrir = () => {
+      const q = digitou ? norm(inp.value) : '';
+      const todos = dpResponsaveis();
+      itens = todos.filter(r => !q || norm(r).includes(q));
+      const exato = todos.some(r => norm(r) === norm(inp.value));
+      const extra = digitou && inp.value.trim() && !exato ? [{ novo: inp.value.trim() }] : [];
+      const lista = [...itens.map(r => ({ r })), ...extra];
+      itens = lista;
+      ativo = lista.findIndex(x => x.r && norm(x.r) === norm(inp.value));
+      box.innerHTML = lista.length ? lista.map((x, i) => x.novo
+        ? `<div class="cb-op cb-novo${i === ativo ? ' on' : ''}" role="option" data-i="${i}">Usar “${escapeHtml(x.novo)}” como novo analista</div>`
+        : `<div class="cb-op${i === ativo ? ' on' : ''}${norm(x.r) === norm(inp.value) ? ' sel' : ''}" role="option" data-i="${i}" aria-selected="${norm(x.r) === norm(inp.value)}">${escapeHtml(x.r)}</div>`).join('') : '<div class="cb-vazio">Nenhum analista cadastrado</div>';
+      box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+      const on = box.querySelector('.cb-op.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+    };
+    const fechar = () => { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); digitou = false; };
+    const escolher = (i) => { const x = itens[i]; if (!x) return; inp.value = x.r || x.novo; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); fechar(); };
+    const mover = (d) => { if (box.hidden) { abrir(); return; } const n = itens.length; if (!n) return; ativo = (ativo + d + n) % n; $$('.cb-op', box).forEach((el, i) => el.classList.toggle('on', i === ativo)); box.querySelector('.cb-op.on')?.scrollIntoView({ block: 'nearest' }); };
+    inp.addEventListener('focus', () => { digitou = false; abrir(); });
+    inp.addEventListener('click', () => { if (box.hidden) { digitou = false; abrir(); } });
+    inp.addEventListener('input', () => { digitou = true; abrir(); });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); mover(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mover(-1); }
+      else if (e.key === 'Enter' && !box.hidden && ativo >= 0) { e.preventDefault(); escolher(ativo); }
+      else if (e.key === 'Escape' && !box.hidden) { e.stopPropagation(); e.preventDefault(); fechar(); }
+    });
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); if (box.hidden) { inp.focus(); digitou = false; abrir(); } else fechar(); });
+    box.addEventListener('mousedown', (e) => { e.preventDefault(); const op = e.target.closest('.cb-op'); if (op) escolher(+op.dataset.i); });
+    inp.addEventListener('blur', () => setTimeout(fechar, 120));
+  })();
   function setCarteira(v) {
     state.dpCarteira = v || '';
     state.prefs.dpCarteira = state.dpCarteira; savePrefs();
