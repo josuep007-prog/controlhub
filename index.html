@@ -261,7 +261,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-mes.on{border-color:var(--blue-deep); background:var(--blue-pale);}
 .sd-mes b{font-size:15px; color:var(--ink); font-variant-numeric:tabular-nums;}
 .sd-mes small{font-size:10px; color:var(--blue-deep); font-weight:700;}
-.sd-mes-bar{width:60%; height:46px; background:var(--surface-3); border-radius:3px; display:flex; align-items:flex-end; overflow:hidden;}
+.sd-mes-bar{width:60%; height:30px; background:var(--surface-3); border-radius:3px; display:flex; align-items:flex-end; overflow:hidden;}
 .sd-mes-bar i{display:block; width:100%; background:var(--viz-1); border-radius:3px 3px 0 0; min-height:0;}
 .sd-mes.agora .sd-mes-bar i{background:var(--dp-today);} .sd-mes.prox .sd-mes-bar i{background:var(--viz-4);}
 .sd-db{display:inline-flex; align-items:center; gap:5px; font-weight:600; font-size:12.5px;}
@@ -546,7 +546,21 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .si-grupo summary{cursor:pointer; font-size:13px; padding:4px 0;}
 .si-tab{max-height:240px; overflow:auto; border:1px solid var(--rule); border-radius:var(--r); margin-top:6px;}
 .si-tab .ct-table{font-size:12px;} .si-tab td,.si-tab th{padding:4px 8px;} .si-tab s{color:var(--ink-3);}
-.sd-kpis{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;}
+.sd-kpis{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px;}
+.cad-resumo{border:1px solid var(--rule); border-radius:6px; background:var(--surface);}
+.cad-resumo > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; padding:10px 14px; font-size:12.5px; flex-wrap:wrap;}
+.cad-resumo > summary::-webkit-details-marker{display:none;}
+.cad-resumo > summary::before{content:""; width:7px; height:7px; border-right:2px solid var(--ink-3); border-bottom:2px solid var(--ink-3); transform:rotate(-45deg); transition:transform .15s;}
+.cad-resumo[open] > summary::before{transform:rotate(45deg);} .cad-resumo > summary:hover{background:var(--surface-2);} .cad-resumo > summary:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+.cad-resumo-t{font-weight:700; color:var(--ink);} .cad-sum{color:var(--ink-3); flex:1; min-width:0;}
+.cad-av{font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; background:color-mix(in srgb, var(--cv-soon) 14%, var(--surface)); color:var(--cv-soon);}
+.cad-resumo-b{display:flex; flex-direction:column; gap:12px; padding:2px 14px 14px;}
+.cad-sub{display:flex; align-items:baseline; gap:10px; margin-bottom:8px; font-size:12.5px;} .cad-sub span{font-size:11.5px; color:var(--ink-3);}
+.cad-resumo .ct-alertas{padding:0; margin:0; --dp-today:var(--cv-soon);} .cad-resumo .ct-al{font-size:12.5px;}
+.cad-resumo .sd-kpi{border-top-width:1px; border-left:3px solid var(--rule-strong); padding:8px 12px;} .cad-resumo .sd-kpi b{font-size:18px;}
+.cad-resumo .sd-kpi.warn{border-top-color:var(--rule); border-left-color:var(--cv-soon);} .cad-resumo .sd-kpi.late{border-top-color:var(--rule); border-left-color:var(--dp-late);} .cad-resumo .sd-kpi.ok{border-top-color:var(--rule); border-left-color:var(--dp-ok);}
+#cv-cad .dp-chip{border-radius:4px;}
+#cv-cad .pill-today{background:color-mix(in srgb, var(--cv-soon) 14%, var(--surface)); color:var(--cv-soon);}
 .sd-kpi{display:flex; flex-direction:column; gap:2px; text-align:left; background:var(--surface); border:1px solid var(--rule); border-top:3px solid var(--rule-strong); border-radius:var(--r); padding:10px 14px; font:inherit; color:var(--ink);}
 button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);} button.sd-kpi:focus-visible{outline:2px solid var(--blue-deep);}
 .sd-kpi.on{box-shadow:inset 0 0 0 2px var(--blue-deep);}
@@ -1356,12 +1370,17 @@ body.portal-open{overflow:hidden;}
           <button type="button" class="btn btn-sm btn-primary" id="sd-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Sindicato</button>
         </div>
         <div class="sd-body">
-          <div class="sd-kpis" id="sd-kpis"></div>
-          <div class="pn-card sd-meses-card">
-            <div class="pn-card-head"><h3>Data-bases do ano</h3><span class="sub">empresas ativas por mês de data-base · clique para filtrar</span></div>
-            <div class="sd-meses" id="sd-meses"></div>
-          </div>
-          <div class="ct-alertas sd-alertas" id="sd-alertas" hidden></div>
+          <details class="cad-resumo" id="sd-resumo">
+            <summary><span class="cad-resumo-t">Resumo e avisos</span><span class="cad-sum" id="sd-sum"></span><span class="cad-av" id="sd-av-n" hidden></span></summary>
+            <div class="cad-resumo-b">
+              <div class="sd-kpis" id="sd-kpis"></div>
+              <div class="sd-meses-card">
+                <div class="cad-sub"><b>Data-bases do ano</b><span>empresas ativas por mês · clique para filtrar</span></div>
+                <div class="sd-meses" id="sd-meses"></div>
+              </div>
+              <div class="ct-alertas sd-alertas" id="sd-alertas" hidden></div>
+            </div>
+          </details>
           <div class="sd-visao-bar"><div class="seg" id="sd-visao" role="group" aria-label="Quais sindicatos mostrar">
             <button type="button" data-sd-visao="uso">Em uso <small></small></button>
             <button type="button" data-sd-visao="todos">Todos do Domínio <small></small></button>
@@ -4297,6 +4316,9 @@ body.portal-open{overflow:hidden;}
     cctAlertas().forEach(a => av.push(`<button type="button" class="ct-al ${a.nivel}" data-cct-abrir="${escapeHtml(a.id)}"><span class="al-dot ${a.nivel === 'late' ? 'late' : 'today'}"></span>${escapeHtml(a.txt)}</button>`));
     if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ${state.dpSind.some(x => x.origem === 'dominio') ? 'não existem na lista do Domínio' : 'ainda não estão cadastrados'}. Clique para ${state.dpSind.some(x => x.origem === 'dominio') ? 'ver' : 'cadastrar'}.</button>`);
     $('#sd-alertas').innerHTML = av.join(''); $('#sd-alertas').hidden = !av.length;
+    const sum = [`${state.dpSind.length} sindicato(s)`, emps.length ? `${cobertas}% das empresas com sindicato` : '', nPend ? `${nPend} reajuste(s) pendente(s)` : '', vencendo.length ? `${vencendo.length} CCT(s) vencida(s) ou vencendo` : ''].filter(Boolean);
+    $('#sd-sum').textContent = sum.join(' · ');
+    const avN = $('#sd-av-n'); avN.hidden = !av.length; avN.textContent = `${av.length} aviso(s)`;
     $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
     $('#sd-detectar').textContent = `Detectar nas empresas (${codsSoltos.length})`;
     $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
@@ -5626,6 +5648,7 @@ body.portal-open{overflow:hidden;}
   // ----- eventos -----
   $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
   $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b && b.dataset.cvModo !== state.dpConvModo) { state.dpConvModo = b.dataset.cvModo; state.prefs.convModo = state.dpConvModo; savePrefs(); state.dpConvAnim = true; renderConvencoes(); } });
+  $('#sd-resumo').open = !!state.prefs.cadResumo; $('#sd-resumo').addEventListener('toggle', () => { state.prefs.cadResumo = $('#sd-resumo').open; savePrefs(); });
   $('#cv-cad-voltar').addEventListener('click', () => { state.dpConvCad = false; state.dpConvAnim = true; renderSindTab(); });
   const cvMain = $('#dp-view-sindicatos');
   cvMain.addEventListener('click', async (e) => {
