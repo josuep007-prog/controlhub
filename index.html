@@ -377,6 +377,26 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-rd-list button{all:unset; cursor:pointer; box-sizing:border-box; width:100%; display:grid; grid-template-columns:10px 44px minmax(0,1fr); gap:8px; align-items:baseline; padding:7px 4px; border-bottom:1px solid var(--rule); font-size:12.5px;}
 .cv-rd-list i{width:9px; height:9px; border-radius:50%; background:var(--cv-base);} .cv-rd-list .t-fim i{background:var(--dp-today); border-radius:2px;} .cv-rd-list .t-contrib i,.cv-rd-list .t-prazo i{background:var(--ink-3); border-radius:2px;}
 .cv-rd-list small{display:block; color:var(--ink-3); font-size:11px;}
+/* carrossel de pendências */
+.cv-tick{position:relative; margin:8px 0 2px; padding:10px 12px 12px 14px; border-radius:10px; background:color-mix(in srgb, var(--surface) 82%, transparent); border:1px solid var(--rule); overflow:hidden; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; align-items:center; min-width:0; box-shadow:0 1px 0 rgba(16,24,32,.03);}
+.cv-tick-stage{position:relative; min-height:88px; min-width:0;}
+.cv-tk{all:unset; box-sizing:border-box; position:absolute; inset:0; cursor:pointer; display:flex; flex-direction:column; justify-content:center; gap:2px; padding-left:2px; min-width:0; opacity:0; transform:translateY(14px); pointer-events:none; transition:opacity .5s ease, transform .5s cubic-bezier(.2,.7,.2,1);}
+.cv-tk.on{opacity:1; transform:none; pointer-events:auto;} .cv-tk.sai{transform:translateY(-14px);}
+.cv-tk:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px; border-radius:6px;}
+.cv-tk-tag{align-self:flex-start; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; padding:2px 7px; border-radius:4px; color:var(--surface); background:var(--c);}
+.cv-tk.n-late{--c:var(--dp-late);} .cv-tk.n-warn{--c:var(--dp-today);} .cv-tk.n-sem{--c:var(--cv-sem);} .cv-tk.n-info{--c:var(--ink-3);} .cv-tk.n-base{--c:var(--cv-base);}
+.cv-tk b{font-size:14px; font-weight:700; line-height:1.3; color:var(--ink); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+.cv-tk small{font-size:11.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.cv-tk:hover b{color:var(--c); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px;}
+.cv-tick::before{content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--cv-c, var(--blue-deep)); transition:background .4s;}
+.cv-tick-nav{display:flex; align-items:center; gap:2px; align-self:start;} .cv-tick-nav .icon-btn{padding:4px;}
+.cv-tick-n{font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums; min-width:34px; text-align:center;} .cv-tick-n b{color:var(--ink);}
+.cv-tick.uno .cv-tick-nav{display:none;}
+.cv-tick-bar{grid-column:1 / -1; display:block; height:3px; border-radius:2px; background:color-mix(in srgb, var(--ink) 8%, transparent); overflow:hidden; margin-top:6px;}
+.cv-tick-bar i{display:block; height:100%; width:100%; background:var(--blue-deep); transform-origin:left; animation:cvTkBar 5s linear infinite;}
+.cv-tick.pausado .cv-tick-bar i,.cv-tick:hover .cv-tick-bar i,.cv-tick:focus-within .cv-tick-bar i,.cv-tick.uno .cv-tick-bar i{animation-play-state:paused;}
+@keyframes cvTkBar{from{transform:scaleX(0);} to{transform:scaleX(1);}}
+.cv-tick:has(.n-late.on){--cv-c:var(--dp-late);} .cv-tick:has(.n-warn.on){--cv-c:var(--dp-today);} .cv-tick:has(.n-sem.on){--cv-c:var(--cv-sem);} .cv-tick:has(.n-info.on){--cv-c:var(--ink-3);} .cv-tick:has(.n-base.on){--cv-c:var(--cv-base);}
 /* blocos de situação */
 .cv-sit-row{display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px;}
 .cv-sit{all:unset; box-sizing:border-box; cursor:pointer; position:relative; display:grid; grid-template-columns:40px minmax(0,1fr); grid-template-rows:auto auto auto; column-gap:12px; row-gap:4px; align-items:center; padding:12px 14px 14px; border-radius:10px; background:var(--surface); border:1px solid var(--rule); overflow:hidden; transition:transform .15s, box-shadow .15s, border-color .15s; min-width:0;}
@@ -1164,6 +1184,8 @@ body.portal-open{overflow:hidden;}
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
     <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
     <symbol id="i-gantt" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 8h7M10 12h8M8 16h5"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
   </defs>
 </svg>
@@ -5327,6 +5349,7 @@ body.portal-open{overflow:hidden;}
     $('#cv-cards').hidden = modo !== 'cards'; $('#cv-lista').hidden = modo !== 'lista'; $('#cv-tempo').hidden = modo !== 'tempo';
     if (modo === 'tempo') renderConvTempo(vis); else if (modo === 'lista') renderConvLista(vis, semVis); else renderConvCards(vis, semVis);
     if (anim) cvAnimar(main);
+    cvTkIniciar();
     const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
     if (abrir && cctPorId(abrir)) abrirPainelCct(abrir);
     else if (state.dpConvPainel) renderPainelCct();
@@ -5407,6 +5430,19 @@ body.portal-open{overflow:hidden;}
     const itens = passos.slice(0, sem.length ? 3 : 4).map(({ a, l }, i) => `<li style="--i:${i + 2}"><button type="button" class="cv-step n-${a.nivel}" data-cv-abrir="${escapeHtml(l.c.id)}"><i></i><span><b>${escapeHtml(a.txt)}</b><small>${escapeHtml(tituloCurto(l.c))}</small></span>${ic('right', 'ic-sm')}</button></li>`);
     if (sem.length) itens.push(`<li style="--i:6"><button type="button" class="cv-step n-sem" data-cv-sit="sem"><i></i><span><b>${sem.length} empresa(s) sem convenção</b><small>${escapeHtml(sem.slice(0, 2).map(x => x.e.nome).join(', '))}${sem.length > 2 ? '…' : ''}</small></span>${ic('right', 'ic-sm')}</button></li>`);
     const resto = passos.length - (sem.length ? 3 : 4);
+    // Carrossel: todas as pendências e pontos de atenção, um por vez.
+    const slides = [];
+    passos.forEach(({ a, l }) => slides.push({ n: a.nivel, tag: { late:'Urgente', warn:'Atenção' }[a.nivel], txt: a.txt, sub: `${tituloCurto(l.c)} · ${l.emps.length} empresa(s)`, abrir: l.c.id }));
+    const grupos = new Map();
+    sem.forEach(x => { const k = x.ss.length ? x.ss.map(rotuloSind).join(', ') : ''; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(x.e); });
+    [...grupos.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([k, es]) => slides.push({ n: 'sem', tag: 'Sem CCT', txt: k ? `Cadastrar a CCT de ${k}` : 'Informar o sindicato no cadastro da empresa', sub: `${es.length} empresa(s): ${es.slice(0, 3).map(e => e.nome).join(', ')}${es.length > 3 ? '…' : ''}`, sit: 'sem' }));
+    linhas.flatMap(l => eventosConv(l, 30).filter(e => e.tipo !== 'fim' && e.tipo !== 'base')).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 8).forEach(e => slides.push({ n: 'info', tag: 'Em breve', txt: e.txt, sub: `${fmtYmdBR(e.d)} · ${quandoTxt(e.d).split(' · ')[1] || ''} · ${e.nome}`, abrir: e.id }));
+    if (pb) slides.push({ n: 'base', tag: 'Data-base', txt: `Próxima data-base: ${fmtYmdBR(pb.d)}`, sub: `${pb.nome} · ${quandoTxt(pb.d).split(' · ')[1] || ''}`, abrir: pb.id });
+    const slideHtml = slides.map((x, i) => `<button type="button" class="cv-tk n-${x.n}${i === 0 ? ' on' : ''}" data-cv-tk="${i}" ${x.abrir ? `data-cv-abrir="${escapeHtml(x.abrir)}"` : `data-cv-sit="${x.sit}"`} ${i ? 'tabindex="-1" aria-hidden="true"' : ''}><span class="cv-tk-tag">${escapeHtml(x.tag)}</span><b>${escapeHtml(x.txt)}</b><small>${escapeHtml(x.sub)}</small></button>`).join('');
+    const tickHtml = slides.length ? `<div class="cv-tick" role="region" aria-label="Pendências e pontos de atenção" aria-live="off">
+        <div class="cv-tick-stage">${slideHtml}</div>
+        <div class="cv-tick-nav"><button type="button" class="icon-btn" data-cv-tk-go="-1" aria-label="Anterior">${ic('left', 'ic-sm')}</button><span class="cv-tick-n"><b>1</b>/${slides.length}</span><button type="button" class="icon-btn" data-cv-tk-go="1" aria-label="Próximo">${ic('right', 'ic-sm')}</button><button type="button" class="icon-btn cv-tick-pp" data-cv-tk-pp aria-label="Pausar">${ic('pause', 'ic-sm')}</button></div>
+        <i class="cv-tick-bar"><i></i></i></div>` : '';
     return `<section class="cv-hero" style="--i:0">
       <div class="cv-hero-g">
         <div class="cv-donut-w"><svg class="cv-donut" viewBox="0 0 42 42" aria-label="Empresas por situação"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
@@ -5415,12 +5451,29 @@ body.portal-open{overflow:hidden;}
           <span class="cv-eyebrow">${cart}${state.dpCarteira ? ' · <button type="button" class="linkish" data-cv-equipe>ver equipe toda</button>' : ''}</span>
           <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : `Tudo em dia ${ic('check')}`}</h2>
           <p>${emps.length} empresa(s) ativa(s) · ${linhas.length} convenção(ões) em uso${sem.length ? ` · <b class="t-sem">${sem.length} sem CCT</b>` : ''}</p>
-          ${pb ? `<p class="cv-hero-nb">${ic('calendar', 'ic-sm')} Próxima data-base: <b>${fmtYmdBR(pb.d)}</b> · ${escapeHtml(pb.nome)} <span>${quandoTxt(pb.d).split(' · ')[1] || ''}</span></p>` : ''}
+          ${tickHtml}
           <div class="cv-legend">${ordem.filter(k => contE[k]).map(k => `<span><i style="background:${CV_COR[k]}"></i>${CV_SITS.find(x => x.k === k).l} <b>${contE[k]}</b></span>`).join('')}</div>
         </div>
       </div>
       <div class="cv-hero-steps"><h3>Próximos passos</h3>${itens.length ? `<ol>${itens.join('')}</ol>${resto > 0 ? `<p class="cv-mais">+${resto} outra(s) ação(ões) na lista abaixo</p>` : ''}` : `<div class="cv-zen">${ic('check')}<span>Nenhuma ação pendente. Bom trabalho!</span></div>`}</div>
     </section>`;
+  }
+  // Carrossel de pendências: avança sozinho, pausa com o mouse/foco, setas e pausa manual.
+  let cvTkPausa = false;
+  function cvTkIr(root, dir, abs) {
+    const sl = $$('.cv-tk', root); if (sl.length < 2) return;
+    const at = sl.findIndex(x => x.classList.contains('on'));
+    const prox = abs != null ? abs : (at + dir + sl.length) % sl.length;
+    sl.forEach((x, i) => { x.classList.toggle('on', i === prox); x.classList.toggle('sai', i === at && i !== prox); x.tabIndex = i === prox ? 0 : -1; x.setAttribute('aria-hidden', String(i !== prox)); });
+    $('.cv-tick-n b', root).textContent = prox + 1;
+    const bar = $('.cv-tick-bar i', root); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = '';
+  }
+  // A barra de progresso é o relógio: ao terminar cada volta (animationiteration) o carrossel avança; pausar a barra pausa tudo.
+  function cvTkIniciar() {
+    const root = $('#cv-hero .cv-tick'); if (!root) return;
+    root.classList.toggle('pausado', cvTkPausa);
+    if ($$('.cv-tk', root).length < 2) { root.classList.add('uno'); return; }
+    $('.cv-tick-bar i', root).addEventListener('animationiteration', () => { if (!document.hidden && root.isConnected) cvTkIr(root, 1); });
   }
   function cvRadarHtml(vis) {
     const dias = 90, t = hoje();
@@ -5629,6 +5682,10 @@ body.portal-open{overflow:hidden;}
       return;
     }
     if (t.closest('[data-cv-equipe]')) { setCarteira(''); return; }
+    const tkGo = t.closest('[data-cv-tk-go]');
+    if (tkGo) { cvTkIr(tkGo.closest('.cv-tick'), +tkGo.dataset.cvTkGo); return; }
+    const tkPp = t.closest('[data-cv-tk-pp]');
+    if (tkPp) { cvTkPausa = !cvTkPausa; const r = tkPp.closest('.cv-tick'); r.classList.toggle('pausado', cvTkPausa); tkPp.innerHTML = ic(cvTkPausa ? 'play' : 'pause', 'ic-sm'); tkPp.setAttribute('aria-label', cvTkPausa ? 'Continuar' : 'Pausar'); return; }
     const sit = t.closest('[data-cv-sit]');
     if (sit) { state.dpConvSit = state.dpConvSit === sit.dataset.cvSit ? '' : sit.dataset.cvSit; renderConvencoes(); return; }
     const ed = t.closest('[data-cv-editar]');
