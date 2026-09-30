@@ -5323,12 +5323,15 @@ body.portal-open{overflow:hidden;}
     const filt = (l) => matchQ([l.c.titulo, l.c.registro, ...l.c.partes.map(p => `${p.nome} ${p.cnpj} ${cnpjDig(p.cnpj)}`), ...sindsDaCct(l.c).map(s => `${s.cod} ${rotuloSind(s)}`), ...l.emps.map(e => `${e.nome} ${e.cod} ${e.cnpj}`)], q);
     const vis = linhas.filter(l => (!f || f === l.sit) && filt(l));
     const semVis = (!f || f === 'sem') ? sem.filter(x => matchQ([x.e.nome, x.e.cod, x.e.cnpj, ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`)], q)) : [];
-    $('#cv-count').textContent = `${vis.length} convenção(ões)${semVis.length ? ` · ${semVis.length} sem CCT` : ''}`;
+    $('#cv-count').textContent = !f && !q && state.dpConvModo !== 'tempo' ? `${linhas.length} convenção(ões) · ${sem.length} empresa(s) sem CCT` : `${vis.length} convenção(ões)${semVis.length ? ` · ${semVis.length} sem CCT` : ''}`;
     $$('#cv-modo [data-cv-modo]').forEach(b => { const on = b.dataset.cvModo === state.dpConvModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#cv-search').classList.toggle('filtro-on', !!q);
     const modo = state.dpConvModo;
     $('#cv-cards').hidden = modo !== 'cards'; $('#cv-lista').hidden = modo !== 'lista'; $('#cv-tempo').hidden = modo !== 'tempo';
-    if (modo === 'tempo') renderConvTempo(vis); else if (modo === 'lista') renderConvLista(vis, semVis); else renderConvCards(vis, semVis);
+    // Cartões e lista só aparecem com uma situação escolhida (ou busca); a linha do tempo é sempre a visão geral.
+    if (modo === 'tempo') renderConvTempo(vis);
+    else if (!f && !q && linhas.length + sem.length) $(modo === 'lista' ? '#cv-lista' : '#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
+    else if (modo === 'lista') renderConvLista(vis, semVis); else renderConvCards(vis, semVis);
     if (anim) cvAnimar(main);
     cvTkIniciar();
     const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
