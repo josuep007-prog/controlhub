@@ -165,6 +165,23 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 /* ============ dialogs ============ */
 dialog.dlg{border:1px solid var(--rule); border-radius:8px; padding:0; background:var(--surface); color:var(--ink); box-shadow:0 20px 60px rgba(0,0,0,.3); width:min(600px, calc(100vw - 32px));}
 dialog.dlg.dlg-lg{width:min(820px, calc(100vw - 32px));}
+/* Convenção: cabeçalho e botões fixos, só o miolo rola */
+#dlg-cct{width:min(780px, calc(100vw - 24px)); max-height:92vh;} #dlg-cct[open]{display:flex; flex-direction:column;}
+#dlg-cct .dlg-head{flex:0 0 auto; padding:14px 20px 10px; border-bottom:1px solid var(--rule);} #dlg-cct .dlg-head h2{font-size:15px; line-height:1.3;}
+#dlg-cct .dlg-body{flex:1 1 auto; min-height:0; max-height:none; padding:14px 20px 0; gap:10px; overflow-y:auto;}
+#dlg-cct .dlg-section{gap:8px; padding-top:0; border:0;}
+#dlg-cct .field{font-size:11px; gap:3px; text-transform:none; letter-spacing:0;}
+#dlg-cct .field input,#dlg-cct .field select,#dlg-cct .field textarea{font-size:12.5px; padding:6px 9px; border-radius:6px;}
+#dlg-cct .form-row{gap:10px;} #dlg-cct .form-row > *{min-width:120px;}
+#dlg-cct .dlg-actions{position:sticky; bottom:0; z-index:5; margin:6px -20px 0; padding:10px 20px; border-top:1px solid var(--rule); background:var(--surface); box-shadow:0 -6px 14px -8px rgba(16,24,32,.18);}
+.cct-sec{border:1px solid var(--rule); border-radius:8px; background:var(--surface);}
+.cct-sec > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; padding:9px 12px; font-size:12.5px; font-weight:700; color:var(--ink);}
+.cct-sec > summary::-webkit-details-marker{display:none;}
+.cct-sec > summary::before{content:""; width:7px; height:7px; border-right:2px solid var(--ink-3); border-bottom:2px solid var(--ink-3); transform:rotate(-45deg); transition:transform .15s; margin-right:2px;}
+.cct-sec[open] > summary::before{transform:rotate(45deg);} .cct-sec > summary:hover{background:var(--surface-2); border-radius:8px;} .cct-sec > summary:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px; border-radius:8px;}
+.cct-sec-n{font-size:11px; font-weight:600; color:var(--ink-3);} .cct-sec.vazio .cct-sec-n{font-weight:400; opacity:.7;}
+.cct-sec-h{margin-left:auto; font-size:11px; font-weight:400; color:var(--ink-3);}
+.cct-sec-b{display:flex; flex-direction:column; gap:10px; padding:2px 12px 12px;}
 dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .dlg-head{display:flex; align-items:center; gap:10px; padding:18px 22px 0;}
 .dlg-head h2{font-size:17px; font-weight:700; margin-right:auto;}
@@ -1746,37 +1763,37 @@ body.portal-open{overflow:hidden;}
         <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
         <label class="field">Data-base<select name="dataBase"></select></label>
       </div>
+      <label class="field">Partes (uma por linha: CNPJ | nome | laboral, patronal ou federação)<textarea name="partes" rows="3"></textarea></label>
+    </div>
+    <details class="cct-sec" data-sec="arq"><summary>Arquivo e vínculos <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
         <label class="field">Complementa a CCT (aditivo/ofício)<select name="mae"></select></label>
         <label class="field">Substitui a CCT<select name="substitui"></select></label>
       </div>
       <label class="field">Arquivo (dentro da pasta das CCTs)<span style="display:flex;gap:6px"><input name="arquivo" maxlength="400" style="flex:1" placeholder="2026-2027\ARQUIVO.pdf"><button type="button" class="btn btn-sm" id="cct-copiar-arquivo">Copiar caminho</button></span></label>
-      <label class="field">Partes (uma por linha: CNPJ | nome | laboral, patronal ou federação)<textarea name="partes" rows="3"></textarea></label>
-    </div>
-    <div class="dlg-section">
-      <div class="dlg-section-title">Reajuste</div>
+    </div></details>
+    <details class="cct-sec" data-sec="reaj"><summary>Reajuste <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
-        <label class="field">Percentuais (um por linha: “Geral = 6%”, “Micro e pequenas = 4,5%”)<textarea name="reajItens" rows="3"></textarea></label>
-        <label class="field">Tabela por mês de admissão (opcional: “03/2025 = 6,00%”)<textarea name="reajTabela" rows="3"></textarea></label>
+        <label class="field">Percentuais (um por linha: “Geral = 6%”)<textarea name="reajItens" rows="3"></textarea></label>
+        <label class="field">Tabela por mês de admissão (“03/2025 = 6,00%”)<textarea name="reajTabela" rows="3"></textarea></label>
       </div>
       <label class="field">Base de cálculo e regras (compensação, proporcionalidade, teto)<textarea name="reajBase" rows="2" maxlength="600"></textarea></label>
-    </div>
-    <div class="dlg-section">
+    </div></details>
+    <details class="cct-sec" data-sec="piso"><summary>Pisos e benefícios <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
         <label class="field">Pisos (um por linha: “Função = 1.850,00”)<textarea name="pisos" rows="4"></textarea></label>
         <label class="field">Benefícios (“Cartão alimentação = 1.300,00”)<textarea name="beneficios" rows="4"></textarea></label>
       </div>
-    </div>
-    <div class="dlg-section">
-      <div class="dlg-section-title">Contribuições <span class="dp-cell-sub" style="font-weight:400">competências e vencimentos viram lembretes na Agenda para as empresas vinculadas</span></div>
+    </div></details>
+    <details class="cct-sec" data-sec="contrib"><summary>Contribuições <span class="cct-sec-n"></span><span class="cct-sec-h">viram lembretes na Agenda</span></summary><div class="cct-sec-b">
       <div id="cct-contribs" class="cct-contribs"></div>
       <button type="button" class="btn btn-sm" id="cct-add-contrib" style="align-self:flex-start"><svg class="ic ic-sm"><use href="#i-plus"/></svg> Contribuição</button>
-    </div>
-    <div class="dlg-section">
+    </div></details>
+    <details class="cct-sec" data-sec="prazos"><summary>Prazos e observações <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <label class="field">Prazos (um por linha: “08/09/2026 = Retroativo 1ª parcela”; entram na Agenda)<textarea name="prazos" rows="3"></textarea></label>
       <label class="field">Observações<textarea name="obs" rows="2" maxlength="1500"></textarea></label>
-    </div>
-    <div class="dlg-section"><div class="dlg-section-title">Sindicatos e empresas</div><div id="cct-emps"></div></div>
+    </div></details>
+    <details class="cct-sec" data-sec="emps"><summary>Sindicatos e empresas <span class="cct-sec-n"></span></summary><div class="cct-sec-b"><div id="cct-emps"></div></div></details>
     <div class="dlg-actions">
       <button type="button" class="btn btn-danger" id="btn-cct-excluir" hidden>Excluir</button>
       <span class="spacer"></span>
@@ -5173,6 +5190,9 @@ body.portal-open{overflow:hidden;}
     f.obs.value = x.obs;
     $('#cct-contribs').innerHTML = x.contribs.map(contribRowHtml).join('');
     renderCctEmpresas(x);
+    const secN = { arq: (x.arquivo ? 1 : 0) + (x.mae ? 1 : 0) + (x.substitui ? 1 : 0), reaj: x.reajuste.itens.length + x.reajuste.tabela.length + (x.reajuste.base ? 1 : 0), piso: x.pisos.length + x.beneficios.length, contrib: x.contribs.length, prazos: x.prazos.length + (x.obs ? 1 : 0), emps: empsDaCct(x).length };
+    const secTxt = { arq: '', reaj: '', piso: `${x.pisos.length} piso(s) · ${x.beneficios.length} benefício(s)`, contrib: `${x.contribs.length}`, prazos: `${x.prazos.length} prazo(s)`, emps: `${secN.emps} empresa(s)` };
+    $$('.cct-sec', formCct).forEach(d => { const k = d.dataset.sec; d.open = !c ? k === 'reaj' || k === 'piso' : k === 'reaj' || k === 'contrib' || (k === 'arq' && !!x.mae); $('.cct-sec-n', d).textContent = secN[k] ? (secTxt[k] || '') : 'vazio'; d.classList.toggle('vazio', !secN[k]); });
     $('#btn-cct-excluir').hidden = !c || ro;
     $('#btn-cct-salvar').hidden = ro;
     $('#cct-add-contrib').hidden = ro;
