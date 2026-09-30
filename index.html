@@ -356,6 +356,11 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-hero-steps{padding:18px 20px; border-left:1px solid var(--rule); background:color-mix(in srgb, var(--surface-2) 70%, transparent); min-width:0; display:flex; flex-direction:column;}
 .cv-hero-steps h3{margin:0 0 10px; font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3);}
 .cv-hero-steps ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+.cv-steps-l{max-height:300px; overflow-y:auto; overscroll-behavior:contain; padding-right:6px !important; scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--ink) 22%, transparent) transparent;}
+.cv-steps-l::-webkit-scrollbar{width:5px;} .cv-steps-l::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--ink) 20%, transparent); border-radius:3px;} .cv-steps-l::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb, var(--ink) 38%, transparent);} .cv-steps-l::-webkit-scrollbar-track{background:transparent;}
+.cv-steps-l.rola{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 0, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, #000 0, #000 calc(100% - 22px), transparent 100%);}
+.cv-steps-l.rola.topo{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 22px), transparent 100%);}
+.cv-steps-l.rola.fim{-webkit-mask-image:none; mask-image:none;} .cv-steps-l.rola.fim.topo{-webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 18px); mask-image:linear-gradient(to bottom, transparent 0, #000 18px);}
 .cv-step{all:unset; box-sizing:border-box; cursor:pointer; width:100%; display:grid; grid-template-columns:10px minmax(0,1fr) 16px; gap:10px; align-items:center; padding:8px 10px; border-radius:8px; background:var(--surface); border:1px solid var(--rule); transition:transform .15s, box-shadow .15s, border-color .15s;}
 .cv-step:hover{transform:translateX(2px); border-color:color-mix(in srgb, var(--c, var(--blue-deep)) 45%, var(--rule)); box-shadow:0 4px 14px rgba(16,24,32,.08);}
 .cv-step:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
@@ -5413,9 +5418,8 @@ body.portal-open{overflow:hidden;}
     // Próximos passos: o que é urgente primeiro, depois por data.
     const rank = { late: 0, warn: 1 };
     const passos = linhas.flatMap(l => l.acoes.filter(a => a.nivel !== 'info').map(a => ({ a, l }))).sort((x, y) => rank[x.a.nivel] - rank[y.a.nivel] || x.l.c.vigFim.localeCompare(y.l.c.vigFim));
-    const itens = passos.slice(0, sem.length ? 3 : 4).map(({ a, l }, i) => `<li style="--i:${i + 2}"><button type="button" class="cv-step n-${a.nivel}" data-cv-abrir="${escapeHtml(l.c.id)}"><i></i><span><b>${escapeHtml(a.txt)}</b><small>${escapeHtml(tituloCurto(l.c))}</small></span>${ic('right', 'ic-sm')}</button></li>`);
-    if (sem.length) itens.push(`<li style="--i:6"><button type="button" class="cv-step n-sem" data-cv-sit="sem"><i></i><span><b>${sem.length} empresa(s) sem convenção</b><small>${escapeHtml(sem.slice(0, 2).map(x => x.e.nome).join(', '))}${sem.length > 2 ? '…' : ''}</small></span>${ic('right', 'ic-sm')}</button></li>`);
-    const resto = passos.length - (sem.length ? 3 : 4);
+    const itens = passos.map(({ a, l }, i) => `<li style="--i:${i + 2}"><button type="button" class="cv-step n-${a.nivel}" data-cv-abrir="${escapeHtml(l.c.id)}"><i></i><span><b>${escapeHtml(a.txt)}</b><small>${escapeHtml(tituloCurto(l.c))}</small></span>${ic('right', 'ic-sm')}</button></li>`);
+    if (sem.length) itens.push(`<li style="--i:6"><button type="button" class="cv-step n-sem" data-cv-sit="sem"><i></i><span><b>${sem.length} empresa(s) sem convenção</b><small>${escapeHtml([...new Set(sem.map(x => x.e.nome))].slice(0, 2).join(', '))}${new Set(sem.map(x => x.e.nome)).size > 2 ? '…' : ''}</small></span>${ic('right', 'ic-sm')}</button></li>`);
     // Carrossel: todas as pendências e pontos de atenção, um por vez.
     const slides = [];
     passos.forEach(({ a, l }) => slides.push({ n: a.nivel, tag: { late:'Urgente', warn:'Atenção' }[a.nivel], txt: a.txt, sub: `${tituloCurto(l.c)} · ${l.emps.length} empresa(s)`, abrir: l.c.id }));
@@ -5440,7 +5444,7 @@ body.portal-open{overflow:hidden;}
           <div class="cv-legend">${ordem.filter(k => contE[k]).map(k => `<span><i style="background:${CV_COR[k]}"></i>${CV_SITS.find(x => x.k === k).l} <b>${contE[k]}</b></span>`).join('')}</div>
         </div>
       </div>
-      <div class="cv-hero-steps"><h3>Próximos passos</h3>${itens.length ? `<ol>${itens.join('')}</ol>${resto > 0 ? `<p class="cv-mais">+${resto} outra(s) ação(ões) na lista abaixo</p>` : ''}` : `<div class="cv-zen">${ic('check')}<span>Nenhuma ação pendente. Bom trabalho!</span></div>`}</div>
+      <div class="cv-hero-steps"><h3>Próximos passos</h3>${itens.length ? `<ol class="cv-steps-l">${itens.join('')}</ol>` : `<div class="cv-zen">${ic('check')}<span>Nenhuma ação pendente. Bom trabalho!</span></div>`}</div>
     </section>`;
   }
   // Carrossel de pendências: avança sozinho, pausa com o mouse/foco, setas e pausa manual.
@@ -5454,6 +5458,8 @@ body.portal-open{overflow:hidden;}
   }
   // A barra de progresso é o relógio: ao terminar cada volta (animationiteration) o carrossel avança; pausar a barra pausa tudo.
   function cvTkIniciar() {
+    const lst = $('#cv-hero .cv-steps-l');
+    if (lst) { const marca = () => { lst.classList.toggle('rola', lst.scrollHeight - lst.clientHeight > 4); lst.classList.toggle('fim', lst.scrollTop + lst.clientHeight >= lst.scrollHeight - 4); lst.classList.toggle('topo', lst.scrollTop > 4); }; marca(); lst.addEventListener('scroll', marca, { passive: true }); requestAnimationFrame(marca); }
     const root = $('#cv-hero .cv-tick'); if (!root) return;
     root.classList.toggle('pausado', cvTkPausa);
     if ($$('.cv-tk', root).length < 2) { root.classList.add('uno'); return; }
