@@ -11,7 +11,7 @@
   --track:#E1E8EE;
   --masthead:#0E151B; --masthead-2:#182229; --masthead-ink:#E9EEF2; --masthead-ink-2:#8FA0AD;
   --sector-pessoal:#9A6B00; --sector-contabil:#0F7A55; --sector-fiscal:#6A4FA0; --sector-financeiro:#1D6FA5;
-  --status-green:#167A45; --status-warn:#B5530C; --cv-soon:#C9500F; --cv-pend:#2E7FA8; --cv-sem:#55687A; --cv-base:#3C659B;
+  --status-green:#167A45; --status-warn:#B5530C; --cv-soon:#D2452C; --cv-pend:#2E7FA8; --cv-sem:#55687A; --cv-base:#3C659B;
   --st-pend-bg:#E9EEF2; --st-pend-ink:#3F4B55;
   --shadow-1:0 1px 2px rgba(16,24,32,.05), 0 6px 16px rgba(16,24,32,.06);
   --shadow-2:0 2px 4px rgba(16,24,32,.08), 0 14px 32px rgba(16,24,32,.12);
@@ -28,7 +28,7 @@
     --track:#1F2A33;
     --masthead:#080D11; --masthead-2:#131C23; --masthead-ink:#E9EEF2; --masthead-ink-2:#8FA0AD;
     --sector-pessoal:#B98530; --sector-contabil:#33A67C; --sector-fiscal:#9478D6; --sector-financeiro:#5FA8E0;
-    --status-green:#4ECC8B; --status-warn:#FF9D42; --cv-soon:#FF9A57; --cv-pend:#6BAAC9; --cv-sem:#A9BBCB; --cv-base:#8CC6EC;
+    --status-green:#4ECC8B; --status-warn:#FF9D42; --cv-soon:#FF8070; --cv-pend:#6BAAC9; --cv-sem:#A9BBCB; --cv-base:#8CC6EC;
     --st-pend-bg:#26313B; --st-pend-ink:#C3CDD5;
     --shadow-1:0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
     --shadow-2:0 2px 6px rgba(0,0,0,.35), 0 16px 36px rgba(0,0,0,.45);
@@ -44,7 +44,7 @@
   --track:#1F2A33;
   --masthead:#080D11; --masthead-2:#131C23; --masthead-ink:#E9EEF2; --masthead-ink-2:#8FA0AD;
   --sector-pessoal:#B98530; --sector-contabil:#33A67C; --sector-fiscal:#9478D6; --sector-financeiro:#5FA8E0;
-  --status-green:#4ECC8B; --status-warn:#FF9D42; --cv-soon:#FF9A57; --cv-pend:#6BAAC9; --cv-sem:#A9BBCB; --cv-base:#8CC6EC;
+  --status-green:#4ECC8B; --status-warn:#FF9D42; --cv-soon:#FF8070; --cv-pend:#6BAAC9; --cv-sem:#A9BBCB; --cv-base:#8CC6EC;
   --st-pend-bg:#26313B; --st-pend-ink:#C3CDD5;
   --shadow-1:0 1px 2px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.35);
   --shadow-2:0 2px 6px rgba(0,0,0,.35), 0 16px 36px rgba(0,0,0,.45);
@@ -291,7 +291,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 #cv-vazio:empty,#cv-sits:empty{display:none;}
 .cv-menu .menu-list hr{border:0; border-top:1px solid var(--rule); margin:4px 2px;}
 .cv-menu summary .ic{margin-left:2px;}
-.cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:var(--dp-today-bg); border-radius:6px; font-size:13px;}
+.cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface)); border-radius:6px; font-size:13px;}
 .cv-passos > div{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .cv-table{table-layout:fixed;} .cv-table td{vertical-align:top; overflow-wrap:anywhere;}
 .cv-row{cursor:pointer;} .cv-row:hover td{background:var(--surface-2);} .cv-row.sel td{background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface));}
@@ -1409,7 +1409,7 @@ body.portal-open{overflow:hidden;}
           </div>
           <div id="sd-cct-wrap" hidden>
             <div class="cct-bar"><p class="ct-hint" style="margin:0">Cada convenção se liga aos sindicatos pelo CNPJ das partes. A mais atual em vigor define data-base, vigência, reajuste e piso do sindicato; aditivos e ofícios valem por cima dela a partir da própria data.</p><span class="spacer"></span><button type="button" class="btn btn-sm" id="cct-carregar" hidden></button><button type="button" class="btn btn-sm btn-primary" id="cct-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Convenção</button></div>
-            <p class="sd-renov" id="cct-aviso" hidden style="background:var(--dp-today-bg);color:var(--ink)">Importe a lista de sindicatos do Domínio (botão “Importar do Domínio”) para as convenções se ligarem aos códigos das empresas.</p>
+            <p class="sd-renov" id="cct-aviso" hidden>Importe a lista de sindicatos do Domínio (botão “Importar do Domínio”) para as convenções se ligarem aos códigos das empresas.</p>
             <div class="list-card ct-sheet"><table class="ct-table cct-table" id="cct-table"></table></div>
           </div>
           <div id="sd-rev-wrap" hidden>
