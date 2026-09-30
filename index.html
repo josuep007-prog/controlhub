@@ -267,6 +267,13 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-det-row{display:grid; grid-template-columns:20px 80px minmax(0,1fr) 140px 90px; gap:8px; align-items:center;}
 @media (max-width:760px){ .sd-body{padding-inline:16px;} .sd-meses{grid-template-columns:repeat(6, minmax(0,1fr));} .sd-table{table-layout:auto; min-width:760px;} .sd-det-row{grid-template-columns:20px 70px minmax(0,1fr);} .sd-det-row select,.sd-det-row .dp-cell-sub{grid-column:3;} .list-card.ct-sheet{overflow-x:auto;} }
 #sd-ordem{flex:0 0 auto;}
+.sd-visao-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+#sd-visao small{font-size:11px; font-weight:700; opacity:.75; margin-left:2px;}
+.si-prev{display:flex; flex-direction:column; gap:10px;}
+.si-resumo{display:flex; gap:8px 18px; flex-wrap:wrap; font-size:13px;} .si-resumo b{font-size:16px; font-variant-numeric:tabular-nums;}
+.si-grupo summary{cursor:pointer; font-size:13px; padding:4px 0;}
+.si-tab{max-height:240px; overflow:auto; border:1px solid var(--rule); border-radius:var(--r); margin-top:6px;}
+.si-tab .ct-table{font-size:12px;} .si-tab td,.si-tab th{padding:4px 8px;} .si-tab s{color:var(--ink-3);}
 .sd-kpis{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px;}
 .sd-kpi{display:flex; flex-direction:column; gap:2px; text-align:left; background:var(--surface); border:1px solid var(--rule); border-top:3px solid var(--rule-strong); border-radius:var(--r); padding:10px 14px; font:inherit; color:var(--ink);}
 button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);} button.sd-kpi:focus-visible{outline:2px solid var(--blue-deep);}
@@ -1024,6 +1031,7 @@ body.portal-open{overflow:hidden;}
           <select id="sd-ordem" aria-label="Ordenar sindicatos"><option value="data">Próxima data-base</option><option value="nome">Nome</option><option value="cod">Código</option><option value="emps">Mais empresas</option><option value="vig">Fim da vigência</option></select>
           <span class="dp-count" id="sd-count"></span>
           <button type="button" class="btn btn-sm" id="sd-detectar" data-ro-hide hidden>Detectar nas empresas</button>
+          <button type="button" class="btn btn-sm" id="sd-importar" data-ro-hide title="Relatório “Cadastro de Sindicatos dos Empregados” (PDF)"><svg class="ic ic-sm"><use href="#i-upload"/></svg> Importar do Domínio</button>
           <button type="button" class="btn btn-sm" id="sd-pasta" title="U:\Pessoal\Arquivos Compartilhados\CONVENÇOES COLETIVA"><svg class="ic ic-sm"><use href="#i-link"/></svg> Pasta das CCTs</button>
           <details class="menu">
             <summary class="btn btn-sm" aria-label="Exportar"><svg class="ic ic-sm"><use href="#i-download"/></svg> CSV</summary>
@@ -1041,8 +1049,19 @@ body.portal-open{overflow:hidden;}
             <div class="sd-meses" id="sd-meses"></div>
           </div>
           <div class="ct-alertas sd-alertas" id="sd-alertas" hidden></div>
+          <div class="sd-visao-bar"><div class="seg" id="sd-visao" role="group" aria-label="Quais sindicatos mostrar">
+            <button type="button" data-sd-visao="uso">Em uso <small></small></button>
+            <button type="button" data-sd-visao="todos">Todos do Domínio <small></small></button>
+            <button type="button" data-sd-visao="revisar">Revisar cadastro <small></small></button>
+          </div><span class="dp-cell-sub" id="sd-dom-info"></span></div>
+          <div id="sd-lista-wrap">
           <div class="dp-chips sd-filtros" id="sd-filtros" role="group" aria-label="Filtrar sindicatos"></div>
           <div class="list-card ct-sheet"><table class="ct-table sd-table" id="sd-table"></table></div>
+          </div>
+          <div id="sd-rev-wrap" hidden>
+            <p class="ct-hint" style="margin:0 0 8px">“Ajustar no Domínio”: cadastros sem nome, sem CNPJ ou de exemplo, e códigos usados nas empresas que não existem lá. “Completar aqui”: sindicatos com empresas vinculadas sem data-base ou sem vigência da CCT.</p>
+            <div class="list-card ct-sheet"><table class="ct-table"><colgroup><col style="width:150px"><col style="width:84px"><col><col style="width:28%"><col style="width:84px"><col style="width:96px"></colgroup><thead><tr><th>Onde</th><th>Código</th><th>Sindicato</th><th>O que falta</th><th class="num">Empresas</th><th></th></tr></thead><tbody id="sd-rev"></tbody></table></div>
+          </div>
           <div id="sd-sem-wrap">
             <h3 class="ct-h3">Empresas sem sindicato cadastrado <span class="dp-tab-badge" id="sd-sem-n"></span></h3>
             <p class="ct-hint" style="margin:6px 0 10px">Empresas ativas cujo código de sindicato não está informado ou ainda não foi cadastrado acima. Sem vínculo, a data-base vem do que está na própria empresa.</p>
@@ -1372,6 +1391,20 @@ body.portal-open{overflow:hidden;}
     <div class="dlg-actions"><span class="dp-cell-sub" id="sv-n"></span><span class="spacer"></span><button type="button" class="btn" id="sv-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="sv-ok">Salvar vínculos</button></div>
   </div>
 </dialog>
+<dialog id="dlg-sind-import" class="dlg dlg-lg">
+  <div class="dlg-head"><h2>Importar sindicatos do Domínio</h2><button type="button" class="icon-btn dlg-close" id="dlg-sind-import-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-body">
+    <p class="dp-sec-note" style="margin:0">No Domínio, gere o relatório <b>Cadastro de Sindicatos dos Empregados</b> em PDF e escolha o arquivo aqui. Os sindicatos entram pelo código: nome, apelido e CNPJ são atualizados, e o que você já preencheu aqui (data-base, CCT, reajuste) é mantido.</p>
+    <label class="field">Relatório em PDF<input type="file" id="si-arquivo" accept="application/pdf,.pdf"></label>
+    <details><summary class="dp-cell-sub" style="cursor:pointer">O PDF não abriu? Cole o texto do relatório</summary>
+      <textarea id="si-texto" rows="5" style="width:100%;margin-top:8px" placeholder="Copie o conteúdo do relatório e cole aqui"></textarea>
+      <button type="button" class="btn btn-sm" id="si-texto-ler" style="margin-top:6px">Ler texto</button>
+    </details>
+    <p class="field-hint" id="si-status" role="status" style="margin:0"></p>
+    <div id="si-prev" class="si-prev"></div>
+    <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" id="si-cancelar">Cancelar</button><button type="button" class="btn btn-primary" id="si-ok" disabled>Importar</button></div>
+  </div>
+</dialog>
 <datalist id="dp-sind-codes"></datalist>
 
 <div id="ct-print" aria-hidden="true"></div>
@@ -1458,7 +1491,7 @@ body.portal-open{overflow:hidden;}
     dpCarteira: '', dpView: 'painel', dpCalMes: '',
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
-    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
+    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
     dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
@@ -2299,7 +2332,7 @@ body.portal-open{overflow:hidden;}
         if (pos < 0) return;
         const d = new Date(t.getFullYear() + (pos === 1 && mi === 0 ? 1 : 0), mi, 1);
         const ss = sindsDaBase(e, b);
-        out.push({ d, txt:`Data-base em ${b}${ss.length ? ' (' + ss.map(s => s.nome).join(', ') + ')' : ''}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
+        out.push({ d, txt:`Data-base em ${b}${ss.length ? ' (' + ss.map(s => rotuloSind(s)).join(', ') + ')' : ''}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
       });
     });
     return out.sort((a, b) => a.d - b.d);
@@ -2338,7 +2371,7 @@ body.portal-open{overflow:hidden;}
         const d1 = new Date(y, mi, 1);
         if (bases.has(MESES[mi]) && dentro(d1, from, to)) {
           const ss = sindsDaBase(e, MESES[mi]);
-          const sub = ss.length ? ss.map(s => `${s.nome}${s.percentual ? ' · reajuste ' + s.percentual : ''}`).join(' · ') : 'Conferir reajuste e cláusulas da CCT';
+          const sub = ss.length ? ss.map(s => `${rotuloSind(s)}${s.percentual ? ' · reajuste ' + s.percentual : ''}`).join(' · ') : 'Conferir reajuste e cláusulas da CCT';
           out.push({ tipo:'database', d: d1, titulo:`Data-base em ${MESES[mi]}${ss.length === 1 ? ' · ' + ss[0].nome : ''}`, sub, empresa:e, tab:'dados', edit:'database:' });
         }
       });
@@ -2348,8 +2381,8 @@ body.portal-open{overflow:hidden;}
       const emps = ativas.filter(e => empresaSinds(e).includes(s));
       if (!emps.length) return;
       const fim = parseYmd(s.vigFim);
-      if (dentro(fim, from, to)) out.push({ tipo:'database', d: fim, titulo:`Fim da CCT · ${s.nome}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
-      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'database', d, titulo:`Contribuição assistencial · ${s.nome}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
+      if (dentro(fim, from, to)) out.push({ tipo:'database', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
+      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'database', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
     });
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
     ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
@@ -3379,7 +3412,7 @@ body.portal-open{overflow:hidden;}
       const cods = codigosDe(row), ss = estabSinds(row);
       if (!cods.length) return state.dpSind.length ? '<div class="dp-section-cell" style="flex:1.6"><span class="dp-section-cell-label">Cadastro de sindicatos</span><span class="dp-section-cell-val" style="color:var(--ink-3)">sem código: vincule na aba Sindicatos</span></div>' : '';
       const falta = cods.filter(c => !sindPorCod(c));
-      return `<div class="dp-section-cell" style="flex:1.6"><span class="dp-section-cell-label">Data-base pela CCT</span><span class="dp-section-cell-val">${ss.map(s => `<b>${escapeHtml(s.dataBase || 'sem data-base')}</b> · ${escapeHtml(s.nome)}${vigStatus(s).n !== null && vigStatus(s).n < 0 ? ' <span class="pill pill-late">CCT vencida</span>' : ''}`).join('<br>')}${falta.length ? `${ss.length ? '<br>' : ''}<span style="color:var(--dp-late)">código ${escapeHtml(falta.join(', '))} não cadastrado</span>` : ''}</span></div>`;
+      return `<div class="dp-section-cell" style="flex:1.6"><span class="dp-section-cell-label">Data-base pela CCT</span><span class="dp-section-cell-val">${ss.map(s => `<b>${escapeHtml(s.dataBase || 'sem data-base')}</b> · ${escapeHtml(rotuloSind(s))}${vigStatus(s).n !== null && vigStatus(s).n < 0 ? ' <span class="pill pill-late">CCT vencida</span>' : ''}`).join('<br>')}${falta.length ? `${ss.length ? '<br>' : ''}<span style="color:var(--dp-late)">código ${escapeHtml(falta.join(', '))} não cadastrado</span>` : ''}</span></div>`;
     }
     if (sec === 'lembretes') {
       const d = parseYmd(row.data);
@@ -3436,7 +3469,7 @@ body.portal-open{overflow:hidden;}
     const h = $('#dp-db-hint'); if (!h || !dpAtual) return;
     const ss = empresaSinds(dpAtual).filter(x => x.dataBase);
     h.hidden = !ss.length;
-    h.textContent = ss.length ? `Pela CCT: ${[...new Set(ss.map(x => x.dataBase))].join(', ')} (${ss.map(x => x.nome).join(', ')}). Este campo só vale sem sindicato.` : '';
+    h.textContent = ss.length ? `Pela CCT: ${[...new Set(ss.map(x => x.dataBase))].join(', ')} (${ss.map(rotuloSind).join(', ')}). Este campo só vale sem sindicato.` : '';
   }
   function renderDetailProx() {
     evCacheClear();
@@ -3733,11 +3766,27 @@ body.portal-open{overflow:hidden;}
     return [...out].filter(b => MESES.includes(b)).sort((a, b) => MESES.indexOf(a) - MESES.indexOf(b));
   }
   // Estabelecimento com código de sindicato cadastrado e sem nome: preenche o nome a partir do cadastro.
-  function completaEstab(r) { const ss = estabSinds(r); if (ss.length && (!r.sindicato || ehCaminho(r.sindicato))) r.sindicato = ss.map(x => x.nome).join(' e '); }
+  function completaEstab(r) { const ss = estabSinds(r); if (ss.length && (!r.sindicato || ehCaminho(r.sindicato))) r.sindicato = ss.map(rotuloSind).join(' e '); }
+  // Nome curto: o apelido do Domínio quando houver.
+  function rotuloSind(s) { return s.apelido || s.nome; }
+  // "SEM SINDICATO" do Domínio: escolha explícita de que a empresa não tem sindicato (não conta como pendência).
+  const ehSemSind = (s) => norm(s.nome || '').trim() === 'sem sindicato' || (!!s.cnpj && !/[1-9]/.test(s.cnpj));
+  // Cadastro do Domínio que precisa de ajuste lá (nome genérico, CNPJ vazio ou fictício).
+  function problemaDominio(s) {
+    if (ehSemSind(s)) return '';
+    const n = norm(s.nome).trim();
+    if (n === 'importacao esocial') return 'sem nome (veio da importação do eSocial)';
+    if (/exemplo/.test(n)) return 'cadastro de exemplo';
+    if (n === 'sindicato') return 'nome genérico';
+    const d = String(s.cnpj || '').replace(/\D/g, '');
+    if (s.origem === 'dominio' && !d) return 'sem CNPJ';
+    if (d && (/^(\d)\1+$/.test(d.slice(0, 8)) || (d.length === 14 && !cnpjValido(d)))) return 'CNPJ fictício ou inválido';
+    return '';
+  }
   const sindsDaBase = (e, mes) => empresaSinds(e).filter(s => s.dataBase === mes);
   function normalizeSind(x) {
     if (!x || typeof x !== 'object') return null;
-    const nome = String(x.nome || '').trim().slice(0, 160), cod = String(x.cod || '').replace(/\D/g, '').slice(0, 12);
+    const nome = String(x.nome || '').normalize('NFC').trim().slice(0, 160), cod = String(x.cod || '').replace(/\D/g, '').slice(0, 12);
     if (!nome && !cod) return null;
     const mes = (v) => { const m = mesDeTexto(v || ''); return MESES.includes(m) ? m : ''; };
     const txt = (v, n) => String(v || '').trim().slice(0, n);
@@ -3749,7 +3798,7 @@ body.portal-open{overflow:hidden;}
       ciclos[ano] = { aplicado, semReajuste: !!c.semReajuste };
     });
     return {
-      id: validId(x.id) ? x.id : uid(), cod, nome: nome || `Sindicato ${cod}`, dataBase: mes(x.dataBase),
+      id: validId(x.id) ? x.id : uid(), cod, nome: nome || `Sindicato ${cod}`, apelido: txt(String(x.apelido || '').normalize('NFC'), 60), origem: x.origem === 'dominio' ? 'dominio' : '', dominioEm: toYmd(x.dominioEm), dataBase: mes(x.dataBase),
       vigIni: toYmd(x.vigIni), vigFim: toYmd(x.vigFim), cct: txt(x.cct, 400), uf: txt(x.uf, 40), obs: String(x.obs || '').slice(0, 800),
       percentual: txt(x.percentual, 30), piso: txt(x.piso, 30), registro: txt(x.registro, 40), cnpj: txt(x.cnpj, 20), contato: txt(x.contato, 200), contribMes: mes(x.contribMes),
       ciclos,
@@ -3764,6 +3813,7 @@ body.portal-open{overflow:hidden;}
     return persist(() => sindStore.save(JSON.parse(JSON.stringify(state.dpSind))));
   }
   function vigStatus(s) {
+    if (ehSemSind(s)) return { cls:'pill-muted', txt:'não se aplica', n: null };
     const f = parseYmd(s.vigFim);
     if (!f) return { cls:'', txt:'sem vigência', n: null };
     const d = diffDays(f, hoje());
@@ -3803,7 +3853,7 @@ body.portal-open{overflow:hidden;}
   }
   function refreshSindDatalist() {
     const dl = $('#dp-sind-codes');
-    if (dl) dl.innerHTML = state.dpSind.filter(s => s.cod).map(s => `<option value="${escapeHtml(s.cod)}">${escapeHtml(s.nome)}${s.dataBase ? ' · data-base ' + escapeHtml(s.dataBase) : ''}</option>`).join('');
+    if (dl) dl.innerHTML = state.dpSind.filter(s => s.cod).map(s => `<option value="${escapeHtml(s.cod)}">${escapeHtml(rotuloSind(s))}${s.apelido && s.apelido !== s.nome ? ' · ' + escapeHtml(s.nome) : ''}${s.dataBase ? ' · data-base ' + escapeHtml(s.dataBase) : ''}</option>`).join('');
   }
 
   function renderSindicatos() {
@@ -3831,8 +3881,8 @@ body.portal-open{overflow:hidden;}
     const vencendo = state.dpSind.filter(s => { const v = vigStatus(s); return v.n !== null && v.n <= 60; });
     const cobertas = emps.length ? Math.round((emps.length - semSind.length) / emps.length * 100) : 0;
     $('#sd-kpis').innerHTML = [
-      ['', state.dpSind.length, 'sindicatos cadastrados', ''],
-      [cobertas === 100 ? 'ok' : cobertas < 60 ? 'warn' : '', `${cobertas}%`, 'das empresas ativas com sindicato', semSind.length ? `${semSind.length} sem vínculo` : 'todas vinculadas'],
+      ['', state.dpSind.length, 'sindicatos cadastrados', state.dpSind.some(x => x.origem === 'dominio') ? `${state.dpSind.filter(x => vincDe(x).length).length} com empresas vinculadas` : ''],
+      [!emps.length ? '' : cobertas === 100 ? 'ok' : cobertas < 60 ? 'warn' : '', emps.length ? `${cobertas}%` : '—', 'das empresas ativas com sindicato', !emps.length ? 'nenhuma empresa ativa' : semSind.length ? `${semSind.length} sem vínculo` : 'todas vinculadas'],
       [nPend ? 'warn' : 'ok', nPend, 'reajustes pendentes', nPend ? `em ${pendentes.length} sindicato(s)` : 'nada pendente', 'pend'],
       [vencendo.length ? 'late' : 'ok', vencendo.length, 'CCTs vencidas ou vencendo', 'em até 60 dias', 'venc'],
     ].map(([cls, v, l, sub, f]) => `<${f ? `button type="button" data-sd-filtro="${f}"` : 'div'} class="sd-kpi ${cls}${f && state.dpSindFiltro === f ? ' on' : ''}"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</${f ? 'button' : 'div'}>`).join('');
@@ -3843,23 +3893,33 @@ body.portal-open{overflow:hidden;}
     const nAgora = porMes[mAtual].length, nProx = porMes[(mAtual + 1) % 12].length;
     if (nAgora) av.push(`<button type="button" class="ct-al warn" data-sd-mes="${mesAgora}"><span class="al-dot today"></span>${nAgora} empresa(s) com data-base em ${mesAgora} (este mês): conferir a nova CCT e aplicar o reajuste.</button>`);
     if (nProx) av.push(`<button type="button" class="ct-al" data-sd-mes="${mesProx}"><span class="al-dot soon"></span>${nProx} empresa(s) com data-base em ${mesProx} (próximo mês).</button>`);
-    state.dpSind.forEach(s => { const r = reajusteStatus(s, vincDe(s)); if (r && r.pendente) av.push(`<button type="button" class="ct-al warn" data-sd-abrir="${escapeHtml(s.id)}"><span class="al-dot today"></span>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano} de ${escapeHtml(s.nome)}: falta aplicar em ${r.pend.length} de ${r.total} empresa(s).</button>`); });
-    vencendo.forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(s.nome)}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
-    if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ainda não estão cadastrados. Clique para cadastrar.</button>`);
+    state.dpSind.forEach(s => { const r = reajusteStatus(s, vincDe(s)); if (r && r.pendente) av.push(`<button type="button" class="ct-al warn" data-sd-abrir="${escapeHtml(s.id)}"><span class="al-dot today"></span>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano} de ${escapeHtml(rotuloSind(s))}: falta aplicar em ${r.pend.length} de ${r.total} empresa(s).</button>`); });
+    vencendo.forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(rotuloSind(s))}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
+    if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ${state.dpSind.some(x => x.origem === 'dominio') ? 'não existem na lista do Domínio' : 'ainda não estão cadastrados'}. Clique para ${state.dpSind.some(x => x.origem === 'dominio') ? 'ver' : 'cadastrar'}.</button>`);
     $('#sd-alertas').innerHTML = av.join(''); $('#sd-alertas').hidden = !av.length;
-    $('#sd-detectar').hidden = ro || !codsSoltos.length;
+    $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
     $('#sd-detectar').textContent = `Detectar nas empresas (${codsSoltos.length})`;
     $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
 
     // tabela de sindicatos
-    let lista = state.dpSind.filter(s => { const vs = vincDe(s); return matchQ([s.cod, s.nome, s.uf, s.obs, s.cct, s.dataBase, s.registro, s.cnpj, ...vs.map(e => e.nome)], q) && sindFiltra(s, vs); });
+    const emUso = (s) => vincDe(s).length > 0 || !!(s.dataBase || s.vigFim || s.cct || s.percentual) || s.origem !== 'dominio';
+    const temDominio = state.dpSind.some(x => x.origem === 'dominio');
+    const nUso = state.dpSind.filter(emUso).length;
+    const revisar = sindRevisar(emps);
+    $$('#sd-visao [data-sd-visao]').forEach(b => { const v = b.dataset.sdVisao, on = v === state.dpSindVisao; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.querySelector('small').textContent = v === 'uso' ? nUso : v === 'todos' ? state.dpSind.length : revisar.length; });
+    $('#sd-visao').hidden = !temDominio && !revisar.length;
+    $('#sd-dom-info').textContent = temDominio ? `Lista do Domínio de ${fmtYmdBR(state.dpSind.filter(x => x.dominioEm).map(x => x.dominioEm).sort().pop() || '') || '—'}` : '';
+    const revisando = state.dpSindVisao === 'revisar';
+    $('#sd-rev-wrap').hidden = !revisando; $('#sd-lista-wrap').hidden = revisando;
+    if (revisando) renderSindRevisar(revisar);
+    let lista = state.dpSind.filter(s => (state.dpSindVisao !== 'uso' || !temDominio || emUso(s))).filter(s => { const vs = vincDe(s); return matchQ([s.cod, s.nome, s.apelido, s.uf, s.obs, s.cct, s.dataBase, s.registro, s.cnpj, String(s.cnpj || '').replace(/\D/g, ''), ...vs.map(e => e.nome)], q) && sindFiltra(s, vs); });
     if (state.dpSindMes) lista = lista.filter(s => s.dataBase === state.dpSindMes);
     const distMes = (s) => s.dataBase ? (MESES.indexOf(s.dataBase) + 12 - mAtual) % 12 : 99;
     const ord = { data: (a, b) => distMes(a) - distMes(b), nome: () => 0, cod: (a, b) => (a.cod || '~').localeCompare(b.cod || '~', 'pt-BR', { numeric: true }), emps: (a, b) => vincDe(b).length - vincDe(a).length, vig: (a, b) => (a.vigFim || '9999').localeCompare(b.vigFim || '9999') }[state.dpSindOrdem] || (() => 0);
     lista.sort((a, b) => ord(a, b) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const filtrado = !!(q || state.dpSindMes || state.dpSindFiltro);
-    $('#sd-count').textContent = `${filtrado ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
-    const cctHtml = (s) => /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
+    $('#sd-count').textContent = revisando ? `${revisar.length} ponto(s) para revisar` : `${filtrado || lista.length !== state.dpSind.length ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
+    const cctHtml = (s) => ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
       : s.cct ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct(s))}" title="${escapeHtml(caminhoCct(s))}">${ic('link', 'ic-sm')} copiar caminho</button><div class="dp-cell-sub" title="${escapeHtml(arquivoCct(s))}">${escapeHtml(arquivoCct(s))}</div>`
       : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} pasta das CCTs</button>`;
     const reajHtml = (s, vs) => {
@@ -3887,13 +3947,13 @@ body.portal-open{overflow:hidden;}
       }
       return `<tr class="${aberto ? 'aberto' : ''}" data-sd-row="${escapeHtml(s.id)}">
         <td class="dp-mono">${escapeHtml(s.cod || '—')}</td>
-        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(s.nome)}</div></button>${s.uf || s.percentual ? `<div class="dp-cell-sub">${[s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div>` : ''}</td>
-        <td>${s.dataBase ? `<span class="sd-db ${qm}">${ic('calendar', 'ic-sm')} ${escapeHtml(s.dataBase)}</span>` : '<span class="pill pill-late">sem data-base</span>'}</td>
-        <td>${s.vigIni || s.vigFim ? `<div style="font-size:12px">${s.vigIni ? fmtYmdBR(s.vigIni) : '?'} a ${s.vigFim ? fmtYmdBR(s.vigFim) : '?'}</div>` : ''}<span class="pill ${v.cls}">${v.txt}</span></td>
+        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
+        <td>${s.dataBase ? `<span class="sd-db ${qm}">${ic('calendar', 'ic-sm')} ${escapeHtml(s.dataBase)}</span>` : ehSemSind(s) ? '<span class="dp-cell-sub">não se aplica</span>' : vs.length ? '<span class="pill pill-late">sem data-base</span>' : '<span class="dp-cell-sub">—</span>'}</td>
+        <td>${s.vigIni || s.vigFim ? `<div style="font-size:12px">${s.vigIni ? fmtYmdBR(s.vigIni) : '?'} a ${s.vigFim ? fmtYmdBR(s.vigFim) : '?'}</div>` : ''}${v.n === null && !vs.length && !ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : `<span class="pill ${v.cls}">${v.txt}</span>`}</td>
         <td>${reajHtml(s, vs)}</td>
         <td class="num"><button type="button" class="sd-n" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${vs.length} empresa(s) · ${nf} funcionário(s)">${vs.length} ${ic(aberto ? 'left' : 'right', 'ic-sm')}</button><div class="dp-cell-sub">${nf} func.</div></td>
         <td>${cctHtml(s)}</td>
-        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn" data-sd-edit="${escapeHtml(s.id)}" aria-label="Editar ${escapeHtml(s.nome)}" title="Editar">${ic('edit', 'ic-sm')}</button>`}</td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn" data-sd-edit="${escapeHtml(s.id)}" aria-label="Editar ${escapeHtml(rotuloSind(s))}" title="Editar">${ic('edit', 'ic-sm')}</button>`}</td>
       </tr>${det}`;
     }).join('');
     const vazio = state.dpSind.length ? 'Nenhum sindicato com esses filtros.'
@@ -3907,7 +3967,7 @@ body.portal-open{overflow:hidden;}
       .filter(e => !state.dpSindMes || basesEmpresa(e).includes(state.dpSindMes)).sort(byNome);
     $('#sd-sem-n').textContent = semSind.length ? `${semSind.length}` : '';
     $('#sd-sem-wrap').hidden = !semSind.length;
-    const optsSind = `<option value="">Escolha o sindicato…</option>` + state.dpSind.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml((s.cod ? s.cod + ' · ' : '') + s.nome)}</option>`).join('');
+    const optsSind = `<option value="">Escolha o sindicato…</option>` + state.dpSind.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml((s.cod ? s.cod + ' · ' : '') + rotuloSind(s))}</option>`).join('');
     $('#sd-sem').innerHTML = semLista.map(e => {
       const inf = e.estabelecimentos.map(r => [codigosDe(r).join(' e '), ehCaminho(r.sindicato) ? '' : r.sindicato].filter(Boolean).join(' · ')).filter(Boolean).join(' | ');
       const caminho0 = e.estabelecimentos.map(r => r.sindicato).find(ehCaminho), caminho = caminho0 && caminhoCct({ cct: caminho0 });
@@ -3926,6 +3986,151 @@ body.portal-open{overflow:hidden;}
     const emps = state.dpEmpresas.filter(ativa);
     return state.dpSind.filter(s => { const r = reajusteStatus(s, emps.filter(e => empresaSinds(e).includes(s))); const v = vigStatus(s); return (r && r.pendente) || (v.n !== null && v.n < 0); }).length;
   }
+
+  // Pontos para revisar: cadastros ruins no Domínio, sindicatos em uso sem dados e códigos das empresas que não existem no cadastro.
+  function sindRevisar(emps) {
+    const out = [];
+    const usados = new Map();
+    emps.forEach(e => empresaSinds(e).forEach(s => usados.set(s, (usados.get(s) || 0) + 1)));
+    state.dpSind.forEach(s => {
+      const p = problemaDominio(s);
+      if (p) out.push({ onde: 'Domínio', s, txt: p, n: usados.get(s) || 0 });
+      if (usados.get(s) && !ehSemSind(s)) {
+        if (!s.dataBase) out.push({ onde: 'Plataforma', s, txt: 'em uso sem data-base', n: usados.get(s) });
+        const v = vigStatus(s);
+        if (v.n === null) out.push({ onde: 'Plataforma', s, txt: 'em uso sem vigência da CCT', n: usados.get(s) });
+        else if (v.n < 0) out.push({ onde: 'Plataforma', s, txt: `CCT ${v.txt}`, n: usados.get(s) });
+      }
+    });
+    codigosNaoCadastrados().forEach(c => out.push({ onde: state.dpSind.some(x => x.origem === 'dominio') ? 'Domínio' : 'Plataforma', cod: c.cod, txt: state.dpSind.some(x => x.origem === 'dominio') ? `código ${c.cod} usado nas empresas não existe no Domínio` : `código ${c.cod} usado nas empresas ainda não cadastrado`, n: c.n }));
+    return out.sort((a, b) => (a.onde === b.onde ? 0 : a.onde === 'Plataforma' ? -1 : 1) || b.n - a.n);
+  }
+  function renderSindRevisar(itens) {
+    const ro = state.readOnly;
+    $('#sd-rev').innerHTML = itens.length ? itens.map(r => `<tr>
+      <td><span class="pill ${r.onde === 'Domínio' ? 'pill-soon' : 'pill-today'}">${r.onde === 'Domínio' ? 'Ajustar no Domínio' : 'Completar aqui'}</span></td>
+      <td class="dp-mono">${escapeHtml(r.s ? r.s.cod : r.cod)}</td>
+      <td>${r.s ? `<div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(r.s))}</div>${r.s.cnpj ? `<div class="dp-cell-sub">${escapeHtml(r.s.cnpj)}</div>` : ''}` : '<span class="dp-cell-sub">—</span>'}</td>
+      <td>${escapeHtml(r.txt)}</td>
+      <td class="num">${r.n || '—'}</td>
+      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
+      : '<tr><td colspan="6"><div class="dp-empty">Nada para revisar.</div></td></tr>';
+  }
+
+  // ----- importar a lista de sindicatos do Domínio (relatório "Cadastro de Sindicatos dos Empregados") -----
+  const URL_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const URL_PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const scriptsExt = {};
+  function carregarScriptExt(src) {
+    if (!scriptsExt[src]) scriptsExt[src] = new Promise((ok, falha) => {
+      const el = document.createElement('script'); el.src = src; el.async = true;
+      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; falha(new Error('Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
+      document.head.appendChild(el);
+    });
+    return scriptsExt[src];
+  }
+  const limpaApelido = (t) => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return /^[\s.,;:-]*$/.test(x) ? '' : x; };
+  const limpaCnpj = (t) => { const x = String(t || '').trim(); return /\d/.test(x) ? x.replace(/\s+/g, '') : ''; };
+  // Lê o PDF separando as colunas pela posição (código | nome | apelido | CNPJ) e agrupando por linha.
+  async function lerPdfDominio(file) {
+    await carregarScriptExt(URL_PDFJS);
+    await carregarScriptExt(URL_PDFJS_WORKER);
+    const lib = window.pdfjsLib;
+    lib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER;
+    const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+    const linhas = []; let texto = '';
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const pg = await pdf.getPage(n);
+      const H = pg.view[3], W = pg.view[2];
+      const itens = (await pg.getTextContent()).items.filter(it => it.str && it.str.trim()).map(it => ({ x: it.transform[4] * 595.27 / W, y: H - it.transform[5], s: it.str }));
+      texto += itens.map(i => i.s).join(' ') + '\n';
+      itens.sort((a, b) => a.y - b.y || a.x - b.x);
+      let cur = null;
+      itens.forEach(it => { if (!cur || Math.abs(it.y - cur.y) > 3) { cur = { y: it.y, itens: [] }; linhas.push(cur); } cur.itens.push(it); });
+    }
+    const col = (l, a, b) => l.itens.filter(i => i.x >= a && i.x < b).sort((p, q) => p.x - q.x).map(i => i.s).join(' ').normalize('NFC').replace(/\s+/g, ' ').trim();
+    const regs = linhas.map(l => ({ cod: col(l, 0, 48), nome: col(l, 48, 288), apelido: col(l, 288, 438), cnpj: col(l, 438, 9999) }))
+      .filter(r => /^\d{1,9}$/.test(r.cod) && r.nome)
+      .map(r => ({ cod: r.cod, nome: r.nome, apelido: limpaApelido(r.apelido), cnpj: limpaCnpj(r.cnpj) }));
+    return { regs, emissao: (/(\d{2}\/\d{2}\/\d{4})/.exec(texto) || [])[1] || '', total: +((/Total de sindicatos[^\d]*(\d+)/i.exec(texto) || [])[1] || 0) };
+  }
+  // Reserva: texto colado do relatório (uma linha "código nome", seguida de apelido e CNPJ).
+  function lerTextoDominio(txt) {
+    const regs = []; let cur = null;
+    String(txt || '').normalize('NFC').split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(l => {
+      const m = /^(\d{1,9})\s+(.+)$/.exec(l);
+      if (m && !/^\d{2}[./]/.test(l)) { cur = { cod: m[1], nome: m[2].trim(), apelido: '', cnpj: '' }; regs.push(cur); return; }
+      if (!cur) return;
+      if (/^\s*[\d.\s]*\/?[\d\s-]*$/.test(l) && /\d{2}\.\d{3}/.test(l)) { cur.cnpj = limpaCnpj(l); cur = null; return; }
+      if (!/^(Sistema licenciado|Total de sindicatos|CADASTRO DE SINDICATOS|Nome|Sindicato|Apelido|CNPJ|Horas|Emiss|P[áa]gina)/i.test(l) && !cur.apelido) cur.apelido = limpaApelido(l);
+    });
+    return { regs, emissao: (/(\d{2}\/\d{2}\/\d{4})/.exec(txt) || [])[1] || '', total: +((/Total de sindicatos[^\d]*(\d+)/i.exec(txt) || [])[1] || 0) };
+  }
+  const dlgImp = $('#dlg-sind-import');
+  let impDados = null;
+  function abrirImportDominio() {
+    if (state.readOnly) return;
+    impDados = null;
+    $('#si-arquivo').value = ''; $('#si-texto').value = '';
+    $('#si-prev').innerHTML = ''; $('#si-status').textContent = '';
+    $('#si-ok').disabled = true;
+    if (!dlgImp.open) dlgImp.showModal();
+  }
+  function prepararImport(lido) {
+    const porCod = new Map(); lido.regs.forEach(r => porCod.set(r.cod, r));
+    const regs = [...porCod.values()];
+    const novos = [], mud = [], iguais = [];
+    regs.forEach(r => {
+      const s = state.dpSind.find(x => x.cod === r.cod);
+      if (!s) { novos.push(r); return; }
+      const dif = ['nome', 'apelido', 'cnpj'].filter(k => (s[k] || '') !== (r[k] || ''));
+      (dif.length ? mud : iguais).push({ r, s, dif });
+    });
+    const fora = state.dpSind.filter(x => x.cod && !porCod.has(x.cod));
+    impDados = { regs, novos, mud, iguais, fora, emissao: lido.emissao };
+    const aviso = lido.total && lido.total !== regs.length ? `<p class="sd-renov" style="background:var(--dp-today-bg);color:var(--ink)">O relatório diz ${lido.total} sindicatos, mas foram lidos ${regs.length}. Confira a lista abaixo antes de importar.</p>` : '';
+    const lin = (r, extra = '') => `<tr><td class="dp-mono">${escapeHtml(r.cod)}</td><td>${escapeHtml(r.nome)}</td><td>${escapeHtml(r.apelido || '—')}</td><td class="dp-mono">${escapeHtml(r.cnpj || '—')}</td>${extra}</tr>`;
+    const tab = (titulo, corpo, n, aberto) => n ? `<details class="si-grupo"${aberto ? ' open' : ''}><summary><b>${titulo}</b> <span class="dp-tab-badge">${n}</span></summary><div class="si-tab"><table class="ct-table"><thead><tr><th>Código</th><th>Nome</th><th>Apelido</th><th>CNPJ</th>${titulo.startsWith('Atualizados') ? '<th>O que muda</th>' : ''}</tr></thead><tbody>${corpo}</tbody></table></div></details>` : '';
+    const ROT = { nome: 'nome', apelido: 'apelido', cnpj: 'CNPJ' };
+    $('#si-prev').innerHTML = `${aviso}<div class="si-resumo"><span><b>${regs.length}</b> lidos${impDados.emissao ? ` (relatório de ${escapeHtml(impDados.emissao)})` : ''}</span><span><b>${novos.length}</b> novos</span><span><b>${mud.length}</b> atualizados</span><span><b>${iguais.length}</b> iguais</span>${fora.length ? `<span><b>${fora.length}</b> só no Control Hub</span>` : ''}</div>
+      ${tab('Novos', novos.map(r => lin(r)).join(''), novos.length, true)}
+      ${tab('Atualizados', mud.map(({ r, s, dif }) => lin(r, `<td>${dif.map(k => `${ROT[k]}: <s>${escapeHtml(s[k] || '—')}</s>`).join('<br>')}</td>`)).join(''), mud.length, true)}
+      ${tab('Iguais', iguais.map(({ r }) => lin(r)).join(''), iguais.length, false)}
+      ${fora.length ? `<details class="si-grupo"><summary><b>Só no Control Hub (não estão no relatório)</b> <span class="dp-tab-badge">${fora.length}</span></summary><p class="dp-sec-note">Ficam como estão. Confira se o código está certo nas empresas.</p><div class="si-tab"><table class="ct-table"><tbody>${fora.map(x => `<tr><td class="dp-mono">${escapeHtml(x.cod)}</td><td>${escapeHtml(rotuloSind(x))}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      <p class="dp-sec-note" style="margin:0">Data-base, vigência, arquivo da CCT, reajuste e histórico dos sindicatos já cadastrados são mantidos.</p>`;
+    $('#si-ok').disabled = !(novos.length || mud.length || iguais.length);
+    $('#si-ok').textContent = novos.length || mud.length ? `Importar ${novos.length + mud.length} mudança(s)` : 'Marcar como conferidos';
+  }
+  $('#si-arquivo').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    $('#si-status').textContent = 'Lendo o PDF…'; $('#si-ok').disabled = true;
+    try {
+      const lido = await lerPdfDominio(f);
+      if (!lido.regs.length) throw new Error('Nenhum sindicato encontrado. Use o relatório “Cadastro de Sindicatos dos Empregados” do Domínio.');
+      $('#si-status').textContent = '';
+      prepararImport(lido);
+    } catch (err) { $('#si-status').textContent = (err && err.message) || 'Não foi possível ler o arquivo.'; }
+  });
+  $('#si-texto-ler').addEventListener('click', () => {
+    const lido = lerTextoDominio($('#si-texto').value);
+    if (!lido.regs.length) { $('#si-status').textContent = 'Não encontrei sindicatos no texto colado.'; return; }
+    $('#si-status').textContent = '';
+    prepararImport(lido);
+  });
+  $('#si-ok').addEventListener('click', async () => {
+    const d = impDados; if (!d) return;
+    const em = (() => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(d.emissao || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : ymd(hoje()); })();
+    const quando = fmtYmdBR(em);
+    const itens = state.dpSind.map(x => ({ ...x }));
+    d.mud.forEach(({ r, s, dif }) => { const x = itens.find(y => y.id === s.id); ['nome', 'apelido', 'cnpj'].forEach(k => { x[k] = r[k]; }); x.origem = 'dominio'; x.dominioEm = em; x.hist = [...x.hist]; histSind(x, `Atualizado pela lista do Domínio de ${quando} (${dif.join(', ')})`); });
+    d.iguais.forEach(({ s }) => { const x = itens.find(y => y.id === s.id); x.origem = 'dominio'; x.dominioEm = em; });
+    d.novos.forEach(r => { const x = normalizeSind({ ...r, origem: 'dominio', dominioEm: em }); if (x) { histSind(x, `Cadastrado pela lista do Domínio de ${quando}`); itens.push(x); } });
+    dlgImp.close();
+    state.dpSindVisao = 'uso';
+    if (await salvarSinds(itens)) toast(`Lista do Domínio importada: ${d.novos.length} novo(s), ${d.mud.length} atualizado(s).`);
+  });
+  $('#si-cancelar').addEventListener('click', () => dlgImp.close());
+  $('#dlg-sind-import-close').addEventListener('click', () => dlgImp.close());
 
   // Códigos informados nos estabelecimentos que ainda não viraram sindicato cadastrado, com nome/CCT/data-base sugeridos.
   function codigosNaoCadastrados() {
@@ -3948,8 +4153,8 @@ body.portal-open{overflow:hidden;}
   function aplicaVinculo(e, s) {
     const semCod = e.estabelecimentos.filter(r => !codigosDe(r).length);
     let r = semCod.find(x => x.tipo === 'Matriz') || semCod[0];
-    if (r) { r.codSind = s.cod; if (!r.sindicato) r.sindicato = s.nome; }
-    else if (!e.estabelecimentos.length) e.estabelecimentos.push({ id: uid(), tipo: 'Matriz', cnpj: e.cnpj, cidadeUf: e.uf, dataBase: '', codSind: s.cod, sindicato: s.nome });
+    if (r) { r.codSind = s.cod; if (!r.sindicato) r.sindicato = rotuloSind(s); }
+    else if (!e.estabelecimentos.length) e.estabelecimentos.push({ id: uid(), tipo: 'Matriz', cnpj: e.cnpj, cidadeUf: e.uf, dataBase: '', codSind: s.cod, sindicato: rotuloSind(s) });
     else { r = e.estabelecimentos.find(x => x.tipo === 'Matriz') || e.estabelecimentos[0]; r.codSind = [codigosDe(r).join(' e '), s.cod].filter(Boolean).join(' e '); }
   }
   function tiraVinculo(e, s) {
@@ -3968,14 +4173,14 @@ body.portal-open{overflow:hidden;}
     const e = findDpEmpresa(empId), s = state.dpSind.find(x => x.id === sindId);
     if (!e || !s || state.readOnly) return;
     if (!s.cod) { toast('Informe o código deste sindicato antes de vincular empresas.'); abrirSind(s.id); return; }
-    aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${s.nome}`);
+    aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${rotuloSind(s)}`);
     renderDpActiveView();
-    if (await persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }))) toast(`${e.nome} vinculada a ${s.nome}.`);
+    if (await persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }))) toast(`${e.nome} vinculada a ${rotuloSind(s)}.`);
   }
   async function desvincularSind(empId, sindId) {
     const e = findDpEmpresa(empId), s = state.dpSind.find(x => x.id === sindId);
     if (!e || !s || state.readOnly) return;
-    tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${s.nome}`);
+    tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${rotuloSind(s)}`);
     renderDpActiveView();
     persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }));
   }
@@ -3991,7 +4196,7 @@ body.portal-open{overflow:hidden;}
     const ref = `${s.dataBase.toLowerCase()}/${c.ano}`;
     histSind(s, `${aplicado ? 'Reajuste aplicado' : 'Reajuste desmarcado'} (${ref}) em ${mudadas.length} empresa(s)`);
     const emps = mudadas.map(findDpEmpresa).filter(Boolean);
-    emps.forEach(e => marcaHist(e, `${aplicado ? 'Reajuste da CCT aplicado' : 'Reajuste da CCT desmarcado'}: ${s.nome} (${ref}${s.percentual ? ', ' + s.percentual : ''})`));
+    emps.forEach(e => marcaHist(e, `${aplicado ? 'Reajuste da CCT aplicado' : 'Reajuste da CCT desmarcado'}: ${rotuloSind(s)} (${ref}${s.percentual ? ', ' + s.percentual : ''})`));
     renderDpActiveView();
     await persist(async () => {
       await sindStore.save(JSON.parse(JSON.stringify(state.dpSind)));
@@ -4060,7 +4265,7 @@ body.portal-open{overflow:hidden;}
     const s = state.dpSind.find(x => x.id === sindEditId);
     if (!s) return;
     const n = state.dpEmpresas.filter(e => empresaSinds(e).includes(s)).length;
-    const ok = await ask(`Excluir ${s.nome}?${n ? `\n${n} empresa(s) continuam com o código ${s.cod} no estabelecimento, mas ficam sem o cadastro (data-base volta à informada na empresa).` : ''}`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    const ok = await ask(`Excluir ${rotuloSind(s)}?${n ? `\n${n} empresa(s) continuam com o código ${s.cod} no estabelecimento, mas ficam sem o cadastro (data-base volta à informada na empresa).` : ''}`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
     if (!ok) return;
     dlgSind.close();
     if (await salvarSinds(state.dpSind.filter(x => x.id !== s.id))) toast('Sindicato excluído.');
@@ -4076,7 +4281,7 @@ body.portal-open{overflow:hidden;}
     if (!s || state.readOnly) return;
     if (!s.cod) { toast('Informe o código deste sindicato antes de vincular empresas.'); abrirSind(s.id); return; }
     svSind = s;
-    $('#sv-title').textContent = `Empresas de ${s.nome}`;
+    $('#sv-title').textContent = `Empresas de ${rotuloSind(s)}`;
     $('#sv-busca').value = '';
     const outros = (e) => empresaSinds(e).filter(x => x !== s).map(x => x.nome).join(', ');
     $('#sv-list').innerHTML = state.dpEmpresas.filter(ativa).sort(byNome).map(e => `<label class="sv-item" data-busca="${escapeHtml(norm([e.nome, e.cod, e.cnpj, e.responsavel].join(' ')))}"><input type="checkbox" value="${escapeHtml(e.id)}"${empresaSinds(e).includes(s) ? ' checked' : ''}><span><b>${escapeHtml(e.nome)}</b><small>${escapeHtml([e.responsavel, outros(e) && 'já em: ' + outros(e)].filter(Boolean).join(' · '))}</small></span></label>`).join('');
@@ -4094,8 +4299,8 @@ body.portal-open{overflow:hidden;}
     state.dpEmpresas.filter(ativa).forEach(e => { const tem = empresaSinds(e).includes(s); if (marcadas.has(e.id) && !tem) add.push(e); else if (!marcadas.has(e.id) && tem) rem.push(e); });
     dlgSv.close();
     if (!add.length && !rem.length) return;
-    add.forEach(e => { aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${s.nome}`); });
-    rem.forEach(e => { tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${s.nome}`); });
+    add.forEach(e => { aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${rotuloSind(s)}`); });
+    rem.forEach(e => { tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${rotuloSind(s)}`); });
     histSind(s, [add.length && `vinculou ${add.length} empresa(s)`, rem.length && `desvinculou ${rem.length}`].filter(Boolean).join(' e '));
     renderDpActiveView();
     const ok = await persist(async () => { for (const e of [...add, ...rem]) await dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }); await sindStore.save(JSON.parse(JSON.stringify(state.dpSind))); });
@@ -4141,10 +4346,12 @@ body.portal-open{overflow:hidden;}
   $('#sd-novo').addEventListener('click', () => abrirSind(null));
   $('#sd-pasta').addEventListener('click', async () => { try { await navigator.clipboard.writeText(PASTA_CCT); toast('Pasta das convenções copiada. Cole no Explorador de Arquivos.'); } catch { toast(PASTA_CCT); } });
   $('#sd-detectar').addEventListener('click', abrirDetectar);
+  $('#sd-importar').addEventListener('click', abrirImportDominio);
+  $('#sd-visao').addEventListener('click', (e) => { const b = e.target.closest('[data-sd-visao]'); if (b) { state.dpSindVisao = b.dataset.sdVisao; renderSindicatos(); } });
   $('#sd-csv').addEventListener('click', () => {
-    const rows = [['Código','Sindicato / CCT','UF','CNPJ','Data-base','Vigência início','Vigência fim','Situação da CCT','Reajuste','Piso','Registro MTE','Mês da contribuição','Convenção (arquivo)','Contato','Ciclo de reajuste','Reajuste aplicado','Empresas vinculadas','Funcionários ativos']];
+    const rows = [['Código','Sindicato / CCT','Apelido','UF','CNPJ','Data-base','Vigência início','Vigência fim','Situação da CCT','Reajuste','Piso','Registro MTE','Mês da contribuição','Convenção (arquivo)','Contato','Ciclo de reajuste','Reajuste aplicado','Empresas vinculadas','Funcionários ativos']];
     const ativas = state.dpEmpresas.filter(ativa);
-    state.dpSind.forEach(s => { const vs = ativas.filter(e => empresaSinds(e).includes(s)), r = reajusteStatus(s, vs); rows.push([s.cod, s.nome, s.uf, s.cnpj, s.dataBase, fmtDateStr(s.vigIni), fmtDateStr(s.vigFim), vigStatus(s).txt, s.percentual, s.piso, s.registro, s.contribMes, s.cct ? caminhoCct(s) : '', s.contato, r ? `${s.dataBase.toLowerCase()}/${r.ano}` : '', r ? (r.reg.semReajuste ? 'sem reajuste' : `${r.feitas} de ${r.total}`) : '', vs.map(e => e.nome).join(', '), vs.reduce((n, e) => n + nfEmp(e), 0)]); });
+    state.dpSind.forEach(s => { const vs = ativas.filter(e => empresaSinds(e).includes(s)), r = reajusteStatus(s, vs); rows.push([s.cod, s.nome, s.apelido, s.uf, s.cnpj, s.dataBase, fmtDateStr(s.vigIni), fmtDateStr(s.vigFim), vigStatus(s).txt, s.percentual, s.piso, s.registro, s.contribMes, s.cct ? caminhoCct(s) : '', s.contato, r ? `${s.dataBase.toLowerCase()}/${r.ano}` : '', r ? (r.reg.semReajuste ? 'sem reajuste' : `${r.feitas} de ${r.total}`) : '', vs.map(e => e.nome).join(', '), vs.reduce((n, e) => n + nfEmp(e), 0)]); });
     offerFile(`dp-sindicatos-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#sd-csv-emp').addEventListener('click', () => {
@@ -4152,7 +4359,7 @@ body.portal-open{overflow:hidden;}
     state.dpEmpresas.filter(ativa).sort(byNome).forEach(e => {
       const ss = empresaSinds(e);
       if (!ss.length) { rows.push([e.nome, e.cod, e.cnpj, e.responsavel, '(sem sindicato)', '', basesEmpresa(e).join(', '), '', '', '', '']); return; }
-      ss.forEach(s => { const c = cicloDe(s); const ap = c && s.ciclos[c.ano]?.aplicado[e.id]; rows.push([e.nome, e.cod, e.cnpj, e.responsavel, s.nome, s.cod, s.dataBase, s.percentual, c ? `${s.dataBase.toLowerCase()}/${c.ano}` : '', ap ? fmtYmdBR(ap) : (c && s.ciclos[c.ano]?.semReajuste ? 'sem reajuste' : 'pendente'), vigStatus(s).txt]); });
+      ss.forEach(s => { const c = cicloDe(s); const ap = c && s.ciclos[c.ano]?.aplicado[e.id]; rows.push([e.nome, e.cod, e.cnpj, e.responsavel, rotuloSind(s), s.cod, s.dataBase, s.percentual, c ? `${s.dataBase.toLowerCase()}/${c.ano}` : '', ap ? fmtYmdBR(ap) : (c && s.ciclos[c.ano]?.semReajuste ? 'sem reajuste' : 'pendente'), vigStatus(s).txt]); });
     });
     offerFile(`dp-empresas-sindicatos-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
