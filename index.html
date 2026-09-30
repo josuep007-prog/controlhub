@@ -5788,6 +5788,14 @@ body.portal-open{overflow:hidden;}
     state.dpConvAnim = true; renderSindTab();
   });
   $('#dlg-consulta-close').addEventListener('click', () => dlgConsulta.close());
+  // Painel lateral: fecha ao clicar fora (ou Esc), sem atrapalhar janelas abertas nem a troca de convenção.
+  document.addEventListener('pointerdown', (e) => {
+    if (!state.dpConvPainel || $('#cv-painel').hidden) return;
+    const t = e.target;
+    if (t.closest('#cv-painel, dialog, [data-cv-abrir], #toast, .toast')) return;
+    fecharPainelCct();
+  }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.dpConvPainel && !document.querySelector('dialog[open]')) fecharPainelCct(); });
   $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
   $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b && b.dataset.cvModo !== state.dpConvModo) { state.dpConvModo = b.dataset.cvModo; state.prefs.convModo = state.dpConvModo; savePrefs(); state.dpConvAnim = true; renderConvencoes(); } });
   $('#sd-resumo').open = !!state.prefs.cadResumo; $('#sd-resumo').addEventListener('toggle', () => { state.prefs.cadResumo = $('#sd-resumo').open; savePrefs(); });
