@@ -234,6 +234,22 @@ body:not(.in-module) #view-home{width:100%; box-sizing:border-box;}
 @media (max-width:640px){ .qa-dock{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:18px 6px;} #view-home .home-dock .qa-tile{width:auto;} #view-home .home-dock .qa-tile > span:last-child{max-width:100%; font-size:10px; letter-spacing:-.01em;} #view-home .home-dock .qa-tile .card-icon{width:52px; height:52px; border-radius:14px;} }
 @media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon{transition:none;} #view-home .home-dock .qa-tile:hover .card-icon{transform:none;} }
 
+/* dock: animação contínua enquanto o mouse está em cima — anel de luz girando na cor do módulo, ícone flutuando e brilho respirando */
+@property --dk-a{syntax:'<angle>'; inherits:false; initial-value:0deg;}
+#view-home .home-dock .qa-tile .card-icon{position:relative; overflow:visible;}
+#view-home .home-dock .qa-tile .card-icon::after{content:""; position:absolute; inset:-4px; border-radius:19px; padding:2px; pointer-events:none; opacity:0; transition:opacity .25s;
+  background:conic-gradient(from var(--dk-a), transparent 0deg 200deg, color-mix(in srgb, var(--accent, #6BAAC9) 70%, transparent) 290deg, #fff 340deg, transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);}
+#view-home .home-dock .qa-tile:not(:disabled):is(:hover, :focus-visible) .card-icon::after{opacity:1; animation:dkGira 2.2s linear infinite;}
+#view-home .home-dock .qa-tile:not(:disabled):is(:hover, :focus-visible) .card-icon > *{animation:dkFlutua 2.2s ease-in-out infinite;}
+#view-home .home-dock .qa-tile:not(:disabled):hover .card-icon{animation:dkRespira 2.2s ease-in-out infinite;}
+@keyframes dkGira{to{--dk-a:360deg;}}
+@keyframes dkFlutua{0%,100%{transform:translateY(1px) rotate(0deg);} 30%{transform:translateY(-2.5px) rotate(-5deg);} 65%{transform:translateY(-1px) rotate(4deg);}}
+@keyframes dkRespira{0%,100%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);} 50%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 85%, transparent), 0 14px 34px color-mix(in srgb, var(--accent, #6BAAC9) 48%, transparent);}}
+.tema-claro #view-home .home-dock .qa-tile .card-icon::after{background:conic-gradient(from var(--dk-a), transparent 0deg 200deg, color-mix(in srgb, var(--accent, #3C659B) 55%, transparent) 290deg, var(--accent, #3C659B) 340deg, transparent 360deg);}
+@media (hover:none){ #view-home .home-dock .qa-tile .card-icon::after, #view-home .home-dock .qa-tile .card-icon > *, #view-home .home-dock .qa-tile .card-icon{animation:none !important;} #view-home .home-dock .qa-tile .card-icon::after{opacity:0 !important;} }
+@media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon::after, #view-home .home-dock .qa-tile .card-icon > *, #view-home .home-dock .qa-tile .card-icon{animation:none !important;} }
+
 /* ============ início: cabeçalho enxuto ============ */
 body .home-hero{padding-top:40px !important;}
 
