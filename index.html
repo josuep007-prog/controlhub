@@ -199,6 +199,15 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 /* ============ início: Hoje ============ */
 .home-hero{position:relative; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:18px 28px; margin:10px 0 22px; padding:18px 0 22px; color:#E9EEF2; animation:hhIn .5s cubic-bezier(.2,.7,.2,1) both;}
 .home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:linear-gradient(90deg, #C2000C, rgba(107,170,201,.5) 45%, transparent);}
+/* cometa: um ponto de luz percorre a linha e passa do vermelho ao azul no caminho */
+@property --hh-c{syntax:'<color>'; inherits:false; initial-value:#E8474B;}
+.home-hero::before{content:""; position:absolute; bottom:-1px; left:-140px; width:140px; height:3px; border-radius:2px; pointer-events:none; opacity:0;
+  background:linear-gradient(90deg, transparent, var(--hh-c) 60%, #fff); filter:drop-shadow(0 0 4px var(--hh-c));
+  animation:hhCometa 5.5s cubic-bezier(.45,0,.25,1) 1s infinite;}
+@keyframes hhCometa{0%{left:-140px; opacity:0; --hh-c:#E8474B;} 8%{opacity:1;} 55%{opacity:.95;} 72%{--hh-c:#6BAAC9;} 82%,100%{left:100%; opacity:0; --hh-c:#6BAAC9;}}
+.tema-claro .home-hero::before{background:linear-gradient(90deg, transparent, var(--hh-c) 70%, var(--hh-c)); filter:drop-shadow(0 0 3px var(--hh-c)); animation-name:hhCometaClaro;}
+@keyframes hhCometaClaro{0%{left:-140px; opacity:0; --hh-c:#C2000C;} 8%{opacity:1;} 55%{opacity:.9;} 72%{--hh-c:#3C659B;} 82%,100%{left:100%; opacity:0; --hh-c:#3C659B;}}
+@media (prefers-reduced-motion: reduce){ .home-hero::before{display:none;} }
 @keyframes hhIn{from{opacity:0; transform:translateY(8px);}}
 .hh-eyebrow{display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8FA0AD;}
 .hh-eyebrow i{width:7px; height:7px; border-radius:50%; background:#E8474B; box-shadow:0 0 10px rgba(232,71,75,.9); animation:hhVivo 1.8s ease-out infinite;}
