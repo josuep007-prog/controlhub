@@ -199,15 +199,15 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 /* ============ início: Hoje ============ */
 .home-hero{position:relative; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:18px 28px; margin:10px 0 22px; padding:18px 0 22px; color:#E9EEF2; animation:hhIn .5s cubic-bezier(.2,.7,.2,1) both;}
 /* cometa: um ponto de luz atravessa sob a saudação deixando um rastro, que depois se apaga (não há linha fixa) */
-@property --hh-p{syntax:'<percentage>'; inherits:true; initial-value:0%;}
+@property --hh-p{syntax:'<number>'; inherits:true; initial-value:0;}
 @property --hh-c{syntax:'<color>'; inherits:false; initial-value:#E8474B;}
 .home-hero{animation:hhIn .5s cubic-bezier(.2,.7,.2,1) both, hhVarre 7s cubic-bezier(.45,0,.25,1) 1.2s infinite;}
-@keyframes hhVarre{0%{--hh-p:0%;} 62%,100%{--hh-p:100%;}}
-.home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; pointer-events:none;
+@keyframes hhVarre{0%{--hh-p:0;} 62%,100%{--hh-p:1;}}
+.home-hero::after{content:""; position:absolute; left:0; bottom:0; width:var(--hh-w, 100%); height:1px; pointer-events:none;
   background:linear-gradient(90deg, rgba(194,0,12,.85), rgba(107,170,201,.5) 50%, rgba(107,170,201,.12));
-  clip-path:inset(0 calc(100% - var(--hh-p)) 0 0); animation:hhRastro 7s linear 1.2s infinite both;}
+  clip-path:inset(0 calc((1 - var(--hh-p)) * 100%) 0 0); animation:hhRastro 7s linear 1.2s infinite both;}
 @keyframes hhRastro{0%,60%{opacity:1;} 88%,100%{opacity:0;}}
-.home-hero::before{content:""; position:absolute; bottom:-.5px; left:calc(var(--hh-p) - 110px); width:110px; height:2px; border-radius:2px; pointer-events:none; opacity:0;
+.home-hero::before{content:""; position:absolute; bottom:-.5px; left:calc(var(--hh-w, 100%) * var(--hh-p) - 110px); width:110px; height:2px; border-radius:2px; pointer-events:none; opacity:0;
   background:linear-gradient(90deg, transparent, var(--hh-c) 65%, color-mix(in srgb, var(--hh-c) 55%, #fff)); filter:drop-shadow(0 0 2px var(--hh-c));
   animation:hhCometa 7s linear 1.2s infinite both;}
 @keyframes hhCometa{0%{opacity:0; --hh-c:#E8474B;} 7%{opacity:.6;} 50%{opacity:.55;} 52%{--hh-c:#6BAAC9;} 64%,100%{opacity:0; --hh-c:#6BAAC9;}}
@@ -2845,7 +2845,19 @@ body.portal-open{overflow:hidden;}
       </section>
       <section class="home-qa home-dock"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
     applyTheme();
+    ajustaLinhaHome();
   }
+  // A linha do cometa vai só até o último ícone de módulo da primeira fileira da dock.
+  function ajustaLinhaHome() {
+    const hero = $('#home-root .home-hero'), tiles = $$('#home-root .qa-dock .qa-tile');
+    if (!hero || !tiles.length || !hero.offsetParent) return;
+    const x0 = hero.getBoundingClientRect().left;
+    const top = Math.min(...tiles.map(t => t.getBoundingClientRect().top));
+    const dir = Math.max(...tiles.filter(t => t.getBoundingClientRect().top - top < 8).map(t => { const r = t.getBoundingClientRect(), i = t.querySelector('.card-icon'); return r.left + (r.width + (i ? i.offsetWidth : r.width)) / 2; }));
+    if (dir > x0) hero.style.setProperty('--hh-w', `${Math.round(dir - x0)}px`);
+  }
+  if (window.ResizeObserver) new ResizeObserver(() => ajustaLinhaHome()).observe($('#home-root'));
+  else window.addEventListener('resize', ajustaLinhaHome);
 
   // ---------- busca global ----------
   const srInput = $('#global-search'), srPanel = $('#sr-panel');
