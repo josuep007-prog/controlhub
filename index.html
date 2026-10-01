@@ -209,77 +209,37 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
 @media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
-/* ============ início: pulso do escritório ============ */
-.s-dp{--c:#FF5A5F;} .s-fi{--c:#6BAAC9;} .s-co{--c:#3FBF8A;} .s-po{--c:#E3A008;}
-.tema-claro .s-dp{--c:#C2000C;} .tema-claro .s-fi{--c:#3C659B;} .tema-claro .s-co{--c:#0F7A55;} .tema-claro .s-po{--c:#9A6B00;}
-
-/* setores: linha discreta logo abaixo do cabeçalho */
-.sx-strip{display:flex; align-items:center; gap:18px; margin:-6px 0 18px; padding:2px 0;}
-.sx-lb{flex:none; font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); opacity:.8;}
-.sx-track{position:relative; flex:1; min-width:0; display:flex; justify-content:space-between; align-items:center; gap:8px;}
-.sx-fio{position:absolute; left:12px; right:12px; top:50%; height:1px; margin-top:-.5px; background:linear-gradient(90deg, transparent, rgba(255,255,255,.12) 6%, rgba(255,255,255,.12) 94%, transparent); pointer-events:none;}
-.sx-fio i{position:absolute; top:-2px; left:0; width:5px; height:5px; border-radius:50%; background:#FF5A5F; box-shadow:0 0 8px 2px rgba(255,90,95,.55); animation:sxRun 9s linear infinite;}
-.sx-fio i:nth-child(2){background:#6BAAC9; box-shadow:0 0 8px 2px rgba(107,170,201,.55); animation-duration:13s; animation-direction:reverse; animation-delay:-5s;}
-@keyframes sxRun{0%{left:0; opacity:0;} 8%{opacity:1;} 92%{opacity:1;} 100%{left:100%; opacity:0;}}
-.sx-node{all:unset; box-sizing:border-box; position:relative; z-index:1; display:inline-flex; align-items:center; gap:7px; padding:3px 10px 3px 3px; border-radius:999px; background:#0D141A; box-shadow:inset 0 0 0 1px rgba(255,255,255,.07); color:var(--ink-3); font-size:11.5px; font-weight:600; cursor:pointer; transition:color .15s, box-shadow .15s;}
-.sx-node.off{cursor:default;}
-.sx-ico{position:relative; flex:none; width:22px; height:22px; display:grid; place-items:center; border-radius:50%; color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent);}
-.sx-ico .ic{width:13px; height:13px;}
-.sx-ico::after{content:""; position:absolute; inset:-1px; border-radius:50%; border:1.5px solid var(--c); opacity:0; pointer-events:none;}
-.sx-node.ping .sx-ico::after{animation:sxPing 1.4s ease-out;}
-@keyframes sxPing{from{transform:scale(1); opacity:.85;} to{transform:scale(2.1); opacity:0;}}
-.sx-node:not(.off):hover{color:var(--ink); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent);}
-.sx-node:focus-visible{outline:2px solid #6BAAC9; outline-offset:2px;}
-.tema-claro .sx-node{background:#fff; box-shadow:inset 0 0 0 1px rgba(16,24,32,.1);}
-.tema-claro .sx-fio{background:linear-gradient(90deg, transparent, rgba(16,24,32,.13) 6%, rgba(16,24,32,.13) 94%, transparent);}
-.tema-claro .sx-fio i{background:#C2000C; box-shadow:0 0 6px 1px rgba(194,0,12,.35);}
-.tema-claro .sx-fio i:nth-child(2){background:#3C659B; box-shadow:0 0 6px 1px rgba(60,101,155,.35);}
-@media (max-width:760px){ .sx-lb, .sx-nm{display:none;} .sx-node{padding:3px;} }
-
-/* relógio do fechamento: largura toda */
-.home-pulse{margin-bottom:22px;}
-.home-pulse .pn-card{position:relative; overflow:hidden;}
-.home-pulse .pn-card::before{content:""; position:absolute; left:0; top:0; right:0; height:2px; background:linear-gradient(90deg, var(--brand-red), transparent 70%); opacity:.8;}
-.rl-wrap{display:flex; align-items:center; gap:28px; padding:2px 0 8px;}
-.rl-box{position:relative; flex:none; width:190px; aspect-ratio:1;}
+/* ============ início: relógio do fechamento (sem moldura) ============ */
+.home-pulse{margin:4px 0 30px;}
+.rl-min{display:flex; align-items:center; gap:34px;}
+.rl-box{position:relative; flex:none; width:156px; aspect-ratio:1;}
 .rl-svg{display:block; width:100%; height:100%; overflow:visible;}
-.rl-trk{fill:none; stroke:rgba(255,255,255,.08); stroke-width:6;}
-.rl-prog{fill:none; stroke:#E8474B; stroke-width:6; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(232,71,75,.55)); transition:stroke-dashoffset 1s linear;}
-.rl-tick{stroke:rgba(255,255,255,.38); stroke-width:1.4; stroke-linecap:round;} .rl-tick.off{stroke:rgba(255,255,255,.13);}
-.rl-in{fill:none; stroke:rgba(255,255,255,.1); stroke-width:1; stroke-dasharray:2 4; transform-box:view-box; transform-origin:center; animation:rlSpin 120s linear infinite reverse;}
-.rl-orb{transform-box:view-box; transform-origin:center; animation:rlSpin 60s linear infinite;}
-.rl-orb circle{fill:#6BAAC9; filter:drop-shadow(0 0 4px rgba(107,170,201,.9));}
-@keyframes rlSpin{to{transform:rotate(360deg);}}
-.rl-hand{stroke:rgba(255,255,255,.6); stroke-width:2; stroke-linecap:round;}
-.rl-tip{fill:#fff; filter:drop-shadow(0 0 5px rgba(255,255,255,.9)) drop-shadow(0 0 10px rgba(232,71,75,.9)); animation:rlBlink 1.6s ease-in-out infinite;}
-@keyframes rlBlink{50%{opacity:.5;}}
-.rl-mk{stroke:#131C23; stroke-width:2;} .rl-mk.fut{fill:#6BAAC9;} .rl-mk.passou{fill:rgba(255,255,255,.28);} .rl-mk.prox{fill:#FF5A5F; animation:rlBlink 1s ease-in-out infinite;}
-.rl-mid{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none; padding:0 36px;}
-.rl-mid small{font-size:10.5px; color:var(--ink-3); line-height:1.25;}
-.rl-cd{margin:3px 0; font:700 16px "IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap;}
-.rl-leg{list-style:none; margin:0; padding:0; flex:1; min-width:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px;}
-.rl-leg li{display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:6px; background:rgba(255,255,255,.03); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}
-.rl-ld{font:700 22px "IBM Plex Mono",monospace; line-height:1; color:var(--ink);}
-.rl-ld small{margin-left:6px; font:700 10.5px "IBM Plex Sans",sans-serif; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);}
-.rl-ln{font-size:12.5px; font-weight:600; line-height:1.3; color:var(--ink-2);}
+.rl-trk{fill:none; stroke:rgba(255,255,255,.08); stroke-width:3;}
+.rl-prog{fill:none; stroke:#E8474B; stroke-width:3; stroke-linecap:round; filter:drop-shadow(0 0 4px rgba(232,71,75,.45)); transition:stroke-dashoffset 1s linear;}
+.rl-mk{stroke:#0B1116; stroke-width:2.5;} .rl-mk.fut{fill:#6BAAC9;} .rl-mk.passou{fill:rgba(255,255,255,.25);} .rl-mk.prox{fill:#FF5A5F;}
+.rl-tip{fill:#fff; filter:drop-shadow(0 0 4px rgba(255,255,255,.8)) drop-shadow(0 0 8px rgba(232,71,75,.8)); animation:rlBlink 1.8s ease-in-out infinite;}
+@keyframes rlBlink{50%{opacity:.45;}}
+.rl-mid{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none; padding:0 26px;}
+.rl-cd{font:600 15px "IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap;}
+.rl-mid small{font-size:10.5px; line-height:1.25; color:var(--ink-3);}
+.rl-side{flex:1; min-width:0; display:flex; flex-direction:column; gap:14px;}
+.rl-eb{font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);}
+.rl-leg{list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; row-gap:14px;}
+.rl-leg li{display:flex; flex-direction:column; gap:3px; min-width:120px; padding:0 24px; border-left:1px solid rgba(255,255,255,.08);}
+.rl-leg li:first-child{padding-left:0; border-left:0;}
+.rl-ld{font:600 20px "IBM Plex Mono",monospace; line-height:1; color:var(--ink);}
+.rl-ld small{margin-left:6px; font:700 10px "IBM Plex Sans",sans-serif; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);}
+.rl-ln{font-size:12px; color:var(--ink-2);}
 .rl-ls{font-size:11px; color:var(--ink-3);}
-.rl-leg li.passou{opacity:.45;}
-.rl-leg li.prox{background:rgba(232,71,75,.1); box-shadow:inset 0 0 0 1px rgba(232,71,75,.4);}
-.rl-leg li.prox .rl-ld, .rl-leg li.prox .rl-ls{color:#FF6B6F;} .rl-leg li.prox .rl-ls{font-weight:700;}
-.tema-claro .rl-trk{stroke:rgba(16,24,32,.08);} .tema-claro .rl-prog{stroke:#C2000C; filter:drop-shadow(0 0 4px rgba(194,0,12,.35));}
-.tema-claro .rl-tick{stroke:rgba(16,24,32,.35);} .tema-claro .rl-tick.off{stroke:rgba(16,24,32,.12);} .tema-claro .rl-in{stroke:rgba(16,24,32,.14);}
-.tema-claro .rl-orb circle{fill:#3C659B; filter:drop-shadow(0 0 3px rgba(60,101,155,.6));} .tema-claro .rl-hand{stroke:rgba(16,24,32,.45);}
-.tema-claro .rl-tip{fill:#C2000C; filter:drop-shadow(0 0 5px rgba(194,0,12,.5));}
+.rl-leg li.passou{opacity:.4;}
+.rl-leg li.prox .rl-ld, .rl-leg li.prox .rl-ls{color:#FF6B6F;}
+.tema-claro .rl-trk{stroke:rgba(16,24,32,.08);} .tema-claro .rl-prog{stroke:#C2000C; filter:none;}
 .tema-claro .rl-mk{stroke:#fff;} .tema-claro .rl-mk.fut{fill:#3C659B;} .tema-claro .rl-mk.passou{fill:rgba(16,24,32,.2);} .tema-claro .rl-mk.prox{fill:#C2000C;}
-.tema-claro .rl-leg li{background:rgba(16,24,32,.03); box-shadow:inset 0 0 0 1px rgba(16,24,32,.08);}
-.tema-claro .rl-leg li.prox{background:rgba(194,0,12,.06); box-shadow:inset 0 0 0 1px rgba(194,0,12,.35);}
+.tema-claro .rl-tip{fill:#C2000C; filter:drop-shadow(0 0 4px rgba(194,0,12,.45));}
+.tema-claro .rl-leg li{border-left-color:rgba(16,24,32,.1);}
 .tema-claro .rl-leg li.prox .rl-ld, .tema-claro .rl-leg li.prox .rl-ls{color:#C2000C;}
-@media (max-width:640px){ .rl-wrap{flex-direction:column; gap:16px;} .rl-leg{width:100%; grid-template-columns:1fr 1fr;} }
-
-@media (prefers-reduced-motion: reduce){
-  .sx-fio i{display:none;} .sx-node.ping .sx-ico::after{animation:none;}
-  .rl-in, .rl-orb, .rl-tip, .rl-mk.prox{animation:none !important;} .rl-prog{transition:none;}
-}
+@media (max-width:640px){ .rl-min{flex-direction:column; align-items:flex-start; gap:18px;} .rl-box{align-self:center;} .rl-leg{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;} .rl-leg li, .rl-leg li:first-child{padding:0; border-left:0;} }
+@media (prefers-reduced-motion: reduce){ .rl-tip{animation:none;} .rl-prog{transition:none;} }
 /* odômetro rotativo */
 .hh-od{min-height:62px; align-items:stretch;}
 .od-stage{position:relative; flex:1; min-width:0; overflow:hidden;}
@@ -2798,10 +2758,9 @@ body.portal-open{overflow:hidden;}
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
   }
-  // ---------- tela inicial: pulso do escritório ----------
-  // Só relógio, datas legais de referência e animação: nenhum dado de cliente ou da equipe aparece aqui.
+  // ---------- tela inicial: relógio do fechamento ----------
+  // Só relógio e datas legais de referência: nenhum dado de cliente ou da equipe aparece aqui.
   const fmtN = (n) => Number(n).toLocaleString('pt-BR');
-  const calmoHome = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Prazos-padrão do DP (os mesmos sugeridos na agenda) + os mensais mais comuns do fiscal.
   const OBRIG_REF = [
@@ -2828,74 +2787,42 @@ body.portal-open{overflow:hidden;}
   }
   const nomesGrupo = (g) => g.itens.map(o => o.curto).join(' · ');
 
-  // Anel do mês: progresso em tempo real, dias úteis, marcadores das obrigações e contagem até a próxima.
+  // Relógio do fechamento: anel fino com o progresso do mês, pontos das obrigações e contagem até a próxima.
   function relogioHtml(agora) {
     const y = agora.getFullYear(), m = agora.getMonth();
     const ini = new Date(y, m, 1), fim = new Date(y, m + 1, 1), nd = new Date(y, m + 1, 0).getDate();
     const ang = (t) => (t - ini) / (fim - ini) * 360;
     const pt = (a, r) => { const rad = (a - 90) * Math.PI / 180; return [(100 + r * Math.cos(rad)).toFixed(2), (100 + r * Math.sin(rad)).toFixed(2)]; };
-    let ticks = '';
-    for (let d = 1; d <= nd; d++) {
-      const u = diaUtil(new Date(y, m, d)), a = ang(new Date(y, m, d, 12));
-      const [x1, y1] = pt(a, 88), [x2, y2] = pt(a, u ? 95 : 91);
-      ticks += `<line class="rl-tick${u ? '' : ' off'}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-    }
     const doMes = obrigacoesAgrupadas([mesDe(agora)]);
     const prox = proximasObrig(agora)[0];
     const estado = (g) => g.fim < agora ? 'passou' : (prox && +g.data === +prox.data) ? 'prox' : 'fut';
-    const marks = doMes.map(g => { const [cx, cy] = pt(ang(new Date(y, m, g.data.getDate(), 12)), 80), st = estado(g); return `<circle class="rl-mk ${st}" cx="${cx}" cy="${cy}" r="${st === 'prox' ? 5.5 : 4}"/>`; }).join('');
+    const marks = doMes.map(g => { const [cx, cy] = pt(ang(new Date(y, m, g.data.getDate(), 12)), 84), st = estado(g); return `<circle class="rl-mk ${st}" cx="${cx}" cy="${cy}" r="${st === 'prox' ? 5 : 3.6}"/>`; }).join('');
     const leg = doMes.map(g => { const st = estado(g), dd = diffDays(g.data, hoje()); return `<li class="${st}"><span class="rl-ld">${pad2(g.data.getDate())}<small>${DIAS_SEM[g.data.getDay()]}</small></span><span class="rl-ln">${escapeHtml(nomesGrupo(g))}</span><span class="rl-ls">${st === 'passou' ? 'passou' : dd === 0 ? 'vence hoje' : dd === 1 ? 'amanhã' : `em ${dd} dias`}</span></li>`; }).join('');
-    const C = (2 * Math.PI * 80).toFixed(2);
-    const seg = agora.getSeconds() + agora.getMilliseconds() / 1000;
-    return `<section class="pn-card hp-card"><div class="pn-card-head"><h3>Relógio do fechamento</h3><span class="sub">${escapeHtml(MESES[m])} · dia ${agora.getDate()} de ${nd}</span></div>
-      <div class="pn-card-body"><div class="rl-wrap">
+    const C = (2 * Math.PI * 84).toFixed(2);
+    return `<section class="rl-min" aria-label="Relógio do fechamento">
         <div class="rl-box">
           <svg class="rl-svg" viewBox="0 0 200 200" aria-hidden="true">
-            <circle class="rl-trk" cx="100" cy="100" r="80"/>
-            <circle class="rl-prog" cx="100" cy="100" r="80" transform="rotate(-90 100 100)" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-c="${C}" data-m="${m}"/>
-            ${ticks}
-            <circle class="rl-in" cx="100" cy="100" r="62"/>
-            <g class="rl-orb" style="animation-delay:-${seg.toFixed(2)}s"><circle cx="100" cy="38" r="3"/></g>
-            <line class="rl-hand" x1="100" y1="36" x2="100" y2="25"/>
+            <circle class="rl-trk" cx="100" cy="100" r="84"/>
+            <circle class="rl-prog" cx="100" cy="100" r="84" transform="rotate(-90 100 100)" stroke-dasharray="${C}" stroke-dashoffset="${C}" data-c="${C}" data-m="${m}"/>
             ${marks}
-            <circle class="rl-tip" cx="100" cy="20" r="4.5"/>
+            <circle class="rl-tip" cx="100" cy="16" r="4"/>
           </svg>
-          <div class="rl-mid">${prox ? `<small>faltam</small><b class="rl-cd" data-fim="${+prox.fim}">${fmtFalta(prox.fim - agora)}</b><small>para ${escapeHtml(nomesGrupo(prox))}</small>` : '<small>sem prazos de referência</small>'}</div>
+          <div class="rl-mid">${prox ? `<b class="rl-cd" data-fim="${+prox.fim}">${fmtFalta(prox.fim - agora)}</b><small>até ${escapeHtml(nomesGrupo(prox))}</small>` : '<small>sem prazos de referência</small>'}</div>
         </div>
-        <ol class="rl-leg">${leg || '<li class="passou"><span class="rl-ln">Sem obrigações de referência neste mês.</span></li>'}</ol>
-      </div></div></section>`;
+        <div class="rl-side">
+          <span class="rl-eb">Fechamento · ${escapeHtml(MESES[m])} · dia ${agora.getDate()} de ${nd}</span>
+          <ol class="rl-leg">${leg || '<li class="passou"><span class="rl-ln">Sem obrigações de referência neste mês.</span></li>'}</ol>
+        </div>
+      </section>`;
   }
 
-  // Setores numa linha discreta: um fio com luz correndo e, de vez em quando, um “sinal” em uma das áreas.
-  const SETORES = [
-    { id:'planilha-dp', nome:'Pessoal', ico:'t-dp', c:'s-dp' },
-    { id:'planilha-fiscal', nome:'Fiscal', ico:'t-fiscal', c:'s-fi' },
-    { id:'planilha-contabil', nome:'Contábil', ico:'t-contabil', c:'s-co' },
-    { id:'portal-cliente', nome:'Portal do Cliente', ico:'t-portal', c:'s-po' },
-  ];
-  function setorLink(s) {
-    const t = findTool(s.id);
-    if (!t) return null;
-    if (t.moduleKey) return ['button', `type="button" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}"`];
-    if (t.url) return ['a', `data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer"`];
-    return state.readOnly ? null : ['button', `type="button" data-action="edit" data-id="${escapeHtml(t.id)}"`];
-  }
-  function setoresHtml() {
-    const nos = SETORES.map(s => {
-      const l = setorLink(s), nome = escapeHtml(s.nome), inner = `<span class="sx-ico">${ic(s.ico)}</span><span class="sx-nm">${nome}</span>`;
-      return l ? `<${l[0]} class="sx-node ${s.c}" ${l[1]} aria-label="${nome}" title="${nome}">${inner}</${l[0]}>` : `<span class="sx-node ${s.c} off" title="${nome}">${inner}</span>`;
-    }).join('');
-    return `<nav class="sx-strip" aria-label="Setores"><span class="sx-lb">Setores</span><div class="sx-track"><span class="sx-fio" aria-hidden="true"><i></i><i></i></span>${nos}</div></nav>`;
-  }
-
-  // Um cronômetro só: contagem, anel do mês e os “sinais” dos setores. Pausa com a aba escondida ou dentro de um módulo.
-  let pulsoTimer = 0, pulsoN = 0;
+  // Um cronômetro só: contagem e progresso do anel. Pausa com a aba escondida ou dentro de um módulo.
+  let pulsoTimer = 0;
   function pulsoIniciar() {
     clearInterval(pulsoTimer); pulsoTimer = 0;
     const root = $('#home-root');
-    const vivo = () => !!root.querySelector('.hp-card, .sx-strip');
+    const vivo = () => !!root.querySelector('.rl-min');
     if (!vivo()) return;
-    const calmo = calmoHome();
     const tick = () => {
       const agora = new Date();
       let venceu = false;
@@ -2904,16 +2831,10 @@ body.portal-open{overflow:hidden;}
       if (venceu || (prog && +prog.dataset.m !== agora.getMonth())) { renderHome(); return true; }
       if (prog) {
         const ini = new Date(agora.getFullYear(), agora.getMonth(), 1), fim = new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
-        const f = (agora - ini) / (fim - ini), C = +prog.dataset.c, a = (f * 360 - 90) * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+        const f = (agora - ini) / (fim - ini), C = +prog.dataset.c, a = (f * 360 - 90) * Math.PI / 180;
         prog.setAttribute('stroke-dashoffset', (C * (1 - f)).toFixed(2));
-        const hand = root.querySelector('.rl-hand'), tip = root.querySelector('.rl-tip');
-        hand.setAttribute('x1', (100 + 64 * cos).toFixed(2)); hand.setAttribute('y1', (100 + 64 * sin).toFixed(2));
-        hand.setAttribute('x2', (100 + 75 * cos).toFixed(2)); hand.setAttribute('y2', (100 + 75 * sin).toFixed(2));
-        tip.setAttribute('cx', (100 + 80 * cos).toFixed(2)); tip.setAttribute('cy', (100 + 80 * sin).toFixed(2));
-      }
-      if (!calmo && ++pulsoN % 3 === 0) {
-        const ns = $$('.sx-node', root), n = ns[Math.floor(Math.random() * ns.length)];
-        if (n) { n.classList.remove('ping'); void n.offsetWidth; n.classList.add('ping'); }
+        const tip = root.querySelector('.rl-tip');
+        tip.setAttribute('cx', (100 + 84 * Math.cos(a)).toFixed(2)); tip.setAttribute('cy', (100 + 84 * Math.sin(a)).toFixed(2));
       }
       return false;
     };
@@ -2947,7 +2868,6 @@ body.portal-open{overflow:hidden;}
         <div class="hh-tools"><button type="button" class="hh-search" data-cmdk>${ic('search', 'ic-sm')}<span>Buscar empresa, funcionário…</span><kbd>/</kbd></button><button type="button" class="hh-theme" data-theme-toggle><span class="theme-ico"></span></button></div>
         <div class="hh-stats">${stat(nLemb, 'lembrete(s) seus hoje', 'agenda:tipo:meu')}${stat(nEq, 'data(s) da equipe hoje', 'agenda:hoje')}${stat(nAl, 'alerta(s) de pessoal', 'funcionarios:alerta', nAl ? 'late' : '')}</div>
       </section>
-      ${setoresHtml()}
       <div class="home-pulse">${relogioHtml(agora)}</div>
       <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
     applyTheme(); pulsoIniciar();
