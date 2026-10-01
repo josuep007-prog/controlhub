@@ -209,6 +209,12 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
 @media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* ============ início: cabeçalho enxuto ============ */
+.home-hero .hh-tools .hh-theme{width:30px; height:30px; background:none; box-shadow:none; color:var(--ink-3); opacity:.5; transition:opacity .15s, color .15s;}
+.home-hero .hh-tools .hh-theme:hover, .home-hero .hh-tools .hh-theme:focus-visible{opacity:1; background:none; color:var(--ink);}
+.home-hero .hh-tools{justify-content:flex-end;}
+body .home-hero{padding-top:40px !important;}
+
 /* ============ início: relógio do fechamento (sem moldura) ============ */
 .home-pulse{margin:4px 0 30px;}
 .rl-min{display:flex; align-items:center; gap:34px;}
@@ -2858,15 +2864,10 @@ body.portal-open{overflow:hidden;}
     // Nome de quem está usando, para a saudação (carrega uma vez).
     if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
     const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-    const nLemb = state.meusLoaded && !state.meusOff ? meusEventos(t, t).length : null;
-    const nEq = state.dpLoaded ? eventos(t, t).length : null;
-    const nAl = state.dpLoaded ? alertasPessoal().filter(a => a.nivel !== 'soon').length : null;
-    const stat = (n, l, go, cls = '') => n === null ? '' : `<button type="button" class="hh-stat ${cls}${n ? '' : ' zero'}" data-go="${go}"><b>${n}</b><span>${l}</span></button>`;
     const agora = new Date();
     root.innerHTML = `<section class="home-hero">
         <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
-        <div class="hh-tools"><button type="button" class="hh-search" data-cmdk>${ic('search', 'ic-sm')}<span>Buscar empresa, funcionário…</span><kbd>/</kbd></button><button type="button" class="hh-theme" data-theme-toggle><span class="theme-ico"></span></button></div>
-        <div class="hh-stats">${stat(nLemb, 'lembrete(s) seus hoje', 'agenda:tipo:meu')}${stat(nEq, 'data(s) da equipe hoje', 'agenda:hoje')}${stat(nAl, 'alerta(s) de pessoal', 'funcionarios:alerta', nAl ? 'late' : '')}</div>
+        <div class="hh-tools"><button type="button" class="hh-theme" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><span class="theme-ico"></span></button></div>
       </section>
       <div class="home-pulse">${relogioHtml(agora)}</div>
       <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
