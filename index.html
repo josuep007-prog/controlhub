@@ -235,9 +235,6 @@ body:not(.in-module) #view-home{width:100%; box-sizing:border-box;}
 @media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon{transition:none;} #view-home .home-dock .qa-tile:hover .card-icon{transform:none;} }
 
 /* ============ início: cabeçalho enxuto ============ */
-.home-hero .hh-tools .hh-theme{width:30px; height:30px; background:none; box-shadow:none; color:var(--ink-3); opacity:.5; transition:opacity .15s, color .15s;}
-.home-hero .hh-tools .hh-theme:hover, .home-hero .hh-tools .hh-theme:focus-visible{opacity:1; background:none; color:var(--ink);}
-.home-hero .hh-tools{justify-content:flex-end;}
 body .home-hero{padding-top:40px !important;}
 
 /* odômetro rotativo */
@@ -2773,7 +2770,6 @@ body.portal-open{overflow:hidden;}
     const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
     root.innerHTML = `<section class="home-hero">
         <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
-        <div class="hh-tools"><button type="button" class="hh-theme" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><span class="theme-ico"></span></button></div>
       </section>
       <section class="home-qa home-dock"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
     applyTheme();
@@ -2837,6 +2833,13 @@ body.portal-open{overflow:hidden;}
     if (tg.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
     e.preventDefault();
     abrirBusca();
+  });
+  // Tela inicial: a tecla T alterna o tema (o botão visível saiu de lá; nos módulos segue o item "Tema" da barra lateral).
+  document.addEventListener('keydown', (e) => {
+    if (e.key?.toLowerCase() !== 't' || e.ctrlKey || e.metaKey || e.altKey || e.repeat || state.activeModule) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+    e.preventDefault();
+    state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs();
   });
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
