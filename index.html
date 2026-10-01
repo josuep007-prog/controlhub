@@ -209,6 +209,11 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
 @media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* ============ início: conteúdo centralizado na altura da janela ============ */
+body:not(.in-module) .shell{min-height:100vh; min-height:100dvh;}
+body:not(.in-module) .shell > main{align-self:stretch; display:flex; flex-direction:column; justify-content:center; padding-block:28px;}
+body:not(.in-module) #view-home{width:100%; box-sizing:border-box;}
+
 /* ============ início: atalhos em dock ============ */
 .home-qa.home-dock .hqa-head h2{font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);}
 .home-qa.home-dock .hqa-head{margin-bottom:16px;}
