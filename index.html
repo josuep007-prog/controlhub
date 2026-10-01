@@ -209,6 +209,26 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
 @media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* ============ início: atalhos em dock ============ */
+.home-qa.home-dock .hqa-head h2{font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);}
+.home-qa.home-dock .hqa-head{margin-bottom:16px;}
+.qa-dock{display:flex; flex-wrap:wrap; gap:20px 14px;}
+#view-home .home-dock .qa-tile{all:unset; box-sizing:border-box; cursor:pointer; width:94px; display:flex; flex-direction:column; align-items:center; gap:9px; text-align:center;}
+#view-home .home-dock .qa-tile .card-icon{width:56px; height:56px; border-radius:15px; font-size:24px; background:color-mix(in srgb, var(--accent, #6BAAC9) 12%, rgba(255,255,255,.03)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 30%, rgba(255,255,255,.06)); transition:transform .22s cubic-bezier(.2,.7,.2,1), box-shadow .2s, background .2s;}
+#view-home .home-dock .qa-tile .card-icon .ic{width:24px; height:24px; color:color-mix(in srgb, var(--accent, #6BAAC9) 65%, #fff);}
+#view-home .home-dock .qa-tile .card-icon .brand-img{width:30px; height:30px;}
+#view-home .home-dock .qa-tile > span:last-child{max-width:94px; overflow-wrap:normal; word-break:normal; font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; transition:color .15s;}
+#view-home .home-dock .qa-tile:hover .card-icon, #view-home .home-dock .qa-tile:focus-visible .card-icon{transform:translateY(-5px) scale(1.06); background:color-mix(in srgb, var(--accent, #6BAAC9) 26%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);}
+#view-home .home-dock .qa-tile:hover > span:last-child, #view-home .home-dock .qa-tile:focus-visible > span:last-child{color:var(--ink);}
+#view-home .home-dock .qa-tile:focus-visible .card-icon{outline:2px solid #6BAAC9; outline-offset:3px;}
+#view-home .home-dock .qa-tile:disabled{cursor:default; opacity:.5;}
+#view-home .home-dock .qa-tile:disabled .card-icon{transform:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+.tema-claro #view-home .home-dock .qa-tile .card-icon{background:color-mix(in srgb, var(--accent, #3C659B) 9%, #fff); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #3C659B) 26%, rgba(16,24,32,.08)), 0 2px 6px rgba(16,24,32,.05);}
+.tema-claro #view-home .home-dock .qa-tile .card-icon .ic{color:color-mix(in srgb, var(--accent, #3C659B) 85%, #101820);}
+.tema-claro #view-home .home-dock .qa-tile:hover .card-icon{background:color-mix(in srgb, var(--accent, #3C659B) 16%, #fff); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #3C659B) 55%, transparent), 0 12px 24px color-mix(in srgb, var(--accent, #3C659B) 22%, transparent);}
+@media (max-width:640px){ .qa-dock{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:18px 6px;} #view-home .home-dock .qa-tile{width:auto;} #view-home .home-dock .qa-tile > span:last-child{max-width:100%; font-size:10px; letter-spacing:-.01em;} #view-home .home-dock .qa-tile .card-icon{width:52px; height:52px; border-radius:14px;} }
+@media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon{transition:none;} #view-home .home-dock .qa-tile:hover .card-icon{transform:none;} }
+
 /* ============ início: cabeçalho enxuto ============ */
 .home-hero .hh-tools .hh-theme{width:30px; height:30px; background:none; box-shadow:none; color:var(--ink-3); opacity:.5; transition:opacity .15s, color .15s;}
 .home-hero .hh-tools .hh-theme:hover, .home-hero .hh-tools .hh-theme:focus-visible{opacity:1; background:none; color:var(--ink);}
@@ -2859,7 +2879,7 @@ body.portal-open{overflow:hidden;}
     const hol = feriado(t);
 
     const tools = [...state.tools].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
-    const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-grid">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
+    const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-dock">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
 
     // Nome de quem está usando, para a saudação (carrega uma vez).
     if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
@@ -2870,7 +2890,7 @@ body.portal-open{overflow:hidden;}
         <div class="hh-tools"><button type="button" class="hh-theme" data-theme-toggle aria-label="Alternar tema" title="Alternar tema"><span class="theme-ico"></span></button></div>
       </section>
       <div class="home-pulse">${relogioHtml(agora)}</div>
-      <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
+      <section class="home-qa home-dock"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
     applyTheme(); pulsoIniciar();
   }
 
