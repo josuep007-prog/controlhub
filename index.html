@@ -787,6 +787,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-selc{text-align:center; padding-inline:6px !important;} .sd-selc input{width:15px; height:15px; cursor:pointer; accent-color:var(--blue-deep);}
 .sd-table tr.sel > td{background:color-mix(in srgb, var(--blue-deep) 8%, var(--surface));}
 .sd-del:hover{color:var(--dp-late); background:color-mix(in srgb, var(--dp-late) 10%, transparent);}
+.sd-table .sd-del, .sd-rev .sd-del, #sd-rev-wrap .sd-del{width:24px; height:24px; min-width:0; padding:0; border:0; background:transparent; color:var(--ink-3); opacity:.45; transition:opacity .15s, color .15s, background .15s;}
+.sd-table tr:hover .sd-del, #sd-rev-wrap tr:hover .sd-del, .sd-del:focus-visible{opacity:1;}
+.sd-det-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:12px;} .sd-det-acoes .spacer{flex:1;}
 .sd-table .ct-acoes{white-space:nowrap;}
 #cv-cad .dp-chip{border-radius:4px; padding:6px 14px;}
 .sd-visao-bar{gap:14px;}
@@ -4673,10 +4676,6 @@ body.portal-open{overflow:hidden;}
     lista.sort((a, b) => ord(a, b) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const filtrado = !!(q || state.dpSindMes || state.dpSindFiltro);
     $('#sd-count').textContent = revisando ? `${revisar.length} ponto(s) para revisar` : `${filtrado || lista.length !== state.dpSind.length ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
-    const cctHtml = (s0) => { const cv = s0.cctId && state.dpCcts.find(x => x.id === s0.cctId); const s = cv && cv.arquivo && !s0.cct ? { ...s0, cct: cv.arquivo } : s0; return cctHtml0(s); };
-    const cctHtml0 = (s) => ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
-      : s.cct ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct(s))}" title="${escapeHtml(caminhoCct(s))}">${ic('link', 'ic-sm')} copiar caminho</button><div class="dp-cell-sub" title="${escapeHtml(arquivoCct(s))}">${escapeHtml(arquivoCct(s))}</div>`
-      : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} pasta das CCTs</button>`;
     const reajHtml = (s, vs) => {
       const r = reajusteStatus(s, vs);
       if (!r) return '<span class="dp-cell-sub">—</span>';
@@ -4693,31 +4692,35 @@ body.portal-open{overflow:hidden;}
         const r = reajusteStatus(s, vs);
         const chk = (e) => r && !r.reg.semReajuste ? `<label class="sd-chk" title="Reajuste de ${s.dataBase.toLowerCase()}/${r.ano} aplicado na folha"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `aplicado ${fmtYmdDM(r.reg.aplicado[e.id])}` : 'reajuste pendente'}</label>` : '';
         const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
-        det = `<tr class="sd-det"><td colspan="9">
+        // Clicar no nome abre este painel: tudo do sindicato num lugar só (dados, convenção, reajuste e empresas).
+        const cvA = s.cctId && state.dpCcts.find(x => x.id === s.cctId), arq = s.cct || (cvA && cvA.arquivo) || '';
+        const copia = ehSemSind(s) ? '' : /^https?:\/\//i.test(arq) ? `<a href="${escapeHtml(arq)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} Abrir CCT</a>`
+          : arq ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ ...s, cct: arq }))}" title="${escapeHtml(caminhoCct({ ...s, cct: arq }))}">${ic('link', 'ic-sm')} Copiar caminho da CCT</button>`
+          : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} Copiar pasta das CCTs</button>`;
+        det = `<tr class="sd-det"><td colspan="8">
+          <div class="sd-det-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar dados do sindicato</button><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button>`}<span class="spacer"></span>${copia}</div>
           ${cctResumoHtml(s)}
           ${infos ? `<div class="sd-infos">${infos}</div>` : ''}
           ${r && vs.length ? `<div class="sd-det-h"><b>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano}</b> <span class="dp-cell-sub">${r.reg.semReajuste ? 'marcado como sem reajuste neste ciclo' : `${r.feitas} de ${r.total} aplicado(s)`}</span>${ro ? '' : `<span class="spacer"></span>${r.reg.semReajuste ? '' : `<button type="button" class="linkish" data-sd-apl-todas="${escapeHtml(s.id)}">marcar todas como aplicadas</button>`}<button type="button" class="linkish" data-sd-semreaj="${escapeHtml(s.id)}">${r.reg.semReajuste ? 'desfazer “sem reajuste”' : 'não haverá reajuste neste ciclo'}</button>`}</div>` : ''}
           <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
-          ${ro ? '' : `<div class="sd-vinc"><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button><button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar sindicato</button></div>`}
           ${s.obs ? `<p class="sd-obs">${escapeHtml(s.obs)}</p>` : ''}</td></tr>`;
       }
       return `<tr class="${aberto ? 'aberto' : ''}${state.dpSindSel.has(s.id) ? ' sel' : ''}" data-sd-row="${escapeHtml(s.id)}">
         ${ro ? '' : `<td class="sd-selc"><input type="checkbox" data-sd-sel="${escapeHtml(s.id)}" aria-label="Selecionar ${escapeHtml(rotuloSind(s))}"${state.dpSindSel.has(s.id) ? ' checked' : ''}></td>`}
         <td class="dp-mono">${escapeHtml(s.cod || '—')}</td>
-        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
+        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${aberto ? 'Fechar' : 'Abrir'} o sindicato"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
         <td>${s.dataBase ? `<span class="sd-db ${qm}">${ic('calendar', 'ic-sm')} ${escapeHtml(s.dataBase)}</span>` : ehSemSind(s) ? '<span class="dp-cell-sub">não se aplica</span>' : vs.length ? '<span class="pill pill-late">sem data-base</span>' : '<span class="dp-cell-sub">—</span>'}</td>
         <td>${s.vigIni || s.vigFim ? `<div style="font-size:12px">${s.vigIni ? fmtYmdBR(s.vigIni) : '?'} a ${s.vigFim ? fmtYmdBR(s.vigFim) : '?'}</div>` : ''}${v.n === null && !vs.length && !ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : `<span class="pill ${v.cls}">${v.txt}</span>`}</td>
         <td>${reajHtml(s, vs)}</td>
         <td class="num"><button type="button" class="sd-n" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${vs.length} empresa(s) · ${nf} funcionário(s)">${vs.length} ${ic(aberto ? 'left' : 'right', 'ic-sm')}</button><div class="dp-cell-sub">${nf} func.</div></td>
-        <td>${cctHtml(s)}</td>
-        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn" data-sd-edit="${escapeHtml(s.id)}" aria-label="Editar ${escapeHtml(rotuloSind(s))}" title="Editar">${ic('edit', 'ic-sm')}</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(s))}" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>`}</td>
       </tr>${det}`;
     }).join('');
     const vazio = state.dpSind.length ? 'Nenhum sindicato com esses filtros.'
       : `<strong>Nenhum sindicato cadastrado</strong><span>Cadastre os sindicatos para controlar data-base, CCT e reajuste num lugar só.</span>${ro ? '' : `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${codsSoltos.length ? `<button type="button" class="btn btn-primary" id="sd-detectar-vazio">Detectar ${codsSoltos.length} nas empresas</button>` : ''}<button type="button" class="btn" id="sd-novo-vazio">${ic('plus', 'ic-sm')} Cadastrar sindicato</button></span>`}`;
-    $('#sd-table').innerHTML = `<colgroup>${ro ? '' : '<col style="width:36px">'}<col style="width:84px"><col><col style="width:120px"><col style="width:170px"><col style="width:150px"><col style="width:84px"><col style="width:128px"><col style="width:${ro ? 44 : 76}px"></colgroup>
-      <thead><tr>${ro ? '' : `<th class="sd-selc"><input type="checkbox" data-sd-sel-todos aria-label="Selecionar todos os sindicatos listados"${lista.length && lista.every(x => state.dpSindSel.has(x.id)) ? ' checked' : ''}></th>`}<th>Código</th><th>Sindicato / CCT</th><th>Data-base</th><th>Vigência da CCT</th><th>Reajuste</th><th class="num">Empresas</th><th>Convenção</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="9"><div class="dp-empty">${vazio}</div></td></tr>`}</tbody>`;
+    $('#sd-table').innerHTML = `<colgroup>${ro ? '' : '<col style="width:36px">'}<col style="width:84px"><col><col style="width:120px"><col style="width:170px"><col style="width:150px"><col style="width:84px"><col style="width:${ro ? 8 : 40}px"></colgroup>
+      <thead><tr>${ro ? '' : `<th class="sd-selc"><input type="checkbox" data-sd-sel-todos aria-label="Selecionar todos os sindicatos listados"${lista.length && lista.every(x => state.dpSindSel.has(x.id)) ? ' checked' : ''}></th>`}<th>Código</th><th>Sindicato / CCT</th><th>Data-base</th><th>Vigência da CCT</th><th>Reajuste</th><th class="num">Empresas</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="8"><div class="dp-empty">${vazio}</div></td></tr>`}</tbody>`;
     // barra de seleção: excluir vários de uma vez
     [...state.dpSindSel].forEach(id => { if (!state.dpSind.some(x => x.id === id)) state.dpSindSel.delete(id); });
     const semEmp = lista.filter(x => !vincDe(x).length), nSel = state.dpSindSel.size;
@@ -4785,7 +4788,7 @@ body.portal-open{overflow:hidden;}
       <td>${r.s ? `<div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(r.s))}</div>${r.s.cnpj ? `<div class="dp-cell-sub">${escapeHtml(r.s.cnpj)}</div>` : ''}` : '<span class="dp-cell-sub">—</span>'}</td>
       <td>${escapeHtml(r.txt)}</td>
       <td class="num">${r.n || '—'}</td>
-      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir">${ic('trash', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
+      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
       : '<tr><td colspan="7"><div class="dp-empty">Nada para revisar.</div></td></tr>';
     const todos = $('#sd-rev-todos'); todos.checked = !!ids.length && ids.every(id => state.dpSindSel.has(id)); todos.disabled = !ids.length;
     const bar = $('#sd-rev-selbar');
