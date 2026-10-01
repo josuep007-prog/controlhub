@@ -734,6 +734,23 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cct-resumo-h{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;} .cct-resumo-h .linkish{font-size:13px;}
 .cct-cols{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 20px;} .cct-cols p{margin:2px 0 8px;} .cct-cols ul{margin:2px 0 8px; padding-left:18px;} .cct-cols li{margin:1px 0;}
 .cct-contribs{display:flex; flex-direction:column; gap:10px;}
+/* editor em linhas da convenção */
+.lin-src{display:none !important;}
+[data-calc-campo][hidden], .lin-ed[hidden]{display:none !important;}
+.lin-ed{display:flex; flex-direction:column; gap:5px; font-weight:400; min-width:0;}
+.lin-rows{display:flex; flex-direction:column; gap:5px;}
+.lin-cab, .lin-row{display:grid; grid-template-columns:var(--lin-cols); gap:6px; align-items:center;}
+.lin-cab span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);}
+#dlg-cct .lin-row input, #dlg-cct .lin-row select{width:100%; min-width:0; box-sizing:border-box;}
+.lin-af{position:relative; display:flex; align-items:center; min-width:0;}
+.lin-af i{position:absolute; right:9px; font-style:normal; font-size:12px; font-weight:600; color:var(--ink-3); pointer-events:none;}
+#dlg-cct .lin-af input{padding-right:24px; text-align:right; font-variant-numeric:tabular-nums;}
+.lin-af.pre i{left:9px; right:auto;} #dlg-cct .lin-af.pre input{padding-left:30px; padding-right:8px;}
+#dlg-cct .lin-row input.lin-bad{border-color:var(--dp-late); box-shadow:0 0 0 1px var(--dp-late);}
+.lin-del{all:unset; box-sizing:border-box; cursor:pointer; width:26px; height:26px; display:grid; place-items:center; border-radius:4px; color:var(--ink-3); opacity:.5; transition:opacity .15s, color .15s, background .15s;}
+.lin-del:hover, .lin-del:focus-visible{opacity:1; color:var(--dp-late); background:color-mix(in srgb, var(--dp-late) 10%, transparent);}
+.lin-pe{display:flex; flex-wrap:wrap; gap:16px; margin-top:2px;}
+#dlg-cct .form-row > .field:has(> .lin-ed){flex:1 1 300px;}
 .cct-contrib{border:1px solid var(--rule); border-radius:var(--r); padding:10px 12px; margin:0; display:flex; flex-direction:column; gap:8px; min-width:0;}
 .cct-contrib .linkish{align-self:flex-start; color:var(--dp-late);}
 .cct-emp-tab{font-size:12.5px; margin-top:6px;} .cct-emp-tab td,.cct-emp-tab th{padding:5px 8px;}
@@ -2036,7 +2053,7 @@ body.portal-open{overflow:hidden;}
         <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
         <label class="field">Data-base<select name="dataBase"></select></label>
       </div>
-      <label class="field">Partes (uma por linha: CNPJ | nome | laboral, patronal ou federação)<textarea name="partes" rows="3"></textarea></label>
+      <div class="field">Partes da convenção<textarea name="partes" data-lin="partes"></textarea></div>
     </div>
     <details class="cct-sec" data-sec="arq"><summary>Arquivo e vínculos <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
@@ -2047,15 +2064,15 @@ body.portal-open{overflow:hidden;}
     </div></details>
     <details class="cct-sec" data-sec="reaj"><summary>Reajuste <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
-        <label class="field">Percentuais (um por linha: “Geral = 6%”)<textarea name="reajItens" rows="3"></textarea></label>
-        <label class="field">Tabela por mês de admissão (“03/2025 = 6,00%”)<textarea name="reajTabela" rows="3"></textarea></label>
+        <div class="field">Percentuais<textarea name="reajItens" data-lin="reajItens"></textarea></div>
+        <div class="field">Tabela por mês de admissão (proporcional)<textarea name="reajTabela" data-lin="reajTabela"></textarea></div>
       </div>
       <label class="field">Base de cálculo e regras (compensação, proporcionalidade, teto)<textarea name="reajBase" rows="2" maxlength="600"></textarea></label>
     </div></details>
     <details class="cct-sec" data-sec="piso"><summary>Pisos e benefícios <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
-        <label class="field">Pisos (um por linha: “Função = 1.850,00”)<textarea name="pisos" rows="4"></textarea></label>
-        <label class="field">Benefícios (“Cartão alimentação = 1.300,00”)<textarea name="beneficios" rows="4"></textarea></label>
+        <div class="field">Pisos salariais<textarea name="pisos" data-lin="pisos"></textarea></div>
+        <div class="field">Benefícios<textarea name="beneficios" data-lin="beneficios"></textarea></div>
       </div>
     </div></details>
     <details class="cct-sec" data-sec="contrib"><summary>Contribuições <span class="cct-sec-n"></span><span class="cct-sec-h">viram lembretes na Agenda</span></summary><div class="cct-sec-b">
@@ -2063,10 +2080,12 @@ body.portal-open{overflow:hidden;}
       <button type="button" class="btn btn-sm" id="cct-add-contrib" style="align-self:flex-start"><svg class="ic ic-sm"><use href="#i-plus"/></svg> Contribuição</button>
     </div></details>
     <details class="cct-sec" data-sec="prazos"><summary>Prazos e observações <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
-      <label class="field">Prazos (um por linha: “08/09/2026 = Retroativo 1ª parcela”; entram na Agenda)<textarea name="prazos" rows="3"></textarea></label>
+      <div class="field">Prazos (entram na Agenda)<textarea name="prazos" data-lin="prazos"></textarea></div>
       <label class="field">Observações<textarea name="obs" rows="2" maxlength="1500"></textarea></label>
     </div></details>
     <details class="cct-sec" data-sec="emps"><summary>Sindicatos e empresas <span class="cct-sec-n"></span></summary><div class="cct-sec-b"><div id="cct-emps"></div></div></details>
+    <datalist id="dl-reaj"><option value="Geral"><option value="Micro e pequenas empresas"><option value="Empresas do Simples Nacional"><option value="Salários acima do teto"></datalist>
+    <datalist id="dl-trib"></datalist>
     <div class="dlg-actions">
       <button type="button" class="btn btn-danger" id="btn-cct-excluir" hidden>Excluir</button>
       <span class="spacer"></span>
@@ -5720,6 +5739,142 @@ body.portal-open{overflow:hidden;}
   let cctEditId = null;
   const linhasPar = (arr, a, b) => arr.map(x => `${x[a]} = ${x[b]}`).join('\n');
   const leLinhasPar = (txt, a, b) => String(txt || '').split(/\n+/).map(l => { const i = l.lastIndexOf('='); return i > 0 ? { [a]: l.slice(0, i).trim(), [b]: l.slice(i + 1).trim() } : null; }).filter(x => x && x[a]);
+  // ---------- editor em linhas (reajuste, tabelas, pisos, benefícios, prazos, partes) ----------
+  // Cada editor fica ligado a um textarea escondido no formato de texto antigo, que continua sendo o que se lê e se grava.
+  const numTxt = (v) => /^[\s\d.,]+$/.test(v) && /\d/.test(v);
+  const numPt = (v) => { const t = String(v).replace(/\s/g, ''); return /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) || t.includes(',') ? Number(t.replace(/\./g, '').replace(',', '.')) : Number(t); };
+  const fmtPct = (v) => { v = String(v || '').trim().replace(/%$/, '').trim(); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : v; };
+  const fmtVal = (v) => { v = String(v || '').trim().replace(/^R\$\s*/i, ''); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; };
+  const SEM_LIM = 999999999;
+  const LIN = {
+    reajItens: { cab: ['Aplica-se a', 'Reajuste'], cols: [{ t:'txt', ph:'Ex.: Geral', dl:'dl-reaj' }, { t:'pct', w:'110px' }], add:'Percentual', fmt:'par' },
+    reajTabela: { cab: ['Admitidos em', 'Reajuste'], cols: [{ t:'month', w:'minmax(0,1fr)' }, { t:'pct', w:'110px' }], add:'Mês', fmt:'mes' },
+    pisos: { cab: ['Função', 'Piso'], cols: [{ t:'txt', ph:'Ex.: Ajudante' }, { t:'brl', w:'130px' }], add:'Piso', fmt:'par' },
+    beneficios: { cab: ['Benefício', 'Valor ou regra'], cols: [{ t:'txt', ph:'Ex.: Cartão alimentação' }, { t:'valTxt', w:'150px', ph:'1.300,00' }], add:'Benefício', fmt:'par' },
+    prazos: { cab: ['Data', 'O que fazer'], cols: [{ t:'date', w:'160px' }, { t:'txt', ph:'Ex.: Retroativo 1ª parcela' }], add:'Prazo', fmt:'data' },
+    partes: { cab: ['CNPJ', 'Entidade', 'Lado'], cols: [{ t:'cnpj', w:'175px' }, { t:'txt', ph:'Nome do sindicato ou federação' }, { t:'sel', w:'120px', op:[['laboral', 'Laboral'], ['patronal', 'Patronal'], ['federacao', 'Federação']] }], add:'Parte', fmt:'pipe' },
+    faixaEmpregados: { cab: ['De (func.)', 'Até', 'Valor'], cols: [{ t:'int', ph:'0' }, { t:'int', ph:'sem limite' }, { t:'brl', w:'160px' }], add:'Faixa', fmt:'faixa' },
+    faixaCapital: { cab: ['Capital de', 'Até', 'Valor'], cols: [{ t:'brl', ph:'0,00' }, { t:'brl', ph:'sem limite' }, { t:'brl', w:'130px' }], add:'Faixa', fmt:'faixa' },
+    tributacao: { cab: ['Tributação', 'Valor'], cols: [{ t:'txt', dl:'dl-trib', ph:'SIMPLES NACIONAL' }, { t:'brl', w:'140px' }], add:'Linha', fmt:'par' },
+  };
+  const linLer = (fmt, txt) => String(txt || '').split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    if (fmt === 'pipe') { const p = l.split('|').map(s => s.trim()), lado = (p[2] || '').toLowerCase(); return [p[0] || '', p[1] || '', lado.startsWith('pat') ? 'patronal' : lado.startsWith('fed') ? 'federacao' : 'laboral']; }
+    if (fmt === 'faixa') { const m = /^\s*([\d.,]+)\s*-\s*([\d.,]+)\s*=\s*(.+)$/.exec(l); return m ? [m[1], numPt(m[2]) >= SEM_LIM ? '' : m[2], m[3].trim()] : null; }
+    const i = l.lastIndexOf('=');
+    if (i <= 0) return fmt === 'par' ? [l, ''] : null;
+    let a = l.slice(0, i).trim(); const b = l.slice(i + 1).trim();
+    if (fmt === 'mes') { const m = /^(\d{1,2})\/(\d{4})$/.exec(a); a = m ? `${m[2]}-${pad2(+m[1])}` : ''; }
+    if (fmt === 'data') { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(a); a = m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+    return [a, b];
+  }).filter(Boolean);
+  const linGravar = (fmt, rows) => rows.filter(r => r.some((v, i) => String(v).trim() && !(fmt === 'pipe' && i === 2))).map(r => {
+    if (fmt === 'pipe') return `${r[0]} | ${r[1]} | ${r[2]}`;
+    if (fmt === 'faixa') return `${r[0] || '0'}-${r[1] || SEM_LIM} = ${r[2]}`;
+    if (fmt === 'mes') return r[0] && r[1] ? `${r[0].slice(5)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    if (fmt === 'data') return r[0] ? `${r[0].slice(8)}/${r[0].slice(5, 7)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    return r[0] ? `${r[0]} = ${r[1]}` : '';
+  }).filter(Boolean).join('\n');
+  const linOut = (t, v) => {
+    v = String(v || '').trim();
+    if (t === 'pct') { const f = fmtPct(v); return f && numTxt(f) ? f + '%' : f; }
+    if (t === 'brl' || t === 'valTxt') return fmtVal(v);
+    if (t === 'int') return v.replace(/\D/g, '');
+    return v;
+  };
+  function linCell(c, v) {
+    const ph = c.ph ? ` placeholder="${escapeHtml(c.ph)}"` : '';
+    if (c.t === 'sel') return `<select data-lc="sel" aria-label="Lado">${c.op.map(([k, l]) => `<option value="${k}"${v === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+    if (c.t === 'month' || c.t === 'date') return `<input type="${c.t}" data-lc="${c.t}" value="${escapeHtml(v)}">`;
+    if (c.t === 'pct') return `<span class="lin-af"><input data-lc="pct" inputmode="decimal" value="${escapeHtml(fmtPct(v))}"${ph || ' placeholder="0"'}><i>%</i></span>`;
+    if (c.t === 'brl') return `<span class="lin-af pre"><i>R$</i><input data-lc="brl" inputmode="decimal" value="${escapeHtml(String(v).replace(/^R\$\s*/i, ''))}"${ph || ' placeholder="0,00"'}></span>`;
+    if (c.t === 'int') return `<input data-lc="int" inputmode="numeric" value="${escapeHtml(v)}"${ph}>`;
+    if (c.t === 'cnpj') return `<input data-lc="cnpj" value="${escapeHtml(v)}" placeholder="00.000.000/0000-00" class="${v && !cnpjValido(v) ? 'lin-bad' : ''}">`;
+    return `<input data-lc="${c.t}" value="${escapeHtml(v)}"${ph}${c.dl ? ` list="${c.dl}"` : ''}>`;
+  }
+  const linRowHtml = (spec, r, ro) => `<div class="lin-row">${spec.cols.map((c, i) => linCell(c, r[i] ?? '')).join('')}${ro ? '' : `<button type="button" class="lin-del" data-lin-del aria-label="Remover linha" title="Remover linha">${ic('x', 'ic-sm')}</button>`}</div>`;
+  function linMontar(ta, chave, linhas = null) {
+    let ed = ta.nextElementSibling;
+    if (!ed || !ed.classList.contains('lin-ed')) { ed = document.createElement('div'); ed.className = 'lin-ed'; ta.after(ed); }
+    ta.classList.add('lin-src'); ta.dataset.linAtual = chave || '';
+    const spec = LIN[chave];
+    ed.hidden = !spec; ed.dataset.lin = chave || '';
+    if (!spec) { ed.innerHTML = ''; return; }
+    const ro = state.readOnly, rows = linhas || linLer(spec.fmt, ta.value);
+    if (!rows.length && !ro) rows.push(spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''));
+    ed.style.setProperty('--lin-cols', spec.cols.map(c => !c.w ? 'minmax(84px,1fr)' : /px$/.test(c.w) ? `minmax(0,${c.w})` : c.w).join(' ') + (ro ? '' : ' 26px'));
+    ed.innerHTML = `<div class="lin-cab">${spec.cab.map(c => `<span>${c}</span>`).join('')}</div><div class="lin-rows">${rows.length ? rows.map(r => linRowHtml(spec, r, ro)).join('') : '<span class="dp-cell-sub">—</span>'}</div>${ro ? '' : `<div class="lin-pe"><button type="button" class="linkish" data-lin-add>+ ${spec.add}</button>${chave === 'reajTabela' ? '<button type="button" class="linkish" data-lin-meses title="Cria uma linha para cada um dos 12 meses anteriores ao início da vigência">Preencher os 12 meses</button>' : ''}</div>`}`;
+  }
+  function linSync(ed) {
+    const ta = ed.previousElementSibling, spec = LIN[ed.dataset.lin];
+    if (!spec || !ta) return;
+    ta.value = linGravar(spec.fmt, $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))));
+  }
+  const CALC_CAMPOS = { '': [], fixo: ['valor', 'valorAssociada'], porEmpregado: ['valor'], faixaEmpregados: ['tabela'], faixaCapital: ['tabela'], tributacao: ['tabela', 'adicional', 'teto'] };
+  function calcCampos(fs) {
+    const tipo = fs.querySelector('[data-k="calc.tipo"]').value, vis = CALC_CAMPOS[tipo] || [];
+    $$('[data-calc-campo]', fs).forEach(el => { el.hidden = !vis.includes(el.dataset.calcCampo); });
+    const ta = fs.querySelector('[data-k="calc.tabela"]'), chave = vis.includes('tabela') ? tipo : '';
+    if (ta.dataset.linAtual !== chave) linMontar(ta, chave);
+  }
+  function linMontarTodos(root) {
+    $('#dl-trib').innerHTML = [...new Set([...TRIBUTACOES, ...state.dpEmpresas.map(e => e.tributacao).filter(Boolean)])].map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $$('textarea[data-lin]', root).forEach(ta => linMontar(ta, ta.dataset.lin));
+    (root.matches?.('.cct-contrib') ? [root] : $$('.cct-contrib', root)).forEach(fs => { delete fs.querySelector('[data-k="calc.tabela"]').dataset.linAtual; calcCampos(fs); });
+  }
+  // Tabela proporcional: uma linha por mês de admissão nos 12 meses anteriores à vigência (mantém o que já foi digitado).
+  function linMeses(ed) {
+    const f = formCct.elements;
+    let base = parseYmd(f.vigIni.value);
+    if (!base) { const mi = MESES.indexOf(f.dataBase.value); if (mi < 0) { toast('Informe primeiro o início da vigência ou a data-base.'); return; } const t = hoje(); base = new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1); }
+    const atuais = $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))).filter(r => r[0]);
+    const de = new Map(atuais.map(r => [r[0], r[1]]));
+    const meses = Array.from({ length: 12 }, (_, i) => { const d = new Date(base.getFullYear(), base.getMonth() - 12 + i, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; });
+    const rows = [...meses.map(k => [k, de.get(k) || '']), ...atuais.filter(r => !meses.includes(r[0]))];
+    linMontar(ed.previousElementSibling, 'reajTabela', rows);
+    linSync(ed);
+    const vazio = $$('[data-lc="pct"]', ed).find(i => !i.value); if (vazio) vazio.focus();
+  }
+  formCct.addEventListener('input', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc]'); if (!el) return;
+    if (el.dataset.lc === 'cnpj') { if (/^[\d.\/\s-]*$/.test(el.value)) el.value = maskCnpj(el.value); el.classList.toggle('lin-bad', cnpjDig(el.value).length >= 14 && !cnpjValido(el.value)); }
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('change', (e) => {
+    if (e.target.matches('[data-k="calc.tipo"]')) { calcCampos(e.target.closest('.cct-contrib')); return; }
+    const el = e.target.closest('.lin-ed [data-lc]'); if (el) linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('focusout', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc="pct"], .lin-ed [data-lc="brl"], .lin-ed [data-lc="valTxt"]'); if (!el) return;
+    el.value = el.dataset.lc === 'pct' ? fmtPct(el.value) : fmtVal(el.value);
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('click', (e) => {
+    const t = e.target, ed = t.closest('.lin-ed'); if (!ed || state.readOnly) return;
+    const spec = LIN[ed.dataset.lin]; if (!spec) return;
+    if (t.closest('[data-lin-add]')) {
+      const rows = $('.lin-rows', ed); if (!$('.lin-row', rows)) rows.innerHTML = '';
+      rows.insertAdjacentHTML('beforeend', linRowHtml(spec, spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''), false));
+      $('.lin-row:last-child [data-lc]', rows).focus();
+      return;
+    }
+    const del = t.closest('[data-lin-del]');
+    if (del) {
+      const row = del.closest('.lin-row');
+      if ($$('.lin-row', ed).length > 1) row.remove(); else $$('[data-lc]', row).forEach(el => { if (el.tagName !== 'SELECT') el.value = ''; });
+      linSync(ed);
+      return;
+    }
+    if (t.closest('[data-lin-meses]')) linMeses(ed);
+  });
+  // Enter numa linha: vai para a mesma coluna da linha de baixo (cria uma se for a última), sem enviar o formulário.
+  formCct.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return;
+    const el = e.target.closest('.lin-ed input[data-lc]'); if (!el) return;
+    e.preventDefault();
+    const row = el.closest('.lin-row'), ed = row.closest('.lin-ed'), col = $$('[data-lc]', row).indexOf(el);
+    if (!row.nextElementSibling) $('[data-lin-add]', ed)?.click();
+    const prox = row.nextElementSibling; if (prox) $$('[data-lc]', prox)[col]?.focus();
+  });
   function contribRowHtml(k = { nome:'', quem:'empregado', competencias:'', vencimento:'', regra:'', oposicao:'', calc:{ tipo:'' } }) {
     const c = k.calc || {};
     return `<fieldset class="cct-contrib">
@@ -5730,11 +5885,11 @@ body.portal-open{overflow:hidden;}
       <div class="form-row"><label class="field">Regra (base, teto, forma de recolhimento)<input data-k="regra" value="${escapeHtml(k.regra)}" maxlength="400"></label>
         <label class="field">Oposição<input data-k="oposicao" value="${escapeHtml(k.oposicao)}" maxlength="300"></label></div>
       <div class="form-row"><label class="field" style="max-width:230px">Estimar valor por empresa<select data-k="calc.tipo">${Object.entries(CALC_TIPOS).map(([v, l]) => `<option value="${v}"${(c.tipo || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field" style="max-width:110px">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
-      <label class="field">Tabela (uma faixa por linha: “0-3 = 156,00”; por tributação: “SIMPLES NACIONAL = 300,00”)<textarea data-k="calc.tabela" rows="2">${escapeHtml(c.tabela || '')}</textarea></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valor">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valorAssociada">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="adicional">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="teto">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
+      <div class="field" data-calc-campo="tabela">Tabela<textarea data-k="calc.tabela">${escapeHtml(c.tabela || '')}</textarea></div>
       <button type="button" class="linkish" data-cct-contrib-del>Remover esta contribuição</button></fieldset>`;
   }
   function abrirCct(id, pre = null) {
@@ -5760,6 +5915,7 @@ body.portal-open{overflow:hidden;}
     f.prazos.value = x.prazos.map(p => `${fmtYmdBR(p.data)} = ${p.desc}`).join('\n');
     f.obs.value = x.obs;
     $('#cct-contribs').innerHTML = x.contribs.map(contribRowHtml).join('');
+    linMontarTodos(formCct);
     renderCctEmpresas(x);
     const secN = { arq: (x.arquivo ? 1 : 0) + (x.mae ? 1 : 0) + (x.substitui ? 1 : 0), reaj: x.reajuste.itens.length + x.reajuste.tabela.length + (x.reajuste.base ? 1 : 0), piso: x.pisos.length + x.beneficios.length, contrib: x.contribs.length, prazos: x.prazos.length + (x.obs ? 1 : 0), emps: empsDaCct(x).length };
     const secTxt = { arq: '', reaj: '', piso: `${x.pisos.length} piso(s) · ${x.beneficios.length} benefício(s)`, contrib: `${x.contribs.length}`, prazos: `${x.prazos.length} prazo(s)`, emps: `${secN.emps} empresa(s)` };
@@ -5814,7 +5970,7 @@ body.portal-open{overflow:hidden;}
     dlgCct.close();
     if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
   });
-  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
+  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); linMontarTodos($('#cct-contribs .cct-contrib:last-child')); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
   $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
   $('#btn-cct-cancelar').addEventListener('click', () => dlgCct.close());
   $('#dlg-cct-close').addEventListener('click', () => dlgCct.close());
