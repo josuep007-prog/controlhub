@@ -208,7 +208,26 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live{flex:none; display:flex; align-items:center; gap:7px; padding:0 14px; font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#fff; background:linear-gradient(90deg, #C2000C, #8E0A10); position:relative; z-index:1;}
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
-@media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* equalizador: sinal de atividade contínua */
+.hh-ticker{position:relative;}
+.tk-pulse{flex:none; align-self:center; display:flex; align-items:flex-end; gap:3px; height:22px; padding:0 4px 0 20px;}
+.tk-pulse i{display:block; width:3px; height:100%; border-radius:2px; background:linear-gradient(180deg, #FF5A5F, #C2000C); transform-origin:bottom; animation:tkBar 1.1s ease-in-out infinite;}
+.tk-pulse i:nth-child(1){animation-duration:.9s; animation-delay:-.2s;}
+.tk-pulse i:nth-child(2){animation-duration:1.3s; animation-delay:-.6s;}
+.tk-pulse i:nth-child(3){animation-duration:.8s; animation-delay:-.1s;}
+.tk-pulse i:nth-child(4){animation-duration:1.15s; animation-delay:-.45s;}
+.tk-pulse i:nth-child(5){animation-duration:1s; animation-delay:-.75s;}
+@keyframes tkBar{0%,100%{transform:scaleY(.25);} 50%{transform:scaleY(1);}}
+/* cursor enquanto o título é digitado */
+.od-tx b.digitando::after{content:""; display:inline-block; width:2px; height:1em; margin-left:2px; vertical-align:-2px; background:#FF5A5F; animation:tkCursor .7s steps(1) infinite;}
+@keyframes tkCursor{50%{opacity:0;}}
+/* brilho que atravessa a faixa a cada troca */
+.tk-sweep{position:absolute; inset:0; pointer-events:none; background:linear-gradient(100deg, transparent 0%, transparent 35%, rgba(255,90,95,.10) 50%, transparent 65%, transparent 100%); transform:translateX(-100%);}
+.hh-ticker.varre .tk-sweep{animation:tkSweep 1.2s cubic-bezier(.3,.6,.3,1);}
+@keyframes tkSweep{to{transform:translateX(100%);}}
+.tema-claro .tk-sweep{background:linear-gradient(100deg, transparent 0%, transparent 35%, rgba(194,0,12,.07) 50%, transparent 65%, transparent 100%);}
+.tema-claro .od-tx b.digitando::after{background:#C2000C;}
+@media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i,.tk-pulse i{animation:none;} .tk-pulse i{transform:scaleY(.6);} .hh-ticker.varre .tk-sweep{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
 /* odômetro rotativo */
 .hh-od{min-height:62px; align-items:stretch;}
 .od-stage{position:relative; flex:1; min-width:0; overflow:hidden;}
@@ -2747,19 +2766,39 @@ body.portal-open{overflow:hidden;}
     const it = dicasAoVivo();
     clearInterval(tkTimer); tkTimer = 0; tkIdx = 0;
     if (!it.length) return '';
-    const slides = it.map((x, i) => `<button type="button" class="od-it${i === 0 ? ' on' : ''}"${x.go ? ` data-go="${x.go}"` : ''} ${i ? 'tabindex="-1"' : ''}><em>${escapeHtml(x.cat)}</em><span class="od-tx"><b>${escapeHtml(x.titulo)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</span></button>`).join('');
-    return `<div class="hh-ticker hh-od" aria-label="Dicas"><div class="od-stage">${slides}</div></div>`;
+    const slides = it.map((x, i) => `<button type="button" class="od-it${i === 0 ? ' on' : ''}"${x.go ? ` data-go="${x.go}"` : ''} ${i ? 'tabindex="-1"' : ''} aria-label="${escapeHtml(x.titulo)}${x.sub ? '. ' + escapeHtml(x.sub) : ''}"><em aria-hidden="true">${escapeHtml(x.cat)}</em><span class="od-tx" aria-hidden="true"><b data-full="${escapeHtml(x.titulo)}">${escapeHtml(x.titulo)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</span></button>`).join('');
+    return `<div class="hh-ticker hh-od" aria-label="Dicas"><span class="tk-pulse" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><div class="od-stage">${slides}</div><span class="tk-sweep" aria-hidden="true"></span></div>`;
   }
   function tickerIniciar() {
     const box = $('.hh-od'); if (!box) return;
     const sl = $$('.od-it', box), pts = $$('.od-pts i', box);
     if (sl.length < 2) return;
+    const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let typeTimer = 0;
+    // Título “digitado” a cada troca, com cursor piscando enquanto escreve.
+    const digitar = (el) => {
+      if (!el) return;
+      const full = el.dataset.full || el.textContent;
+      clearInterval(typeTimer);
+      el.classList.remove('digitando');
+      if (calmo) { el.textContent = full; return; }
+      el.textContent = '';
+      el.classList.add('digitando');
+      let i = 0;
+      typeTimer = setInterval(() => {
+        el.textContent = full.slice(0, ++i);
+        if (i >= full.length) { clearInterval(typeTimer); setTimeout(() => el.classList.remove('digitando'), 900); }
+      }, 32);
+    };
     const ir = (n) => {
       const at = sl.findIndex(x => x.classList.contains('on'));
       sl.forEach((x, i) => { x.classList.toggle('on', i === n); x.classList.toggle('sai', i === at && i !== n); x.tabIndex = i === n ? 0 : -1; });
       pts.forEach((x, i) => x.classList.toggle('on', i === n));
       tkIdx = n;
+      digitar(sl[n].querySelector('.od-tx b'));
+      box.classList.remove('varre'); void box.offsetWidth; box.classList.add('varre');
     };
+    ir(0);
     let parado = false;
     box.addEventListener('pointerenter', () => { parado = true; }); box.addEventListener('pointerleave', () => { parado = false; });
     box.addEventListener('focusin', () => { parado = true; }); box.addEventListener('focusout', () => { parado = false; });
