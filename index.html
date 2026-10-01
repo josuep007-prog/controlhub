@@ -811,6 +811,23 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .sd-renov{margin:0; padding:8px 12px; border-radius:var(--r); background:var(--blue-pale); color:var(--blue-deep); font-size:12.5px; font-weight:600;}
 .sd-copy.muted{color:var(--ink-3); font-weight:500;}
 .sd-hist summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sd-hist ul{margin:8px 0 0; padding-left:18px; font-size:12px; color:var(--ink-2); display:flex; flex-direction:column; gap:3px; max-height:180px; overflow:auto;}
+/* cadastro do sindicato em seções */
+.sind-head-tx{margin-right:auto; min-width:0;} .sind-head-tx h2{margin:0;}
+#dlg-sind-sub{margin:2px 0 0; font-size:12px; color:var(--ink-3);}
+#dlg-sind .dlg-body{gap:0; padding-top:6px;}
+.sind-sec{display:flex; flex-direction:column; gap:10px; padding:14px 0; border-top:1px solid var(--rule);} .sind-sec:first-child{border-top:0;}
+.sind-sec h3{margin:0; font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);}
+.sind-links{margin:0; font-size:12px; color:var(--ink-3);} .sind-links .linkish{font-size:12px;}
+#sind-cnpj-msg{color:var(--ink-2);} #sind-cnpj-msg.erro{color:var(--dp-late); font-weight:600;}
+.sind-cct{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border:1px solid var(--rule); border-radius:6px; background:var(--surface-2);}
+.sind-cct.vazio{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;} .sind-cct.vazio p{margin:0; font-size:12.5px; color:var(--ink-2);}
+.sind-cct-h{display:flex; align-items:center; gap:8px; flex-wrap:wrap;} .sind-cct-h b{font-size:13.5px; color:var(--ink);}
+.sind-cct-dl{display:grid; grid-template-columns:max-content 1fr; gap:5px 16px; margin:0; font-size:12.5px;} .sind-cct-dl dt{color:var(--ink-3);} .sind-cct-dl dd{margin:0; color:var(--ink);}
+.sind-cct-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:6px;} .sind-cct-acoes .spacer{flex:1;}
+#sind-manual{margin-top:10px;} .sind-manual-d > summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sind-manual-d[open] > summary{margin-bottom:10px;} .sind-manual-d > :not(summary){margin-bottom:10px;}
+.sind-hist-ul{margin:0; padding-left:18px; font-size:12px; color:var(--ink-2); display:flex; flex-direction:column; gap:3px;}
+.sind-hist-mais > summary{cursor:pointer; font-size:12px; font-weight:600; color:var(--blue-deep);} .sind-hist-mais .sind-hist-ul{margin-top:6px; max-height:180px; overflow:auto;}
+.sind-excluir{color:var(--ink-3);} .sind-excluir:hover, .sind-excluir:focus-visible{color:var(--dp-late);}
 .sv-list{display:flex; flex-direction:column; gap:2px; max-height:52vh; overflow:auto; border:1px solid var(--rule); border-radius:var(--r); padding:4px;}
 .sv-item{display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:var(--r); cursor:pointer;} .sv-item:hover{background:var(--surface-2);}
 .sv-item input{width:16px; height:16px; accent-color:var(--blue-deep); flex:none;} .sv-item span{display:flex; flex-direction:column; min-width:0; font-size:13px;} .sv-item small{color:var(--ink-3); font-size:11.5px;}
@@ -1931,38 +1948,55 @@ body.portal-open{overflow:hidden;}
 </dialog>
 
 <dialog id="dlg-sind" class="dlg">
-  <div class="dlg-head"><h2 id="dlg-sind-title">Novo sindicato</h2><button type="button" class="icon-btn dlg-close" id="dlg-sind-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-head"><div class="sind-head-tx"><h2 id="dlg-sind-title">Novo sindicato</h2><p id="dlg-sind-sub" hidden></p></div><button type="button" class="icon-btn dlg-close" id="dlg-sind-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <form class="dlg-body" id="form-sind">
-    <div class="form-row">
-      <label class="field" style="max-width:130px">Código<input name="cod" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Ex.: 31942"></label>
-      <label class="field">Nome do sindicato / CCT *<input name="nome" required maxlength="160" autocomplete="off" placeholder="Ex.: Sindicomerciários/ES"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Data-base<select name="dataBase"></select></label>
-      <label class="field">UF / abrangência<input name="uf" maxlength="40" autocomplete="off" placeholder="Ex.: ES"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Vigência da CCT: início<input name="vigIni" type="date"></label>
-      <label class="field">Vigência da CCT: fim<input name="vigFim" type="date"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Reajuste<input name="percentual" maxlength="30" autocomplete="off" placeholder="Ex.: 5,5%"></label>
-      <label class="field">Piso salarial<input name="piso" maxlength="30" inputmode="decimal" autocomplete="off" placeholder="Ex.: 1.850,00"></label>
-      <label class="field">Contribuição assistencial (mês)<select name="contribMes"></select></label>
-    </div>
-    <label class="field">Arquivo da CCT (opcional)<input name="cct" maxlength="400" autocomplete="off" placeholder="Ex.: 2026-2027\SINDICOMERCIARIOS 2026.pdf"><span class="field-hint">Dentro de U:\Pessoal\Arquivos Compartilhados\CONVENÇOES COLETIVA. Em branco, “copiar” leva à pasta.</span></label>
-    <div class="form-row">
-      <label class="field">Registro no Mediador (MTE)<input name="registro" maxlength="40" autocomplete="off" placeholder="Ex.: ES000123/2026"></label>
-      <label class="field">CNPJ do sindicato<input name="cnpj" maxlength="20" autocomplete="off"></label>
-    </div>
-    <label class="field">Contato (site, telefone, e-mail)<input name="contato" maxlength="200" autocomplete="off"></label>
-    <label class="field">Observações (cláusulas importantes, benefícios, particularidades)<textarea name="obs" rows="3" maxlength="800"></textarea></label>
-    <p class="dp-sec-note" style="margin:0"><span id="sind-vinc-note"></span> <a id="sind-mediador" href="#" target="_blank" rel="noopener">Consultar CCTs no Mediador (MTE)</a></p>
-    <p class="sd-renov" id="sind-renov-msg" role="status" hidden></p>
-    <details class="sd-hist" id="sind-hist" hidden><summary>Histórico do sindicato</summary><ul id="sind-hist-list"></ul></details>
+    <section class="sind-sec">
+      <h3>Identificação</h3>
+      <div class="form-row">
+        <label class="field" style="max-width:130px">Código<input name="cod" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Ex.: 31942"></label>
+        <label class="field">Nome do sindicato *<input name="nome" required maxlength="160" autocomplete="off" placeholder="Ex.: Sindicomerciários/ES"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">CNPJ do sindicato<input name="cnpj" maxlength="20" autocomplete="off" placeholder="00.000.000/0000-00"><span class="field-hint" id="sind-cnpj-msg" hidden></span></label>
+        <label class="field" style="max-width:190px">UF / abrangência<input name="uf" maxlength="40" autocomplete="off" placeholder="Ex.: ES"></label>
+      </div>
+      <p class="sind-links"><button type="button" class="linkish" id="sind-emps-link"></button><span id="sind-emps-sep"> · </span><a class="linkish" id="sind-mediador" href="#" target="_blank" rel="noopener" title="Copia o CNPJ do sindicato e abre a consulta do Mediador (MTE)">Consultar no Mediador (MTE)</a></p>
+    </section>
+    <section class="sind-sec">
+      <h3>Convenção</h3>
+      <div id="sind-cct-box"></div>
+      <div id="sind-manual">
+        <details class="sind-manual-d" id="sind-manual-d"><summary>Preencher sem convenção cadastrada</summary>
+          <p class="field-hint" style="margin:0">Use só enquanto a convenção não estiver cadastrada. Quando ela for cadastrada, estes dados passam a vir dela.</p>
+          <div class="form-row">
+            <label class="field">Data-base<select name="dataBase"></select></label>
+            <label class="field">Vigência: início<input name="vigIni" type="date"></label>
+            <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
+          </div>
+          <div class="form-row">
+            <label class="field">Reajuste<input name="percentual" maxlength="30" autocomplete="off" placeholder="Ex.: 5,5%"></label>
+            <label class="field">Piso salarial<input name="piso" maxlength="30" inputmode="decimal" autocomplete="off" placeholder="Ex.: 1.850,00"></label>
+            <label class="field">Registro no MTE<input name="registro" maxlength="40" autocomplete="off" placeholder="Ex.: ES000123/2026"></label>
+          </div>
+          <div class="form-row">
+            <label class="field">Arquivo da CCT<input name="cct" maxlength="400" autocomplete="off" placeholder="Ex.: 2026-2027\SINDICOMERCIARIOS 2026.pdf"><span class="field-hint">Dentro de U:\Pessoal\Arquivos Compartilhados\CONVENÇOES COLETIVA.</span></label>
+            <label class="field" style="max-width:200px">Contribuição assistencial (mês)<select name="contribMes"></select></label>
+          </div>
+        </details>
+      </div>
+    </section>
+    <section class="sind-sec">
+      <h3>Contato e observações</h3>
+      <label class="field">Contato (site, telefone, e-mail)<input name="contato" maxlength="200" autocomplete="off"></label>
+      <label class="field">Observações (cláusulas importantes, benefícios, particularidades)<textarea name="obs" rows="3" maxlength="800"></textarea></label>
+    </section>
+    <section class="sind-sec" id="sind-hist" hidden>
+      <h3>Histórico</h3>
+      <ul class="sind-hist-ul" id="sind-hist-list"></ul>
+      <details class="sind-hist-mais" id="sind-hist-mais" hidden><summary></summary><ul class="sind-hist-ul" id="sind-hist-resto"></ul></details>
+    </section>
     <div class="dlg-actions">
-      <button type="button" class="btn btn-danger" id="btn-sind-excluir" hidden>Excluir</button>
-      <button type="button" class="btn" id="btn-sind-renovar" hidden title="Nova convenção: vigência passa para o próximo ano e limpa reajuste e piso">Nova CCT</button>
+      <button type="button" class="linkish sind-excluir" id="btn-sind-excluir" hidden>Excluir sindicato</button>
       <span class="spacer"></span>
       <button type="button" class="btn" id="btn-sind-cancelar">Cancelar</button>
       <button type="submit" class="btn btn-primary">Salvar</button>
@@ -3049,7 +3083,7 @@ body.portal-open{overflow:hidden;}
       if (!emps.length) return;
       const fim = parseYmd(s.vigFim);
       if (dentro(fim, from, to)) out.push({ tipo:'sindical', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
-      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
+      if (s.contribMes && !cctVigente(s)?.cct.contribs.length) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
     });
     out.push(...eventosCct(from, to, ativas));
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
@@ -4691,9 +4725,9 @@ body.portal-open{overflow:hidden;}
       if (aberto) {
         const r = reajusteStatus(s, vs);
         const chk = (e) => r && !r.reg.semReajuste ? `<label class="sd-chk" title="Reajuste de ${s.dataBase.toLowerCase()}/${r.ano} aplicado na folha"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `aplicado ${fmtYmdDM(r.reg.aplicado[e.id])}` : 'reajuste pendente'}</label>` : '';
-        const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
+        const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && !cctVigente(s) && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
         // Clicar no nome abre este painel: tudo do sindicato num lugar só (dados, convenção, reajuste e empresas).
-        const cvA = s.cctId && state.dpCcts.find(x => x.id === s.cctId), arq = s.cct || (cvA && cvA.arquivo) || '';
+        const cvA = s.cctId && state.dpCcts.find(x => x.id === s.cctId), arq = (cvA && cvA.arquivo) || s.cct || '';
         const copia = ehSemSind(s) ? '' : /^https?:\/\//i.test(arq) ? `<a href="${escapeHtml(arq)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} Abrir CCT</a>`
           : arq ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ ...s, cct: arq }))}" title="${escapeHtml(caminhoCct({ ...s, cct: arq }))}">${ic('link', 'ic-sm')} Copiar caminho da CCT</button>`
           : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} Copiar pasta das CCTs</button>`;
@@ -4986,60 +5020,153 @@ body.portal-open{overflow:hidden;}
   // ----- janela do sindicato -----
   const dlgSind = $('#dlg-sind'), formSind = $('#form-sind');
   let sindEditId = null;
+  // ----- cadastro do sindicato: identificação aqui; data-base, vigência, reajuste e piso vêm da convenção ligada pelo CNPJ -----
+  let sindOrig = '';
+  const sindSnap = () => JSON.stringify([...new FormData(formSind)]);
+  const sindForm = () => state.dpSind.find(x => x.id === sindEditId) || null;
+  function sindCctBox() {
+    const f = formSind.elements, v = cctVigente({ cnpj: f.cnpj.value });
+    const box = $('#sind-cct-box');
+    $('#sind-manual').hidden = !!v;
+    if (!v) {
+      const temCnpj = cnpjDig(f.cnpj.value).length >= 8;
+      box.innerHTML = `<div class="sind-cct vazio"><p>Nenhuma convenção ligada a este sindicato.${temCnpj ? '' : ' A ligação é pelo CNPJ: informe-o acima.'}</p><button type="button" class="btn btn-sm btn-primary" data-sind-cct-nova>${ic('plus', 'ic-sm')} Cadastrar a convenção</button></div>`;
+      return;
+    }
+    const c = v.cct, ef = cctEfetiva(v), pisos = ef.pisos.val;
+    const contribs = [c, ...v.aditivos].flatMap(x => x.contribs);
+    const linhas = [
+      ['Vigência', c.vigIni || c.vigFim ? `${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}` : '—'],
+      ['Data-base', c.dataBase || '—'],
+      ['Reajuste', resumoReajuste(ef) || '—'],
+      ['Piso', pisos.length ? `${pisos[0].valor}${pisos.length > 1 ? ` (+${pisos.length - 1} função(ões))` : ''}` : '—'],
+      ['Registro MTE', c.registro || '—'],
+      ['Contribuições', contribs.length ? contribs.map(k => k.nome + (k.vencimento ? ` (${fmtYmdBR(k.vencimento)})` : '')).join(' · ') : 'nenhuma cadastrada'],
+    ];
+    box.innerHTML = `<div class="sind-cct"><div class="sind-cct-h"><span class="pill ${CCT_STATUS_PILL[c.status] || ''}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><b>${escapeHtml(c.titulo)}</b>${v.aditivos.length ? `<span class="dp-cell-sub">+ ${v.aditivos.length} aditivo(s)</span>` : ''}</div>
+      <dl class="sind-cct-dl">${linhas.map(([k, x]) => `<dt>${k}</dt><dd>${escapeHtml(x)}</dd>`).join('')}</dl>
+      <div class="sind-cct-acoes"><button type="button" class="btn btn-sm" data-sind-cct-abrir="${escapeHtml(c.id)}">Abrir convenção</button><button type="button" class="btn btn-sm" data-sind-cct-nova>${ic('plus', 'ic-sm')} Nova CCT (renovação)</button><span class="spacer"></span><button type="button" class="sd-copy" data-sind-copiar="${escapeHtml(caminhoCct({ cct: c.arquivo }))}">${ic('link', 'ic-sm')} ${c.arquivo ? 'Copiar caminho da CCT' : 'Copiar pasta das CCTs'}</button></div>
+      <p class="field-hint" style="margin:0">Estes dados vêm da convenção. Para mudar, abra a convenção.</p></div>`;
+  }
+  function sindCnpjMsg() {
+    const f = formSind.elements, d = cnpjDig(f.cnpj.value), el = $('#sind-cnpj-msg');
+    let msg = '', erro = false;
+    if (d) {
+      if (!cnpjValido(f.cnpj.value)) { msg = 'CNPJ inválido: confira os dígitos.'; erro = true; }
+      else {
+        const outros = state.dpSind.filter(x => x.id !== sindEditId && cnpjDig(x.cnpj) === d);
+        if (outros.length) msg = `Mesmo CNPJ de ${outros.slice(0, 3).map(x => (x.cod ? x.cod + ' · ' : '') + rotuloSind(x)).join(', ')}${outros.length > 3 ? '…' : ''}: a convenção vale para todos.`;
+      }
+    }
+    el.hidden = !msg; el.textContent = msg; el.classList.toggle('erro', erro);
+  }
+  function sindEmpsLink() {
+    const s = sindForm(), b = $('#sind-emps-link');
+    b.hidden = $('#sind-emps-sep').hidden = !s;
+    if (!s) return;
+    const n = state.dpEmpresas.filter(e => ativa(e) && empresaSinds(e).includes(s)).length;
+    b.textContent = n ? `${n} empresa(s) vinculada(s): ver e vincular` : 'Nenhuma empresa vinculada: vincular';
+  }
+  const histLi = (x) => `<li><span class="dp-mono">${x.em ? escapeHtml(new Date(x.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })) : ''}</span> ${escapeHtml(x.texto)}${x.autor ? ` · <span data-uid="${escapeHtml(x.autor)}">Alguém da equipe</span>` : ''}</li>`;
   function abrirSind(id, pre = {}) {
     if (state.readOnly) return;
     const s = id ? state.dpSind.find(x => x.id === id) : null;
     sindEditId = s ? s.id : null;
     const v = s || pre, f = formSind.elements;
-    $('#dlg-sind-title').textContent = s ? 'Editar sindicato' : 'Novo sindicato';
+    $('#dlg-sind-title').textContent = s ? rotuloSind(s) : 'Novo sindicato';
+    const sub = [s && s.cod && `Código ${s.cod}`, s && s.apelido && s.apelido !== s.nome ? s.nome : ''].filter(Boolean).join(' · ');
+    $('#dlg-sind-sub').hidden = !sub; $('#dlg-sind-sub').textContent = sub;
     ['cod', 'nome', 'uf', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato'].forEach(k => { f[k].value = v[k] || ''; });
     fillSelect(f.dataBase, MESES, v.dataBase || '', '—'); f.dataBase.value = v.dataBase || '';
     fillSelect(f.contribMes, MESES, v.contribMes || '', '—'); f.contribMes.value = v.contribMes || '';
+    $('#sind-manual-d').open = ['dataBase', 'vigIni', 'vigFim', 'percentual', 'piso', 'registro', 'cct', 'contribMes'].some(k => v[k]);
     $('#btn-sind-excluir').hidden = !s;
-    $('#btn-sind-renovar').hidden = !s;
-    $('#sind-renov-msg').hidden = true;
-    const n = s ? state.dpEmpresas.filter(e => empresaSinds(e).includes(s)).length : 0;
-    $('#sind-vinc-note').textContent = s ? `${n} empresa(s) vinculada(s) pelo código.` : 'As empresas se vinculam pelo código (campo “Cód. sind.” do estabelecimento).';
-    const h = s ? s.hist.slice(0, 12) : [];
+    sindCctBox(); sindCnpjMsg(); sindEmpsLink();
+    const h = s ? s.hist : [], resto = h.slice(3);
     $('#sind-hist').hidden = !h.length;
-    $('#sind-hist-list').innerHTML = h.map(x => `<li><span class="dp-mono">${x.em ? escapeHtml(new Date(x.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })) : ''}</span> ${escapeHtml(x.texto)}${x.autor ? ` · <span data-uid="${escapeHtml(x.autor)}">Alguém da equipe</span>` : ''}</li>`).join('');
-    fillNames($('#sind-hist-list'));
+    $('#sind-hist-list').innerHTML = h.slice(0, 3).map(histLi).join('');
+    $('#sind-hist-mais').hidden = !resto.length; $('#sind-hist-mais').open = false;
+    $('#sind-hist-mais summary').textContent = `Ver tudo (${h.length})`;
+    $('#sind-hist-resto').innerHTML = resto.map(histLi).join('');
+    fillNames($('#sind-hist'));
     $('#sind-mediador').href = MEDIADOR_URL;
+    sindOrig = sindSnap();
     if (!dlgSind.open) dlgSind.showModal();
+    formSind.scrollTop = 0;
     (s ? f.nome : f.cod).focus();
   }
-  $('#btn-sind-renovar').addEventListener('click', () => {
+  // Grava o formulário; devolve o sindicato salvo (ou o atual, se nada mudou) ou null se algo impediu.
+  async function salvarFormSind() {
     const f = formSind.elements;
-    const fimAnt = parseYmd(f.vigFim.value) || parseYmd(f.vigIni.value && ymd(addYears(parseYmd(f.vigIni.value), 1)));
-    const ini = fimAnt ? addDays(fimAnt, 1) : (() => { const mi = MESES.indexOf(f.dataBase.value); const t = hoje(); return mi >= 0 ? new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1) : t; })();
-    f.vigIni.value = ymd(ini);
-    f.vigFim.value = ymd(addDays(addYears(ini, 1), -1));
-    f.percentual.value = ''; f.piso.value = '';
-    f.cct.focus(); f.cct.select();
-    const msg = $('#sind-renov-msg'); msg.hidden = false; msg.textContent = 'Vigência renovada por 1 ano. Informe o arquivo da nova CCT, o reajuste e o piso, e salve.';
-  });
-  formSind.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = formSind.elements;
-    const antigo = state.dpSind.find(x => x.id === sindEditId);
+    const antigo = sindForm();
     const dados = { id: sindEditId || uid() };
     ['cod', 'nome', 'uf', 'dataBase', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato', 'contribMes'].forEach(k => { dados[k] = f[k].value; });
-    const novo = normalizeSind({ ...dados, ciclos: antigo?.ciclos, hist: antigo?.hist });
-    if (!novo || !novo.nome.trim()) { toast('Informe pelo menos o nome do sindicato.'); return; }
-    if (novo.vigIni && novo.vigFim && novo.vigFim < novo.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return; }
+    const novo = normalizeSind({ ...(antigo || {}), ...dados, ciclos: antigo?.ciclos, hist: antigo?.hist });
+    if (!novo || !novo.nome.trim()) { toast('Informe pelo menos o nome do sindicato.'); f.nome.focus(); return null; }
+    if (f.cnpj.value.trim() && f.cnpj.value.trim() !== (antigo?.cnpj || '') && !cnpjValido(f.cnpj.value)) { toast('CNPJ do sindicato inválido: confira os dígitos.'); f.cnpj.focus(); return null; }
+    if (novo.vigIni && novo.vigFim && novo.vigFim < novo.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return null; }
     const dup = novo.cod && state.dpSind.find(x => x.id !== novo.id && x.cod === novo.cod);
-    if (dup) { toast(`O código ${novo.cod} já é de “${dup.nome}”.`); return; }
+    if (dup) { toast(`O código ${novo.cod} já é de “${dup.nome}”.`); return null; }
     const ROT = { cod:'código', nome:'nome', dataBase:'data-base', vigIni:'início da vigência', vigFim:'fim da vigência', cct:'convenção', percentual:'reajuste', piso:'piso', registro:'registro MTE', contribMes:'mês da contribuição', uf:'UF', cnpj:'CNPJ', contato:'contato', obs:'observações' };
     if (antigo) {
       const mud = Object.keys(ROT).filter(k => (antigo[k] || '') !== (novo[k] || ''));
-      if (!mud.length) { dlgSind.close(); return; }
+      if (!mud.length) return antigo;
       const fmt = (k, v) => !v ? '—' : k.startsWith('vig') ? fmtYmdBR(v) : k === 'obs' || k === 'cct' ? '(alterado)' : v;
       histSind(novo, mud.map(k => k === 'obs' || k === 'cct' ? `${ROT[k]} alterado` : `${ROT[k]}: ${fmt(k, antigo[k])} → ${fmt(k, novo[k])}`).join('; '));
     } else histSind(novo, 'Sindicato cadastrado');
-    dlgSind.close();
     const itens = antigo ? state.dpSind.map(x => x.id === novo.id ? novo : x) : [...state.dpSind, novo];
-    if (await salvarSinds(itens)) toast(antigo ? 'Sindicato atualizado.' : 'Sindicato cadastrado.');
+    if (!(await salvarSinds(itens))) return null;
+    sindEditId = novo.id; sindOrig = sindSnap();
+    toast(antigo ? 'Sindicato atualizado.' : 'Sindicato cadastrado.');
+    return state.dpSind.find(x => x.id === novo.id) || novo;
+  }
+  formSind.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (await salvarFormSind()) dlgSind.close();
   });
+  // Nova convenção a partir do sindicato: renovação da vigente (mesmas partes, vigência seguinte) ou a primeira, com os dados preenchidos à mão.
+  function preNovaCct(s) {
+    const v = cctVigente(s);
+    if (v) {
+      const c = v.cct, ini = c.vigFim ? addDays(parseYmd(c.vigFim), 1) : null;
+      const anos = ini ? `${ini.getFullYear()}/${ini.getFullYear() + 1}` : '';
+      const titulo = !anos ? c.titulo : /20\d\d\s*\/\s*20\d\d/.test(c.titulo) ? c.titulo.replace(/20\d\d\s*\/\s*20\d\d/, anos) : `${c.titulo} ${anos}`;
+      return { titulo, status: 'rascunho', dataBase: c.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: ini ? ymd(addDays(addYears(ini, 1), -1)) : '', partes: c.partes,
+        contribs: c.contribs.map(k => ({ ...k, vencimento: '' })), reajuste: { itens: [], tabela: [], base: c.reajuste.base } };
+    }
+    const mi = MESES.indexOf(s.dataBase), t = hoje();
+    const ini = s.vigIni ? parseYmd(s.vigIni) : mi >= 0 ? new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1) : null;
+    const y = (ini || t).getFullYear();
+    return { titulo: `${rotuloSind(s)} ${y}/${y + 1}`, status: 'rascunho', dataBase: s.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: s.vigFim || (ini ? ymd(addDays(addYears(ini, 1), -1)) : ''),
+      registro: s.registro, arquivo: s.cct, partes: [{ cnpj: s.cnpj, nome: s.nome, papel: 'laboral' }],
+      reajuste: { itens: s.percentual ? [{ rotulo: 'Geral', pct: s.percentual }] : [], tabela: [], base: '' }, pisos: s.piso ? [{ nome: 'Piso salarial', valor: s.piso }] : [] };
+  }
+  // Antes de sair para a convenção, grava o que foi mudado aqui (senão a convenção nova não se liga a um CNPJ que só está no formulário).
+  async function sindSalvoParaCct() {
+    const s = sindSnap() !== sindOrig || !sindForm() ? await salvarFormSind() : sindForm();
+    if (!s) return null;
+    dlgSind.close();
+    return s;
+  }
+  formSind.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-sind-cct-nova]')) {
+      if (cnpjDig(formSind.elements.cnpj.value).length < 8) { toast('Informe o CNPJ do sindicato: é por ele que a convenção se liga.'); formSind.elements.cnpj.focus(); return; }
+      const s = await sindSalvoParaCct(); if (s) abrirCct(null, preNovaCct(s));
+      return;
+    }
+    const ab = t.closest('[data-sind-cct-abrir]');
+    if (ab) { const id = ab.dataset.sindCctAbrir; if (await sindSalvoParaCct()) abrirCct(id); return; }
+    const cp = t.closest('[data-sind-copiar]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.sindCopiar); toast('Caminho copiado.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(cp.dataset.sindCopiar); } return; }
+    if (t.closest('#sind-emps-link')) { const s = sindForm(); if (s) abrirVincular(s.id); return; }
+  });
+  formSind.elements.cnpj.addEventListener('input', () => {
+    const f = formSind.elements.cnpj;
+    if (/^[\d.\/\s-]*$/.test(f.value) && cnpjDig(f.value).length <= 14) f.value = maskCnpj(f.value);
+    sindCnpjMsg(); sindCctBox();
+  });
+  $('#sind-mediador').addEventListener('click', () => { const c = formSind.elements.cnpj.value.trim(); if (c) navigator.clipboard?.writeText(c).then(() => toast('CNPJ copiado: cole na busca do Mediador.'), () => {}); });
   $('#btn-sind-excluir').addEventListener('click', async () => {
     const s = state.dpSind.find(x => x.id === sindEditId);
     if (!s) return;
@@ -5140,6 +5267,7 @@ body.portal-open{overflow:hidden;}
 
   // ----- vincular várias empresas de uma vez -----
   const dlgSv = $('#dlg-sind-vinc');
+  dlgSv.addEventListener('close', () => { if (dlgSind.open) sindEmpsLink(); });
   let svSind = null;
   function abrirVincular(sindId) {
     const s = state.dpSind.find(x => x.id === sindId);
@@ -5609,13 +5737,13 @@ body.portal-open{overflow:hidden;}
       <label class="field">Tabela (uma faixa por linha: “0-3 = 156,00”; por tributação: “SIMPLES NACIONAL = 300,00”)<textarea data-k="calc.tabela" rows="2">${escapeHtml(c.tabela || '')}</textarea></label>
       <button type="button" class="linkish" data-cct-contrib-del>Remover esta contribuição</button></fieldset>`;
   }
-  function abrirCct(id) {
+  function abrirCct(id, pre = null) {
     const c = id ? cctPorId(id) : null;
     cctEditId = c ? c.id : null;
-    const x = c || normalizeCct({ titulo:'Nova convenção', tipo:'cct', status:'assinada' });
+    const x = c || normalizeCct({ tipo:'cct', status:'assinada', ...(pre || {}), titulo: pre?.titulo || 'Nova convenção' });
     const f = formCct.elements, ro = state.readOnly;
     $('#dlg-cct-title').textContent = c ? c.titulo : 'Nova convenção';
-    f.titulo.value = c ? c.titulo : '';
+    f.titulo.value = c ? c.titulo : (pre?.titulo || '');
     f.tipo.value = x.tipo; f.status.value = x.status; f.registro.value = x.registro;
     f.vigIni.value = x.vigIni; f.vigFim.value = x.vigFim;
     fillSelect(f.dataBase, MESES, x.dataBase, '—'); f.dataBase.value = x.dataBase;
