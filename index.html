@@ -499,8 +499,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 #cv-main > :not(.dp-toolbar):not(.cv-painel){margin-inline:22px;}
 #cv-main > .dp-toolbar{padding-bottom:0;}
 #cv-vazio:empty,#cv-sits:empty{display:none;}
-.cv-menu .menu-list hr{border:0; border-top:1px solid var(--rule); margin:4px 2px;}
-.cv-menu summary .ic{margin-left:2px;}
 .cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface)); border-radius:6px; font-size:13px;}
 .cv-passos > div{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .cv-acao{font-size:12.5px; font-weight:600; line-height:1.35; padding-left:10px; position:relative;}
@@ -1591,23 +1589,7 @@ body.portal-open{overflow:hidden;}
             <input type="search" id="cv-search" placeholder="Buscar empresa, sindicato, código ou CNPJ…" autocomplete="off">
             <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="cards"><svg class="ic ic-sm"><use href="#i-grid"/></svg> Cartões</button><button type="button" data-cv-consultar><svg class="ic ic-sm"><use href="#i-search"/></svg> Consultar convenções</button><button type="button" data-cv-modo="tempo"><svg class="ic ic-sm"><use href="#i-gantt"/></svg> Linha do tempo</button></div>
             <span class="dp-count" id="cv-count"></span>
-            <details class="menu cv-menu">
-              <summary class="btn btn-sm">Cadastro <svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></summary>
-              <div class="menu-list">
-                <button type="button" class="menu-item" data-cv-acao="nova" data-ro-hide>Nova convenção</button>
-                <button type="button" class="menu-item" data-cv-acao="carregar" id="cv-m-carregar" data-ro-hide>Carregar convenções analisadas</button>
-                <button type="button" class="menu-item" data-cv-cad="ccts">Todas as convenções cadastradas</button>
-                <hr>
-                <button type="button" class="menu-item" data-cv-cad="uso">Sindicatos em uso</button>
-                <button type="button" class="menu-item" data-cv-cad="todos">Lista de sindicatos do Domínio</button>
-                <button type="button" class="menu-item" data-cv-cad="revisar">Revisar cadastro</button>
-                <button type="button" class="menu-item" data-cv-acao="importar" data-ro-hide>Importar do Domínio (PDF)</button>
-                <hr>
-                <button type="button" class="menu-item" data-cv-acao="dedup" data-ro-hide>Unificar cadastros duplicados</button>
-                <button type="button" class="menu-item" data-cv-acao="pasta">Copiar pasta das CCTs</button>
-                <button type="button" class="menu-item" data-cv-acao="csv">Exportar CSV (empresas × convenção)</button>
-              </div>
-            </details>
+            <button type="button" class="btn btn-sm" data-cv-cad="uso" title="Sindicatos, convenções, importação do Domínio, revisão e exportações">Cadastrar Sindicato</button>
           </div>
           <div id="cv-vazio"></div>
           <div id="cv-hero"></div>
@@ -1630,8 +1612,10 @@ body.portal-open{overflow:hidden;}
             <div class="menu-list">
               <button type="button" class="menu-item" id="sd-csv">Sindicatos (um por linha)</button>
               <button type="button" class="menu-item" id="sd-csv-emp">Empresas × sindicato e reajuste</button>
+              <button type="button" class="menu-item" data-cv-acao="csv">Empresas × convenção</button>
             </div>
           </details>
+          <button type="button" class="btn btn-sm" id="sd-dedup" data-cv-acao="dedup" data-ro-hide hidden>Unificar duplicados</button>
           <button type="button" class="btn btn-sm btn-primary" id="sd-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Sindicato</button>
         </div>
         <div class="sd-body">
@@ -4667,6 +4651,7 @@ body.portal-open{overflow:hidden;}
     const avN = $('#sd-av-n'); avN.hidden = !av.length; avN.textContent = `${av.length} aviso(s)`;
     $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
     $('#sd-detectar').textContent = `Detectar nas empresas (${codsSoltos.length})`;
+    $('#sd-dedup').hidden = ro || !nDuplicados();
     $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
 
     // tabela de sindicatos
@@ -5793,7 +5778,6 @@ body.portal-open{overflow:hidden;}
     }
     const main = $('#cv-main'), anim = state.dpConvAnim;
     state.dpConvAnim = false;
-    $('#cv-m-carregar').hidden = ro || !CCTS_ANALISADAS.some(x => !cctPorId(x.id));
     const { linhas, sem, emps } = convencoesDaCarteira();
     const cont = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
     const contE = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
