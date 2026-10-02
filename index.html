@@ -551,7 +551,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-donut{width:100%; height:100%; transform:rotate(-90deg);}
 .cv-donut circle{fill:none; stroke-width:5.2; stroke-linecap:butt;}
 .cv-donut .bg{stroke:color-mix(in srgb, var(--ink) 8%, transparent);}
-.cv-donut-c{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.cv-donut-c{pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
 .cv-donut-c b{font-size:34px; font-weight:800; letter-spacing:-.02em; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums;}
 .cv-donut-c small{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3); margin-top:4px;}
 .cv-hero-tx{min-width:0; display:flex; flex-direction:column; gap:6px;}
@@ -1439,6 +1439,91 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .portal-frame{position:fixed; inset:0; width:100%; height:100%; border:0; z-index:500; background:var(--page);}
 .portal-frame[hidden]{display:none;}
 body.portal-open{overflow:hidden;}
+
+/* ============ DP: movimento (abas, painel) ============ */
+.dp-tabs.com-ind{position:relative;}
+.dp-tabs.com-ind .dp-tab.active{border-bottom-color:transparent;}
+.dp-tab-ind{position:absolute; left:0; bottom:0; height:2px; border-radius:2px; background:var(--blue-deep); pointer-events:none; transition:transform .38s cubic-bezier(.3,.8,.3,1), width .38s cubic-bezier(.3,.8,.3,1);}
+.dp-tab-ind.sem-trans{transition:none;}
+.dp-view.dp-entra{animation:dpEntra .34s cubic-bezier(.2,.8,.2,1);}
+@keyframes dpEntra{from{opacity:0; transform:translateX(calc(var(--dir, 1) * 18px));}}
+.kpi-card.clickable{transition:border-color .15s, background .15s, transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s;}
+.kpi-card.clickable:hover{transform:translateY(-3px); box-shadow:0 8px 20px rgba(16,24,32,.10);}
+.kpi-card.is-today{position:relative;}
+.kpi-card.is-today::after{content:""; position:absolute; top:12px; right:12px; width:8px; height:8px; border-radius:50%; background:var(--dp-today); animation:dpPulso 1.8s ease-out infinite;}
+@keyframes dpPulso{0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--dp-today) 60%, transparent);} 70%,100%{box-shadow:0 0 0 9px transparent;}}
+@keyframes dpCresce{from{transform:scaleY(0);}}
+@keyframes dpEstica{from{transform:scaleX(0);}}
+@keyframes dpSurge{from{opacity:0; transform:scale(.85);}}
+.pn-anim .col .bar{transform-origin:bottom; animation:dpCresce .65s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 16ms + var(--dt, 0ms));}
+.pn-anim .stack button, .pn-anim .hbar-fill, .pn-anim .meter-fill{transform-origin:left; animation:dpEstica .8s cubic-bezier(.2,.8,.2,1) both; animation-delay:var(--dt, 0ms);}
+.pn-anim .cal-day:not(.blank){animation:dpSurge .4s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 12ms + var(--dt, 0ms));}
+.col .bar{transition:filter .12s, opacity .15s;}
+.pn-liga .col:not(.liga) .bar{opacity:.3;}
+.col.liga .bar{filter:brightness(1.15);}
+.cal-day{transition:transform .15s, box-shadow .15s, border-color .15s;}
+.cal-day.liga{transform:scale(1.14); box-shadow:0 0 0 2px var(--ink), 0 6px 14px rgba(16,24,32,.18); position:relative; z-index:1;}
+@media (prefers-reduced-motion: reduce){ .kpi-card.is-today::after{animation:none;} .kpi-card.clickable:hover, .cal-day.liga{transform:none;} }
+
+/* Empresas: anel do cadastro, atalhos ao passar o mouse, entrada em sequência */
+@property --p{syntax:'<number>'; inherits:false; initial-value:0;}
+.emp-anel{flex:none; padding:3px; border-radius:8px; background:conic-gradient(var(--c) calc(var(--p) * 1%), var(--rule) 0); display:grid;}
+.emp-anel .avatar{box-shadow:0 0 0 2px var(--surface);}
+@keyframes anelEnche{from{--p:0;}}
+.dp-anim .emp-card{animation:dpSurge .45s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(min(var(--k, 0), 24) * 25ms + var(--dt, 0ms));}
+.dp-anim .emp-card .emp-anel{animation:anelEnche 1.1s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(min(var(--k, 0), 24) * 25ms + .2s + var(--dt, 0ms));}
+.dp-anim > .dp-row{animation:dpSurge .35s ease-out both; animation-delay:var(--dt, 0ms);}
+.emp-acoes{position:absolute; left:0; right:0; bottom:0; display:flex; gap:6px; justify-content:center; padding:10px 8px 8px; background:linear-gradient(transparent, var(--surface) 38%); transform:translateY(105%); transition:transform .24s cubic-bezier(.2,.8,.2,1);}
+.emp-acoes button{font:600 11.5px/1 inherit; font-family:inherit; border:1px solid var(--rule-strong); background:var(--surface); color:var(--blue-deep); border-radius:4px; padding:5px 9px; cursor:pointer;}
+.emp-acoes button:hover{border-color:var(--blue-deep); background:var(--blue-pale);}
+@media (hover:hover){ .emp-card:hover .emp-acoes, .emp-card:focus-within .emp-acoes{transform:none;} }
+@media (hover:none){ .emp-acoes{display:none;} }
+.emp-card:hover{transform:translateY(-3px);}
+
+/* Funcionários: barras que se desenham, régua do mouse, hoje respirando */
+.tl-inner{position:relative;}
+.tl-regua{position:absolute; top:0; bottom:0; width:1px; background:var(--ink-3); pointer-events:none; opacity:0; transition:opacity .12s; z-index:3;}
+.tl-regua.on{opacity:.8;}
+.tl-regua span{position:absolute; top:5px; left:5px; font-size:11px; font-weight:700; white-space:nowrap; background:var(--ink); color:var(--surface); padding:2px 6px; border-radius:3px;}
+.tl-bar{transform-origin:left center; transition:filter .12s, height .15s;}
+.tl-bar:hover,.tl-bar:focus-visible{height:19px;}
+@keyframes tlDesenha{from{transform:translateY(-50%) scaleX(0);} to{transform:translateY(-50%) scaleX(1);}}
+@keyframes tlMarca{from{transform:translateY(-50%) rotate(45deg) scale(0);} to{transform:translateY(-50%) rotate(45deg) scale(1);}}
+.dp-anim .tl-bar{animation:tlDesenha .75s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 40ms + var(--dt, 0ms));}
+.dp-anim .tl-mark{animation:tlMarca .4s cubic-bezier(.3,1.4,.5,1) both; animation-delay:calc(var(--k, 0) * 40ms + .45s + var(--dt, 0ms));}
+.tl-today{animation:tlHoje 2.6s ease-in-out infinite;}
+@keyframes tlHoje{50%{opacity:.9; box-shadow:0 0 6px 1px color-mix(in srgb, var(--ink) 35%, transparent);}}
+@media (prefers-reduced-motion: reduce){ .tl-today{animation:none;} }
+
+/* Convenções: anel clicável que filtra */
+.cv-donut .seg{cursor:pointer; transition:opacity .2s, stroke-width .2s;}
+.cv-donut .seg:hover, .cv-donut .seg.hl{stroke-width:6.6;}
+.cv-donut.tem-f .seg:not(.on), .cv-donut.tem-hl .seg:not(.hl){opacity:.28;}
+.cv-donut.tem-hl .seg.hl{opacity:1;}
+
+/* Cartela: alvos ao arrastar, contador que pula, linha movida acende */
+.ct-an{transition:background .15s, border-color .15s, transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s;}
+.ct-arrastando .ct-an[data-ct-drop]{outline:1.5px dashed color-mix(in srgb, var(--blue-deep) 55%, transparent); outline-offset:-2px;}
+.ct-an.drop{transform:scale(1.025); box-shadow:0 0 0 3px color-mix(in srgb, var(--blue-deep) 30%, transparent), 0 8px 18px rgba(16,24,32,.12);}
+tr.ct-pega{opacity:.45;}
+.ct-an-n{display:inline-block;}
+.ct-an-n.ct-pula{animation:ctPula .5s cubic-bezier(.2,.8,.2,1);}
+@keyframes ctPula{40%{transform:scale(1.45); color:var(--dp-ok);}}
+tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
+@keyframes ctFlash{0%,30%{background:color-mix(in srgb, var(--dp-ok) 18%, transparent);}}
+@media (prefers-reduced-motion: reduce){ .ct-an.drop{transform:none;} }
+
+/* Agenda: mês deslizando, intensidade do dia, texto inteiro ao passar o mouse */
+.agm.agm-entra{animation:dpEntra .36s cubic-bezier(.2,.8,.2,1);}
+#dp-ag-label.agm-entra{display:inline-block; animation:dpEntra .3s cubic-bezier(.2,.8,.2,1);}
+.agm-day.quente{background:color-mix(in srgb, var(--viz-1) calc(var(--q) * 1%), var(--surface));}
+.agm-day.quente.off,.agm-day.quente.hol{background:color-mix(in srgb, var(--viz-1) calc(var(--q) * 1%), var(--surface-2));}
+.dp-anim .agm-day:not(.blank){animation:dpSurge .35s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 9ms + var(--dt, 0ms));}
+.agm-ev{transition:box-shadow .15s, background .15s;}
+@media (hover:hover){
+  .agm-ev:hover{white-space:normal; position:relative; z-index:2; box-shadow:0 4px 12px rgba(16,24,32,.16);}
+  .agm-ev:hover .agm-t{white-space:normal; overflow:visible;}
+}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -3293,17 +3378,58 @@ body.portal-open{overflow:hidden;}
     $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
     applyDpReadOnly();
     renderFerramentas();
+    if (entrando) state.dpAnimar = DP_VIEWS.includes(view) ? view : state.dpView || 'painel';
     setDpView(view || state.dpView || 'painel');
     if (entrando) { window.scrollTo(0, 0); state.dpConvAnim = true; }
   }
   function setDpView(view) {
     if (view === 'sindicatos' && (state.dpView !== 'sindicatos' || $('#view-dp').hidden || $('#dp-view-sindicatos').hidden)) state.dpConvAnim = true;
-    state.dpView = DP_VIEWS.includes(view) ? view : 'painel';
+    const novo = DP_VIEWS.includes(view) ? view : 'painel';
+    const pnlAntes = $(`#dp-view-${state.dpView}`), visivel = pnlAntes && !pnlAntes.hidden && !$('#view-dp').hidden;
+    const trocou = novo !== state.dpView || !visivel;
+    const dir = DP_VIEWS.indexOf(novo) >= DP_VIEWS.indexOf(state.dpView) ? 1 : -1, deslizar = visivel && novo !== state.dpView;
+    if (trocou) state.dpAnimar = novo;
+    state.dpView = novo;
     $$('.dp-tab').forEach(t => { const on = t.dataset.dpView === state.dpView; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
     $$('.dp-view').forEach(v => { v.hidden = v.id !== `dp-view-${state.dpView}`; });
     renderDpActiveView();
     syncRoute();
+    requestAnimationFrame(() => dpIndicador(deslizar));
+    if (deslizar && !semMovimento()) { const p = $(`#dp-view-${novo}`); p.style.setProperty('--dir', dir); p.classList.remove('dp-entra'); void p.offsetWidth; p.classList.add('dp-entra'); }
   }
+  // Animações: só ao entrar numa aba (não a cada atualização do banco) e nunca com "reduzir movimento".
+  const semMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function dpAnim(v) { if (state.dpAnimar !== v) return false; state.dpAnimar = ''; return !semMovimento(); }
+  // anima o número de 0 até o valor (só números inteiros simples)
+  function contar(els, t0, atraso = 70) {
+    if (!t0) return;
+    els.forEach((el, k) => {
+      const alvo = parseInt(el.textContent, 10); if (!(alvo > 0) || String(alvo) !== el.textContent.trim()) return;
+      const ini = t0 + k * atraso, dur = 850;
+      const passo = (t) => { const x = Math.min(1, Math.max(0, (t - ini) / dur)); el.textContent = Math.round(alvo * (1 - Math.pow(1 - x, 3))); if (x < 1 && el.isConnected) requestAnimationFrame(passo); };
+      passo(performance.now());
+    });
+  }
+  // Liga a animação de entrada num contêiner. Se a tela for redesenhada no meio (dados chegando do banco),
+  // a animação continua de onde estava (--dt negativo), em vez de recomeçar. Devolve o início (ou 0).
+  function marcarAnim(el, novo, cls = 'dp-anim', ms = 1700) {
+    if (!el) return 0;
+    const agora = performance.now();
+    if (novo) {
+      el.__t0 = agora; el.classList.add(cls); el.style.setProperty('--dt', '0ms');
+      clearTimeout(el.__tAnim); el.__tAnim = setTimeout(() => { el.classList.remove(cls); el.__t0 = 0; }, ms);
+    } else if (el.__t0 && el.classList.contains(cls)) el.style.setProperty('--dt', `${-(agora - el.__t0)}ms`);
+    return el.__t0 || 0;
+  }
+  // traço da aba ativa: desliza até a aba clicada
+  function dpIndicador(animar) {
+    const tabs = $('.dp-tabs'), on = $('.dp-tab.active'); if (!tabs || !on || !on.offsetWidth) return;
+    let ind = $('.dp-tab-ind', tabs);
+    if (!ind) { ind = document.createElement('span'); ind.className = 'dp-tab-ind'; ind.setAttribute('aria-hidden', 'true'); tabs.appendChild(ind); tabs.classList.add('com-ind'); animar = false; }
+    ind.classList.toggle('sem-trans', !animar || semMovimento());
+    ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
+  }
+  window.addEventListener('resize', () => { if (state.activeModule === 'dp') dpIndicador(false); });
   $('.dp-tabs').addEventListener('click', (e) => { const btn = e.target.closest('.dp-tab'); if (btn) setDpView(btn.dataset.dpView); });
 
   function renderDpActiveView() {
@@ -3324,6 +3450,7 @@ body.portal-open{overflow:hidden;}
     if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
   }
   function renderBadges() {
+    requestAnimationFrame(() => dpIndicador(false));
     const t = hoje();
     const n = todosEventos(t, t).filter(ev => !ev.feito).length;
     const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
@@ -3356,6 +3483,8 @@ body.portal-open{overflow:hidden;}
     const meuDia = e.target.closest('[data-meu-dia]');
     if (meuDia) { e.stopPropagation(); state.dpAgDia = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
     if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: (state.activeModule === 'dp' && state.dpAgDia) || ymd(hoje()), novo: true }); return; }
+    const agEmp = e.target.closest('[data-emp-agenda]');
+    if (agEmp) { const emp = findDpEmpresa(agEmp.dataset.empAgenda); if (emp) { state.dpAgQuery = emp.nome; $('#dp-ag-search').value = emp.nome; irAgenda({}); } return; }
     const open = e.target.closest('[data-open-emp]');
     if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) { openDpDetail(emp, { tab: open.dataset.tab }); editarDoEvento(open.dataset.edit); } return; }
     const go = e.target.closest('[data-go]');
@@ -3436,6 +3565,7 @@ body.portal-open{overflow:hidden;}
     const urg = alertas.filter(a => a.nivel !== 'soon').length;
     const emps = empresasCarteira();
     const nAtivas = emps.filter(ativa).length;
+    const anim = dpAnim('painel');
     kp.innerHTML = [
       kpiCard(hojeEv.length, 'Datas hoje', hojeEv.length ? 'is-today' : '', 'agenda:hoje', hojeEv.length ? `${nMeusHoje} minha(s) · ${hojeEv.length - nMeusHoje} da equipe` : `${fmtDM(t)}, ${wd(t)}${feriado(t) ? ' · ' + escapeHtml(feriado(t)) : ''}`),
       kpiCard(semana.length, 'Próximos 7 dias', '', 'agenda'),
@@ -3443,6 +3573,7 @@ body.portal-open{overflow:hidden;}
       kpiCard(alertas.length, 'Alertas de pessoal', urg ? 'is-late' : '', 'funcionarios:alerta', urg ? `${urg} pedem ação agora` : ''),
       kpiCard(nAtivas, state.dpCarteira ? 'Empresas na carteira' : 'Empresas ativas', '', 'empresas', emps.length > nAtivas ? `${emps.length - nAtivas} inativa(s)` : ''),
     ].join('');
+    contar($$('.kpi-value', kp), marcarAnim(kp, anim, 'kp-anim'));
 
     const card = (titulo, sub, body, extra = '', cls = '') => `<section class="pn-card ${cls}"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${extra}</div><div class="pn-card-body">${body}</div></section>`;
 
@@ -3459,7 +3590,7 @@ body.portal-open{overflow:hidden;}
         const n = x.evs.length, hol = feriado(x.d), fds = x.d.getDay() === 0 || x.d.getDay() === 6;
         const tip = `${fmtDM(x.d)}, ${wd(x.d)}${i === 0 ? ' · hoje' : ''}${hol ? ' · ' + hol : ''}\n${n ? `${n} data(s): ${resumoTipos(x.evs).join(', ')}` : 'Nenhuma data'}${n ? '\nClique para ver na agenda' : ''}`;
         const lbl = n && n === maxN && !marcouMax.v ? (marcouMax.v = true, `<span class="v">${n}</span>`) : '';
-        return `<button type="button" class="col${n ? '' : ' zero'}${fds || hol ? ' off' : ''}${i === 0 ? ' today' : ''}" ${n ? `data-cal-dia="${ymd(x.d)}"` : 'tabindex="-1"'} ${tipAttr(tip)}>${lbl}<span class="bar" style="height:${(n / topo * 100).toFixed(1)}%"></span></button>`;
+        return `<button type="button" class="col${n ? '' : ' zero'}${fds || hol ? ' off' : ''}${i === 0 ? ' today' : ''}" style="--k:${i}" data-dia="${ymd(x.d)}" ${n ? `data-cal-dia="${ymd(x.d)}"` : 'tabindex="-1"'} ${tipAttr(tip)}>${lbl}<span class="bar" style="height:${(n / topo * 100).toFixed(1)}%"></span></button>`;
       }).join('');
       const xs = dias.map((x, i) => i % 7 === 0 ? `<span style="left:${((i + .5) / 31 * 100).toFixed(2)}%">${i === 0 ? 'hoje' : fmtDM(x.d)}</span>` : '').join('');
       cargaBody = `<div class="cols"><div class="cols-y"><span style="top:0">${topo}</span><span style="top:50%">${topo / 2}</span><span style="top:100%">0</span></div><div class="cols-plot"><div class="cols-grid" style="top:0"></div><div class="cols-grid" style="top:50%"></div>${cols}</div><div class="cols-x">${xs}</div></div>`;
@@ -3519,7 +3650,19 @@ body.portal-open{overflow:hidden;}
 
     if (semEmpresas) { grid.innerHTML = `${cargaCard}${calCard}<section class="pn-card pn-wide">${emptyEmpresasHtml()}</section>`; return; }
     grid.innerHTML = `${cargaCard}${calCard}${alCard}${funcCard}${cCard}${gapCard}`;
+    contar($$('.stat3 b, .stack-legend b, .prox30-i b', grid), marcarAnim(grid, anim, 'pn-anim'), 40);
+    grid.__dia = null;
   }
+  // Painel: passar o mouse numa barra acende o mesmo dia no calendário (e vice-versa).
+  function ligaDia(k) {
+    const g = $('#dp-painel-grid'); if (g.__dia === k) return;
+    g.__dia = k;
+    $$('.liga', g).forEach(x => x.classList.remove('liga'));
+    g.classList.toggle('pn-liga', !!k && !!$(`.col[data-dia="${k}"]`, g));
+    if (k) $$(`[data-dia="${k}"]`, g).forEach(x => x.classList.add('liga'));
+  }
+  $('#dp-painel-grid').addEventListener('mouseover', (e) => { const el = e.target.closest('[data-dia]'); ligaDia(el ? el.dataset.dia : null); });
+  $('#dp-painel-grid').addEventListener('mouseleave', () => ligaDia(null));
   function calendarioHtml(mes) {
     const { y, m } = mesParts(mes);
     const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
@@ -3535,7 +3678,7 @@ body.portal-open{overflow:hidden;}
       const nivel = list.length ? Math.max(1, Math.ceil(list.length / maxN * 5)) : 0;
       const tip = `${fmtDM(d)}, ${wd(d)}${hol ? ' · ' + hol : ''}\n${list.length ? `${list.length} data(s): ${resumoTipos(list).join(', ')}` : 'Nenhuma data'}`;
       const dayCls = `cal-day${nivel ? ' h' + nivel : hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
-      cells.push(`<button type="button" class="${dayCls}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} ${tipAttr(tip)}><span>${d.getDate()}</span></button>`);
+      cells.push(`<button type="button" class="${dayCls}" style="--k:${d.getDate()}" data-dia="${k}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} ${tipAttr(tip)}><span>${d.getDate()}</span></button>`);
     }
     return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span class="heat-key">menos ${[1,2,3,4,5].map(i => `<i style="background:var(--heat-${i})"></i>`).join('')} mais datas</span><span>Riscado = feriado</span></div>`;
   }
@@ -3561,9 +3704,9 @@ body.portal-open{overflow:hidden;}
     return porAnalista(todosEventos(new Date(y, m, 1), new Date(y, m + 1, 0)))
       .filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
   }
-  $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = mesDe(hoje()); state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
+  $('#dp-ag-prev').addEventListener('click', () => { state.agDesliza = -1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-next').addEventListener('click', () => { state.agDesliza = 1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { const mh = mesDe(hoje()); state.agDesliza = mh === state.dpAgMes ? 0 : mh > (state.dpAgMes || mh) ? 1 : -1; state.dpAgMes = mh; state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
   $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
   $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
   $('#dp-ag-analista').addEventListener('change', (e) => { state.dpAgAnalista = e.target.value; state.prefs.dpAgAnalista = state.dpAgAnalista; savePrefs(); renderDpAgenda(); });
@@ -3609,6 +3752,10 @@ body.portal-open{overflow:hidden;}
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s) em ${MESES[m].toLowerCase()}`;
     $('#dp-ag-cal').innerHTML = agCalHtml(vis, state.dpAgMes);
+    // Troca de mês: o calendário entra deslizando do lado para onde se andou.
+    const dz = state.agDesliza; state.agDesliza = 0;
+    const agm = $('#dp-ag-cal .agm');
+    if (!marcarAnim($('#dp-ag-cal'), dpAnim('agenda')) && dz && agm && !semMovimento()) { agm.style.setProperty('--dir', dz); agm.classList.add('agm-entra'); const lb = $('#dp-ag-label'); lb.style.setProperty('--dir', dz); lb.classList.remove('agm-entra'); void lb.offsetWidth; lb.classList.add('agm-entra'); }
     renderAgLista(vis);
   }
 
@@ -3635,6 +3782,7 @@ body.portal-open{overflow:hidden;}
     vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
     // Lembretes primeiro no dia (são o destaque), depois o resto na ordem da agenda.
     Object.values(porDia).forEach(l => l.sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b)));
+    const maxDia = Math.max(1, ...Object.values(porDia).map(l => l.length));
     const cells = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="agm-wd">${d}</div>`);
     for (let i = 0; i < first.getDay(); i++) cells.push('<div class="agm-day blank"></div>');
     const t = hoje(), tk = ymd(t), pode = podeCriarMeu();
@@ -3650,7 +3798,7 @@ body.portal-open{overflow:hidden;}
       const mais = list.length > mostra ? `<button type="button" class="agm-more" data-ag-sel="${k}">${mostra ? `+${list.length - mostra} mais` : `${list.length} data(s)`}</button>` : '';
       const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.dpAgDia ? ' sel' : ''}${nLemb ? ' tem-lemb' : ''}`;
       const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
-      cells.push(`<div class="${cls}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
+      cells.push(`<div class="${cls}${list.length ? ' quente' : ''}" style="--k:${d.getDate()};--q:${list.length ? Math.round(4 + list.length / maxDia * 14) : 0}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
     }
     const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-pessoal)"></i>Sindical</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
     return `<div class="agm" style="${state.agH ? `grid-template-rows:auto repeat(${semanas},minmax(0,1fr))` : ''}">${cells.join('')}</div>${legenda}`;
@@ -3857,22 +4005,24 @@ body.portal-open{overflow:hidden;}
     if (ss.length) return { txt: `${rotuloSind(ss[0])} · sem convenção cadastrada`, ok: false };
     return { txt: bases.length ? `Sem sindicato · data-base ${bases.join(', ').toLowerCase()}` : 'Sem sindicato vinculado', ok: false };
   }
-  function empCardHtml(e) {
+  function empCardHtml(e, k = 0) {
     const p = proxEmpresa(e);
     const falhas = GAPS.filter(g => g.test(e));
     const pct = Math.round((GAPS.length - falhas.length) / GAPS.length * 100);
     const nFunc = e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
     const inv = e.cnpj && !cnpjValido(e.cnpj);
     const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
-    const av = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável\n${e.responsavel}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr('Sem responsável')}>?</span>`;
+    const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : 'Cadastro completo';
+    const av0 = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável: ${e.responsavel}\n${tip}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr(`Sem responsável\n${tip}`)}>?</span>`;
+    // anel em volta do responsável: quanto do cadastro está preenchido
+    const av = `<span class="emp-anel" style="--p:${pct};--c:${pct === 100 ? 'var(--dp-ok)' : pct < 60 ? 'var(--dp-late)' : 'var(--dp-today)'}">${av0}</span>`;
     const cv = empConvTxt(e);
-    const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : '';
-    return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
+    return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
       <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
       <div class="emp-conv${cv.ok ? '' : ' sem'}">${ic('link', 'ic-sm')}<span>${escapeHtml(cv.txt)}</span></div>
       <div class="emp-tags">${e.tributacao ? `<span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span>` : ''}<span class="chip-s">${ic('user', 'ic-sm')} ${nFunc} func.</span></div>
       ${p ? `<div class="emp-next">${pillRel(p.d)}<span>${escapeHtml(p.titulo)}</span></div>` : ''}
-      ${pct < 100 ? `<i class="emp-fio ${pct < 60 ? 'late' : ''}" style="width:${pct}%" ${tipAttr(tip)}></i>` : ''}
+      <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
     </div>`;
   }
   $('#dp-emp-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-modo]'); if (b) { state.dpEmpModo = b.dataset.empModo; state.prefs.dpEmpModo = state.dpEmpModo; savePrefs(); renderDp(); } });
@@ -3895,7 +4045,22 @@ body.portal-open{overflow:hidden;}
     if (!state.dpLoaded) { container.innerHTML = ''; return; }
     if (!state.dpEmpresas.length) { container.innerHTML = `<div class="dp-empty"><strong>Nenhuma empresa cadastrada</strong><span>Use “Nova empresa” ou importe um backup do DP.</span></div>`; return; }
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada com esses filtros.</div>'; if (cards) { $('#dp-emp-cards').innerHTML = `<div class="list-card" style="grid-column:1/-1;margin:0">${container.innerHTML}</div>`; } return; }
-    if (cards) { $('#dp-emp-cards').innerHTML = list.map(empCardHtml).join(''); return; }
+    const anim = dpAnim('empresas');
+    if (cards) {
+      // Ao filtrar ou reordenar, cada cartão desliza da posição antiga para a nova.
+      const box = $('#dp-emp-cards');
+      const antes = new Map(anim || semMovimento() || list.length > 160 ? [] : $$('.emp-card', box).map(c => [c.dataset.openEmp, c.getBoundingClientRect()]));
+      box.innerHTML = list.map((e, i) => empCardHtml(e, i)).join('');
+      marcarAnim(box, anim);
+      if (antes.size) $$('.emp-card', box).forEach(c => {
+        const a = antes.get(c.dataset.openEmp), d = c.getBoundingClientRect();
+        if (!a) { c.animate([{ opacity: 0, transform: 'scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'ease-out' }); return; }
+        const dx = a.left - d.left, dy = a.top - d.top;
+        if (dx || dy) c.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      });
+      return;
+    }
+    marcarAnim(container, anim);
     container.innerHTML = list.map(e => {
       const p = proxEmpresa(e);
       const inv = e.cnpj && !cnpjValido(e.cnpj);
@@ -3949,6 +4114,7 @@ body.portal-open{overflow:hidden;}
     const grade = meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%"></div>`).join('') + `<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div>`;
     const head = `<div class="tl-row tl-head"><div class="tl-name" style="cursor:default"><span class="dp-cell-sub" style="font-weight:600">Funcionário</span></div><div class="tl-track"><div class="tl-month" style="left:0;border-left:0">${MESES[from.getMonth()].slice(0, 3)}</div>${meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%">${MESES[d.getMonth()].slice(0, 3)}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</div>`).join('')}<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div></div></div>`;
     let semDatas = 0;
+    let ri = 0;
     const rows = list.map(({ f, e, status }) => {
       const marcas = funcBarras(f).filter(m => m.mark ? (m.late || (m.a >= from && m.a <= to)) : (m.b >= from && m.a <= to));
       if (!marcas.length) { semDatas++; if (!state.dpFuncTodos) return ''; }
@@ -3959,14 +4125,26 @@ body.portal-open{overflow:hidden;}
         const l = pos(m.a < from ? from : m.a), r = pos(addDays(m.b > to ? to : m.b, 1));
         return `<button type="button" class="tl-bar ${m.cls}" style="left:${l.toFixed(2)}%;width:calc(${Math.max(0.6, r - l).toFixed(2)}% - 2px)" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" ${tipAttr(tip)}></button>`;
       }).join('');
-      return `<div class="tl-row"><button type="button" class="tl-name" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios"><span class="dp-cell-main">${escapeHtml(f.nome || 'Funcionário')}</span><span class="dp-cell-sub">${escapeHtml(status)} · ${escapeHtml(e.nome)}</span></button><div class="tl-track">${grade}${els}</div></div>`;
+      return `<div class="tl-row" style="--k:${Math.min(ri++, 24)}"><button type="button" class="tl-name" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios"><span class="dp-cell-main">${escapeHtml(f.nome || 'Funcionário')}</span><span class="dp-cell-sub">${escapeHtml(status)} · ${escapeHtml(e.nome)}</span></button><div class="tl-track">${grade}${els}</div></div>`;
     }).join('');
     const legenda = `<div class="legend"><span><i style="background:var(--viz-1)"></i>Experiência</span><span><i style="background:color-mix(in srgb, var(--viz-1) 60%, var(--surface))"></i>Prorrogação</span><span><i style="background:var(--viz-2)"></i>Férias</span><span><i style="background:var(--viz-3)"></i>Rescisão até o pagamento</span><span><i class="dia" style="background:var(--dp-today)"></i>Fim do concessivo</span><span><i class="dia" style="background:var(--dp-late)"></i>Férias vencidas</span><span><i class="line" style="background:var(--ink)"></i>Hoje</span></div>`;
     const toggle = semDatas ? `<button type="button" class="pn-link" data-func-todos>${state.dpFuncTodos ? 'Esconder quem não tem datas no período' : `Mostrar também ${semDatas} sem datas no período`}</button>` : '';
     const corpo = rows || `<div class="dp-empty">Ninguém com experiência, férias ou rescisão entre ${fmtDM(from)} e ${fmtDM(to)}.</div>`;
-    return `<div class="tl-card"><div class="tl-inner">${head}${corpo}</div></div><div class="tl-foot">${legenda}${toggle}</div>`;
+    return `<div class="tl-card"><div class="tl-inner" data-de="${ymd(from)}" data-span="${span}">${head}${corpo}<div class="tl-regua" aria-hidden="true"><span></span></div></div></div><div class="tl-foot">${legenda}${toggle}</div>`;
   }
   $('#dp-func-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-func-modo]'); if (b) { state.dpFuncModo = b.dataset.funcModo; state.prefs.dpFuncModo = state.dpFuncModo; savePrefs(); renderDpFuncionarios(); } });
+  // Régua que acompanha o mouse na linha do tempo, com a data exata.
+  $('#dp-func-tl').addEventListener('mousemove', (e) => {
+    const inner = $('.tl-inner', e.currentTarget), reg = inner && $('.tl-regua', inner), trilho = inner && $('.tl-head .tl-track', inner);
+    if (!reg || !trilho) return;
+    const r = trilho.getBoundingClientRect(), ri = inner.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right) { reg.classList.remove('on'); return; }
+    const d = addDays(parseYmd(inner.dataset.de), Math.floor((e.clientX - r.left) / r.width * +inner.dataset.span));
+    reg.style.left = (e.clientX - ri.left) + 'px';
+    reg.firstChild.textContent = `${fmtDM(d)} · ${wd(d)}`;
+    reg.classList.add('on');
+  });
+  $('#dp-func-tl').addEventListener('mouseleave', (e) => { const reg = $('.tl-regua', e.currentTarget); if (reg) reg.classList.remove('on'); });
   $('#dp-func-tl').addEventListener('click', (e) => { if (e.target.closest('[data-func-todos]')) { e.stopPropagation(); state.dpFuncTodos = !state.dpFuncTodos; renderDpFuncionarios(); } });
   function renderDpFuncionarios() {
     const container = $('#dp-func-list');
@@ -3982,7 +4160,9 @@ body.portal-open{overflow:hidden;}
     $('#dp-func-tl').hidden = !tempo;
     $('#dp-func-listcard').hidden = tempo;
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nada neste filtro.</div>'; return; }
-    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); return; }
+    const anim = dpAnim('funcionarios');
+    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); marcarAnim($('#dp-func-tl'), anim, 'dp-anim', 2400); return; }
+    marcarAnim(container, anim);
     container.innerHTML = list.map(({ f, e, status, alertas, prox }) => {
       const a = alertas[0];
       const ev = a || prox;
@@ -6107,6 +6287,13 @@ body.portal-open{overflow:hidden;}
     if (abrir && cctPorId(abrir)) abrirPainelCct(abrir);
     else if (state.dpConvPainel) renderPainelCct();
   }
+  // Passar o mouse numa situação (chip ou pedaço do anel) acende o pedaço correspondente.
+  $('#cv-main').addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-cv-sit]'), k = el ? el.dataset.cvSit : '';
+    const dn = $('.cv-donut', e.currentTarget); if (!dn || dn.__hl === k) return;
+    dn.__hl = k; dn.classList.toggle('tem-hl', !!k);
+    $$('.seg', dn).forEach(c => c.classList.toggle('hl', c.dataset.cvSit === k));
+  });
   // Entrada animada (só ao chegar na aba ou trocar de visão, não a cada clique).
   let cvAnimT = 0;
   function cvAnimar(root) {
@@ -6172,9 +6359,10 @@ body.portal-open{overflow:hidden;}
   function cvHeroHtml(linhas, sem, emps, contE, totE) {
     const ordem = ['vencida', 'vencendo', 'pendente', 'sem', 'emdia'];
     let acc = 0;
-    const segs = totE ? ordem.filter(k => contE[k]).map(k => { const len = contE[k] / totE * 100; const s = `<circle class="seg" cx="21" cy="21" r="15.9" pathLength="100" style="stroke:${CV_COR[k]};stroke-dasharray:${Math.max(0, len - 0.8).toFixed(2)} ${(100 - len + 0.8).toFixed(2)};stroke-dashoffset:${(-acc).toFixed(2)}"><title>${CV_SITS.find(x => x.k === k).l}: ${contE[k]} empresa(s)</title></circle>`; acc += len; return s; }).join('') : '';
+    const segs = totE ? ordem.filter(k => contE[k]).map(k => { const len = contE[k] / totE * 100; const s = `<circle class="seg${state.dpConvSit === k ? ' on' : ''}" data-cv-sit="${k}" cx="21" cy="21" r="15.9" pathLength="100" style="stroke:${CV_COR[k]};stroke-dasharray:${Math.max(0, len - 0.8).toFixed(2)} ${(100 - len + 0.8).toFixed(2)};stroke-dashoffset:${(-acc).toFixed(2)}"><title>${CV_SITS.find(x => x.k === k).l}: ${contE[k]} empresa(s)</title></circle>`; acc += len; return s; }).join('') : '';
     const saude = totE ? Math.round(contE.emdia / totE * 100) : 0;
     const atencao = linhas.filter(l => l.sit !== 'emdia').length;
+    const semN = new Set(sem.map(x => x.e.id)).size;
     const cart = state.dpCarteira ? `Carteira de ${escapeHtml(carteiraNome())}` : 'Equipe toda';
     const bases = linhas.flatMap(l => eventosConv(l, 366).filter(e => e.tipo === 'base')).sort((a, b) => a.d.localeCompare(b.d));
     const pb = bases[0];
@@ -6197,11 +6385,11 @@ body.portal-open{overflow:hidden;}
         <i class="cv-tick-bar"><i></i></i></div>` : '';
     return `<section class="cv-hero" style="--i:0">
       <div class="cv-hero-g">
-        <div class="cv-donut-w"><svg class="cv-donut" viewBox="0 0 42 42" aria-label="Empresas por situação"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
+        <div class="cv-donut-w"><svg class="cv-donut${state.dpConvSit ? ' tem-f' : ''}" viewBox="0 0 42 42" aria-label="Empresas por situação (clique numa parte para filtrar)"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
           <div class="cv-donut-c"><b data-cv-n="${saude}" data-cv-suf="%">${saude}%</b><small>em dia</small></div></div>
         <div class="cv-hero-tx">
           <span class="cv-eyebrow">${cart}${state.dpCarteira ? ' · <button type="button" class="linkish" data-cv-equipe>ver equipe toda</button>' : ''}</span>
-          <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : `Tudo em dia ${ic('check')}`}</h2>
+          <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : semN ? `<em data-cv-n="${semN}">${semN}</em> ${semN === 1 ? 'empresa está' : 'empresas estão'} sem convenção` : `Tudo em dia ${ic('check')}`}</h2>
           <p>${emps.length} empresa(s) ativa(s) · ${linhas.length} convenção(ões) em uso${sem.length ? ` · <b class="t-sem">${sem.length} sem CCT</b>` : ''}</p>
           ${tickHtml}
           <div class="cv-legend">${ordem.filter(k => contE[k]).map(k => `<span><i style="background:${CV_COR[k]}"></i>${CV_SITS.find(x => x.k === k).l} <b>${contE[k]}</b></span>`).join('')}</div>
@@ -6633,8 +6821,16 @@ body.portal-open{overflow:hidden;}
     const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
         <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfAtivos(base)} func.</div></div>
         <span class="ct-an-n">${base.length}</span></div>`;
+    // Guarda o tamanho das barras e os contadores para animar a mudança (ao mover empresas).
+    const ctAntes = new Map($$('#ct-side .ct-an[data-ct-an]').map(a => [a.dataset.ctAn, { w: a.querySelector('.ct-an-bar i')?.style.width || '', n: parseInt(a.querySelector('.ct-an-n')?.textContent, 10) }]));
     $('#ct-side').innerHTML = `<div class="ct-side-h">Analistas</div>${tot}${grupos.map(item).join('')}
       ${ro ? '' : `<form class="ct-add" id="ct-add"><input id="ct-add-nome" placeholder="Nome do novo analista" maxlength="80" aria-label="Nome do novo analista"><button type="submit" class="btn btn-sm">${ic('plus', 'ic-sm')} Adicionar</button></form>`}`;
+    if (!semMovimento()) $$('#ct-side .ct-an[data-ct-an]').forEach(a => {
+      const v = ctAntes.get(a.dataset.ctAn); if (!v) return;
+      const i = a.querySelector('.ct-an-bar i'), n = parseInt(a.querySelector('.ct-an-n')?.textContent, 10);
+      if (i && v.w && v.w !== i.style.width) i.animate([{ width: v.w }, { width: i.style.width }], { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (n !== v.n && !isNaN(v.n)) { const el = a.querySelector('.ct-an-n'); el.classList.remove('ct-pula'); void el.offsetWidth; el.classList.add('ct-pula'); }
+    });
 
     $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 
@@ -6698,6 +6894,7 @@ body.portal-open{overflow:hidden;}
     const mapa = {}; ids.forEach(id => { mapa[id] = destino; });
     const sim = !!state.dpCtSim;
     const ok = await aplicarMovimentos(mapa);
+    if (ok) requestAnimationFrame(() => ids.forEach(id => { const tr = $(`tr[data-ct-id="${id}"]`); if (tr) { tr.classList.remove('ct-flash'); void tr.offsetWidth; tr.classList.add('ct-flash'); } }));
     if (ok && !sim) { const n = ids.length, nome = destino === SEM_RESP || !destino ? 'sem responsável' : canonResp(destino); toast(n === 1 ? `“${findDpEmpresa(ids[0])?.nome}” agora está com ${nome}.` : `${n} empresas movidas para ${nome}.`); }
   }
   async function definirReserva(id, nome) {
@@ -7032,10 +7229,12 @@ body.portal-open{overflow:hidden;}
     if (!tr) return;
     const id = tr.dataset.ctId;
     ctArrasto = state.dpCtSel.has(id) ? [...state.dpCtSel] : [id];
+    ctView.classList.add('ct-arrastando');
+    ctArrasto.forEach(x => $(`tr[data-ct-id="${x}"]`, ctView)?.classList.add('ct-pega'));
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', ctArrasto.length + ' empresa(s)'); } catch {}
   });
-  ctView.addEventListener('dragend', () => { ctArrasto = null; $$('.ct-an.drop').forEach(x => x.classList.remove('drop')); });
+  ctView.addEventListener('dragend', () => { ctArrasto = null; ctView.classList.remove('ct-arrastando'); $$('.ct-an.drop, tr.ct-pega').forEach(x => x.classList.remove('drop', 'ct-pega')); });
   ctView.addEventListener('dragover', (e) => {
     const an = e.target.closest('[data-ct-drop]');
     if (!an || !ctArrasto) return;
