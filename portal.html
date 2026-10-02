@@ -1733,7 +1733,7 @@
               <label><span>CNPJ <span class="note">(opcional)</span></span><input type="text" id="fe-cnpj" placeholder="00.000.000/0000-00"></label>
               <div class="checks">
                 <label><input type="checkbox" id="fe-folha"> Tem folha ativa</label>
-                <label><input type="checkbox" id="fe-rubricas"> Precisa configurar rubricas/variáveis</label>
+                <label hidden><input type="checkbox" id="fe-rubricas"> Precisa configurar rubricas/variáveis</label>
               </div>
               <label style="gap:6px;">Setores com demanda
                 <div class="checks">
@@ -1850,7 +1850,6 @@
 
   var ETAPAS = [
     {key:"habilitacaoDominio",   label:"Habilitação no Domínio",        curto:"Habilitação", porEmpresa:true},
-    {key:"configRubricas",       label:"Rubricas e variáveis",          curto:"Rubricas", onlyIf:function(e,s){ return s==="pessoal" && !!(e && e.precisaRubricas); }},
     {key:"treinamentoAnalista",  label:"Treinamento do analista",       curto:"Trein. analista"},
     {key:"treinamentoCliente",   label:"Treinamento dos clientes",      curto:"Trein. cliente"}
   ];
@@ -3426,7 +3425,6 @@
           '</div>' +
           '<div class="metaline">' +
             '<label><input type="checkbox" class="ee-folha" '+(e.folhaAtiva?"checked":"")+'> Tem folha ativa</label>' +
-            '<label><input type="checkbox" class="ee-rubricas" '+(e.precisaRubricas?"checked":"")+'> Precisa configurar rubricas/variáveis</label>' +
             '<label><input type="checkbox" class="ee-ativo" '+(e.ativo!==false?"checked":"")+'> Empresa ativa</label>' +
           '</div>' +
           '<div class="metaline">' +
@@ -6821,8 +6819,8 @@
       ["Setores que Acessa (aba Contatos): liste os setores separados por vírgula, ex.: \"pessoal, fiscal\"."]
     ]), "Leia-me");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ["Nome","CNPJ","Ativo","Folha Ativa","Precisa Rubricas","Setor Pessoal","Setor Contabil","Setor Fiscal"],
-      ["Empresa Exemplo Ltda","12.345.678/0001-90","SIM","SIM","NAO","SIM","SIM","NAO"]
+      ["Nome","CNPJ","Ativo","Folha Ativa","Setor Pessoal","Setor Contabil","Setor Fiscal"],
+      ["Empresa Exemplo Ltda","12.345.678/0001-90","SIM","SIM","SIM","SIM","NAO"]
     ]), "Empresas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ["Nome","Setor","Cargo","Status Treinamento","Agendado Para","Horario","Observacoes"],
@@ -8175,7 +8173,7 @@
 
     var POR_PAG_EMP = 22;
     var sw = function(cor){ return '<i style="display:inline-block; width:9px; height:8px; border-radius:1px; background:' + cor + '; margin:0 4px 0 8px;"></i>'; };
-    var legendaTrilha = '<p class="rp-nota">Cada quadrado é uma etapa, nesta ordem: ' + ETAPAS.map(function(e){ return e.label; }).join(" · ") + ' (rubricas só quando se aplicam).' +
+    var legendaTrilha = '<p class="rp-nota">Cada quadrado é uma etapa, nesta ordem: ' + ETAPAS.map(function(e){ return e.label; }).join(" · ") + '.' +
       sw("var(--status-green)") + 'concluída' + sw("var(--st-and)") + 'em andamento' + sw("var(--st-pend)") + 'pendente</p>';
     for(var i = 0; i < m.listaEmp.length; i += POR_PAG_EMP){
       var bloco = m.listaEmp.slice(i, i + POR_PAG_EMP);
