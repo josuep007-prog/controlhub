@@ -4006,22 +4006,21 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     return { txt: bases.length ? `Sem sindicato · data-base ${bases.join(', ').toLowerCase()}` : 'Sem sindicato vinculado', ok: false };
   }
   function empCardHtml(e, k = 0) {
-    const p = proxEmpresa(e);
     const falhas = GAPS.filter(g => g.test(e));
     const pct = Math.round((GAPS.length - falhas.length) / GAPS.length * 100);
-    const nFunc = e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
     const inv = e.cnpj && !cnpjValido(e.cnpj);
     const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
     const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : 'Cadastro completo';
     const av0 = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável: ${e.responsavel}\n${tip}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr(`Sem responsável\n${tip}`)}>?</span>`;
     // anel em volta do responsável: quanto do cadastro está preenchido
     const av = `<span class="emp-anel" style="--p:${pct};--c:${pct === 100 ? 'var(--dp-ok)' : pct < 60 ? 'var(--dp-late)' : 'var(--dp-today)'}">${av0}</span>`;
-    const cv = empConvTxt(e);
+    // No cartão: só o sindicato (sem data-base nem convenção) e a tributação.
+    const ss = empresaSinds(e).filter(x => !ehSemSind(x)), cct = empresaCcts(e)[0];
+    const sind = ss.length ? rotuloSind(ss[0]) + (ss.length > 1 ? ` +${ss.length - 1}` : '') : cct ? tituloCurto(cct.cct) : '';
     return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
       <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
-      <div class="emp-conv${cv.ok ? '' : ' sem'}">${ic('link', 'ic-sm')}<span>${escapeHtml(cv.txt)}</span></div>
-      <div class="emp-tags">${e.tributacao ? `<span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span>` : ''}<span class="chip-s">${ic('user', 'ic-sm')} ${nFunc} func.</span></div>
-      ${p ? `<div class="emp-next">${pillRel(p.d)}<span>${escapeHtml(p.titulo)}</span></div>` : ''}
+      <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem sindicato')}</span></div>
+      ${e.tributacao ? `<div class="emp-tags"><span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span></div>` : ''}
       <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
     </div>`;
   }
