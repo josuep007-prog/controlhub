@@ -705,6 +705,9 @@
   .foco-empty p{margin:0 auto; max-width:420px; font-size:13px;}
 
   .fcard{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow-1);}
+  /* falta analista ou contato de cliente em algum setor */
+  .fcard.falta{border-color:var(--brand-red); box-shadow:inset 0 0 0 1px var(--brand-red), var(--shadow-1);}
+  .ffalta{display:inline-block; margin-left:8px; padding:1px 8px; border-radius:999px; font:600 11px/1.5 "IBM Plex Sans",sans-serif; color:var(--brand-red); background:var(--brand-red-soft); vertical-align:2px; white-space:nowrap; cursor:help;}
   .fcard.chegando{animation:fchega .55s ease;}
   @keyframes fchega{0%{opacity:0; transform:translateY(-10px); box-shadow:0 0 0 3px var(--sector-pessoal);} 50%{opacity:1; transform:none; box-shadow:0 0 0 3px var(--sector-pessoal);} 100%{box-shadow:var(--shadow-1);}}
   .fcard.saindo{overflow:hidden; opacity:0; transform:translateX(16px); transition:height .26s ease, opacity .2s ease, transform .22s ease;}
@@ -3916,8 +3919,23 @@
     return s ? (SETOR_LABEL[s.setor] || s.setor) + ": " + (s.impedimento.descricao || "impedimento") : "";
   }
 
+  // O que falta no cadastro da empresa em foco: analista ou contato de cliente em algum setor com demanda.
+  function faltasCadastroFoco(e, docs){
+    var semAna = [], semCont = [];
+    frentesDaEmpresa(e, docs).forEach(function(f){
+      var rot = SETOR_LABEL[f.setor] || f.setor;
+      if(!String(f.analistaNome || "").trim()) semAna.push(rot);
+      if(!contatosDoSetor(e.id, f.setor).length) semCont.push(rot);
+    });
+    var linhas = [];
+    if(semAna.length) linhas.push("Sem analista: " + semAna.join(", "));
+    if(semCont.length) linhas.push("Sem contato de cliente: " + semCont.join(", "));
+    var rotulo = semAna.length && semCont.length ? "Falta analista e contato" : semAna.length ? "Falta analista" : semCont.length ? "Falta contato de cliente" : "";
+    return {tem:!!linhas.length, rotulo:rotulo, detalhe:linhas.join(" · ")};
+  }
   function renderFocoCard(e, docs){
     var r = resumoEmpresaFoco(e, docs);
+    var falta = faltasCadastroFoco(e, docs);
     var recolhida = !ui.focoAbertas.has(e.id);
     var pct = Math.round(r.pct * 100);
     var dias = diasEmFoco(e);
@@ -3964,11 +3982,11 @@
       '</div>';
     }
 
-    return '<div class="fcard'+(recolhida?" recolhida":"")+(r.completa?" completa":"")+'" data-id="'+e.id+'">' +
+    return '<div class="fcard'+(recolhida?" recolhida":"")+(r.completa?" completa":"")+(falta.tem?" falta":"")+'" data-id="'+e.id+'"'+(falta.tem ? ' title="'+esc(falta.detalhe)+'"' : '')+'>' +
       '<div class="fcard-head">' +
         '<button type="button" class="fcard-toggle" data-action="foco-recolher" data-id="'+e.id+'" title="Recolher ou expandir">'+CHEV+'</button>' +
         '<div class="fcard-title" data-action="foco-recolher" data-id="'+e.id+'">' +
-          '<div class="fcard-name">'+esc(e.nome)+(imp ? '<button type="button" class="flagbadge" data-action="ir-impedimentos" title="'+esc(imp)+'"><i></i>'+esc(cortar(imp, 48))+'</button>' : '')+'</div>' +
+          '<div class="fcard-name">'+esc(e.nome)+(falta.tem ? '<span class="ffalta" title="'+esc(falta.detalhe)+'">'+falta.rotulo+'</span>' : '')+(imp ? '<button type="button" class="flagbadge" data-action="ir-impedimentos" title="'+esc(imp)+'"><i></i>'+esc(cortar(imp, 48))+'</button>' : '')+'</div>' +
           '<div class="fcard-sub">'+sub.join('<span class="sep">·</span>')+'</div>' +
           acao +
           (recolhida ? '<div class="fcard-trilha erow-tracks">'+trilhasEmpresaHTML(e, docs).replace(/ data-tip="<b>([^<]*)<\/b>([^"]*)"/g, ' title="$1: $2"')+'</div>' : '') +
