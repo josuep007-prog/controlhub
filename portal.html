@@ -2737,6 +2737,8 @@
         if(ed.status !== "agendado") return;
         var fAg = funcAnalistaDoDoc(s);
         if(fAg && fAg.statusTreinamento === "agendado") return; // a própria pessoa já está na agenda
+        // A pessoa já está treinada no cadastro dela em Equipe: o agendamento antigo da frente não vale mais.
+        if(etapaAnalistaEfetiva(s).status === "concluido") return;
         out.push({tipo:"etapa", id:s.id, nome:String(s.analistaNome || "").trim() || "Analista não definido", agendadoPara:ed.agendadoPara || "", agendadoHora:ed.agendadoHora || "", empresaId:e.id, empresaNome:e.nome, setor:s.setor});
       });
     });
@@ -4483,8 +4485,11 @@
     var doc = state.setores.find(function(s){ return s.id === docId; });
     var statusAntes = statusDe(doc, etapaKey, empresaId, setorKey);
     var dataAntes = (doc && doc.etapas && doc.etapas[etapaKey] && doc.etapas[etapaKey].data) || "";
-    if(statusAntes === novo) return;
     var funcT = etapaKey === "treinamentoAnalista" ? funcAnalistaDoDoc(doc) : null;
+    // Treinamento do analista herdado da pessoa: a frente pode ter um registro antigo (ex.: "agendado")
+    // mesmo com a pessoa já treinada. Nesse caso grava na frente para ela ficar igual, em vez de ignorar o clique.
+    var ownSt = (doc && doc.etapas && doc.etapas.treinamentoAnalista && doc.etapas.treinamentoAnalista.status) || "pendente";
+    if(statusAntes === novo && !(funcT && ownSt !== novo)) return;
     if(funcT){
       // O treinamento é da pessoa: grava no cadastro dela e na frente, com um só "Desfazer" para os dois.
       var ownAntes = Object.assign({status:"pendente", data:"", agendadoPara:""}, doc.etapas && doc.etapas.treinamentoAnalista);
@@ -4493,7 +4498,8 @@
       registrarAtividade({tipo:"etapa", empresaId:empresaId, empresaNome:e.nome, setor:setorKey, item:etapaKey, de:statusAntes, para:novo});
       doc.etapas = Object.assign({}, doc.etapas, {treinamentoAnalista:Object.assign({}, doc.etapas && doc.etapas.treinamentoAnalista, ownNovo)});
       dbRef.collection("empresaSetores").doc(docId).update({etapas:{treinamentoAnalista:ownNovo}});
-      definirStatusFuncionario(funcT.id, novo, ownNovo.agendadoPara, true);
+      if((funcT.statusTreinamento || "pendente") !== novo) definirStatusFuncionario(funcT.id, novo, ownNovo.agendadoPara, true);
+      else renderAll();
       if(!semDesfazer) mostrarToast("Treinamento de "+funcT.nome+": "+STATUS_LABEL[novo], "Desfazer", function(){
         Object.assign(funcT, fAntes);
         doc.etapas = Object.assign({}, doc.etapas, {treinamentoAnalista:Object.assign({}, doc.etapas.treinamentoAnalista, ownAntes)});
