@@ -1263,7 +1263,9 @@ $("#v-prazos").addEventListener("click", function(ev){
 
 /* ============ CADASTRO: importar ============ */
 var CAB = ["Empresa","Nome anterior","CNPJ","Grupo","Cliente desde","Sistema","Migrado em","Tributação","Tributação anterior","Mudou em","Analista","Apoio","Situação","Data da situação","Observações","Contatos","Sem folha","Sem imobilizado","ID"];
-var CAMPO_CAB = {"empresa":"nome","empresas":"nome","nome anterior":"anterior","cnpj":"cnpj","grupo":"grupo","grupo economico":"grupo","cliente desde":"desde","inicio":"desde","sistema":"sistema","migrado em":"migrado","tributacao":"trib","tributacao anterior":"tribAnt","mudou em":"tribMud","analista":"analista","apoio":"apoio","situacao":"sit","data da situacao":"sitData","observacoes":"obs","contatos":"contatos","sem folha":"semFolha","sem imobilizado":"semImob","id":"id"};
+var CAMPO_CAB = {"empresa":"nome","empresas":"nome","nome anterior":"anterior","cnpj":"cnpj","grupo":"grupo","grupo economico":"grupo","cliente desde":"desde","inicio":"desde","sistema":"sistema","migrado em":"migrado","tributacao":"trib","tributacao anterior":"tribAnt","mudou em":"tribMud","analista":"analista","apoio":"apoio","situacao":"sit","data da situacao":"sitData","observacoes":"obs","contatos":"contatos","sem folha":"semFolha","sem imobilizado":"semImob","id":"id",
+  "financeiro ate":"pFin","fiscal ate":"pFis","folha ate":"pFol","balancete ate":"pBal","pendencia do cliente":"pendCli",
+  "1. financeiro":"pFin","2 fiscal":"pFis","3 folha":"pFol","4 balancete":"pBal"};
 // Célula de data: número de série do Excel, dd/mm/aaaa, aaaa-mm-dd ou o erro comum dd/mmaaaa.
 function dataCel(v){
   if(typeof v === "number" && v > 0){ var p = XLSX.SSF.parse_date_code(v); return p ? p.y + "-" + pad2(p.m) + "-" + pad2(p.d) : ""; }
@@ -1344,6 +1346,11 @@ function lerCarteira(wb){
         var cv = String(g("cnpj") || "").trim(); x.cnpj = cv;
         if(!cnpjDig(cv)) x.rev.push("sem CNPJ"); else if(!cnpjOk(cv)) x.rev.push("CNPJ não confere");
         x.temSit = antiga ? x.sit !== "ativa" : "sit" in col;
+        // andamento do fechamento (planilha de controle): mês até onde cada grupo está concluído; SM = sem movimento
+        var pg = function(k){ if(!(k in col)) return ""; var v = g(k); return String(v).trim().toUpperCase() === "SM" ? "SM" : mesCel(v); };
+        x.prog = {fin:pg("pFin"), fis:pg("pFis"), fol:pg("pFol"), bal:pg("pBal")};
+        if(x.prog.fol === "SM") x.semFolha = true;
+        x.pendCli = String(g("pendCli") || "").replace(/\s+/g, " ").trim();
         out.push(x);
       }
       return {aba: nomes[s], antiga: antiga, linhas: out};
@@ -1377,6 +1384,7 @@ function planejarImport(res){
     while(!e && novosIds[id]) id = id + "-" + x.linha;
     novosIds[id] = true;
     var n = normEmp(base, id);
+    x.eid = id; x.emp = n;
     if(!CLIENTE[n.sit] && !n.sitData) x.rev.push("situação “" + SIT[n.sit].l + "” sem data");
     if(x.rev.length) avisos.push("Linha " + x.linha + " · " + x.nome + ": " + x.rev.join(", ") + ".");
     if(!e){ novas.push(n); return; }
@@ -1384,6 +1392,43 @@ function planejarImport(res){
     if(dif.length) muda.push({antes:e, depois:n, dif:dif}); else iguais++;
   });
   return {novas:novas, muda:muda, iguais:iguais, avisos:avisos};
+}
+// Andamento do fechamento vindo da planilha: Financeiro → Financeiro; Fiscal → Conferência fiscal e Impostos;
+// Folha → Lançamento de folha; Balancete → Depreciação e Conciliação. Só preenche o que ainda não está marcado.
+var ETAPA_PROG = {fin:"fin", fisc:"fis", imp:"fis", folha:"fol", depr:"bal", conc:"bal"};
+function mmComp(m){ return m && m !== "SM" ? m.slice(3) + "-" + m.slice(0, 2) : ""; }
+function inicioSugerido(linhas){
+  var min = "";
+  linhas.forEach(function(x){ if(!x.prog) return; ["fin","fis","fol","bal"].forEach(function(k){ var c = mmComp(x.prog[k]); if(c && (!min || c < min)) min = c; }); });
+  if(!min) return "";
+  // começa no mês seguinte ao fechamento mais antigo, mas nunca antes de janeiro do ano corrente
+  var sug = compShift(min, 1), lim = compAtual().slice(0, 4) + "-01";
+  return sug < lim ? lim : sug;
+}
+function planejarAndamento(linhas, inicio){
+  var comps = {}, nEmp = 0, nMarcas = 0, nPend = 0, ate = "", fim = compAtual(), fech = compEmFechamento();
+  linhas.forEach(function(x){
+    if(!x.eid || !x.emp || !x.prog) return;
+    var e = x.emp, tem = false, pendPosta = false;
+    for(var c = inicio; c <= fim; c = compShift(c, 1)){
+      if(!clienteNaComp(e, c)) continue;
+      var ent = JSON.parse(JSON.stringify((comps[c] && comps[c][x.eid]) || entrada(c, x.eid))); ent.e = ent.e || {};
+      var mudou = false;
+      ETAPAS.forEach(function(et){
+        var wm = mmComp(x.prog[ETAPA_PROG[et.k]]);
+        if(!wm || wm < c || !etapaAplica(e, et.k)) return;
+        var s0 = ent.e[et.k] && ent.e[et.k][0];
+        if(s0 === "c" || s0 === "n") return;
+        ent.e[et.k] = ["c", "", "planilha"]; mudou = true; nMarcas++; if(c > ate) ate = c;
+      });
+      var aberta = ETAPAS.some(function(et){ if(!etapaAplica(e, et.k)) return false; var s1 = ent.e[et.k] && ent.e[et.k][0]; return s1 !== "c" && s1 !== "n"; });
+      // a pendência do cliente vai para a primeira competência ainda aberta
+      if(aberta && !pendPosta && c <= fech){ pendPosta = true; if(x.pendCli && !ent.pend){ ent.pend = x.pendCli.slice(0, 200); ent.pendEm = ymd(hoje()); mudou = true; nPend++; } }
+      if(mudou){ (comps[c] = comps[c] || {})[x.eid] = ent; tem = true; }
+    }
+    if(tem) nEmp++;
+  });
+  return {comps:comps, nEmp:nEmp, nMarcas:nMarcas, nPend:nPend, ate:ate};
 }
 var planoImp = null;
 $("#impArq").onchange = function(){ $("#impLer").disabled = !this.files.length || !S.coord; $("#impRes").hidden = true; planoImp = null; };
@@ -1399,22 +1444,40 @@ $("#impLer").onclick = function(){
     planoImp = planejarImport(res);
     var p = planoImp, sitN = {};
     p.novas.concat(p.muda.map(function(m){ return m.depois; })).forEach(function(e){ sitN[e.sit] = (sitN[e.sit] || 0) + 1; });
+    var temProg = res.linhas.some(function(x){ return x.prog && (x.prog.fin || x.prog.fis || x.prog.fol || x.prog.bal); });
+    var sug = temProg ? inicioSugerido(res.linhas) : "";
+    var oferece = sug && sug < inicioControle();
+    var and = temProg ? planejarAndamento(res.linhas, oferece ? sug : inicioControle()) : null;
+    var nSM = res.linhas.filter(function(x){ return x.prog && x.prog.fol === "SM"; }).length;
     var ROT = {nome:"nome",anterior:"nome anterior",cnpj:"CNPJ",grupo:"grupo",desde:"cliente desde",sistema:"sistema",migrado:"migração",trib:"tributação",tribAnt:"tributação anterior",tribMud:"mudança de tributação",analista:"analista",apoio:"apoio",sit:"situação",sitData:"data da situação",semFolha:"sem folha",semImob:"sem imobilizado",contatos:"contatos",obs:"observações",excluida:"volta à carteira"};
+    var andHtml = function(a, ini){ return a ? '<li>Fechamento: <b>' + a.nMarcas + '</b> etapa' + (a.nMarcas === 1 ? '' : 's') + ' concluída' + (a.nMarcas === 1 ? '' : 's') + ' em ' + a.nEmp + ' empresa' + (a.nEmp === 1 ? '' : 's') + (a.ate ? ', de ' + esc(compCurta(ini)) + ' a ' + esc(compCurta(a.ate)) : '') + (a.nPend ? ' · ' + a.nPend + ' pendência' + (a.nPend === 1 ? '' : 's') + ' do cliente' : '') + (nSM ? ' · ' + nSM + ' sem folha (SM)' : '') + '</li>' : ''; };
+    var podeImportar = p.novas.length || p.muda.length || (and && and.nMarcas);
     box.innerHTML = '<div><b>' + esc(f.name) + '</b> · aba “' + esc(res.aba) + '” · ' + res.linhas.length + ' linhas' + (res.antiga ? ' · formato antigo' : '') + '</div>' +
       '<ul><li><b>' + p.novas.length + '</b> empresa' + (p.novas.length === 1 ? '' : 's') + ' nova' + (p.novas.length === 1 ? '' : 's') + '</li><li><b>' + p.muda.length + '</b> já cadastrada' + (p.muda.length === 1 ? '' : 's') + ' com alteração</li><li>' + p.iguais + ' sem mudança</li>' +
-      (Object.keys(sitN).length ? '<li>Situações: ' + SITS.filter(function(s){ return sitN[s.k]; }).map(function(s){ return s.l + " " + sitN[s.k]; }).join(" · ") + '</li>' : '') + '</ul>' +
-      (res.antiga ? '<div class="aviso"><div>Na planilha antiga as empresas baixadas estão só com o nome em vermelho, e essa cor não é lida aqui. Prefira importar a planilha limpa (Contabil-limpa.xlsx); se usar esta, as empresas já cadastradas mantêm a situação que têm.</div></div>' : '') +
+      (Object.keys(sitN).length ? '<li>Situações: ' + SITS.filter(function(s){ return sitN[s.k]; }).map(function(s){ return s.l + " " + sitN[s.k]; }).join(" · ") + '</li>' : '') + '<span id="impAnd">' + andHtml(and, oferece ? sug : inicioControle()) + '</span></ul>' +
+      (oferece ? '<label class="chk"><input type="checkbox" id="impInicio" checked> Começar o controle em ' + esc(compRot(sug)) + ' (hoje começa em ' + esc(compRot(inicioControle())) + '). Assim os meses de ' + esc(sug.slice(0, 4)) + ' que ainda não fecharam aparecem como atrasados.</label>' : '') +
+      (res.antiga ? '<div class="aviso"><div>Na planilha antiga as empresas baixadas estão só com o nome em vermelho, e essa cor não é lida aqui. Prefira importar a planilha limpa (Contabil-real.xlsx); se usar esta, as empresas já cadastradas mantêm a situação que têm.</div></div>' : '') +
       (p.muda.length ? '<details><summary>Ver alterações (' + p.muda.length + ')</summary><ul>' + p.muda.slice(0, 200).map(function(m){ return '<li>' + esc(m.depois.nome) + ': ' + esc(m.dif.map(function(k){ return ROT[k] || k; }).join(", ")) + '</li>'; }).join("") + '</ul></details>' : '') +
       (p.avisos.length ? '<details><summary>Conferir depois (' + p.avisos.length + ')</summary><ul>' + p.avisos.slice(0, 300).map(function(a){ return '<li>' + esc(a) + '</li>'; }).join("") + '</ul></details>' : '') +
-      (p.novas.length || p.muda.length ? '<div style="display:flex; gap:8px"><button type="button" class="btn verde" id="impOk">Importar ' + (p.novas.length + p.muda.length) + ' empresa' + (p.novas.length + p.muda.length === 1 ? '' : 's') + '</button><button type="button" class="fbtn" id="impCancelar">Cancelar</button></div>' : '<span class="note">Nada a importar: a carteira já está igual à planilha.</span>');
+      (podeImportar ? '<div style="display:flex; gap:8px"><button type="button" class="btn verde" id="impOk">Importar</button><button type="button" class="fbtn" id="impCancelar">Cancelar</button></div>' : '<span class="note">Nada a importar: a carteira já está igual à planilha.</span>');
+    if($("#impInicio")) $("#impInicio").onchange = function(){ var ini = this.checked ? sug : inicioControle(); and = planejarAndamento(res.linhas, ini); $("#impAnd").innerHTML = andHtml(and, ini); };
     if($("#impOk")) $("#impOk").onclick = function(){
       var lista = planoImp.novas.concat(planoImp.muda.map(function(m){ return m.depois; })), n = planoImp.novas.length, a = planoImp.muda.length;
-      planoImp = null; box.innerHTML = '<span class="note">Gravando…</span>';
-      salvarEmpresas(lista).then(function(){
-        box.innerHTML = '<div class="aviso"><div><b>Importação concluída.</b> ' + n + ' nova' + (n === 1 ? '' : 's') + ' e ' + a + ' atualizada' + (a === 1 ? '' : 's') + '. <button type="button" class="linkish" data-ir="carteira">Ver a carteira</button></div></div>';
+      var usarSug = !!($("#impInicio") && $("#impInicio").checked);
+      planoImp = null; box.innerHTML = '<span class="note">Gravando a carteira…</span>';
+      var feito = null;
+      Promise.resolve(lista.length ? salvarEmpresas(lista) : null).then(function(){
+        if(usarSug){ var c = JSON.parse(JSON.stringify(S.cfg)); c.inicio = sug; return salvarCfg(c); }
+      }).then(function(){
+        if(!temProg) return;
+        var ini = inicioControle(), a2 = planejarAndamento(res.linhas, ini), cs = Object.keys(a2.comps).sort();
+        feito = {a:a2, ini:ini};
+        return cs.reduce(function(pr, c, i){ return pr.then(function(){ box.innerHTML = '<span class="note">Gravando o fechamento… ' + compRot(c) + ' (' + (i + 1) + ' de ' + cs.length + ')</span>'; return salvarCompVarias(c, a2.comps[c]); }); }, Promise.resolve());
+      }).then(function(){
+        box.innerHTML = '<div class="aviso"><div><b>Importação concluída.</b> ' + n + ' empresa' + (n === 1 ? '' : 's') + ' nova' + (n === 1 ? '' : 's') + ' e ' + a + ' atualizada' + (a === 1 ? '' : 's') + (feito ? '; ' + feito.a.nMarcas + ' etapas de fechamento marcadas como concluídas' : '') + '. <button type="button" class="linkish" data-ir="fechamento">Ver o fechamento</button> · <button type="button" class="linkish" data-ir="carteira">Ver a carteira</button></div></div>';
         $("#impArq").value = ""; $("#impLer").disabled = true;
         if(!S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.eu; renderTudo(); } }
-      }, function(){ box.innerHTML = '<div class="aviso erro"><div>A importação não foi salva. Tente de novo.</div></div>'; });
+      }, function(){ box.innerHTML = '<div class="aviso erro"><div>A importação não foi salva por inteiro. Tente de novo: o que já foi gravado não é duplicado.</div></div>'; });
     };
     if($("#impCancelar")) $("#impCancelar").onclick = function(){ planoImp = null; box.hidden = true; };
   }).catch(function(err){ console.error(err); box.innerHTML = '<div class="aviso erro"><div>Não consegui ler esse arquivo. Confira se é uma planilha .xlsx ou .xls.</div></div>'; });
