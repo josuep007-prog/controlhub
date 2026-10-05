@@ -198,7 +198,16 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 
 /* ============ início: Hoje ============ */
 .home-hero{position:relative; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:18px 28px; margin:10px 0 22px; padding:18px 0 22px; color:#E9EEF2; animation:hhIn .5s cubic-bezier(.2,.7,.2,1) both;}
-.home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:linear-gradient(90deg, #C2000C, rgba(107,170,201,.5) 45%, transparent);}
+/* aurora: brilho vermelho e azul bem difuso se movendo devagar atrás da saudação (sem linha) */
+.home-hero{isolation:isolate;}
+.home-hero::before, .home-hero::after{content:""; position:absolute; z-index:-1; border-radius:50%; pointer-events:none; filter:blur(42px); opacity:.2;}
+.home-hero::before{left:0; top:8%; width:min(300px, 55%); height:70%; background:#C2000C; animation:hhAu1 14s ease-in-out infinite alternate;}
+.home-hero::after{left:22%; top:14%; width:min(320px, 60%); height:72%; background:#6BAAC9; animation:hhAu2 17s ease-in-out infinite alternate;}
+@keyframes hhAu1{to{transform:translate(120px, 10px) scale(1.15);}}
+@keyframes hhAu2{to{transform:translate(-110px, -12px) scale(.9);}}
+.tema-claro .home-hero::before{background:#E8474B; opacity:.13;}
+.tema-claro .home-hero::after{background:#3C659B; opacity:.11;}
+@media (prefers-reduced-motion: reduce){ .home-hero::before, .home-hero::after{animation:none;} }
 @keyframes hhIn{from{opacity:0; transform:translateY(8px);}}
 .hh-eyebrow{display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#8FA0AD;}
 .hh-eyebrow i{width:7px; height:7px; border-radius:50%; background:#E8474B; box-shadow:0 0 10px rgba(232,71,75,.9); animation:hhVivo 1.8s ease-out infinite;}
@@ -209,6 +218,50 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .tk-live i{width:7px; height:7px; border-radius:50%; background:#fff; animation:hhVivoB 1.4s ease-in-out infinite;}
 @keyframes hhVivoB{50%{opacity:.25;}}
 @media (prefers-reduced-motion: reduce){ .hh-eyebrow i,.tk-live i{animation:none;} .odo-col{transition:none !important;} .od-it{transition:none !important;} }
+/* ============ início: conteúdo centralizado na altura da janela ============ */
+body:not(.in-module) .shell{min-height:100vh; min-height:100dvh;}
+body:not(.in-module) .shell > main{align-self:stretch; display:flex; flex-direction:column; justify-content:center; padding-block:28px 16vh;}
+body:not(.in-module) #view-home{width:100%; box-sizing:border-box;}
+
+/* ============ início: atalhos em dock ============ */
+.home-qa.home-dock .hqa-head h2{font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3);}
+.home-qa.home-dock .hqa-head{margin-bottom:16px;}
+.qa-dock{display:flex; flex-wrap:wrap; gap:20px 14px;}
+#view-home .home-dock .qa-tile{all:unset; box-sizing:border-box; cursor:pointer; width:94px; display:flex; flex-direction:column; align-items:center; gap:9px; text-align:center;}
+#view-home .home-dock .qa-tile .card-icon{width:56px; height:56px; border-radius:15px; font-size:24px; background:color-mix(in srgb, var(--accent, #6BAAC9) 12%, rgba(255,255,255,.03)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 30%, rgba(255,255,255,.06)); transition:transform .22s cubic-bezier(.2,.7,.2,1), box-shadow .2s, background .2s;}
+#view-home .home-dock .qa-tile .card-icon .ic{width:24px; height:24px; color:color-mix(in srgb, var(--accent, #6BAAC9) 65%, #fff);}
+#view-home .home-dock .qa-tile .card-icon .brand-img{width:30px; height:30px;}
+#view-home .home-dock .qa-tile > span:last-child{max-width:94px; overflow-wrap:normal; word-break:normal; font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; transition:color .15s;}
+#view-home .home-dock .qa-tile:hover .card-icon, #view-home .home-dock .qa-tile:focus-visible .card-icon{transform:translateY(-5px) scale(1.06); background:color-mix(in srgb, var(--accent, #6BAAC9) 26%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);}
+#view-home .home-dock .qa-tile:hover > span:last-child, #view-home .home-dock .qa-tile:focus-visible > span:last-child{color:var(--ink);}
+#view-home .home-dock .qa-tile:focus-visible .card-icon{outline:2px solid #6BAAC9; outline-offset:3px;}
+#view-home .home-dock .qa-tile:disabled{cursor:default; opacity:.5;}
+#view-home .home-dock .qa-tile:disabled .card-icon{transform:none; box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+.tema-claro #view-home .home-dock .qa-tile .card-icon{background:color-mix(in srgb, var(--accent, #3C659B) 9%, #fff); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #3C659B) 26%, rgba(16,24,32,.08)), 0 2px 6px rgba(16,24,32,.05);}
+.tema-claro #view-home .home-dock .qa-tile .card-icon .ic{color:color-mix(in srgb, var(--accent, #3C659B) 85%, #101820);}
+.tema-claro #view-home .home-dock .qa-tile:hover .card-icon{background:color-mix(in srgb, var(--accent, #3C659B) 16%, #fff); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #3C659B) 55%, transparent), 0 12px 24px color-mix(in srgb, var(--accent, #3C659B) 22%, transparent);}
+@media (max-width:640px){ .qa-dock{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:18px 6px;} #view-home .home-dock .qa-tile{width:auto;} #view-home .home-dock .qa-tile > span:last-child{max-width:100%; font-size:10px; letter-spacing:-.01em;} #view-home .home-dock .qa-tile .card-icon{width:52px; height:52px; border-radius:14px;} }
+@media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon{transition:none;} #view-home .home-dock .qa-tile:hover .card-icon{transform:none;} }
+
+/* dock: animação contínua enquanto o mouse está em cima — anel de luz girando na cor do módulo, ícone flutuando e brilho respirando */
+@property --dk-a{syntax:'<angle>'; inherits:false; initial-value:0deg;}
+#view-home .home-dock .qa-tile .card-icon{position:relative; overflow:visible;}
+#view-home .home-dock .qa-tile .card-icon::after{content:""; position:absolute; inset:-4px; border-radius:19px; padding:2px; pointer-events:none; opacity:0; transition:opacity .25s;
+  background:conic-gradient(from var(--dk-a), transparent 0deg 200deg, color-mix(in srgb, var(--accent, #6BAAC9) 70%, transparent) 290deg, #fff 340deg, transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);}
+#view-home .home-dock .qa-tile:not(:disabled):is(:hover, :focus-visible) .card-icon::after{opacity:1; animation:dkGira 2.2s linear infinite;}
+#view-home .home-dock .qa-tile:not(:disabled):is(:hover, :focus-visible) .card-icon > *{animation:dkFlutua 2.2s ease-in-out infinite;}
+#view-home .home-dock .qa-tile:not(:disabled):hover .card-icon{animation:dkRespira 2.2s ease-in-out infinite;}
+@keyframes dkGira{to{--dk-a:360deg;}}
+@keyframes dkFlutua{0%,100%{transform:translateY(1px) rotate(0deg);} 30%{transform:translateY(-2.5px) rotate(-5deg);} 65%{transform:translateY(-1px) rotate(4deg);}}
+@keyframes dkRespira{0%,100%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);} 50%{box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 85%, transparent), 0 14px 34px color-mix(in srgb, var(--accent, #6BAAC9) 48%, transparent);}}
+.tema-claro #view-home .home-dock .qa-tile .card-icon::after{background:conic-gradient(from var(--dk-a), transparent 0deg 200deg, color-mix(in srgb, var(--accent, #3C659B) 55%, transparent) 290deg, var(--accent, #3C659B) 340deg, transparent 360deg);}
+@media (hover:none){ #view-home .home-dock .qa-tile .card-icon::after, #view-home .home-dock .qa-tile .card-icon > *, #view-home .home-dock .qa-tile .card-icon{animation:none !important;} #view-home .home-dock .qa-tile .card-icon::after{opacity:0 !important;} }
+@media (prefers-reduced-motion: reduce){ #view-home .home-dock .qa-tile .card-icon::after, #view-home .home-dock .qa-tile .card-icon > *, #view-home .home-dock .qa-tile .card-icon{animation:none !important;} }
+
+/* ============ início: cabeçalho enxuto ============ */
+body .home-hero{padding-top:40px !important;}
+
 /* odômetro rotativo */
 .hh-od{min-height:62px; align-items:stretch;}
 .od-stage{position:relative; flex:1; min-width:0; overflow:hidden;}
@@ -252,8 +305,6 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 @media (max-width:760px){ .home-hero{padding:10px 0 18px;} .hh-tx h1{font-size:24px;} .hh-stat{min-width:0; flex:1 1 100px;} }
 /* Tela inicial: página inteira escura com a logo da ControlTax ao fundo */
 body:not(.in-module){background:
-    linear-gradient(90deg, rgba(10,16,21,.96) 0%, rgba(10,16,21,.93) 45%, rgba(10,16,21,.84) 100%),
-    var(--rail-logo, none) no-repeat right -80px center / min(640px, 70vw) auto,
     radial-gradient(900px 600px at 100% 100%, rgba(194,0,12,.35), transparent 70%),
     radial-gradient(700px 500px at 0% 0%, rgba(60,101,155,.30), transparent 70%),
     #0B1116;
@@ -263,10 +314,11 @@ body:not(.in-module) #view-home .pn-card{background:rgba(255,255,255,.04); borde
 body:not(.in-module) #view-home .pn-card:hover{box-shadow:0 10px 30px rgba(0,0,0,.35); border-color:rgba(255,255,255,.14);}
 body:not(.in-module) #view-home .btn-primary{background:#3C659B; border-color:#3C659B;}
 body:not(.in-module) #view-home .pill{background:rgba(255,255,255,.08); color:#E9EEF2;}
+/* logo da ControlTax (vetor) grande no canto inferior direito, cortada pela metade */
+body:not(.in-module)::before{content:""; position:fixed; z-index:-1; pointer-events:none; right:0; bottom:0; width:min(86vh, 130vw, 780px); aspect-ratio:258/320; transform:translate(46%, 16%); background:var(--rail-logo, none) no-repeat center / contain; opacity:.2;}
+body:not(.in-module).tema-claro::before{opacity:.16;}
 /* Tela inicial no tema claro: fundo branco, logo mantida */
 body:not(.in-module).tema-claro{background:
-    linear-gradient(90deg, rgba(255,255,255,.93) 0%, rgba(255,255,255,.88) 45%, rgba(255,255,255,.72) 100%),
-    var(--rail-logo, none) no-repeat right -80px center / min(640px, 70vw) auto,
     radial-gradient(900px 600px at 100% 100%, rgba(194,0,12,.10), transparent 70%),
     radial-gradient(700px 500px at 0% 0%, rgba(60,101,155,.10), transparent 70%),
     #FFFFFF;
@@ -455,8 +507,6 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 #cv-main > :not(.dp-toolbar):not(.cv-painel){margin-inline:22px;}
 #cv-main > .dp-toolbar{padding-bottom:0;}
 #cv-vazio:empty,#cv-sits:empty{display:none;}
-.cv-menu .menu-list hr{border:0; border-top:1px solid var(--rule); margin:4px 2px;}
-.cv-menu summary .ic{margin-left:2px;}
 .cv-passos{display:flex; flex-direction:column; gap:8px; padding:12px 14px; background:color-mix(in srgb, var(--blue-deep) 9%, var(--surface)); border-radius:6px; font-size:13px;}
 .cv-passos > div{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .cv-acao{font-size:12.5px; font-weight:600; line-height:1.35; padding-left:10px; position:relative;}
@@ -501,7 +551,7 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cv-donut{width:100%; height:100%; transform:rotate(-90deg);}
 .cv-donut circle{fill:none; stroke-width:5.2; stroke-linecap:butt;}
 .cv-donut .bg{stroke:color-mix(in srgb, var(--ink) 8%, transparent);}
-.cv-donut-c{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.cv-donut-c{pointer-events:none; position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
 .cv-donut-c b{font-size:34px; font-weight:800; letter-spacing:-.02em; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums;}
 .cv-donut-c small{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3); margin-top:4px;}
 .cv-hero-tx{min-width:0; display:flex; flex-direction:column; gap:6px;}
@@ -692,6 +742,23 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .cct-resumo-h{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;} .cct-resumo-h .linkish{font-size:13px;}
 .cct-cols{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 20px;} .cct-cols p{margin:2px 0 8px;} .cct-cols ul{margin:2px 0 8px; padding-left:18px;} .cct-cols li{margin:1px 0;}
 .cct-contribs{display:flex; flex-direction:column; gap:10px;}
+/* editor em linhas da convenção */
+.lin-src{display:none !important;}
+[data-calc-campo][hidden], .lin-ed[hidden]{display:none !important;}
+.lin-ed{display:flex; flex-direction:column; gap:5px; font-weight:400; min-width:0;}
+.lin-rows{display:flex; flex-direction:column; gap:5px;}
+.lin-cab, .lin-row{display:grid; grid-template-columns:var(--lin-cols); gap:6px; align-items:center;}
+.lin-cab span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);}
+#dlg-cct .lin-row input, #dlg-cct .lin-row select{width:100%; min-width:0; box-sizing:border-box;}
+.lin-af{position:relative; display:flex; align-items:center; min-width:0;}
+.lin-af i{position:absolute; right:9px; font-style:normal; font-size:12px; font-weight:600; color:var(--ink-3); pointer-events:none;}
+#dlg-cct .lin-af input{padding-right:24px; text-align:right; font-variant-numeric:tabular-nums;}
+.lin-af.pre i{left:9px; right:auto;} #dlg-cct .lin-af.pre input{padding-left:30px; padding-right:8px;}
+#dlg-cct .lin-row input.lin-bad{border-color:var(--dp-late); box-shadow:0 0 0 1px var(--dp-late);}
+.lin-del{all:unset; box-sizing:border-box; cursor:pointer; width:26px; height:26px; display:grid; place-items:center; border-radius:4px; color:var(--ink-3); opacity:.5; transition:opacity .15s, color .15s, background .15s;}
+.lin-del:hover, .lin-del:focus-visible{opacity:1; color:var(--dp-late); background:color-mix(in srgb, var(--dp-late) 10%, transparent);}
+.lin-pe{display:flex; flex-wrap:wrap; gap:16px; margin-top:2px;}
+#dlg-cct .form-row > .field:has(> .lin-ed){flex:1 1 300px;}
 .cct-contrib{border:1px solid var(--rule); border-radius:var(--r); padding:10px 12px; margin:0; display:flex; flex-direction:column; gap:8px; min-width:0;}
 .cct-contrib .linkish{align-self:flex-start; color:var(--dp-late);}
 .cct-emp-tab{font-size:12.5px; margin-top:6px;} .cct-emp-tab td,.cct-emp-tab th{padding:5px 8px;}
@@ -745,6 +812,9 @@ dialog.dlg::backdrop{background:rgba(10,15,20,.55); backdrop-filter:blur(2px);}
 .sd-selc{text-align:center; padding-inline:6px !important;} .sd-selc input{width:15px; height:15px; cursor:pointer; accent-color:var(--blue-deep);}
 .sd-table tr.sel > td{background:color-mix(in srgb, var(--blue-deep) 8%, var(--surface));}
 .sd-del:hover{color:var(--dp-late); background:color-mix(in srgb, var(--dp-late) 10%, transparent);}
+.sd-table .sd-del, .sd-rev .sd-del, #sd-rev-wrap .sd-del{width:24px; height:24px; min-width:0; padding:0; border:0; background:transparent; color:var(--ink-3); opacity:.45; transition:opacity .15s, color .15s, background .15s;}
+.sd-table tr:hover .sd-del, #sd-rev-wrap tr:hover .sd-del, .sd-del:focus-visible{opacity:1;}
+.sd-det-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:12px;} .sd-det-acoes .spacer{flex:1;}
 .sd-table .ct-acoes{white-space:nowrap;}
 #cv-cad .dp-chip{border-radius:4px; padding:6px 14px;}
 .sd-visao-bar{gap:14px;}
@@ -766,6 +836,23 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .sd-renov{margin:0; padding:8px 12px; border-radius:var(--r); background:var(--blue-pale); color:var(--blue-deep); font-size:12.5px; font-weight:600;}
 .sd-copy.muted{color:var(--ink-3); font-weight:500;}
 .sd-hist summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sd-hist ul{margin:8px 0 0; padding-left:18px; font-size:12px; color:var(--ink-2); display:flex; flex-direction:column; gap:3px; max-height:180px; overflow:auto;}
+/* cadastro do sindicato em seções */
+.sind-head-tx{margin-right:auto; min-width:0;} .sind-head-tx h2{margin:0;}
+#dlg-sind-sub{margin:2px 0 0; font-size:12px; color:var(--ink-3);}
+#dlg-sind .dlg-body{gap:0; padding-top:6px;}
+.sind-sec{display:flex; flex-direction:column; gap:10px; padding:14px 0; border-top:1px solid var(--rule);} .sind-sec:first-child{border-top:0;}
+.sind-sec h3{margin:0; font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);}
+.sind-links{margin:0; font-size:12px; color:var(--ink-3);} .sind-links .linkish{font-size:12px;}
+#sind-cnpj-msg{color:var(--ink-2);} #sind-cnpj-msg.erro{color:var(--dp-late); font-weight:600;}
+.sind-cct{display:flex; flex-direction:column; gap:10px; padding:12px 14px; border:1px solid var(--rule); border-radius:6px; background:var(--surface-2);}
+.sind-cct.vazio{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap;} .sind-cct.vazio p{margin:0; font-size:12.5px; color:var(--ink-2);}
+.sind-cct-h{display:flex; align-items:center; gap:8px; flex-wrap:wrap;} .sind-cct-h b{font-size:13.5px; color:var(--ink);}
+.sind-cct-dl{display:grid; grid-template-columns:max-content 1fr; gap:5px 16px; margin:0; font-size:12.5px;} .sind-cct-dl dt{color:var(--ink-3);} .sind-cct-dl dd{margin:0; color:var(--ink);}
+.sind-cct-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:6px;} .sind-cct-acoes .spacer{flex:1;}
+#sind-manual{margin-top:10px;} .sind-manual-d > summary{cursor:pointer; font-size:12.5px; color:var(--ink-2);} .sind-manual-d[open] > summary{margin-bottom:10px;} .sind-manual-d > :not(summary){margin-bottom:10px;}
+.sind-hist-ul{margin:0; padding-left:18px; font-size:12px; color:var(--ink-2); display:flex; flex-direction:column; gap:3px;}
+.sind-hist-mais > summary{cursor:pointer; font-size:12px; font-weight:600; color:var(--blue-deep);} .sind-hist-mais .sind-hist-ul{margin-top:6px; max-height:180px; overflow:auto;}
+.sind-excluir{color:var(--ink-3);} .sind-excluir:hover, .sind-excluir:focus-visible{color:var(--dp-late);}
 .sv-list{display:flex; flex-direction:column; gap:2px; max-height:52vh; overflow:auto; border:1px solid var(--rule); border-radius:var(--r); padding:4px;}
 .sv-item{display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:var(--r); cursor:pointer;} .sv-item:hover{background:var(--surface-2);}
 .sv-item input{width:16px; height:16px; accent-color:var(--blue-deep); flex:none;} .sv-item span{display:flex; flex-direction:column; min-width:0; font-size:13px;} .sv-item small{color:var(--ink-3); font-size:11.5px;}
@@ -1352,6 +1439,90 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .portal-frame{position:fixed; inset:0; width:100%; height:100%; border:0; z-index:500; background:var(--page);}
 .portal-frame[hidden]{display:none;}
 body.portal-open{overflow:hidden;}
+
+/* ============ DP: movimento (abas, painel) ============ */
+.dp-tabs.com-ind{position:relative;}
+.dp-tabs.com-ind .dp-tab.active{border-bottom-color:transparent;}
+.dp-tab-ind{position:absolute; left:0; bottom:0; height:2px; border-radius:2px; background:var(--blue-deep); pointer-events:none; transition:transform .38s cubic-bezier(.3,.8,.3,1), width .38s cubic-bezier(.3,.8,.3,1);}
+.dp-tab-ind.sem-trans{transition:none;}
+.dp-view.dp-entra{animation:dpEntra .34s cubic-bezier(.2,.8,.2,1);}
+@keyframes dpEntra{from{opacity:0; transform:translateX(calc(var(--dir, 1) * 18px));}}
+.kpi-card.clickable{transition:border-color .15s, background .15s, transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s;}
+.kpi-card.clickable:hover{transform:translateY(-3px); box-shadow:0 8px 20px rgba(16,24,32,.10);}
+.kpi-card.is-today{position:relative;}
+.kpi-card.is-today::after{content:""; position:absolute; top:12px; right:12px; width:8px; height:8px; border-radius:50%; background:var(--dp-today); animation:dpPulso 1.8s ease-out infinite;}
+@keyframes dpPulso{0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--dp-today) 60%, transparent);} 70%,100%{box-shadow:0 0 0 9px transparent;}}
+@keyframes dpCresce{from{transform:scaleY(0);}}
+@keyframes dpEstica{from{transform:scaleX(0);}}
+@keyframes dpSurge{from{opacity:0; transform:scale(.85);}}
+.pn-anim .col .bar{transform-origin:bottom; animation:dpCresce .65s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 16ms + var(--dt, 0ms));}
+.pn-anim .stack button, .pn-anim .hbar-fill, .pn-anim .meter-fill{transform-origin:left; animation:dpEstica .8s cubic-bezier(.2,.8,.2,1) both; animation-delay:var(--dt, 0ms);}
+.pn-anim .cal-day:not(.blank){animation:dpSurge .4s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 12ms + var(--dt, 0ms));}
+.col .bar{transition:filter .12s, opacity .15s;}
+.pn-liga .col:not(.liga) .bar{opacity:.3;}
+.col.liga .bar{filter:brightness(1.15);}
+.cal-day{transition:transform .15s, box-shadow .15s, border-color .15s;}
+.cal-day.liga{transform:scale(1.14); box-shadow:0 0 0 2px var(--ink), 0 6px 14px rgba(16,24,32,.18); position:relative; z-index:1;}
+@media (prefers-reduced-motion: reduce){ .kpi-card.is-today::after{animation:none;} .kpi-card.clickable:hover, .cal-day.liga{transform:none;} }
+
+/* Empresas: anel do cadastro, atalhos ao passar o mouse, entrada em sequência */
+@property --p{syntax:'<number>'; inherits:false; initial-value:0;}
+.emp-anel{flex:none; padding:3px; border-radius:8px; background:conic-gradient(var(--c) calc(var(--p) * 1%), var(--rule) 0); display:grid;}
+.emp-anel .avatar{box-shadow:0 0 0 2px var(--surface);}
+@keyframes anelEnche{from{--p:0;}}
+.dp-anim .emp-card{animation:dpSurge .45s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(min(var(--k, 0), 24) * 25ms + var(--dt, 0ms));}
+.dp-anim .emp-card .emp-anel{animation:anelEnche 1.1s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(min(var(--k, 0), 24) * 25ms + .2s + var(--dt, 0ms));}
+.dp-anim > .dp-row{animation:dpSurge .35s ease-out both; animation-delay:var(--dt, 0ms);}
+.emp-acoes{position:absolute; left:0; right:0; bottom:0; display:flex; gap:6px; justify-content:center; padding:10px 8px 8px; background:linear-gradient(transparent, var(--surface) 38%); transform:translateY(105%); transition:transform .24s cubic-bezier(.2,.8,.2,1);}
+.emp-acoes button{font:600 11.5px/1 inherit; font-family:inherit; border:1px solid var(--rule-strong); background:var(--surface); color:var(--blue-deep); border-radius:4px; padding:5px 9px; cursor:pointer;}
+.emp-acoes button:hover{border-color:var(--blue-deep); background:var(--blue-pale);}
+@media (hover:hover){ .emp-card:hover .emp-acoes, .emp-card:focus-within .emp-acoes{transform:none;} }
+@media (hover:none){ .emp-acoes{display:none;} }
+.emp-card:hover{transform:translateY(-3px);}
+
+/* Funcionários: barras que se desenham, régua do mouse, hoje respirando */
+.tl-inner{position:relative;}
+.tl-regua{position:absolute; top:0; bottom:0; width:1px; background:var(--ink-3); pointer-events:none; opacity:0; transition:opacity .12s; z-index:3;}
+.tl-regua.on{opacity:.8;}
+.tl-regua span{position:absolute; top:5px; left:5px; font-size:11px; font-weight:700; white-space:nowrap; background:var(--ink); color:var(--surface); padding:2px 6px; border-radius:3px;}
+.tl-bar{transform-origin:left center; transition:filter .12s, height .15s;}
+.tl-bar:hover,.tl-bar:focus-visible{height:19px;}
+@keyframes tlDesenha{from{transform:translateY(-50%) scaleX(0);} to{transform:translateY(-50%) scaleX(1);}}
+@keyframes tlMarca{from{transform:translateY(-50%) rotate(45deg) scale(0);} to{transform:translateY(-50%) rotate(45deg) scale(1);}}
+.dp-anim .tl-bar{animation:tlDesenha .75s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 40ms + var(--dt, 0ms));}
+.dp-anim .tl-mark{animation:tlMarca .4s cubic-bezier(.3,1.4,.5,1) both; animation-delay:calc(var(--k, 0) * 40ms + .45s + var(--dt, 0ms));}
+.tl-today{animation:tlHoje 2.6s ease-in-out infinite;}
+@keyframes tlHoje{50%{opacity:.9; box-shadow:0 0 6px 1px color-mix(in srgb, var(--ink) 35%, transparent);}}
+@media (prefers-reduced-motion: reduce){ .tl-today{animation:none;} }
+
+/* Convenções: anel clicável que filtra */
+.cv-donut .seg{cursor:pointer; transition:opacity .2s, stroke-width .2s;}
+.cv-donut .seg:hover, .cv-donut .seg.hl{stroke-width:6.6;}
+.cv-donut.tem-f .seg:not(.on), .cv-donut.tem-hl .seg:not(.hl){opacity:.28;}
+.cv-donut.tem-hl .seg.hl{opacity:1;}
+
+/* Cartela: alvos ao arrastar, contador que pula, linha movida acende */
+.ct-an{transition:background .15s, border-color .15s, transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s;}
+.ct-arrastando .ct-an[data-ct-drop]{outline:1.5px dashed color-mix(in srgb, var(--blue-deep) 55%, transparent); outline-offset:-2px;}
+.ct-an.drop{transform:scale(1.025); box-shadow:0 0 0 3px color-mix(in srgb, var(--blue-deep) 30%, transparent), 0 8px 18px rgba(16,24,32,.12);}
+tr.ct-pega{opacity:.45;}
+.ct-an-n{display:inline-block;}
+.ct-an-n.ct-pula{animation:ctPula .5s cubic-bezier(.2,.8,.2,1);}
+@keyframes ctPula{40%{transform:scale(1.45); color:var(--dp-ok);}}
+tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
+@keyframes ctFlash{0%,30%{background:color-mix(in srgb, var(--dp-ok) 18%, transparent);}}
+@media (prefers-reduced-motion: reduce){ .ct-an.drop{transform:none;} }
+
+/* Agenda: mês deslizando, intensidade do dia, texto inteiro ao passar o mouse */
+.agm.agm-entra{animation:dpEntra .36s cubic-bezier(.2,.8,.2,1);}
+#dp-ag-label.agm-entra{display:inline-block; animation:dpEntra .3s cubic-bezier(.2,.8,.2,1);}
+.agm-day.quente{background:color-mix(in srgb, var(--viz-1) calc(var(--q) * 1%), var(--surface));}
+.agm-day.quente.off,.agm-day.quente.hol{background:color-mix(in srgb, var(--viz-1) calc(var(--q) * 1%), var(--surface-2));}
+.dp-anim .agm-day:not(.blank){animation:dpSurge .35s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(var(--k, 0) * 9ms + var(--dt, 0ms));}
+.agm-ev{transition:box-shadow .15s, background .15s;}
+@media (hover:hover){
+  .agm-ev:hover{white-space:normal; position:relative; z-index:2; box-shadow:0 4px 12px rgba(16,24,32,.16);}
+  .agm-ev:hover .agm-t{white-space:normal; overflow:visible;}
 /* ============ DP › Ferramentas (vitrine) ============ */
 .fe-wrap{padding:16px 22px 28px; display:flex; flex-direction:column; gap:22px;}
 .fe-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap:10px;}
@@ -1630,7 +1801,7 @@ body.portal-open{overflow:hidden;}
 <div class="shell">
   <nav class="side-rail" id="side-rail" aria-label="Módulos">
     <div class="side-rail-panel">
-      <div class="rail-brand"><img class="brand-ico" src="data:image/png;base64,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" alt="ControlTax"><div class="rail-brand-tx"><div class="wordmark"><span class="wm-a">Control</span><span class="wm-b">Hub</span></div><small>Painel interno · ControlTax</small></div></div>
+      <div class="rail-brand"><img class="brand-ico" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 258 320%22%3E%3Cdefs%3E%3ClinearGradient id=%22a%22 gradientUnits=%22userSpaceOnUse%22 x1=%2235.5%22 y1=%22175%22 x2=%22220.5%22 y2=%22294%22%3E%3Cstop offset=%22.22%22 stop-color=%22%23550E0B%22/%3E%3Cstop offset=%22.4%22 stop-color=%22%237F0E0D%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%239B0D0E%22/%3E%3Cstop offset=%22.65%22 stop-color=%22%23B20A0E%22/%3E%3Cstop offset=%22.8%22 stop-color=%22%23BE090E%22/%3E%3Cstop offset=%221%22 stop-color=%22%23C3080E%22/%3E%3C/linearGradient%3E%3ClinearGradient id=%22b%22 gradientUnits=%22userSpaceOnUse%22 x1=%22135.25%22 y1=%22172%22 x2=%22228.5%22 y2=%22232%22%3E%3Cstop offset=%22.22%22 stop-color=%22%23550E0B%22/%3E%3Cstop offset=%22.4%22 stop-color=%22%237F0E0D%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%239B0D0E%22/%3E%3Cstop offset=%22.65%22 stop-color=%22%23B20A0E%22/%3E%3Cstop offset=%22.8%22 stop-color=%22%23BE090E%22/%3E%3Cstop offset=%221%22 stop-color=%22%23C3080E%22/%3E%3C/linearGradient%3E%3ClinearGradient id=%22c%22 x1=%220%22 y1=%220%22 x2=%220%22 y2=%221%22%3E%3Cstop offset=%220%22 stop-color=%22%2386D0E3%22/%3E%3Cstop offset=%22.5%22 stop-color=%22%235E96BC%22/%3E%3Cstop offset=%221%22 stop-color=%22%23385F97%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill=%22none%22 stroke-linecap=%22round%22%3E%3Cpath d=%22M35.5 175L220.5 294%22 stroke=%22url(%23a)%22 stroke-width=%2252.5%22/%3E%3Cpath d=%22M135.25 172L228.5 232%22 stroke=%22url(%23b)%22 stroke-width=%2232%22/%3E%3Cpath d=%22M26.25 168L213.25 25.5%22 stroke=%22%23C2000C%22 stroke-width=%2252.5%22/%3E%3Cpath d=%22M123.25 165L223 89%22 stroke=%22%23C2000C%22 stroke-width=%2232%22/%3E%3C/g%3E%3Ccircle cx=%22224.5%22 cy=%22161%22 r=%2233.5%22 fill=%22url(%23c)%22/%3E%3C/svg%3E" alt="ControlTax"><div class="rail-brand-tx"><div class="wordmark"><span class="wm-a">Control</span><span class="wm-b">Hub</span></div><small>Painel interno · ControlTax</small></div></div>
       <div class="rail-list">
         <div class="card" id="nav-home" style="--accent:var(--brand-red)">
           <button type="button" class="card-stretch" data-nav="home" aria-label="Início"></button>
@@ -1763,23 +1934,7 @@ body.portal-open{overflow:hidden;}
             <input type="search" id="cv-search" placeholder="Buscar empresa, sindicato, código ou CNPJ…" autocomplete="off">
             <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="cards"><svg class="ic ic-sm"><use href="#i-grid"/></svg> Cartões</button><button type="button" data-cv-consultar><svg class="ic ic-sm"><use href="#i-search"/></svg> Consultar convenções</button><button type="button" data-cv-modo="tempo"><svg class="ic ic-sm"><use href="#i-gantt"/></svg> Linha do tempo</button></div>
             <span class="dp-count" id="cv-count"></span>
-            <details class="menu cv-menu">
-              <summary class="btn btn-sm">Cadastro <svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></summary>
-              <div class="menu-list">
-                <button type="button" class="menu-item" data-cv-acao="nova" data-ro-hide>Nova convenção</button>
-                <button type="button" class="menu-item" data-cv-acao="carregar" id="cv-m-carregar" data-ro-hide>Carregar convenções analisadas</button>
-                <button type="button" class="menu-item" data-cv-cad="ccts">Todas as convenções cadastradas</button>
-                <hr>
-                <button type="button" class="menu-item" data-cv-cad="uso">Sindicatos em uso</button>
-                <button type="button" class="menu-item" data-cv-cad="todos">Lista de sindicatos do Domínio</button>
-                <button type="button" class="menu-item" data-cv-cad="revisar">Revisar cadastro</button>
-                <button type="button" class="menu-item" data-cv-acao="importar" data-ro-hide>Importar do Domínio (PDF)</button>
-                <hr>
-                <button type="button" class="menu-item" data-cv-acao="dedup" data-ro-hide>Unificar cadastros duplicados</button>
-                <button type="button" class="menu-item" data-cv-acao="pasta">Copiar pasta das CCTs</button>
-                <button type="button" class="menu-item" data-cv-acao="csv">Exportar CSV (empresas × convenção)</button>
-              </div>
-            </details>
+            <button type="button" class="btn btn-sm" data-cv-cad="uso" title="Sindicatos, convenções, importação do Domínio, revisão e exportações">Cadastrar Sindicato</button>
           </div>
           <div id="cv-vazio"></div>
           <div id="cv-hero"></div>
@@ -1802,8 +1957,10 @@ body.portal-open{overflow:hidden;}
             <div class="menu-list">
               <button type="button" class="menu-item" id="sd-csv">Sindicatos (um por linha)</button>
               <button type="button" class="menu-item" id="sd-csv-emp">Empresas × sindicato e reajuste</button>
+              <button type="button" class="menu-item" data-cv-acao="csv">Empresas × convenção</button>
             </div>
           </details>
+          <button type="button" class="btn btn-sm" id="sd-dedup" data-cv-acao="dedup" data-ro-hide hidden>Unificar duplicados</button>
           <button type="button" class="btn btn-sm btn-primary" id="sd-novo" data-ro-hide><svg class="ic ic-sm"><use href="#i-plus"/></svg> Sindicato</button>
         </div>
         <div class="sd-body">
@@ -1919,6 +2076,7 @@ body.portal-open{overflow:hidden;}
         <option value="">— nenhum (link normal) —</option>
         <option value="dp">DP — particularidades de folha</option>
         <option value="portal">Portal do Cliente — implantação</option>
+        <option value="contabil">Contábil — carteira, fechamento e prazos</option>
       </select>
     </label>
     <div class="form-row">
@@ -2123,38 +2281,55 @@ body.portal-open{overflow:hidden;}
 </dialog>
 
 <dialog id="dlg-sind" class="dlg">
-  <div class="dlg-head"><h2 id="dlg-sind-title">Novo sindicato</h2><button type="button" class="icon-btn dlg-close" id="dlg-sind-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
+  <div class="dlg-head"><div class="sind-head-tx"><h2 id="dlg-sind-title">Novo sindicato</h2><p id="dlg-sind-sub" hidden></p></div><button type="button" class="icon-btn dlg-close" id="dlg-sind-close" aria-label="Fechar"><svg class="ic"><use href="#i-x"/></svg></button></div>
   <form class="dlg-body" id="form-sind">
-    <div class="form-row">
-      <label class="field" style="max-width:130px">Código<input name="cod" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Ex.: 31942"></label>
-      <label class="field">Nome do sindicato / CCT *<input name="nome" required maxlength="160" autocomplete="off" placeholder="Ex.: Sindicomerciários/ES"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Data-base<select name="dataBase"></select></label>
-      <label class="field">UF / abrangência<input name="uf" maxlength="40" autocomplete="off" placeholder="Ex.: ES"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Vigência da CCT: início<input name="vigIni" type="date"></label>
-      <label class="field">Vigência da CCT: fim<input name="vigFim" type="date"></label>
-    </div>
-    <div class="form-row">
-      <label class="field">Reajuste<input name="percentual" maxlength="30" autocomplete="off" placeholder="Ex.: 5,5%"></label>
-      <label class="field">Piso salarial<input name="piso" maxlength="30" inputmode="decimal" autocomplete="off" placeholder="Ex.: 1.850,00"></label>
-      <label class="field">Contribuição assistencial (mês)<select name="contribMes"></select></label>
-    </div>
-    <label class="field">Arquivo da CCT (opcional)<input name="cct" maxlength="400" autocomplete="off" placeholder="Ex.: 2026-2027\SINDICOMERCIARIOS 2026.pdf"><span class="field-hint">Dentro de U:\Pessoal\Arquivos Compartilhados\CONVENÇOES COLETIVA. Em branco, “copiar” leva à pasta.</span></label>
-    <div class="form-row">
-      <label class="field">Registro no Mediador (MTE)<input name="registro" maxlength="40" autocomplete="off" placeholder="Ex.: ES000123/2026"></label>
-      <label class="field">CNPJ do sindicato<input name="cnpj" maxlength="20" autocomplete="off"></label>
-    </div>
-    <label class="field">Contato (site, telefone, e-mail)<input name="contato" maxlength="200" autocomplete="off"></label>
-    <label class="field">Observações (cláusulas importantes, benefícios, particularidades)<textarea name="obs" rows="3" maxlength="800"></textarea></label>
-    <p class="dp-sec-note" style="margin:0"><span id="sind-vinc-note"></span> <a id="sind-mediador" href="#" target="_blank" rel="noopener">Consultar CCTs no Mediador (MTE)</a></p>
-    <p class="sd-renov" id="sind-renov-msg" role="status" hidden></p>
-    <details class="sd-hist" id="sind-hist" hidden><summary>Histórico do sindicato</summary><ul id="sind-hist-list"></ul></details>
+    <section class="sind-sec">
+      <h3>Identificação</h3>
+      <div class="form-row">
+        <label class="field" style="max-width:130px">Código<input name="cod" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Ex.: 31942"></label>
+        <label class="field">Nome do sindicato *<input name="nome" required maxlength="160" autocomplete="off" placeholder="Ex.: Sindicomerciários/ES"></label>
+      </div>
+      <div class="form-row">
+        <label class="field">CNPJ do sindicato<input name="cnpj" maxlength="20" autocomplete="off" placeholder="00.000.000/0000-00"><span class="field-hint" id="sind-cnpj-msg" hidden></span></label>
+        <label class="field" style="max-width:190px">UF / abrangência<input name="uf" maxlength="40" autocomplete="off" placeholder="Ex.: ES"></label>
+      </div>
+      <p class="sind-links"><button type="button" class="linkish" id="sind-emps-link"></button><span id="sind-emps-sep"> · </span><a class="linkish" id="sind-mediador" href="#" target="_blank" rel="noopener" title="Copia o CNPJ do sindicato e abre a consulta do Mediador (MTE)">Consultar no Mediador (MTE)</a></p>
+    </section>
+    <section class="sind-sec">
+      <h3>Convenção</h3>
+      <div id="sind-cct-box"></div>
+      <div id="sind-manual">
+        <details class="sind-manual-d" id="sind-manual-d"><summary>Preencher sem convenção cadastrada</summary>
+          <p class="field-hint" style="margin:0">Use só enquanto a convenção não estiver cadastrada. Quando ela for cadastrada, estes dados passam a vir dela.</p>
+          <div class="form-row">
+            <label class="field">Data-base<select name="dataBase"></select></label>
+            <label class="field">Vigência: início<input name="vigIni" type="date"></label>
+            <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
+          </div>
+          <div class="form-row">
+            <label class="field">Reajuste<input name="percentual" maxlength="30" autocomplete="off" placeholder="Ex.: 5,5%"></label>
+            <label class="field">Piso salarial<input name="piso" maxlength="30" inputmode="decimal" autocomplete="off" placeholder="Ex.: 1.850,00"></label>
+            <label class="field">Registro no MTE<input name="registro" maxlength="40" autocomplete="off" placeholder="Ex.: ES000123/2026"></label>
+          </div>
+          <div class="form-row">
+            <label class="field">Arquivo da CCT<input name="cct" maxlength="400" autocomplete="off" placeholder="Ex.: 2026-2027\SINDICOMERCIARIOS 2026.pdf"><span class="field-hint">Dentro de U:\Pessoal\Arquivos Compartilhados\CONVENÇOES COLETIVA.</span></label>
+            <label class="field" style="max-width:200px">Contribuição assistencial (mês)<select name="contribMes"></select></label>
+          </div>
+        </details>
+      </div>
+    </section>
+    <section class="sind-sec">
+      <h3>Contato e observações</h3>
+      <label class="field">Contato (site, telefone, e-mail)<input name="contato" maxlength="200" autocomplete="off"></label>
+      <label class="field">Observações (cláusulas importantes, benefícios, particularidades)<textarea name="obs" rows="3" maxlength="800"></textarea></label>
+    </section>
+    <section class="sind-sec" id="sind-hist" hidden>
+      <h3>Histórico</h3>
+      <ul class="sind-hist-ul" id="sind-hist-list"></ul>
+      <details class="sind-hist-mais" id="sind-hist-mais" hidden><summary></summary><ul class="sind-hist-ul" id="sind-hist-resto"></ul></details>
+    </section>
     <div class="dlg-actions">
-      <button type="button" class="btn btn-danger" id="btn-sind-excluir" hidden>Excluir</button>
-      <button type="button" class="btn" id="btn-sind-renovar" hidden title="Nova convenção: vigência passa para o próximo ano e limpa reajuste e piso">Nova CCT</button>
+      <button type="button" class="linkish sind-excluir" id="btn-sind-excluir" hidden>Excluir sindicato</button>
       <span class="spacer"></span>
       <button type="button" class="btn" id="btn-sind-cancelar">Cancelar</button>
       <button type="submit" class="btn btn-primary">Salvar</button>
@@ -2194,7 +2369,7 @@ body.portal-open{overflow:hidden;}
         <label class="field">Vigência: fim<input name="vigFim" type="date"></label>
         <label class="field">Data-base<select name="dataBase"></select></label>
       </div>
-      <label class="field">Partes (uma por linha: CNPJ | nome | laboral, patronal ou federação)<textarea name="partes" rows="3"></textarea></label>
+      <div class="field">Partes da convenção<textarea name="partes" data-lin="partes"></textarea></div>
     </div>
     <details class="cct-sec" data-sec="arq"><summary>Arquivo e vínculos <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
@@ -2205,15 +2380,15 @@ body.portal-open{overflow:hidden;}
     </div></details>
     <details class="cct-sec" data-sec="reaj"><summary>Reajuste <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
-        <label class="field">Percentuais (um por linha: “Geral = 6%”)<textarea name="reajItens" rows="3"></textarea></label>
-        <label class="field">Tabela por mês de admissão (“03/2025 = 6,00%”)<textarea name="reajTabela" rows="3"></textarea></label>
+        <div class="field">Percentuais<textarea name="reajItens" data-lin="reajItens"></textarea></div>
+        <div class="field">Tabela por mês de admissão (proporcional)<textarea name="reajTabela" data-lin="reajTabela"></textarea></div>
       </div>
       <label class="field">Base de cálculo e regras (compensação, proporcionalidade, teto)<textarea name="reajBase" rows="2" maxlength="600"></textarea></label>
     </div></details>
     <details class="cct-sec" data-sec="piso"><summary>Pisos e benefícios <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
       <div class="form-row">
-        <label class="field">Pisos (um por linha: “Função = 1.850,00”)<textarea name="pisos" rows="4"></textarea></label>
-        <label class="field">Benefícios (“Cartão alimentação = 1.300,00”)<textarea name="beneficios" rows="4"></textarea></label>
+        <div class="field">Pisos salariais<textarea name="pisos" data-lin="pisos"></textarea></div>
+        <div class="field">Benefícios<textarea name="beneficios" data-lin="beneficios"></textarea></div>
       </div>
     </div></details>
     <details class="cct-sec" data-sec="contrib"><summary>Contribuições <span class="cct-sec-n"></span><span class="cct-sec-h">viram lembretes na Agenda</span></summary><div class="cct-sec-b">
@@ -2221,10 +2396,12 @@ body.portal-open{overflow:hidden;}
       <button type="button" class="btn btn-sm" id="cct-add-contrib" style="align-self:flex-start"><svg class="ic ic-sm"><use href="#i-plus"/></svg> Contribuição</button>
     </div></details>
     <details class="cct-sec" data-sec="prazos"><summary>Prazos e observações <span class="cct-sec-n"></span></summary><div class="cct-sec-b">
-      <label class="field">Prazos (um por linha: “08/09/2026 = Retroativo 1ª parcela”; entram na Agenda)<textarea name="prazos" rows="3"></textarea></label>
+      <div class="field">Prazos (entram na Agenda)<textarea name="prazos" data-lin="prazos"></textarea></div>
       <label class="field">Observações<textarea name="obs" rows="2" maxlength="1500"></textarea></label>
     </div></details>
     <details class="cct-sec" data-sec="emps"><summary>Sindicatos e empresas <span class="cct-sec-n"></span></summary><div class="cct-sec-b"><div id="cct-emps"></div></div></details>
+    <datalist id="dl-reaj"><option value="Geral"><option value="Micro e pequenas empresas"><option value="Empresas do Simples Nacional"><option value="Salários acima do teto"></datalist>
+    <datalist id="dl-trib"></datalist>
     <div class="dlg-actions">
       <button type="button" class="btn btn-danger" id="btn-cct-excluir" hidden>Excluir</button>
       <span class="spacer"></span>
@@ -2377,7 +2554,7 @@ body.portal-open{overflow:hidden;}
     { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Painel de implantação do Portal do Cliente.', tags:['cliente'], moduleKey:'portal' },
     { id:'planilha-dp', name:'Departamento Pessoal', url:'', icon:'👥', category:'Atalhos', color:'#C2000C', description:'Empresas, agenda, funcionários, convenções e cartela de clientes.', tags:['dp','folha'], moduleKey:'dp' },
     { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','fiscal'] },
-    { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','contábil'] },
+    { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#0F7A55', description:'Carteira, fechamento mensal e prazos do contábil.', tags:['planilha','contábil'], moduleKey:'contabil' },
     { id:'zappy', name:'Zappy', url:'', icon:'💬', category:'Comunicação', color:'#167A45', description:'Só os contatos.', tags:['whatsapp','contatos'] },
     { id:'zimbra', name:'Zimbra', url:'', icon:'✉️', category:'Comunicação', color:'#167A45', description:'Agendamento das salas e monitoramento das comunicações.', tags:['e-mail','salas'] },
     { id:'pasta-servidor', name:'Pasta Servidor', url:'', icon:'🗄️', category:'Monitoramento', color:'#B5530C', description:'Arquivos fora do padrão ou salvos no local errado.', tags:['servidor','arquivos'] },
@@ -2391,12 +2568,12 @@ body.portal-open{overflow:hidden;}
       icon: t.icon || '🔧',
       category: String(t.category || 'Geral').trim() || 'Geral',
       color: t.id === 'planilha-dp' && String(t.color).toUpperCase() === '#9A6B00' ? '#C2000C' : /^#[0-9a-f]{6}$/i.test(t.color||'') ? t.color : '#3C659B',
-      description: t.id === 'planilha-dp' && t.description === 'Particularidades de folha por empresa.' ? 'Empresas, agenda, funcionários, convenções e cartela de clientes.' : (t.description || ''),
+      description: t.id === 'planilha-dp' && t.description === 'Particularidades de folha por empresa.' ? 'Empresas, agenda, funcionários, convenções e cartela de clientes.' : t.id === 'planilha-contabil' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Carteira, fechamento mensal e prazos do contábil.' : (t.description || ''),
       tags: Array.isArray(t.tags) ? t.tags.filter(Boolean).map(String) : [],
       notes: t.notes || '',
       favorite: !!t.favorite,
       newTab: t.newTab !== false,
-      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : ''),
+      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : ''),
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
       lastUsed: t.lastUsed || null,
@@ -2908,7 +3085,7 @@ body.portal-open{overflow:hidden;}
     document.activeElement?.blur();
     closeRail();
     if (key === 'dp') openDpModule();
-    else if (key === 'portal') openPortal();
+    else if (FRAMES[key]) openFrame(key);
   }
 
   function goHome() {
@@ -2953,67 +3130,6 @@ body.portal-open{overflow:hidden;}
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
   }
-  // Faixa “Ao vivo” da tela inicial: um indicador quantitativo por vez, com número em odômetro. Só totais, nada de pendências.
-  const fmtN = (n) => Number(n).toLocaleString('pt-BR');
-  function indicadores() {
-    const out = [], t = hoje();
-    const add = (mod, rot, valor, sub, go, suf = '') => { if (Number.isFinite(valor) && valor > 0) out.push({ mod, rot, valor, sub, go, suf }); };
-    if (state.dpLoaded && state.dpEmpresas.length) {
-      const ativas = state.dpEmpresas.filter(ativa), funcs = ativas.flatMap(e => e.funcionarios), nf = ativas.reduce((n, e) => n + nfEmp(e), 0);
-      add('Empresas', 'empresas ativas', ativas.length, `${fmtN(state.dpEmpresas.length)} cadastradas no total`, 'empresas');
-      add('Empresas', 'filiais', ativas.filter(ehFilial).length, `${fmtN(ativas.filter(e => !ehFilial(e)).length)} matrizes`, 'empresas');
-      add('Funcionários', 'funcionários ativos', funcs.filter(f => funcStatus(f) === 'Ativo').length, `${fmtN(nf)} no total, em ${fmtN(ativas.length)} empresas`, 'funcionarios');
-      add('Funcionários', 'em férias agora', funcs.filter(f => funcStatus(f) === 'Férias').length, 'hoje', 'funcionarios');
-      add('Funcionários', 'afastados', funcs.filter(f => funcStatus(f) === 'Afastado').length, 'hoje', 'funcionarios');
-      const resp = dpResponsaveis();
-      add('Cartela', 'analistas', resp.length, resp.length ? `média de ${fmtN(Math.round(ativas.length / resp.length))} empresas por analista` : '', 'cartela');
-      add('Agenda', 'datas nos próximos 7 dias', eventos(t, addDays(t, 7)).length, 'rotinas, prazos e datas da equipe', 'agenda');
-      if (state.dpCcts.length) {
-        const vig = state.dpCcts.filter(c => c.tipo === 'cct' && c.status !== 'substituida' && c.vigFim >= ymd(t)).length;
-        add('Convenções', 'convenções em vigor', vig, `${fmtN(state.dpCcts.length)} cadastradas`, 'sindicatos');
-        try { const cv = convencoesDaCarteira(), cob = cv.emps.length ? Math.round((cv.emps.length - cv.sem.length) / cv.emps.length * 100) : 0; add('Convenções', 'empresas com convenção', cob, `${fmtN(cv.emps.length - cv.sem.length)} de ${fmtN(cv.emps.length)}`, 'sindicatos', '%'); } catch {}
-      }
-      add('Sindicatos', 'sindicatos cadastrados', state.dpSind.length, `${fmtN(state.dpSind.filter(x => state.dpEmpresas.some(e => empresaSinds(e).includes(x))).length)} com empresas vinculadas`, 'sindicatos');
-    }
-    if (state.meusLoaded && !state.meusOff) add('Meus lembretes', 'lembretes cadastrados', state.meus.length, 'só você vê', 'agenda:tipo:meu');
-    return out;
-  }
-  // Número em odômetro: cada dígito é uma coluna 0–9 que rola até o valor.
-  function odometroHtml(valor, suf) {
-    const txt = fmtN(valor);
-    let k = 0;
-    return `<span class="odo" aria-label="${escapeHtml(txt + suf)}">${[...txt].map(ch => /\d/.test(ch)
-      ? `<span class="odo-d" style="--v:${ch}; --k:${k++}" aria-hidden="true"><span class="odo-col">${'0123456789'.split('').map(d => `<i>${d}</i>`).join('')}</span></span>`
-      : `<span class="odo-s" aria-hidden="true">${ch}</span>`).join('')}${suf ? `<span class="odo-s odo-suf" aria-hidden="true">${escapeHtml(suf)}</span>` : ''}</span>`;
-  }
-  let tkTimer = 0, tkIdx = 0;
-  function tickerHtml() {
-    const it = indicadores();
-    clearInterval(tkTimer); tkTimer = 0; tkIdx = 0;
-    if (!it.length) return '';
-    const slides = it.map((x, i) => `<button type="button" class="od-it${i === 0 ? ' on' : ''}" data-go="${x.go}" ${i ? 'tabindex="-1"' : ''}><em>${escapeHtml(x.mod)}</em>${odometroHtml(x.valor, x.suf)}<span class="od-tx"><b>${escapeHtml(x.rot)}</b>${x.sub ? `<small>${escapeHtml(x.sub)}</small>` : ''}</span></button>`).join('');
-    const pts = it.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
-    return `<div class="hh-ticker hh-od" aria-label="Números dos módulos"><span class="tk-live"><i></i>Ao vivo</span><div class="od-stage">${slides}</div><div class="od-pts" aria-hidden="true">${pts}</div></div>`;
-  }
-  function tickerIniciar() {
-    const box = $('.hh-od'); if (!box) return;
-    const sl = $$('.od-it', box), pts = $$('.od-pts i', box);
-    if (sl.length < 2) return;
-    const ir = (n) => {
-      const at = sl.findIndex(x => x.classList.contains('on'));
-      sl.forEach((x, i) => { x.classList.toggle('on', i === n); x.classList.toggle('sai', i === at && i !== n); x.tabIndex = i === n ? 0 : -1; });
-      pts.forEach((x, i) => x.classList.toggle('on', i === n));
-      tkIdx = n;
-    };
-    let parado = false;
-    box.addEventListener('pointerenter', () => { parado = true; }); box.addEventListener('pointerleave', () => { parado = false; });
-    box.addEventListener('focusin', () => { parado = true; }); box.addEventListener('focusout', () => { parado = false; });
-    tkTimer = setInterval(() => {
-      if (!box.isConnected) { clearInterval(tkTimer); tkTimer = 0; return; }
-      if (document.hidden || state.activeModule || parado) return;
-      ir((tkIdx + 1) % sl.length);
-    }, 4500);
-  }
   function renderHome() {
     const root = $('#home-root');
     evCacheClear();
@@ -3021,49 +3137,17 @@ body.portal-open{overflow:hidden;}
     const dataLonga = t.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
     const hol = feriado(t);
 
-    let meusBody;
-    if (state.meusOff) meusBody = `<div class="empty-mini">${escapeHtml(state.meusOff)}</div>`;
-    else if (!state.meusLoaded) meusBody = '<div class="empty-mini">Carregando…</div>';
-    else {
-      const hojeM = meusEventos(t, t), prox = meusEventos(addDays(t, 1), addDays(t, 7));
-      meusBody = (hojeM.length ? hojeM.map(ev => meuItem(ev, false)).join('') : `<div class="empty-mini" style="padding:6px 0">${state.meus.length ? 'Nada para hoje.' : 'Você ainda não tem lembretes. Cadastre o primeiro pelo botão Novo.'}</div>`)
-        + (prox.length ? `<div style="padding-top:10px"><button type="button" class="pn-link" data-go="agenda:tipo:meu">${prox.length} lembrete(s) nos próximos 7 dias</button></div>` : '');
-    }
-    const meusAcoes = podeCriarMeu() && state.meusLoaded ? `<button type="button" class="btn btn-sm btn-primary" data-meu-novo>${ic('plus', 'ic-sm')} Novo</button>` : '';
-
-    let equipeCard = '', alertCard = '';
-    if (!state.dpLoaded) equipeCard = cardHtml('Datas da equipe hoje', '', '<div class="empty-mini">Carregando…</div>');
-    else if (!state.dpEmpresas.length) equipeCard = cardHtml('Departamento Pessoal', '', `<div class="empty-mini" style="padding:4px 0 10px">Nenhuma empresa cadastrada ainda.</div><div><button type="button" class="btn btn-sm" data-go="empresas">Ir para Empresas</button></div>`);
-    else {
-      const eq = eventos(t, t);
-      const eqBody = eq.length ? eq.slice(0, 6).map(qItem).join('') + (eq.length > 6 ? `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="agenda:hoje">Ver as ${eq.length} datas de hoje</button></div>` : '')
-        : '<div class="empty-mini" style="padding:6px 0">Nenhuma rotina, prazo ou data de pessoal hoje.</div>';
-      equipeCard = cardHtml('Datas da equipe hoje', state.dpCarteira ? `carteira: ${escapeHtml(carteiraNome())}` : '', eqBody, '<button type="button" class="pn-link" data-go="agenda">Agenda</button>');
-      const al = alertasPessoal();
-      const urg = al.filter(a => a.nivel !== 'soon').length;
-      alertCard = cardHtml('Alertas de pessoal', urg ? `${urg} pedem ação agora` : '', al.length ? al.slice(0, 5).map(alItem).join('') + (al.length > 5 ? `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="funcionarios:alerta">Ver todos os ${al.length}</button></div>` : '')
-        : '<div class="empty-mini" style="padding:6px 0">Nada pedindo atenção agora.</div>');
-    }
-
     const tools = [...state.tools].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
-    const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-grid">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
+    const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-dock">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
 
     // Nome de quem está usando, para a saudação (carrega uma vez).
     if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
     const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-    const nLemb = state.meusLoaded && !state.meusOff ? meusEventos(t, t).length : null;
-    const nEq = state.dpLoaded ? eventos(t, t).length : null;
-    const nAl = state.dpLoaded ? alertasPessoal().filter(a => a.nivel !== 'soon').length : null;
-    const stat = (n, l, go, cls = '') => n === null ? '' : `<button type="button" class="hh-stat ${cls}${n ? '' : ' zero'}" data-go="${go}"><b>${n}</b><span>${l}</span></button>`;
     root.innerHTML = `<section class="home-hero">
         <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
-        <div class="hh-tools"><button type="button" class="hh-search" data-cmdk>${ic('search', 'ic-sm')}<span>Buscar empresa, funcionário…</span><kbd>/</kbd></button><button type="button" class="hh-theme" data-theme-toggle><span class="theme-ico"></span></button></div>
-        <div class="hh-stats">${stat(nLemb, 'lembrete(s) seus hoje', 'agenda:tipo:meu')}${stat(nEq, 'data(s) da equipe hoje', 'agenda:hoje')}${stat(nAl, 'alerta(s) de pessoal', 'funcionarios:alerta', nAl ? 'late' : '')}</div>
       </section>
-      ${tickerHtml()}
-      <div class="home-grid">${cardHtml('Meus lembretes de hoje', '', meusBody, meusAcoes)}${equipeCard}${alertCard}</div>
-      <section class="home-qa"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
-    applyTheme(); tickerIniciar();
+      <section class="home-qa home-dock"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
+    applyTheme();
   }
 
   // ---------- busca global ----------
@@ -3125,6 +3209,13 @@ body.portal-open{overflow:hidden;}
     e.preventDefault();
     abrirBusca();
   });
+  // Tela inicial: a tecla T alterna o tema (o botão visível saiu de lá; nos módulos segue o item "Tema" da barra lateral).
+  document.addEventListener('keydown', (e) => {
+    if (e.key?.toLowerCase() !== 't' || e.ctrlKey || e.metaKey || e.altKey || e.repeat || state.activeModule) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+    e.preventDefault();
+    state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs();
+  });
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
   let pendingEmp = null;
@@ -3141,35 +3232,39 @@ body.portal-open{overflow:hidden;}
   }
   function applyRoute(r) {
     const parts = String(r || '').split('/');
-    if (parts[0] === 'portal') { if (!state.activeModule) renderHome(); openPortal(); return; }
-    closePortal();
+    if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
+    closeFrames();
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
     if (parts[1] === 'ferramentas') state.dpFerr = FERRAMENTAS_DP.some(f => f.id === parts[2]) ? parts[2] : '';
     openDpModule(DP_VIEWS.includes(parts[1]) ? parts[1] : 'painel');
   }
-  // Portal do Cliente: página própria (portal.html) aberta por cima do Hub, na mesma origem,
+  // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  function openPortal() {
-    let f = $('#portal-frame');
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil' } };
+  function openFrame(key) {
+    Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
+    let f = $(`#${key}-frame`);
     if (!f) {
       f = document.createElement('iframe');
-      f.id = 'portal-frame'; f.className = 'portal-frame'; f.title = 'Portal do Cliente'; f.src = 'portal.html';
+      f.id = `${key}-frame`; f.className = 'portal-frame'; f.title = FRAMES[key].title; f.src = FRAMES[key].src;
       document.body.appendChild(f);
     }
     f.hidden = false;
     document.body.classList.add('portal-open');
-    try { if (location.hash !== '#portal') history.replaceState(null, '', '#portal'); } catch {}
+    try { if (location.hash !== '#' + key) history.replaceState(null, '', '#' + key); } catch {}
     f.focus();
   }
-  function closePortal() {
-    const f = $('#portal-frame');
+  function closeFrame(key) {
+    const f = $(`#${key}-frame`);
     if (!f || f.hidden) return;
     f.hidden = true;
-    document.body.classList.remove('portal-open');
-    try { if (location.hash === '#portal') history.replaceState(null, '', location.pathname + location.search); } catch {}
+    if (!Object.keys(FRAMES).some(k => { const g = $(`#${k}-frame`); return g && !g.hidden; })) document.body.classList.remove('portal-open');
+    try { if (location.hash === '#' + key) history.replaceState(null, '', location.pathname + location.search); } catch {}
   }
-  window.__hubClosePortal = closePortal;
+  function closeFrames() { Object.keys(FRAMES).forEach(closeFrame); }
+  window.__hubClosePortal = closeFrames;
+  window.__hubFecharModulo = closeFrames;
 
   function tryPendingEmp() {
     if (!pendingEmp || !state.dpLoaded) return;
@@ -3331,7 +3426,7 @@ body.portal-open{overflow:hidden;}
       if (!emps.length) return;
       const fim = parseYmd(s.vigFim);
       if (dentro(fim, from, to)) out.push({ tipo:'sindical', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
-      if (s.contribMes) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
+      if (s.contribMes && !cctVigente(s)?.cct.contribs.length) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
     });
     out.push(...eventosCct(from, to, ativas));
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
@@ -3509,17 +3604,58 @@ body.portal-open{overflow:hidden;}
     $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
     applyDpReadOnly();
     renderFerramentas();
+    if (entrando) state.dpAnimar = DP_VIEWS.includes(view) ? view : state.dpView || 'painel';
     setDpView(view || state.dpView || 'painel');
     if (entrando) { window.scrollTo(0, 0); state.dpConvAnim = true; }
   }
   function setDpView(view) {
     if (view === 'sindicatos' && (state.dpView !== 'sindicatos' || $('#view-dp').hidden || $('#dp-view-sindicatos').hidden)) state.dpConvAnim = true;
-    state.dpView = DP_VIEWS.includes(view) ? view : 'painel';
+    const novo = DP_VIEWS.includes(view) ? view : 'painel';
+    const pnlAntes = $(`#dp-view-${state.dpView}`), visivel = pnlAntes && !pnlAntes.hidden && !$('#view-dp').hidden;
+    const trocou = novo !== state.dpView || !visivel;
+    const dir = DP_VIEWS.indexOf(novo) >= DP_VIEWS.indexOf(state.dpView) ? 1 : -1, deslizar = visivel && novo !== state.dpView;
+    if (trocou) state.dpAnimar = novo;
+    state.dpView = novo;
     $$('.dp-tab').forEach(t => { const on = t.dataset.dpView === state.dpView; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
     $$('.dp-view').forEach(v => { v.hidden = v.id !== `dp-view-${state.dpView}`; });
     renderDpActiveView();
     syncRoute();
+    requestAnimationFrame(() => dpIndicador(deslizar));
+    if (deslizar && !semMovimento()) { const p = $(`#dp-view-${novo}`); p.style.setProperty('--dir', dir); p.classList.remove('dp-entra'); void p.offsetWidth; p.classList.add('dp-entra'); }
   }
+  // Animações: só ao entrar numa aba (não a cada atualização do banco) e nunca com "reduzir movimento".
+  const semMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function dpAnim(v) { if (state.dpAnimar !== v) return false; state.dpAnimar = ''; return !semMovimento(); }
+  // anima o número de 0 até o valor (só números inteiros simples)
+  function contar(els, t0, atraso = 70) {
+    if (!t0) return;
+    els.forEach((el, k) => {
+      const alvo = parseInt(el.textContent, 10); if (!(alvo > 0) || String(alvo) !== el.textContent.trim()) return;
+      const ini = t0 + k * atraso, dur = 850;
+      const passo = (t) => { const x = Math.min(1, Math.max(0, (t - ini) / dur)); el.textContent = Math.round(alvo * (1 - Math.pow(1 - x, 3))); if (x < 1 && el.isConnected) requestAnimationFrame(passo); };
+      passo(performance.now());
+    });
+  }
+  // Liga a animação de entrada num contêiner. Se a tela for redesenhada no meio (dados chegando do banco),
+  // a animação continua de onde estava (--dt negativo), em vez de recomeçar. Devolve o início (ou 0).
+  function marcarAnim(el, novo, cls = 'dp-anim', ms = 1700) {
+    if (!el) return 0;
+    const agora = performance.now();
+    if (novo) {
+      el.__t0 = agora; el.classList.add(cls); el.style.setProperty('--dt', '0ms');
+      clearTimeout(el.__tAnim); el.__tAnim = setTimeout(() => { el.classList.remove(cls); el.__t0 = 0; }, ms);
+    } else if (el.__t0 && el.classList.contains(cls)) el.style.setProperty('--dt', `${-(agora - el.__t0)}ms`);
+    return el.__t0 || 0;
+  }
+  // traço da aba ativa: desliza até a aba clicada
+  function dpIndicador(animar) {
+    const tabs = $('.dp-tabs'), on = $('.dp-tab.active'); if (!tabs || !on || !on.offsetWidth) return;
+    let ind = $('.dp-tab-ind', tabs);
+    if (!ind) { ind = document.createElement('span'); ind.className = 'dp-tab-ind'; ind.setAttribute('aria-hidden', 'true'); tabs.appendChild(ind); tabs.classList.add('com-ind'); animar = false; }
+    ind.classList.toggle('sem-trans', !animar || semMovimento());
+    ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
+  }
+  window.addEventListener('resize', () => { if (state.activeModule === 'dp') dpIndicador(false); });
   $('.dp-tabs').addEventListener('click', (e) => {
     const btn = e.target.closest('.dp-tab');
     if (!btn) return;
@@ -3547,6 +3683,7 @@ body.portal-open{overflow:hidden;}
     if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
   }
   function renderBadges() {
+    requestAnimationFrame(() => dpIndicador(false));
     const t = hoje();
     const n = todosEventos(t, t).filter(ev => !ev.feito).length;
     const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
@@ -3579,6 +3716,8 @@ body.portal-open{overflow:hidden;}
     const meuDia = e.target.closest('[data-meu-dia]');
     if (meuDia) { e.stopPropagation(); state.dpAgDia = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
     if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: (state.activeModule === 'dp' && state.dpAgDia) || ymd(hoje()), novo: true }); return; }
+    const agEmp = e.target.closest('[data-emp-agenda]');
+    if (agEmp) { const emp = findDpEmpresa(agEmp.dataset.empAgenda); if (emp) { state.dpAgQuery = emp.nome; $('#dp-ag-search').value = emp.nome; irAgenda({}); } return; }
     const open = e.target.closest('[data-open-emp]');
     if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) { openDpDetail(emp, { tab: open.dataset.tab }); editarDoEvento(open.dataset.edit); } return; }
     const go = e.target.closest('[data-go]');
@@ -3659,6 +3798,7 @@ body.portal-open{overflow:hidden;}
     const urg = alertas.filter(a => a.nivel !== 'soon').length;
     const emps = empresasCarteira();
     const nAtivas = emps.filter(ativa).length;
+    const anim = dpAnim('painel');
     kp.innerHTML = [
       kpiCard(hojeEv.length, 'Datas hoje', hojeEv.length ? 'is-today' : '', 'agenda:hoje', hojeEv.length ? `${nMeusHoje} minha(s) · ${hojeEv.length - nMeusHoje} da equipe` : `${fmtDM(t)}, ${wd(t)}${feriado(t) ? ' · ' + escapeHtml(feriado(t)) : ''}`),
       kpiCard(semana.length, 'Próximos 7 dias', '', 'agenda'),
@@ -3666,6 +3806,7 @@ body.portal-open{overflow:hidden;}
       kpiCard(alertas.length, 'Alertas de pessoal', urg ? 'is-late' : '', 'funcionarios:alerta', urg ? `${urg} pedem ação agora` : ''),
       kpiCard(nAtivas, state.dpCarteira ? 'Empresas na carteira' : 'Empresas ativas', '', 'empresas', emps.length > nAtivas ? `${emps.length - nAtivas} inativa(s)` : ''),
     ].join('');
+    contar($$('.kpi-value', kp), marcarAnim(kp, anim, 'kp-anim'));
 
     const card = (titulo, sub, body, extra = '', cls = '') => `<section class="pn-card ${cls}"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${extra}</div><div class="pn-card-body">${body}</div></section>`;
 
@@ -3682,7 +3823,7 @@ body.portal-open{overflow:hidden;}
         const n = x.evs.length, hol = feriado(x.d), fds = x.d.getDay() === 0 || x.d.getDay() === 6;
         const tip = `${fmtDM(x.d)}, ${wd(x.d)}${i === 0 ? ' · hoje' : ''}${hol ? ' · ' + hol : ''}\n${n ? `${n} data(s): ${resumoTipos(x.evs).join(', ')}` : 'Nenhuma data'}${n ? '\nClique para ver na agenda' : ''}`;
         const lbl = n && n === maxN && !marcouMax.v ? (marcouMax.v = true, `<span class="v">${n}</span>`) : '';
-        return `<button type="button" class="col${n ? '' : ' zero'}${fds || hol ? ' off' : ''}${i === 0 ? ' today' : ''}" ${n ? `data-cal-dia="${ymd(x.d)}"` : 'tabindex="-1"'} ${tipAttr(tip)}>${lbl}<span class="bar" style="height:${(n / topo * 100).toFixed(1)}%"></span></button>`;
+        return `<button type="button" class="col${n ? '' : ' zero'}${fds || hol ? ' off' : ''}${i === 0 ? ' today' : ''}" style="--k:${i}" data-dia="${ymd(x.d)}" ${n ? `data-cal-dia="${ymd(x.d)}"` : 'tabindex="-1"'} ${tipAttr(tip)}>${lbl}<span class="bar" style="height:${(n / topo * 100).toFixed(1)}%"></span></button>`;
       }).join('');
       const xs = dias.map((x, i) => i % 7 === 0 ? `<span style="left:${((i + .5) / 31 * 100).toFixed(2)}%">${i === 0 ? 'hoje' : fmtDM(x.d)}</span>` : '').join('');
       cargaBody = `<div class="cols"><div class="cols-y"><span style="top:0">${topo}</span><span style="top:50%">${topo / 2}</span><span style="top:100%">0</span></div><div class="cols-plot"><div class="cols-grid" style="top:0"></div><div class="cols-grid" style="top:50%"></div>${cols}</div><div class="cols-x">${xs}</div></div>`;
@@ -3742,7 +3883,19 @@ body.portal-open{overflow:hidden;}
 
     if (semEmpresas) { grid.innerHTML = `${cargaCard}${calCard}<section class="pn-card pn-wide">${emptyEmpresasHtml()}</section>`; return; }
     grid.innerHTML = `${cargaCard}${calCard}${alCard}${funcCard}${cCard}${gapCard}`;
+    contar($$('.stat3 b, .stack-legend b, .prox30-i b', grid), marcarAnim(grid, anim, 'pn-anim'), 40);
+    grid.__dia = null;
   }
+  // Painel: passar o mouse numa barra acende o mesmo dia no calendário (e vice-versa).
+  function ligaDia(k) {
+    const g = $('#dp-painel-grid'); if (g.__dia === k) return;
+    g.__dia = k;
+    $$('.liga', g).forEach(x => x.classList.remove('liga'));
+    g.classList.toggle('pn-liga', !!k && !!$(`.col[data-dia="${k}"]`, g));
+    if (k) $$(`[data-dia="${k}"]`, g).forEach(x => x.classList.add('liga'));
+  }
+  $('#dp-painel-grid').addEventListener('mouseover', (e) => { const el = e.target.closest('[data-dia]'); ligaDia(el ? el.dataset.dia : null); });
+  $('#dp-painel-grid').addEventListener('mouseleave', () => ligaDia(null));
   function calendarioHtml(mes) {
     const { y, m } = mesParts(mes);
     const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
@@ -3758,7 +3911,7 @@ body.portal-open{overflow:hidden;}
       const nivel = list.length ? Math.max(1, Math.ceil(list.length / maxN * 5)) : 0;
       const tip = `${fmtDM(d)}, ${wd(d)}${hol ? ' · ' + hol : ''}\n${list.length ? `${list.length} data(s): ${resumoTipos(list).join(', ')}` : 'Nenhuma data'}`;
       const dayCls = `cal-day${nivel ? ' h' + nivel : hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
-      cells.push(`<button type="button" class="${dayCls}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} ${tipAttr(tip)}><span>${d.getDate()}</span></button>`);
+      cells.push(`<button type="button" class="${dayCls}" style="--k:${d.getDate()}" data-dia="${k}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} ${tipAttr(tip)}><span>${d.getDate()}</span></button>`);
     }
     return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span class="heat-key">menos ${[1,2,3,4,5].map(i => `<i style="background:var(--heat-${i})"></i>`).join('')} mais datas</span><span>Riscado = feriado</span></div>`;
   }
@@ -3784,9 +3937,9 @@ body.portal-open{overflow:hidden;}
     return porAnalista(todosEventos(new Date(y, m, 1), new Date(y, m + 1, 0)))
       .filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
   }
-  $('#dp-ag-prev').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-next').addEventListener('click', () => { state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
-  $('#dp-ag-hoje').addEventListener('click', () => { state.dpAgMes = mesDe(hoje()); state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
+  $('#dp-ag-prev').addEventListener('click', () => { state.agDesliza = -1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-next').addEventListener('click', () => { state.agDesliza = 1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { const mh = mesDe(hoje()); state.agDesliza = mh === state.dpAgMes ? 0 : mh > (state.dpAgMes || mh) ? 1 : -1; state.dpAgMes = mh; state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
   $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
   $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
   $('#dp-ag-analista').addEventListener('change', (e) => { state.dpAgAnalista = e.target.value; state.prefs.dpAgAnalista = state.dpAgAnalista; savePrefs(); renderDpAgenda(); });
@@ -3832,6 +3985,10 @@ body.portal-open{overflow:hidden;}
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
     $('#dp-ag-count').textContent = `${vis.length} data(s) em ${MESES[m].toLowerCase()}`;
     $('#dp-ag-cal').innerHTML = agCalHtml(vis, state.dpAgMes);
+    // Troca de mês: o calendário entra deslizando do lado para onde se andou.
+    const dz = state.agDesliza; state.agDesliza = 0;
+    const agm = $('#dp-ag-cal .agm');
+    if (!marcarAnim($('#dp-ag-cal'), dpAnim('agenda')) && dz && agm && !semMovimento()) { agm.style.setProperty('--dir', dz); agm.classList.add('agm-entra'); const lb = $('#dp-ag-label'); lb.style.setProperty('--dir', dz); lb.classList.remove('agm-entra'); void lb.offsetWidth; lb.classList.add('agm-entra'); }
     renderAgLista(vis);
   }
 
@@ -3858,6 +4015,7 @@ body.portal-open{overflow:hidden;}
     vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
     // Lembretes primeiro no dia (são o destaque), depois o resto na ordem da agenda.
     Object.values(porDia).forEach(l => l.sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b)));
+    const maxDia = Math.max(1, ...Object.values(porDia).map(l => l.length));
     const cells = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="agm-wd">${d}</div>`);
     for (let i = 0; i < first.getDay(); i++) cells.push('<div class="agm-day blank"></div>');
     const t = hoje(), tk = ymd(t), pode = podeCriarMeu();
@@ -3873,7 +4031,7 @@ body.portal-open{overflow:hidden;}
       const mais = list.length > mostra ? `<button type="button" class="agm-more" data-ag-sel="${k}">${mostra ? `+${list.length - mostra} mais` : `${list.length} data(s)`}</button>` : '';
       const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.dpAgDia ? ' sel' : ''}${nLemb ? ' tem-lemb' : ''}`;
       const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
-      cells.push(`<div class="${cls}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
+      cells.push(`<div class="${cls}${list.length ? ' quente' : ''}" style="--k:${d.getDate()};--q:${list.length ? Math.round(4 + list.length / maxDia * 14) : 0}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
     }
     const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-pessoal)"></i>Sindical</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
     return `<div class="agm" style="${state.agH ? `grid-template-rows:auto repeat(${semanas},minmax(0,1fr))` : ''}">${cells.join('')}</div>${legenda}`;
@@ -4080,22 +4238,23 @@ body.portal-open{overflow:hidden;}
     if (ss.length) return { txt: `${rotuloSind(ss[0])} · sem convenção cadastrada`, ok: false };
     return { txt: bases.length ? `Sem sindicato · data-base ${bases.join(', ').toLowerCase()}` : 'Sem sindicato vinculado', ok: false };
   }
-  function empCardHtml(e) {
-    const p = proxEmpresa(e);
+  function empCardHtml(e, k = 0) {
     const falhas = GAPS.filter(g => g.test(e));
     const pct = Math.round((GAPS.length - falhas.length) / GAPS.length * 100);
-    const nFunc = e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
     const inv = e.cnpj && !cnpjValido(e.cnpj);
     const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
-    const av = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável\n${e.responsavel}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr('Sem responsável')}>?</span>`;
-    const cv = empConvTxt(e);
-    const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : '';
-    return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
+    const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : 'Cadastro completo';
+    const av0 = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável: ${e.responsavel}\n${tip}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr(`Sem responsável\n${tip}`)}>?</span>`;
+    // anel em volta do responsável: quanto do cadastro está preenchido
+    const av = `<span class="emp-anel" style="--p:${pct};--c:${pct === 100 ? 'var(--dp-ok)' : pct < 60 ? 'var(--dp-late)' : 'var(--dp-today)'}">${av0}</span>`;
+    // No cartão: só o sindicato (sem data-base nem convenção) e a tributação.
+    const ss = empresaSinds(e).filter(x => !ehSemSind(x)), cct = empresaCcts(e)[0];
+    const sind = ss.length ? rotuloSind(ss[0]) + (ss.length > 1 ? ` +${ss.length - 1}` : '') : cct ? tituloCurto(cct.cct) : '';
+    return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
       <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
-      <div class="emp-conv${cv.ok ? '' : ' sem'}">${ic('link', 'ic-sm')}<span>${escapeHtml(cv.txt)}</span></div>
-      <div class="emp-tags">${e.tributacao ? `<span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span>` : ''}<span class="chip-s">${ic('user', 'ic-sm')} ${nFunc} func.</span></div>
-      ${p ? `<div class="emp-next">${pillRel(p.d)}<span>${escapeHtml(p.titulo)}</span></div>` : ''}
-      ${pct < 100 ? `<i class="emp-fio ${pct < 60 ? 'late' : ''}" style="width:${pct}%" ${tipAttr(tip)}></i>` : ''}
+      <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem sindicato')}</span></div>
+      ${e.tributacao ? `<div class="emp-tags"><span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span></div>` : ''}
+      <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
     </div>`;
   }
   $('#dp-emp-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-modo]'); if (b) { state.dpEmpModo = b.dataset.empModo; state.prefs.dpEmpModo = state.dpEmpModo; savePrefs(); renderDp(); } });
@@ -4118,7 +4277,22 @@ body.portal-open{overflow:hidden;}
     if (!state.dpLoaded) { container.innerHTML = ''; return; }
     if (!state.dpEmpresas.length) { container.innerHTML = `<div class="dp-empty"><strong>Nenhuma empresa cadastrada</strong><span>Use “Nova empresa” ou importe um backup do DP.</span></div>`; return; }
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada com esses filtros.</div>'; if (cards) { $('#dp-emp-cards').innerHTML = `<div class="list-card" style="grid-column:1/-1;margin:0">${container.innerHTML}</div>`; } return; }
-    if (cards) { $('#dp-emp-cards').innerHTML = list.map(empCardHtml).join(''); return; }
+    const anim = dpAnim('empresas');
+    if (cards) {
+      // Ao filtrar ou reordenar, cada cartão desliza da posição antiga para a nova.
+      const box = $('#dp-emp-cards');
+      const antes = new Map(anim || semMovimento() || list.length > 160 ? [] : $$('.emp-card', box).map(c => [c.dataset.openEmp, c.getBoundingClientRect()]));
+      box.innerHTML = list.map((e, i) => empCardHtml(e, i)).join('');
+      marcarAnim(box, anim);
+      if (antes.size) $$('.emp-card', box).forEach(c => {
+        const a = antes.get(c.dataset.openEmp), d = c.getBoundingClientRect();
+        if (!a) { c.animate([{ opacity: 0, transform: 'scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'ease-out' }); return; }
+        const dx = a.left - d.left, dy = a.top - d.top;
+        if (dx || dy) c.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      });
+      return;
+    }
+    marcarAnim(container, anim);
     container.innerHTML = list.map(e => {
       const p = proxEmpresa(e);
       const inv = e.cnpj && !cnpjValido(e.cnpj);
@@ -4172,6 +4346,7 @@ body.portal-open{overflow:hidden;}
     const grade = meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%"></div>`).join('') + `<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div>`;
     const head = `<div class="tl-row tl-head"><div class="tl-name" style="cursor:default"><span class="dp-cell-sub" style="font-weight:600">Funcionário</span></div><div class="tl-track"><div class="tl-month" style="left:0;border-left:0">${MESES[from.getMonth()].slice(0, 3)}</div>${meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%">${MESES[d.getMonth()].slice(0, 3)}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</div>`).join('')}<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div></div></div>`;
     let semDatas = 0;
+    let ri = 0;
     const rows = list.map(({ f, e, status }) => {
       const marcas = funcBarras(f).filter(m => m.mark ? (m.late || (m.a >= from && m.a <= to)) : (m.b >= from && m.a <= to));
       if (!marcas.length) { semDatas++; if (!state.dpFuncTodos) return ''; }
@@ -4182,14 +4357,26 @@ body.portal-open{overflow:hidden;}
         const l = pos(m.a < from ? from : m.a), r = pos(addDays(m.b > to ? to : m.b, 1));
         return `<button type="button" class="tl-bar ${m.cls}" style="left:${l.toFixed(2)}%;width:calc(${Math.max(0.6, r - l).toFixed(2)}% - 2px)" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" ${tipAttr(tip)}></button>`;
       }).join('');
-      return `<div class="tl-row"><button type="button" class="tl-name" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios"><span class="dp-cell-main">${escapeHtml(f.nome || 'Funcionário')}</span><span class="dp-cell-sub">${escapeHtml(status)} · ${escapeHtml(e.nome)}</span></button><div class="tl-track">${grade}${els}</div></div>`;
+      return `<div class="tl-row" style="--k:${Math.min(ri++, 24)}"><button type="button" class="tl-name" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios"><span class="dp-cell-main">${escapeHtml(f.nome || 'Funcionário')}</span><span class="dp-cell-sub">${escapeHtml(status)} · ${escapeHtml(e.nome)}</span></button><div class="tl-track">${grade}${els}</div></div>`;
     }).join('');
     const legenda = `<div class="legend"><span><i style="background:var(--viz-1)"></i>Experiência</span><span><i style="background:color-mix(in srgb, var(--viz-1) 60%, var(--surface))"></i>Prorrogação</span><span><i style="background:var(--viz-2)"></i>Férias</span><span><i style="background:var(--viz-3)"></i>Rescisão até o pagamento</span><span><i class="dia" style="background:var(--dp-today)"></i>Fim do concessivo</span><span><i class="dia" style="background:var(--dp-late)"></i>Férias vencidas</span><span><i class="line" style="background:var(--ink)"></i>Hoje</span></div>`;
     const toggle = semDatas ? `<button type="button" class="pn-link" data-func-todos>${state.dpFuncTodos ? 'Esconder quem não tem datas no período' : `Mostrar também ${semDatas} sem datas no período`}</button>` : '';
     const corpo = rows || `<div class="dp-empty">Ninguém com experiência, férias ou rescisão entre ${fmtDM(from)} e ${fmtDM(to)}.</div>`;
-    return `<div class="tl-card"><div class="tl-inner">${head}${corpo}</div></div><div class="tl-foot">${legenda}${toggle}</div>`;
+    return `<div class="tl-card"><div class="tl-inner" data-de="${ymd(from)}" data-span="${span}">${head}${corpo}<div class="tl-regua" aria-hidden="true"><span></span></div></div></div><div class="tl-foot">${legenda}${toggle}</div>`;
   }
   $('#dp-func-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-func-modo]'); if (b) { state.dpFuncModo = b.dataset.funcModo; state.prefs.dpFuncModo = state.dpFuncModo; savePrefs(); renderDpFuncionarios(); } });
+  // Régua que acompanha o mouse na linha do tempo, com a data exata.
+  $('#dp-func-tl').addEventListener('mousemove', (e) => {
+    const inner = $('.tl-inner', e.currentTarget), reg = inner && $('.tl-regua', inner), trilho = inner && $('.tl-head .tl-track', inner);
+    if (!reg || !trilho) return;
+    const r = trilho.getBoundingClientRect(), ri = inner.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right) { reg.classList.remove('on'); return; }
+    const d = addDays(parseYmd(inner.dataset.de), Math.floor((e.clientX - r.left) / r.width * +inner.dataset.span));
+    reg.style.left = (e.clientX - ri.left) + 'px';
+    reg.firstChild.textContent = `${fmtDM(d)} · ${wd(d)}`;
+    reg.classList.add('on');
+  });
+  $('#dp-func-tl').addEventListener('mouseleave', (e) => { const reg = $('.tl-regua', e.currentTarget); if (reg) reg.classList.remove('on'); });
   $('#dp-func-tl').addEventListener('click', (e) => { if (e.target.closest('[data-func-todos]')) { e.stopPropagation(); state.dpFuncTodos = !state.dpFuncTodos; renderDpFuncionarios(); } });
   function renderDpFuncionarios() {
     const container = $('#dp-func-list');
@@ -4205,7 +4392,9 @@ body.portal-open{overflow:hidden;}
     $('#dp-func-tl').hidden = !tempo;
     $('#dp-func-listcard').hidden = tempo;
     if (!list.length) { container.innerHTML = '<div class="dp-empty">Nada neste filtro.</div>'; return; }
-    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); return; }
+    const anim = dpAnim('funcionarios');
+    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); marcarAnim($('#dp-func-tl'), anim, 'dp-anim', 2400); return; }
+    marcarAnim(container, anim);
     container.innerHTML = list.map(({ f, e, status, alertas, prox }) => {
       const a = alertas[0];
       const ev = a || prox;
@@ -4943,6 +5132,7 @@ body.portal-open{overflow:hidden;}
     const avN = $('#sd-av-n'); avN.hidden = !av.length; avN.textContent = `${av.length} aviso(s)`;
     $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
     $('#sd-detectar').textContent = `Detectar nas empresas (${codsSoltos.length})`;
+    $('#sd-dedup').hidden = ro || !nDuplicados();
     $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
 
     // tabela de sindicatos
@@ -4964,10 +5154,6 @@ body.portal-open{overflow:hidden;}
     lista.sort((a, b) => ord(a, b) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const filtrado = !!(q || state.dpSindMes || state.dpSindFiltro);
     $('#sd-count').textContent = revisando ? `${revisar.length} ponto(s) para revisar` : `${filtrado || lista.length !== state.dpSind.length ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
-    const cctHtml = (s0) => { const cv = s0.cctId && state.dpCcts.find(x => x.id === s0.cctId); const s = cv && cv.arquivo && !s0.cct ? { ...s0, cct: cv.arquivo } : s0; return cctHtml0(s); };
-    const cctHtml0 = (s) => ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : /^https?:\/\//i.test(s.cct) ? `<a href="${escapeHtml(s.cct)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} abrir CCT</a>`
-      : s.cct ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct(s))}" title="${escapeHtml(caminhoCct(s))}">${ic('link', 'ic-sm')} copiar caminho</button><div class="dp-cell-sub" title="${escapeHtml(arquivoCct(s))}">${escapeHtml(arquivoCct(s))}</div>`
-      : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} pasta das CCTs</button>`;
     const reajHtml = (s, vs) => {
       const r = reajusteStatus(s, vs);
       if (!r) return '<span class="dp-cell-sub">—</span>';
@@ -4983,32 +5169,36 @@ body.portal-open{overflow:hidden;}
       if (aberto) {
         const r = reajusteStatus(s, vs);
         const chk = (e) => r && !r.reg.semReajuste ? `<label class="sd-chk" title="Reajuste de ${s.dataBase.toLowerCase()}/${r.ano} aplicado na folha"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `aplicado ${fmtYmdDM(r.reg.aplicado[e.id])}` : 'reajuste pendente'}</label>` : '';
-        const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
-        det = `<tr class="sd-det"><td colspan="9">
+        const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && !cctVigente(s) && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
+        // Clicar no nome abre este painel: tudo do sindicato num lugar só (dados, convenção, reajuste e empresas).
+        const cvA = s.cctId && state.dpCcts.find(x => x.id === s.cctId), arq = (cvA && cvA.arquivo) || s.cct || '';
+        const copia = ehSemSind(s) ? '' : /^https?:\/\//i.test(arq) ? `<a href="${escapeHtml(arq)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} Abrir CCT</a>`
+          : arq ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ ...s, cct: arq }))}" title="${escapeHtml(caminhoCct({ ...s, cct: arq }))}">${ic('link', 'ic-sm')} Copiar caminho da CCT</button>`
+          : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} Copiar pasta das CCTs</button>`;
+        det = `<tr class="sd-det"><td colspan="8">
+          <div class="sd-det-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar dados do sindicato</button><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button>`}<span class="spacer"></span>${copia}</div>
           ${cctResumoHtml(s)}
           ${infos ? `<div class="sd-infos">${infos}</div>` : ''}
           ${r && vs.length ? `<div class="sd-det-h"><b>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano}</b> <span class="dp-cell-sub">${r.reg.semReajuste ? 'marcado como sem reajuste neste ciclo' : `${r.feitas} de ${r.total} aplicado(s)`}</span>${ro ? '' : `<span class="spacer"></span>${r.reg.semReajuste ? '' : `<button type="button" class="linkish" data-sd-apl-todas="${escapeHtml(s.id)}">marcar todas como aplicadas</button>`}<button type="button" class="linkish" data-sd-semreaj="${escapeHtml(s.id)}">${r.reg.semReajuste ? 'desfazer “sem reajuste”' : 'não haverá reajuste neste ciclo'}</button>`}</div>` : ''}
           <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
-          ${ro ? '' : `<div class="sd-vinc"><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button><button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar sindicato</button></div>`}
           ${s.obs ? `<p class="sd-obs">${escapeHtml(s.obs)}</p>` : ''}</td></tr>`;
       }
       return `<tr class="${aberto ? 'aberto' : ''}${state.dpSindSel.has(s.id) ? ' sel' : ''}" data-sd-row="${escapeHtml(s.id)}">
         ${ro ? '' : `<td class="sd-selc"><input type="checkbox" data-sd-sel="${escapeHtml(s.id)}" aria-label="Selecionar ${escapeHtml(rotuloSind(s))}"${state.dpSindSel.has(s.id) ? ' checked' : ''}></td>`}
         <td class="dp-mono">${escapeHtml(s.cod || '—')}</td>
-        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
+        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${aberto ? 'Fechar' : 'Abrir'} o sindicato"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
         <td>${s.dataBase ? `<span class="sd-db ${qm}">${ic('calendar', 'ic-sm')} ${escapeHtml(s.dataBase)}</span>` : ehSemSind(s) ? '<span class="dp-cell-sub">não se aplica</span>' : vs.length ? '<span class="pill pill-late">sem data-base</span>' : '<span class="dp-cell-sub">—</span>'}</td>
         <td>${s.vigIni || s.vigFim ? `<div style="font-size:12px">${s.vigIni ? fmtYmdBR(s.vigIni) : '?'} a ${s.vigFim ? fmtYmdBR(s.vigFim) : '?'}</div>` : ''}${v.n === null && !vs.length && !ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : `<span class="pill ${v.cls}">${v.txt}</span>`}</td>
         <td>${reajHtml(s, vs)}</td>
         <td class="num"><button type="button" class="sd-n" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${vs.length} empresa(s) · ${nf} funcionário(s)">${vs.length} ${ic(aberto ? 'left' : 'right', 'ic-sm')}</button><div class="dp-cell-sub">${nf} func.</div></td>
-        <td>${cctHtml(s)}</td>
-        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn" data-sd-edit="${escapeHtml(s.id)}" aria-label="Editar ${escapeHtml(rotuloSind(s))}" title="Editar">${ic('edit', 'ic-sm')}</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(s))}" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>`}</td>
       </tr>${det}`;
     }).join('');
     const vazio = state.dpSind.length ? 'Nenhum sindicato com esses filtros.'
       : `<strong>Nenhum sindicato cadastrado</strong><span>Cadastre os sindicatos para controlar data-base, CCT e reajuste num lugar só.</span>${ro ? '' : `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${codsSoltos.length ? `<button type="button" class="btn btn-primary" id="sd-detectar-vazio">Detectar ${codsSoltos.length} nas empresas</button>` : ''}<button type="button" class="btn" id="sd-novo-vazio">${ic('plus', 'ic-sm')} Cadastrar sindicato</button></span>`}`;
-    $('#sd-table').innerHTML = `<colgroup>${ro ? '' : '<col style="width:36px">'}<col style="width:84px"><col><col style="width:120px"><col style="width:170px"><col style="width:150px"><col style="width:84px"><col style="width:128px"><col style="width:${ro ? 44 : 76}px"></colgroup>
-      <thead><tr>${ro ? '' : `<th class="sd-selc"><input type="checkbox" data-sd-sel-todos aria-label="Selecionar todos os sindicatos listados"${lista.length && lista.every(x => state.dpSindSel.has(x.id)) ? ' checked' : ''}></th>`}<th>Código</th><th>Sindicato / CCT</th><th>Data-base</th><th>Vigência da CCT</th><th>Reajuste</th><th class="num">Empresas</th><th>Convenção</th><th></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="9"><div class="dp-empty">${vazio}</div></td></tr>`}</tbody>`;
+    $('#sd-table').innerHTML = `<colgroup>${ro ? '' : '<col style="width:36px">'}<col style="width:84px"><col><col style="width:120px"><col style="width:170px"><col style="width:150px"><col style="width:84px"><col style="width:${ro ? 8 : 40}px"></colgroup>
+      <thead><tr>${ro ? '' : `<th class="sd-selc"><input type="checkbox" data-sd-sel-todos aria-label="Selecionar todos os sindicatos listados"${lista.length && lista.every(x => state.dpSindSel.has(x.id)) ? ' checked' : ''}></th>`}<th>Código</th><th>Sindicato / CCT</th><th>Data-base</th><th>Vigência da CCT</th><th>Reajuste</th><th class="num">Empresas</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="8"><div class="dp-empty">${vazio}</div></td></tr>`}</tbody>`;
     // barra de seleção: excluir vários de uma vez
     [...state.dpSindSel].forEach(id => { if (!state.dpSind.some(x => x.id === id)) state.dpSindSel.delete(id); });
     const semEmp = lista.filter(x => !vincDe(x).length), nSel = state.dpSindSel.size;
@@ -5076,7 +5266,7 @@ body.portal-open{overflow:hidden;}
       <td>${r.s ? `<div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(r.s))}</div>${r.s.cnpj ? `<div class="dp-cell-sub">${escapeHtml(r.s.cnpj)}</div>` : ''}` : '<span class="dp-cell-sub">—</span>'}</td>
       <td>${escapeHtml(r.txt)}</td>
       <td class="num">${r.n || '—'}</td>
-      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir">${ic('trash', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
+      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
       : '<tr><td colspan="7"><div class="dp-empty">Nada para revisar.</div></td></tr>';
     const todos = $('#sd-rev-todos'); todos.checked = !!ids.length && ids.every(id => state.dpSindSel.has(id)); todos.disabled = !ids.length;
     const bar = $('#sd-rev-selbar');
@@ -5274,60 +5464,153 @@ body.portal-open{overflow:hidden;}
   // ----- janela do sindicato -----
   const dlgSind = $('#dlg-sind'), formSind = $('#form-sind');
   let sindEditId = null;
+  // ----- cadastro do sindicato: identificação aqui; data-base, vigência, reajuste e piso vêm da convenção ligada pelo CNPJ -----
+  let sindOrig = '';
+  const sindSnap = () => JSON.stringify([...new FormData(formSind)]);
+  const sindForm = () => state.dpSind.find(x => x.id === sindEditId) || null;
+  function sindCctBox() {
+    const f = formSind.elements, v = cctVigente({ cnpj: f.cnpj.value });
+    const box = $('#sind-cct-box');
+    $('#sind-manual').hidden = !!v;
+    if (!v) {
+      const temCnpj = cnpjDig(f.cnpj.value).length >= 8;
+      box.innerHTML = `<div class="sind-cct vazio"><p>Nenhuma convenção ligada a este sindicato.${temCnpj ? '' : ' A ligação é pelo CNPJ: informe-o acima.'}</p><button type="button" class="btn btn-sm btn-primary" data-sind-cct-nova>${ic('plus', 'ic-sm')} Cadastrar a convenção</button></div>`;
+      return;
+    }
+    const c = v.cct, ef = cctEfetiva(v), pisos = ef.pisos.val;
+    const contribs = [c, ...v.aditivos].flatMap(x => x.contribs);
+    const linhas = [
+      ['Vigência', c.vigIni || c.vigFim ? `${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}` : '—'],
+      ['Data-base', c.dataBase || '—'],
+      ['Reajuste', resumoReajuste(ef) || '—'],
+      ['Piso', pisos.length ? `${pisos[0].valor}${pisos.length > 1 ? ` (+${pisos.length - 1} função(ões))` : ''}` : '—'],
+      ['Registro MTE', c.registro || '—'],
+      ['Contribuições', contribs.length ? contribs.map(k => k.nome + (k.vencimento ? ` (${fmtYmdBR(k.vencimento)})` : '')).join(' · ') : 'nenhuma cadastrada'],
+    ];
+    box.innerHTML = `<div class="sind-cct"><div class="sind-cct-h"><span class="pill ${CCT_STATUS_PILL[c.status] || ''}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><b>${escapeHtml(c.titulo)}</b>${v.aditivos.length ? `<span class="dp-cell-sub">+ ${v.aditivos.length} aditivo(s)</span>` : ''}</div>
+      <dl class="sind-cct-dl">${linhas.map(([k, x]) => `<dt>${k}</dt><dd>${escapeHtml(x)}</dd>`).join('')}</dl>
+      <div class="sind-cct-acoes"><button type="button" class="btn btn-sm" data-sind-cct-abrir="${escapeHtml(c.id)}">Abrir convenção</button><button type="button" class="btn btn-sm" data-sind-cct-nova>${ic('plus', 'ic-sm')} Nova CCT (renovação)</button><span class="spacer"></span><button type="button" class="sd-copy" data-sind-copiar="${escapeHtml(caminhoCct({ cct: c.arquivo }))}">${ic('link', 'ic-sm')} ${c.arquivo ? 'Copiar caminho da CCT' : 'Copiar pasta das CCTs'}</button></div>
+      <p class="field-hint" style="margin:0">Estes dados vêm da convenção. Para mudar, abra a convenção.</p></div>`;
+  }
+  function sindCnpjMsg() {
+    const f = formSind.elements, d = cnpjDig(f.cnpj.value), el = $('#sind-cnpj-msg');
+    let msg = '', erro = false;
+    if (d) {
+      if (!cnpjValido(f.cnpj.value)) { msg = 'CNPJ inválido: confira os dígitos.'; erro = true; }
+      else {
+        const outros = state.dpSind.filter(x => x.id !== sindEditId && cnpjDig(x.cnpj) === d);
+        if (outros.length) msg = `Mesmo CNPJ de ${outros.slice(0, 3).map(x => (x.cod ? x.cod + ' · ' : '') + rotuloSind(x)).join(', ')}${outros.length > 3 ? '…' : ''}: a convenção vale para todos.`;
+      }
+    }
+    el.hidden = !msg; el.textContent = msg; el.classList.toggle('erro', erro);
+  }
+  function sindEmpsLink() {
+    const s = sindForm(), b = $('#sind-emps-link');
+    b.hidden = $('#sind-emps-sep').hidden = !s;
+    if (!s) return;
+    const n = state.dpEmpresas.filter(e => ativa(e) && empresaSinds(e).includes(s)).length;
+    b.textContent = n ? `${n} empresa(s) vinculada(s): ver e vincular` : 'Nenhuma empresa vinculada: vincular';
+  }
+  const histLi = (x) => `<li><span class="dp-mono">${x.em ? escapeHtml(new Date(x.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })) : ''}</span> ${escapeHtml(x.texto)}${x.autor ? ` · <span data-uid="${escapeHtml(x.autor)}">Alguém da equipe</span>` : ''}</li>`;
   function abrirSind(id, pre = {}) {
     if (state.readOnly) return;
     const s = id ? state.dpSind.find(x => x.id === id) : null;
     sindEditId = s ? s.id : null;
     const v = s || pre, f = formSind.elements;
-    $('#dlg-sind-title').textContent = s ? 'Editar sindicato' : 'Novo sindicato';
+    $('#dlg-sind-title').textContent = s ? rotuloSind(s) : 'Novo sindicato';
+    const sub = [s && s.cod && `Código ${s.cod}`, s && s.apelido && s.apelido !== s.nome ? s.nome : ''].filter(Boolean).join(' · ');
+    $('#dlg-sind-sub').hidden = !sub; $('#dlg-sind-sub').textContent = sub;
     ['cod', 'nome', 'uf', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato'].forEach(k => { f[k].value = v[k] || ''; });
     fillSelect(f.dataBase, MESES, v.dataBase || '', '—'); f.dataBase.value = v.dataBase || '';
     fillSelect(f.contribMes, MESES, v.contribMes || '', '—'); f.contribMes.value = v.contribMes || '';
+    $('#sind-manual-d').open = ['dataBase', 'vigIni', 'vigFim', 'percentual', 'piso', 'registro', 'cct', 'contribMes'].some(k => v[k]);
     $('#btn-sind-excluir').hidden = !s;
-    $('#btn-sind-renovar').hidden = !s;
-    $('#sind-renov-msg').hidden = true;
-    const n = s ? state.dpEmpresas.filter(e => empresaSinds(e).includes(s)).length : 0;
-    $('#sind-vinc-note').textContent = s ? `${n} empresa(s) vinculada(s) pelo código.` : 'As empresas se vinculam pelo código (campo “Cód. sind.” do estabelecimento).';
-    const h = s ? s.hist.slice(0, 12) : [];
+    sindCctBox(); sindCnpjMsg(); sindEmpsLink();
+    const h = s ? s.hist : [], resto = h.slice(3);
     $('#sind-hist').hidden = !h.length;
-    $('#sind-hist-list').innerHTML = h.map(x => `<li><span class="dp-mono">${x.em ? escapeHtml(new Date(x.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })) : ''}</span> ${escapeHtml(x.texto)}${x.autor ? ` · <span data-uid="${escapeHtml(x.autor)}">Alguém da equipe</span>` : ''}</li>`).join('');
-    fillNames($('#sind-hist-list'));
+    $('#sind-hist-list').innerHTML = h.slice(0, 3).map(histLi).join('');
+    $('#sind-hist-mais').hidden = !resto.length; $('#sind-hist-mais').open = false;
+    $('#sind-hist-mais summary').textContent = `Ver tudo (${h.length})`;
+    $('#sind-hist-resto').innerHTML = resto.map(histLi).join('');
+    fillNames($('#sind-hist'));
     $('#sind-mediador').href = MEDIADOR_URL;
+    sindOrig = sindSnap();
     if (!dlgSind.open) dlgSind.showModal();
+    formSind.scrollTop = 0;
     (s ? f.nome : f.cod).focus();
   }
-  $('#btn-sind-renovar').addEventListener('click', () => {
+  // Grava o formulário; devolve o sindicato salvo (ou o atual, se nada mudou) ou null se algo impediu.
+  async function salvarFormSind() {
     const f = formSind.elements;
-    const fimAnt = parseYmd(f.vigFim.value) || parseYmd(f.vigIni.value && ymd(addYears(parseYmd(f.vigIni.value), 1)));
-    const ini = fimAnt ? addDays(fimAnt, 1) : (() => { const mi = MESES.indexOf(f.dataBase.value); const t = hoje(); return mi >= 0 ? new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1) : t; })();
-    f.vigIni.value = ymd(ini);
-    f.vigFim.value = ymd(addDays(addYears(ini, 1), -1));
-    f.percentual.value = ''; f.piso.value = '';
-    f.cct.focus(); f.cct.select();
-    const msg = $('#sind-renov-msg'); msg.hidden = false; msg.textContent = 'Vigência renovada por 1 ano. Informe o arquivo da nova CCT, o reajuste e o piso, e salve.';
-  });
-  formSind.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = formSind.elements;
-    const antigo = state.dpSind.find(x => x.id === sindEditId);
+    const antigo = sindForm();
     const dados = { id: sindEditId || uid() };
     ['cod', 'nome', 'uf', 'dataBase', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato', 'contribMes'].forEach(k => { dados[k] = f[k].value; });
-    const novo = normalizeSind({ ...dados, ciclos: antigo?.ciclos, hist: antigo?.hist });
-    if (!novo || !novo.nome.trim()) { toast('Informe pelo menos o nome do sindicato.'); return; }
-    if (novo.vigIni && novo.vigFim && novo.vigFim < novo.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return; }
+    const novo = normalizeSind({ ...(antigo || {}), ...dados, ciclos: antigo?.ciclos, hist: antigo?.hist });
+    if (!novo || !novo.nome.trim()) { toast('Informe pelo menos o nome do sindicato.'); f.nome.focus(); return null; }
+    if (f.cnpj.value.trim() && f.cnpj.value.trim() !== (antigo?.cnpj || '') && !cnpjValido(f.cnpj.value)) { toast('CNPJ do sindicato inválido: confira os dígitos.'); f.cnpj.focus(); return null; }
+    if (novo.vigIni && novo.vigFim && novo.vigFim < novo.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return null; }
     const dup = novo.cod && state.dpSind.find(x => x.id !== novo.id && x.cod === novo.cod);
-    if (dup) { toast(`O código ${novo.cod} já é de “${dup.nome}”.`); return; }
+    if (dup) { toast(`O código ${novo.cod} já é de “${dup.nome}”.`); return null; }
     const ROT = { cod:'código', nome:'nome', dataBase:'data-base', vigIni:'início da vigência', vigFim:'fim da vigência', cct:'convenção', percentual:'reajuste', piso:'piso', registro:'registro MTE', contribMes:'mês da contribuição', uf:'UF', cnpj:'CNPJ', contato:'contato', obs:'observações' };
     if (antigo) {
       const mud = Object.keys(ROT).filter(k => (antigo[k] || '') !== (novo[k] || ''));
-      if (!mud.length) { dlgSind.close(); return; }
+      if (!mud.length) return antigo;
       const fmt = (k, v) => !v ? '—' : k.startsWith('vig') ? fmtYmdBR(v) : k === 'obs' || k === 'cct' ? '(alterado)' : v;
       histSind(novo, mud.map(k => k === 'obs' || k === 'cct' ? `${ROT[k]} alterado` : `${ROT[k]}: ${fmt(k, antigo[k])} → ${fmt(k, novo[k])}`).join('; '));
     } else histSind(novo, 'Sindicato cadastrado');
-    dlgSind.close();
     const itens = antigo ? state.dpSind.map(x => x.id === novo.id ? novo : x) : [...state.dpSind, novo];
-    if (await salvarSinds(itens)) toast(antigo ? 'Sindicato atualizado.' : 'Sindicato cadastrado.');
+    if (!(await salvarSinds(itens))) return null;
+    sindEditId = novo.id; sindOrig = sindSnap();
+    toast(antigo ? 'Sindicato atualizado.' : 'Sindicato cadastrado.');
+    return state.dpSind.find(x => x.id === novo.id) || novo;
+  }
+  formSind.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (await salvarFormSind()) dlgSind.close();
   });
+  // Nova convenção a partir do sindicato: renovação da vigente (mesmas partes, vigência seguinte) ou a primeira, com os dados preenchidos à mão.
+  function preNovaCct(s) {
+    const v = cctVigente(s);
+    if (v) {
+      const c = v.cct, ini = c.vigFim ? addDays(parseYmd(c.vigFim), 1) : null;
+      const anos = ini ? `${ini.getFullYear()}/${ini.getFullYear() + 1}` : '';
+      const titulo = !anos ? c.titulo : /20\d\d\s*\/\s*20\d\d/.test(c.titulo) ? c.titulo.replace(/20\d\d\s*\/\s*20\d\d/, anos) : `${c.titulo} ${anos}`;
+      return { titulo, status: 'rascunho', dataBase: c.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: ini ? ymd(addDays(addYears(ini, 1), -1)) : '', partes: c.partes,
+        contribs: c.contribs.map(k => ({ ...k, vencimento: '' })), reajuste: { itens: [], tabela: [], base: c.reajuste.base } };
+    }
+    const mi = MESES.indexOf(s.dataBase), t = hoje();
+    const ini = s.vigIni ? parseYmd(s.vigIni) : mi >= 0 ? new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1) : null;
+    const y = (ini || t).getFullYear();
+    return { titulo: `${rotuloSind(s)} ${y}/${y + 1}`, status: 'rascunho', dataBase: s.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: s.vigFim || (ini ? ymd(addDays(addYears(ini, 1), -1)) : ''),
+      registro: s.registro, arquivo: s.cct, partes: [{ cnpj: s.cnpj, nome: s.nome, papel: 'laboral' }],
+      reajuste: { itens: s.percentual ? [{ rotulo: 'Geral', pct: s.percentual }] : [], tabela: [], base: '' }, pisos: s.piso ? [{ nome: 'Piso salarial', valor: s.piso }] : [] };
+  }
+  // Antes de sair para a convenção, grava o que foi mudado aqui (senão a convenção nova não se liga a um CNPJ que só está no formulário).
+  async function sindSalvoParaCct() {
+    const s = sindSnap() !== sindOrig || !sindForm() ? await salvarFormSind() : sindForm();
+    if (!s) return null;
+    dlgSind.close();
+    return s;
+  }
+  formSind.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-sind-cct-nova]')) {
+      if (cnpjDig(formSind.elements.cnpj.value).length < 8) { toast('Informe o CNPJ do sindicato: é por ele que a convenção se liga.'); formSind.elements.cnpj.focus(); return; }
+      const s = await sindSalvoParaCct(); if (s) abrirCct(null, preNovaCct(s));
+      return;
+    }
+    const ab = t.closest('[data-sind-cct-abrir]');
+    if (ab) { const id = ab.dataset.sindCctAbrir; if (await sindSalvoParaCct()) abrirCct(id); return; }
+    const cp = t.closest('[data-sind-copiar]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.sindCopiar); toast('Caminho copiado.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(cp.dataset.sindCopiar); } return; }
+    if (t.closest('#sind-emps-link')) { const s = sindForm(); if (s) abrirVincular(s.id); return; }
+  });
+  formSind.elements.cnpj.addEventListener('input', () => {
+    const f = formSind.elements.cnpj;
+    if (/^[\d.\/\s-]*$/.test(f.value) && cnpjDig(f.value).length <= 14) f.value = maskCnpj(f.value);
+    sindCnpjMsg(); sindCctBox();
+  });
+  $('#sind-mediador').addEventListener('click', () => { const c = formSind.elements.cnpj.value.trim(); if (c) navigator.clipboard?.writeText(c).then(() => toast('CNPJ copiado: cole na busca do Mediador.'), () => {}); });
   $('#btn-sind-excluir').addEventListener('click', async () => {
     const s = state.dpSind.find(x => x.id === sindEditId);
     if (!s) return;
@@ -5428,6 +5711,7 @@ body.portal-open{overflow:hidden;}
 
   // ----- vincular várias empresas de uma vez -----
   const dlgSv = $('#dlg-sind-vinc');
+  dlgSv.addEventListener('close', () => { if (dlgSind.open) sindEmpsLink(); });
   let svSind = null;
   function abrirVincular(sindId) {
     const s = state.dpSind.find(x => x.id === sindId);
@@ -5880,6 +6164,142 @@ body.portal-open{overflow:hidden;}
   let cctEditId = null;
   const linhasPar = (arr, a, b) => arr.map(x => `${x[a]} = ${x[b]}`).join('\n');
   const leLinhasPar = (txt, a, b) => String(txt || '').split(/\n+/).map(l => { const i = l.lastIndexOf('='); return i > 0 ? { [a]: l.slice(0, i).trim(), [b]: l.slice(i + 1).trim() } : null; }).filter(x => x && x[a]);
+  // ---------- editor em linhas (reajuste, tabelas, pisos, benefícios, prazos, partes) ----------
+  // Cada editor fica ligado a um textarea escondido no formato de texto antigo, que continua sendo o que se lê e se grava.
+  const numTxt = (v) => /^[\s\d.,]+$/.test(v) && /\d/.test(v);
+  const numPt = (v) => { const t = String(v).replace(/\s/g, ''); return /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) || t.includes(',') ? Number(t.replace(/\./g, '').replace(',', '.')) : Number(t); };
+  const fmtPct = (v) => { v = String(v || '').trim().replace(/%$/, '').trim(); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : v; };
+  const fmtVal = (v) => { v = String(v || '').trim().replace(/^R\$\s*/i, ''); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; };
+  const SEM_LIM = 999999999;
+  const LIN = {
+    reajItens: { cab: ['Aplica-se a', 'Reajuste'], cols: [{ t:'txt', ph:'Ex.: Geral', dl:'dl-reaj' }, { t:'pct', w:'110px' }], add:'Percentual', fmt:'par' },
+    reajTabela: { cab: ['Admitidos em', 'Reajuste'], cols: [{ t:'month', w:'minmax(0,1fr)' }, { t:'pct', w:'110px' }], add:'Mês', fmt:'mes' },
+    pisos: { cab: ['Função', 'Piso'], cols: [{ t:'txt', ph:'Ex.: Ajudante' }, { t:'brl', w:'130px' }], add:'Piso', fmt:'par' },
+    beneficios: { cab: ['Benefício', 'Valor ou regra'], cols: [{ t:'txt', ph:'Ex.: Cartão alimentação' }, { t:'valTxt', w:'150px', ph:'1.300,00' }], add:'Benefício', fmt:'par' },
+    prazos: { cab: ['Data', 'O que fazer'], cols: [{ t:'date', w:'160px' }, { t:'txt', ph:'Ex.: Retroativo 1ª parcela' }], add:'Prazo', fmt:'data' },
+    partes: { cab: ['CNPJ', 'Entidade', 'Lado'], cols: [{ t:'cnpj', w:'175px' }, { t:'txt', ph:'Nome do sindicato ou federação' }, { t:'sel', w:'120px', op:[['laboral', 'Laboral'], ['patronal', 'Patronal'], ['federacao', 'Federação']] }], add:'Parte', fmt:'pipe' },
+    faixaEmpregados: { cab: ['De (func.)', 'Até', 'Valor'], cols: [{ t:'int', ph:'0' }, { t:'int', ph:'sem limite' }, { t:'brl', w:'160px' }], add:'Faixa', fmt:'faixa' },
+    faixaCapital: { cab: ['Capital de', 'Até', 'Valor'], cols: [{ t:'brl', ph:'0,00' }, { t:'brl', ph:'sem limite' }, { t:'brl', w:'130px' }], add:'Faixa', fmt:'faixa' },
+    tributacao: { cab: ['Tributação', 'Valor'], cols: [{ t:'txt', dl:'dl-trib', ph:'SIMPLES NACIONAL' }, { t:'brl', w:'140px' }], add:'Linha', fmt:'par' },
+  };
+  const linLer = (fmt, txt) => String(txt || '').split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    if (fmt === 'pipe') { const p = l.split('|').map(s => s.trim()), lado = (p[2] || '').toLowerCase(); return [p[0] || '', p[1] || '', lado.startsWith('pat') ? 'patronal' : lado.startsWith('fed') ? 'federacao' : 'laboral']; }
+    if (fmt === 'faixa') { const m = /^\s*([\d.,]+)\s*-\s*([\d.,]+)\s*=\s*(.+)$/.exec(l); return m ? [m[1], numPt(m[2]) >= SEM_LIM ? '' : m[2], m[3].trim()] : null; }
+    const i = l.lastIndexOf('=');
+    if (i <= 0) return fmt === 'par' ? [l, ''] : null;
+    let a = l.slice(0, i).trim(); const b = l.slice(i + 1).trim();
+    if (fmt === 'mes') { const m = /^(\d{1,2})\/(\d{4})$/.exec(a); a = m ? `${m[2]}-${pad2(+m[1])}` : ''; }
+    if (fmt === 'data') { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(a); a = m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+    return [a, b];
+  }).filter(Boolean);
+  const linGravar = (fmt, rows) => rows.filter(r => r.some((v, i) => String(v).trim() && !(fmt === 'pipe' && i === 2))).map(r => {
+    if (fmt === 'pipe') return `${r[0]} | ${r[1]} | ${r[2]}`;
+    if (fmt === 'faixa') return `${r[0] || '0'}-${r[1] || SEM_LIM} = ${r[2]}`;
+    if (fmt === 'mes') return r[0] && r[1] ? `${r[0].slice(5)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    if (fmt === 'data') return r[0] ? `${r[0].slice(8)}/${r[0].slice(5, 7)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    return r[0] ? `${r[0]} = ${r[1]}` : '';
+  }).filter(Boolean).join('\n');
+  const linOut = (t, v) => {
+    v = String(v || '').trim();
+    if (t === 'pct') { const f = fmtPct(v); return f && numTxt(f) ? f + '%' : f; }
+    if (t === 'brl' || t === 'valTxt') return fmtVal(v);
+    if (t === 'int') return v.replace(/\D/g, '');
+    return v;
+  };
+  function linCell(c, v) {
+    const ph = c.ph ? ` placeholder="${escapeHtml(c.ph)}"` : '';
+    if (c.t === 'sel') return `<select data-lc="sel" aria-label="Lado">${c.op.map(([k, l]) => `<option value="${k}"${v === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+    if (c.t === 'month' || c.t === 'date') return `<input type="${c.t}" data-lc="${c.t}" value="${escapeHtml(v)}">`;
+    if (c.t === 'pct') return `<span class="lin-af"><input data-lc="pct" inputmode="decimal" value="${escapeHtml(fmtPct(v))}"${ph || ' placeholder="0"'}><i>%</i></span>`;
+    if (c.t === 'brl') return `<span class="lin-af pre"><i>R$</i><input data-lc="brl" inputmode="decimal" value="${escapeHtml(String(v).replace(/^R\$\s*/i, ''))}"${ph || ' placeholder="0,00"'}></span>`;
+    if (c.t === 'int') return `<input data-lc="int" inputmode="numeric" value="${escapeHtml(v)}"${ph}>`;
+    if (c.t === 'cnpj') return `<input data-lc="cnpj" value="${escapeHtml(v)}" placeholder="00.000.000/0000-00" class="${v && !cnpjValido(v) ? 'lin-bad' : ''}">`;
+    return `<input data-lc="${c.t}" value="${escapeHtml(v)}"${ph}${c.dl ? ` list="${c.dl}"` : ''}>`;
+  }
+  const linRowHtml = (spec, r, ro) => `<div class="lin-row">${spec.cols.map((c, i) => linCell(c, r[i] ?? '')).join('')}${ro ? '' : `<button type="button" class="lin-del" data-lin-del aria-label="Remover linha" title="Remover linha">${ic('x', 'ic-sm')}</button>`}</div>`;
+  function linMontar(ta, chave, linhas = null) {
+    let ed = ta.nextElementSibling;
+    if (!ed || !ed.classList.contains('lin-ed')) { ed = document.createElement('div'); ed.className = 'lin-ed'; ta.after(ed); }
+    ta.classList.add('lin-src'); ta.dataset.linAtual = chave || '';
+    const spec = LIN[chave];
+    ed.hidden = !spec; ed.dataset.lin = chave || '';
+    if (!spec) { ed.innerHTML = ''; return; }
+    const ro = state.readOnly, rows = linhas || linLer(spec.fmt, ta.value);
+    if (!rows.length && !ro) rows.push(spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''));
+    ed.style.setProperty('--lin-cols', spec.cols.map(c => !c.w ? 'minmax(84px,1fr)' : /px$/.test(c.w) ? `minmax(0,${c.w})` : c.w).join(' ') + (ro ? '' : ' 26px'));
+    ed.innerHTML = `<div class="lin-cab">${spec.cab.map(c => `<span>${c}</span>`).join('')}</div><div class="lin-rows">${rows.length ? rows.map(r => linRowHtml(spec, r, ro)).join('') : '<span class="dp-cell-sub">—</span>'}</div>${ro ? '' : `<div class="lin-pe"><button type="button" class="linkish" data-lin-add>+ ${spec.add}</button>${chave === 'reajTabela' ? '<button type="button" class="linkish" data-lin-meses title="Cria uma linha para cada um dos 12 meses anteriores ao início da vigência">Preencher os 12 meses</button>' : ''}</div>`}`;
+  }
+  function linSync(ed) {
+    const ta = ed.previousElementSibling, spec = LIN[ed.dataset.lin];
+    if (!spec || !ta) return;
+    ta.value = linGravar(spec.fmt, $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))));
+  }
+  const CALC_CAMPOS = { '': [], fixo: ['valor', 'valorAssociada'], porEmpregado: ['valor'], faixaEmpregados: ['tabela'], faixaCapital: ['tabela'], tributacao: ['tabela', 'adicional', 'teto'] };
+  function calcCampos(fs) {
+    const tipo = fs.querySelector('[data-k="calc.tipo"]').value, vis = CALC_CAMPOS[tipo] || [];
+    $$('[data-calc-campo]', fs).forEach(el => { el.hidden = !vis.includes(el.dataset.calcCampo); });
+    const ta = fs.querySelector('[data-k="calc.tabela"]'), chave = vis.includes('tabela') ? tipo : '';
+    if (ta.dataset.linAtual !== chave) linMontar(ta, chave);
+  }
+  function linMontarTodos(root) {
+    $('#dl-trib').innerHTML = [...new Set([...TRIBUTACOES, ...state.dpEmpresas.map(e => e.tributacao).filter(Boolean)])].map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $$('textarea[data-lin]', root).forEach(ta => linMontar(ta, ta.dataset.lin));
+    (root.matches?.('.cct-contrib') ? [root] : $$('.cct-contrib', root)).forEach(fs => { delete fs.querySelector('[data-k="calc.tabela"]').dataset.linAtual; calcCampos(fs); });
+  }
+  // Tabela proporcional: uma linha por mês de admissão nos 12 meses anteriores à vigência (mantém o que já foi digitado).
+  function linMeses(ed) {
+    const f = formCct.elements;
+    let base = parseYmd(f.vigIni.value);
+    if (!base) { const mi = MESES.indexOf(f.dataBase.value); if (mi < 0) { toast('Informe primeiro o início da vigência ou a data-base.'); return; } const t = hoje(); base = new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1); }
+    const atuais = $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))).filter(r => r[0]);
+    const de = new Map(atuais.map(r => [r[0], r[1]]));
+    const meses = Array.from({ length: 12 }, (_, i) => { const d = new Date(base.getFullYear(), base.getMonth() - 12 + i, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; });
+    const rows = [...meses.map(k => [k, de.get(k) || '']), ...atuais.filter(r => !meses.includes(r[0]))];
+    linMontar(ed.previousElementSibling, 'reajTabela', rows);
+    linSync(ed);
+    const vazio = $$('[data-lc="pct"]', ed).find(i => !i.value); if (vazio) vazio.focus();
+  }
+  formCct.addEventListener('input', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc]'); if (!el) return;
+    if (el.dataset.lc === 'cnpj') { if (/^[\d.\/\s-]*$/.test(el.value)) el.value = maskCnpj(el.value); el.classList.toggle('lin-bad', cnpjDig(el.value).length >= 14 && !cnpjValido(el.value)); }
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('change', (e) => {
+    if (e.target.matches('[data-k="calc.tipo"]')) { calcCampos(e.target.closest('.cct-contrib')); return; }
+    const el = e.target.closest('.lin-ed [data-lc]'); if (el) linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('focusout', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc="pct"], .lin-ed [data-lc="brl"], .lin-ed [data-lc="valTxt"]'); if (!el) return;
+    el.value = el.dataset.lc === 'pct' ? fmtPct(el.value) : fmtVal(el.value);
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('click', (e) => {
+    const t = e.target, ed = t.closest('.lin-ed'); if (!ed || state.readOnly) return;
+    const spec = LIN[ed.dataset.lin]; if (!spec) return;
+    if (t.closest('[data-lin-add]')) {
+      const rows = $('.lin-rows', ed); if (!$('.lin-row', rows)) rows.innerHTML = '';
+      rows.insertAdjacentHTML('beforeend', linRowHtml(spec, spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''), false));
+      $('.lin-row:last-child [data-lc]', rows).focus();
+      return;
+    }
+    const del = t.closest('[data-lin-del]');
+    if (del) {
+      const row = del.closest('.lin-row');
+      if ($$('.lin-row', ed).length > 1) row.remove(); else $$('[data-lc]', row).forEach(el => { if (el.tagName !== 'SELECT') el.value = ''; });
+      linSync(ed);
+      return;
+    }
+    if (t.closest('[data-lin-meses]')) linMeses(ed);
+  });
+  // Enter numa linha: vai para a mesma coluna da linha de baixo (cria uma se for a última), sem enviar o formulário.
+  formCct.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return;
+    const el = e.target.closest('.lin-ed input[data-lc]'); if (!el) return;
+    e.preventDefault();
+    const row = el.closest('.lin-row'), ed = row.closest('.lin-ed'), col = $$('[data-lc]', row).indexOf(el);
+    if (!row.nextElementSibling) $('[data-lin-add]', ed)?.click();
+    const prox = row.nextElementSibling; if (prox) $$('[data-lc]', prox)[col]?.focus();
+  });
   function contribRowHtml(k = { nome:'', quem:'empregado', competencias:'', vencimento:'', regra:'', oposicao:'', calc:{ tipo:'' } }) {
     const c = k.calc || {};
     return `<fieldset class="cct-contrib">
@@ -5890,20 +6310,20 @@ body.portal-open{overflow:hidden;}
       <div class="form-row"><label class="field">Regra (base, teto, forma de recolhimento)<input data-k="regra" value="${escapeHtml(k.regra)}" maxlength="400"></label>
         <label class="field">Oposição<input data-k="oposicao" value="${escapeHtml(k.oposicao)}" maxlength="300"></label></div>
       <div class="form-row"><label class="field" style="max-width:230px">Estimar valor por empresa<select data-k="calc.tipo">${Object.entries(CALC_TIPOS).map(([v, l]) => `<option value="${v}"${(c.tipo || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field" style="max-width:110px">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
-        <label class="field" style="max-width:110px">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
-      <label class="field">Tabela (uma faixa por linha: “0-3 = 156,00”; por tributação: “SIMPLES NACIONAL = 300,00”)<textarea data-k="calc.tabela" rows="2">${escapeHtml(c.tabela || '')}</textarea></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valor">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valorAssociada">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="adicional">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="teto">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
+      <div class="field" data-calc-campo="tabela">Tabela<textarea data-k="calc.tabela">${escapeHtml(c.tabela || '')}</textarea></div>
       <button type="button" class="linkish" data-cct-contrib-del>Remover esta contribuição</button></fieldset>`;
   }
-  function abrirCct(id) {
+  function abrirCct(id, pre = null) {
     const c = id ? cctPorId(id) : null;
     cctEditId = c ? c.id : null;
-    const x = c || normalizeCct({ titulo:'Nova convenção', tipo:'cct', status:'assinada' });
+    const x = c || normalizeCct({ tipo:'cct', status:'assinada', ...(pre || {}), titulo: pre?.titulo || 'Nova convenção' });
     const f = formCct.elements, ro = state.readOnly;
     $('#dlg-cct-title').textContent = c ? c.titulo : 'Nova convenção';
-    f.titulo.value = c ? c.titulo : '';
+    f.titulo.value = c ? c.titulo : (pre?.titulo || '');
     f.tipo.value = x.tipo; f.status.value = x.status; f.registro.value = x.registro;
     f.vigIni.value = x.vigIni; f.vigFim.value = x.vigFim;
     fillSelect(f.dataBase, MESES, x.dataBase, '—'); f.dataBase.value = x.dataBase;
@@ -5920,6 +6340,7 @@ body.portal-open{overflow:hidden;}
     f.prazos.value = x.prazos.map(p => `${fmtYmdBR(p.data)} = ${p.desc}`).join('\n');
     f.obs.value = x.obs;
     $('#cct-contribs').innerHTML = x.contribs.map(contribRowHtml).join('');
+    linMontarTodos(formCct);
     renderCctEmpresas(x);
     const secN = { arq: (x.arquivo ? 1 : 0) + (x.mae ? 1 : 0) + (x.substitui ? 1 : 0), reaj: x.reajuste.itens.length + x.reajuste.tabela.length + (x.reajuste.base ? 1 : 0), piso: x.pisos.length + x.beneficios.length, contrib: x.contribs.length, prazos: x.prazos.length + (x.obs ? 1 : 0), emps: empsDaCct(x).length };
     const secTxt = { arq: '', reaj: '', piso: `${x.pisos.length} piso(s) · ${x.beneficios.length} benefício(s)`, contrib: `${x.contribs.length}`, prazos: `${x.prazos.length} prazo(s)`, emps: `${secN.emps} empresa(s)` };
@@ -5974,7 +6395,7 @@ body.portal-open{overflow:hidden;}
     dlgCct.close();
     if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
   });
-  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
+  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); linMontarTodos($('#cct-contribs .cct-contrib:last-child')); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
   $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
   $('#btn-cct-cancelar').addEventListener('click', () => dlgCct.close());
   $('#dlg-cct-close').addEventListener('click', () => dlgCct.close());
@@ -6069,7 +6490,6 @@ body.portal-open{overflow:hidden;}
     }
     const main = $('#cv-main'), anim = state.dpConvAnim;
     state.dpConvAnim = false;
-    $('#cv-m-carregar').hidden = ro || !CCTS_ANALISADAS.some(x => !cctPorId(x.id));
     const { linhas, sem, emps } = convencoesDaCarteira();
     const cont = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
     const contE = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
@@ -6099,6 +6519,13 @@ body.portal-open{overflow:hidden;}
     if (abrir && cctPorId(abrir)) abrirPainelCct(abrir);
     else if (state.dpConvPainel) renderPainelCct();
   }
+  // Passar o mouse numa situação (chip ou pedaço do anel) acende o pedaço correspondente.
+  $('#cv-main').addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-cv-sit]'), k = el ? el.dataset.cvSit : '';
+    const dn = $('.cv-donut', e.currentTarget); if (!dn || dn.__hl === k) return;
+    dn.__hl = k; dn.classList.toggle('tem-hl', !!k);
+    $$('.seg', dn).forEach(c => c.classList.toggle('hl', c.dataset.cvSit === k));
+  });
   // Entrada animada (só ao chegar na aba ou trocar de visão, não a cada clique).
   let cvAnimT = 0;
   function cvAnimar(root) {
@@ -6164,9 +6591,10 @@ body.portal-open{overflow:hidden;}
   function cvHeroHtml(linhas, sem, emps, contE, totE) {
     const ordem = ['vencida', 'vencendo', 'pendente', 'sem', 'emdia'];
     let acc = 0;
-    const segs = totE ? ordem.filter(k => contE[k]).map(k => { const len = contE[k] / totE * 100; const s = `<circle class="seg" cx="21" cy="21" r="15.9" pathLength="100" style="stroke:${CV_COR[k]};stroke-dasharray:${Math.max(0, len - 0.8).toFixed(2)} ${(100 - len + 0.8).toFixed(2)};stroke-dashoffset:${(-acc).toFixed(2)}"><title>${CV_SITS.find(x => x.k === k).l}: ${contE[k]} empresa(s)</title></circle>`; acc += len; return s; }).join('') : '';
+    const segs = totE ? ordem.filter(k => contE[k]).map(k => { const len = contE[k] / totE * 100; const s = `<circle class="seg${state.dpConvSit === k ? ' on' : ''}" data-cv-sit="${k}" cx="21" cy="21" r="15.9" pathLength="100" style="stroke:${CV_COR[k]};stroke-dasharray:${Math.max(0, len - 0.8).toFixed(2)} ${(100 - len + 0.8).toFixed(2)};stroke-dashoffset:${(-acc).toFixed(2)}"><title>${CV_SITS.find(x => x.k === k).l}: ${contE[k]} empresa(s)</title></circle>`; acc += len; return s; }).join('') : '';
     const saude = totE ? Math.round(contE.emdia / totE * 100) : 0;
     const atencao = linhas.filter(l => l.sit !== 'emdia').length;
+    const semN = new Set(sem.map(x => x.e.id)).size;
     const cart = state.dpCarteira ? `Carteira de ${escapeHtml(carteiraNome())}` : 'Equipe toda';
     const bases = linhas.flatMap(l => eventosConv(l, 366).filter(e => e.tipo === 'base')).sort((a, b) => a.d.localeCompare(b.d));
     const pb = bases[0];
@@ -6189,11 +6617,11 @@ body.portal-open{overflow:hidden;}
         <i class="cv-tick-bar"><i></i></i></div>` : '';
     return `<section class="cv-hero" style="--i:0">
       <div class="cv-hero-g">
-        <div class="cv-donut-w"><svg class="cv-donut" viewBox="0 0 42 42" aria-label="Empresas por situação"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
+        <div class="cv-donut-w"><svg class="cv-donut${state.dpConvSit ? ' tem-f' : ''}" viewBox="0 0 42 42" aria-label="Empresas por situação (clique numa parte para filtrar)"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
           <div class="cv-donut-c"><b data-cv-n="${saude}" data-cv-suf="%">${saude}%</b><small>em dia</small></div></div>
         <div class="cv-hero-tx">
           <span class="cv-eyebrow">${cart}${state.dpCarteira ? ' · <button type="button" class="linkish" data-cv-equipe>ver equipe toda</button>' : ''}</span>
-          <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : `Tudo em dia ${ic('check')}`}</h2>
+          <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : semN ? `<em data-cv-n="${semN}">${semN}</em> ${semN === 1 ? 'empresa está' : 'empresas estão'} sem convenção` : `Tudo em dia ${ic('check')}`}</h2>
           <p>${emps.length} empresa(s) ativa(s) · ${linhas.length} convenção(ões) em uso${sem.length ? ` · <b class="t-sem">${sem.length} sem CCT</b>` : ''}</p>
           ${tickHtml}
           <div class="cv-legend">${ordem.filter(k => contE[k]).map(k => `<span><i style="background:${CV_COR[k]}"></i>${CV_SITS.find(x => x.k === k).l} <b>${contE[k]}</b></span>`).join('')}</div>
@@ -6625,8 +7053,16 @@ body.portal-open{overflow:hidden;}
     const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
         <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfAtivos(base)} func.</div></div>
         <span class="ct-an-n">${base.length}</span></div>`;
+    // Guarda o tamanho das barras e os contadores para animar a mudança (ao mover empresas).
+    const ctAntes = new Map($$('#ct-side .ct-an[data-ct-an]').map(a => [a.dataset.ctAn, { w: a.querySelector('.ct-an-bar i')?.style.width || '', n: parseInt(a.querySelector('.ct-an-n')?.textContent, 10) }]));
     $('#ct-side').innerHTML = `<div class="ct-side-h">Analistas</div>${tot}${grupos.map(item).join('')}
       ${ro ? '' : `<form class="ct-add" id="ct-add"><input id="ct-add-nome" placeholder="Nome do novo analista" maxlength="80" aria-label="Nome do novo analista"><button type="submit" class="btn btn-sm">${ic('plus', 'ic-sm')} Adicionar</button></form>`}`;
+    if (!semMovimento()) $$('#ct-side .ct-an[data-ct-an]').forEach(a => {
+      const v = ctAntes.get(a.dataset.ctAn); if (!v) return;
+      const i = a.querySelector('.ct-an-bar i'), n = parseInt(a.querySelector('.ct-an-n')?.textContent, 10);
+      if (i && v.w && v.w !== i.style.width) i.animate([{ width: v.w }, { width: i.style.width }], { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (n !== v.n && !isNaN(v.n)) { const el = a.querySelector('.ct-an-n'); el.classList.remove('ct-pula'); void el.offsetWidth; el.classList.add('ct-pula'); }
+    });
 
     $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 
@@ -6690,6 +7126,7 @@ body.portal-open{overflow:hidden;}
     const mapa = {}; ids.forEach(id => { mapa[id] = destino; });
     const sim = !!state.dpCtSim;
     const ok = await aplicarMovimentos(mapa);
+    if (ok) requestAnimationFrame(() => ids.forEach(id => { const tr = $(`tr[data-ct-id="${id}"]`); if (tr) { tr.classList.remove('ct-flash'); void tr.offsetWidth; tr.classList.add('ct-flash'); } }));
     if (ok && !sim) { const n = ids.length, nome = destino === SEM_RESP || !destino ? 'sem responsável' : canonResp(destino); toast(n === 1 ? `“${findDpEmpresa(ids[0])?.nome}” agora está com ${nome}.` : `${n} empresas movidas para ${nome}.`); }
   }
   async function definirReserva(id, nome) {
@@ -7024,10 +7461,12 @@ body.portal-open{overflow:hidden;}
     if (!tr) return;
     const id = tr.dataset.ctId;
     ctArrasto = state.dpCtSel.has(id) ? [...state.dpCtSel] : [id];
+    ctView.classList.add('ct-arrastando');
+    ctArrasto.forEach(x => $(`tr[data-ct-id="${x}"]`, ctView)?.classList.add('ct-pega'));
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', ctArrasto.length + ' empresa(s)'); } catch {}
   });
-  ctView.addEventListener('dragend', () => { ctArrasto = null; $$('.ct-an.drop').forEach(x => x.classList.remove('drop')); });
+  ctView.addEventListener('dragend', () => { ctArrasto = null; ctView.classList.remove('ct-arrastando'); $$('.ct-an.drop, tr.ct-pega').forEach(x => x.classList.remove('drop', 'ct-pega')); });
   ctView.addEventListener('dragover', (e) => {
     const an = e.target.closest('[data-ct-drop]');
     if (!an || !ctArrasto) return;

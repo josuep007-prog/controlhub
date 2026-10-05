@@ -536,6 +536,16 @@
   .eacoes .linkish{margin-left:auto; font-size:12px;}
   .eedit{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); padding:14px 16px; display:flex; flex-direction:column; gap:12px;}
   .eedit-lbl{font-family:"IBM Plex Sans",sans-serif; font-size:12px; font-weight:600; color:var(--ink-3);}
+  /* matrizes e filiais */
+  .efil{display:inline-block; margin-left:7px; padding:1px 7px; border-radius:999px; font:600 10.5px/1.5 "IBM Plex Sans",sans-serif; color:var(--blue-deep); background:var(--blue-pale); vertical-align:1px; white-space:nowrap; cursor:help;}
+  .efiliais{display:flex; flex-direction:column; gap:7px; padding-top:10px; border-top:1px solid var(--rule);}
+  .fil-lista{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px;}
+  .fil-lista li{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:12.5px;}
+  .fil-nome{font-weight:600; color:var(--ink);} .fil-cnpj{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);}
+  .fil-add{display:flex; gap:8px; flex-wrap:wrap; align-items:center;} .fil-add .fil-sel{flex:1 1 260px; min-width:0; max-width:460px; font-size:12px;}
+  .fil-sug{margin:0; font-size:12.5px; color:var(--ink-2); padding:7px 10px; border-radius:var(--r); background:var(--blue-pale);}
+  .efiliais .note{margin:0;}
+  .conf-todos{background:var(--surface-2);}
   .metaline label{font-size:11px; font-weight:600; letter-spacing:0; color:var(--ink-3); display:flex; align-items:center; gap:6px; font-family:"IBM Plex Sans",sans-serif;}
   .metaline input[type="text"]{width:auto; min-width:120px;}
   .metaline .analista-sel, .fer-row .analista-sel{width:auto; min-width:150px; max-width:220px; font-size:12px; text-transform:none; letter-spacing:normal; font-weight:400; font-family:"IBM Plex Sans",sans-serif;}
@@ -695,6 +705,9 @@
   .foco-empty p{margin:0 auto; max-width:420px; font-size:13px;}
 
   .fcard{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow-1);}
+  /* falta analista ou contato de cliente em algum setor */
+  .fcard.falta{border-color:var(--brand-red); box-shadow:inset 0 0 0 1px var(--brand-red), var(--shadow-1);}
+  .ffalta{display:inline-block; margin-left:8px; padding:1px 8px; border-radius:999px; font:600 11px/1.5 "IBM Plex Sans",sans-serif; color:var(--brand-red); background:var(--brand-red-soft); vertical-align:2px; white-space:nowrap; cursor:help;}
   .fcard.chegando{animation:fchega .55s ease;}
   @keyframes fchega{0%{opacity:0; transform:translateY(-10px); box-shadow:0 0 0 3px var(--sector-pessoal);} 50%{opacity:1; transform:none; box-shadow:0 0 0 3px var(--sector-pessoal);} 100%{box-shadow:var(--shadow-1);}}
   .fcard.saindo{overflow:hidden; opacity:0; transform:translateX(16px); transition:height .26s ease, opacity .2s ease, transform .22s ease;}
@@ -1733,7 +1746,7 @@
               <label><span>CNPJ <span class="note">(opcional)</span></span><input type="text" id="fe-cnpj" placeholder="00.000.000/0000-00"></label>
               <div class="checks">
                 <label><input type="checkbox" id="fe-folha"> Tem folha ativa</label>
-                <label><input type="checkbox" id="fe-rubricas"> Precisa configurar rubricas/variáveis</label>
+                <label hidden><input type="checkbox" id="fe-rubricas"> Precisa configurar rubricas/variáveis</label>
               </div>
               <label style="gap:6px;">Setores com demanda
                 <div class="checks">
@@ -1850,7 +1863,6 @@
 
   var ETAPAS = [
     {key:"habilitacaoDominio",   label:"Habilitação no Domínio",        curto:"Habilitação", porEmpresa:true},
-    {key:"configRubricas",       label:"Rubricas e variáveis",          curto:"Rubricas", onlyIf:function(e,s){ return s==="pessoal" && !!(e && e.precisaRubricas); }},
     {key:"treinamentoAnalista",  label:"Treinamento do analista",       curto:"Trein. analista"},
     {key:"treinamentoCliente",   label:"Treinamento dos clientes",      curto:"Trein. cliente"}
   ];
@@ -2052,6 +2064,205 @@
   var faltaCarregar = {empresas:1, empresaSetores:1, contatos:1}, semBanco = false;
   function carregando(){ return !semBanco && Object.keys(faltaCarregar).length > 0; }
   var state = { empresas:[], setores:[], funcionarios:[], contatos:[], alinhamentoSetor:[], auditoriaDominio:[], historico:[] };
+
+  /* ---------- matrizes e filiais ---------- */
+  // A filial (empresas.matrizId) não tem frentes, contatos nem etapas próprias: tudo fica na matriz e o
+  // grupo conta como uma empresa. O banco chega inteiro em "bruto"; as telas usam state.* já sem as filiais.
+  var bruto = {empresas:null, setores:null, contatos:null};
+  var grupos = {filiaisDe:{}, matrizDe:{}, porId:{}};
+  function definirDados(key, lista){
+    if(!(key in bruto)){ state[key] = lista; return; }
+    bruto[key] = lista;
+    aplicarGrupos();
+  }
+  function aplicarGrupos(){
+    var emps = bruto.empresas || state.empresas, porId = {}, filiaisDe = {}, matrizDe = {};
+    emps.forEach(function(e){ porId[e.id] = e; });
+    emps.forEach(function(e){
+      var m = e.matrizId && porId[e.matrizId];
+      if(m && m.id !== e.id && !m.matrizId){ (filiaisDe[m.id] = filiaisDe[m.id] || []).push(e); matrizDe[e.id] = m.id; }
+    });
+    Object.keys(filiaisDe).forEach(function(k){ filiaisDe[k].sort(function(a, b){ return String(a.cnpj || a.nome).localeCompare(String(b.cnpj || b.nome)); }); });
+    grupos = {filiaisDe:filiaisDe, matrizDe:matrizDe, porId:porId};
+    state.empresas = emps.filter(function(e){ return !matrizDe[e.id]; });
+    if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId]; });
+    if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId]; });
+  }
+  function filiaisDe(matrizId){ return grupos.filiaisDe[matrizId] || []; }
+  function matrizDaFilial(empresaId){ var m = grupos.matrizDe[empresaId]; return m ? grupos.porId[m] : null; }
+  function todasEmpresas(){ return bruto.empresas || state.empresas; }
+  // Raiz do CNPJ (8 primeiros caracteres) e ordem do estabelecimento (0001 = matriz).
+  function cnpjLimpo(v){ return String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); }
+  function raizCnpj(v){ var d = cnpjLimpo(v); return d.length === 14 ? d.slice(0, 8) : ""; }
+  function ehCnpjMatriz(v){ var d = cnpjLimpo(v); return d.length === 14 && d.slice(8, 12) === "0001"; }
+  // Ordem dos status de cada etapa (o mais adiantado ganha ao juntar matriz e filial).
+  function rankStatus(etapaKey, st){ var i = ordemStatus(etapaKey).indexOf(st); return i < 0 ? 0 : i; }
+  function rankContato(st){ var i = STATUS_CLIENTE.indexOf(st); return i < 0 ? 0 : i; }
+  // Habilitação de qualquer empresa (inclusive filial), lida do banco inteiro.
+  function habilitacaoBruta(e){
+    if(e && e.habilitacao && RANK_HAB[e.habilitacao.status] !== undefined) return {status:e.habilitacao.status, data:e.habilitacao.data || "", obs:e.habilitacao.obs || ""};
+    var r = {status:"pendente", data:"", obs:""};
+    (bruto.setores || state.setores).forEach(function(sd){
+      var h = e && sd.empresaId === e.id && sd.etapas && sd.etapas.habilitacaoDominio;
+      if(h && RANK_HAB[h.status] > RANK_HAB[r.status]) r = {status:h.status, data:h.status === "concluido" ? (h.data || "") : "", obs:h.obs || ""};
+    });
+    return r;
+  }
+  // Filiais que ainda têm contatos ou frentes próprias (vínculo feito por importação, por exemplo).
+  function filiaisComDados(){
+    var out = [];
+    Object.keys(grupos.matrizDe).forEach(function(fid){
+      var nC = (bruto.contatos || []).filter(function(c){ return c.empresaId === fid; }).length;
+      var nS = (bruto.setores || []).filter(function(s){ return s.empresaId === fid; }).length;
+      if(nC || nS) out.push({f:grupos.porId[fid], m:grupos.porId[grupos.matrizDe[fid]], contatos:nC, frentes:nS});
+    });
+    return out;
+  }
+  // Junta filiais na matriz: contatos passam para a matriz (sem repetir a mesma pessoa), frentes se juntam com
+  // o status mais adiantado de cada etapa, a habilitação fica com a mais adiantada e cada filial recebe matrizId.
+  // O grupo inteiro é calculado de uma vez (em memória) e só então gravado. Pode rodar de novo sem estragar nada
+  // (serve para juntar o que sobrou de uma importação).
+  function vincularGrupo(matrizId, filialIds, silencioso){
+    if(!dbRef) return Promise.resolve(0);
+    var porId = grupos.porId, m = porId[matrizId];
+    if(m && m.matrizId && porId[m.matrizId]) m = porId[m.matrizId];
+    var fs = [];
+    (filialIds || []).forEach(function(id){ var f = porId[id]; if(f && m && f.id !== m.id && fs.indexOf(f) === -1) fs.push(f); });
+    if(!m || !fs.length) return Promise.resolve(0);
+    var setoresB = bruto.setores || state.setores, contatosB = bruto.contatos || state.contatos;
+    var col = function(c, id){ return dbRef.collection(c).doc(id); };
+    var escritas = [], apagar = [];
+    // contatos
+    var chave = function(c){ var em = normBusca(c.email || "").trim(); return em ? "e:" + em : "n:" + normBusca(c.nome || "").trim(); };
+    var naMatriz = {}, patchContato = {};
+    contatosB.forEach(function(c){ if(c.empresaId === m.id) naMatriz[chave(c)] = {c:c, setores:(c.setores || []).slice(), st:c}; });
+    fs.forEach(function(f){
+      contatosB.forEach(function(c){
+        if(c.empresaId !== f.id) return;
+        var k = chave(c), igual = naMatriz[k];
+        if(!igual){ naMatriz[k] = {c:c, setores:(c.setores || []).slice(), st:c, movido:true}; return; }
+        (c.setores || []).forEach(function(s){ if(igual.setores.indexOf(s) === -1) igual.setores.push(s); });
+        if(rankContato(c.statusTreinamento) > rankContato(igual.st.statusTreinamento)) igual.st = c;
+        igual.mudou = true;
+        apagar.push(function(){ return col("contatos", c.id).delete(); });
+      });
+    });
+    Object.keys(naMatriz).forEach(function(k){
+      var x = naMatriz[k];
+      if(!x.movido && !x.mudou) return;
+      var pc = {};
+      if(x.movido){ pc.empresaId = m.id; pc.empresaNome = m.nome; }
+      if(x.mudou){
+        pc.setores = x.setores;
+        if(x.st !== x.c){ pc.statusTreinamento = x.st.statusTreinamento || "pendente"; pc.agendadoPara = x.st.agendadoPara || ""; pc.agendadoHora = x.st.agendadoHora || ""; if(x.st.concluidoEm) pc.concluidoEm = x.st.concluidoEm; }
+      }
+      escritas.push(function(){ return col("contatos", x.c.id).update(pc); });
+    });
+    // frentes (setor × etapas)
+    var demM = Object.assign({pessoal:false, contabil:false, fiscal:false}, m.setoresDemanda);
+    SETORES.forEach(function(s){
+      var md = setoresB.find(function(x){ return x.empresaId === m.id && x.setor === s.key; });
+      var novo = null, ps = null;
+      fs.forEach(function(f){
+        if(f.setoresDemanda && f.setoresDemanda[s.key]) demM[s.key] = true;
+        var fd = setoresB.find(function(x){ return x.empresaId === f.id && x.setor === s.key; });
+        if(!fd) return;
+        apagar.push(function(){ return col("empresaSetores", fd.id).delete(); });
+        if(!md && !novo){
+          novo = JSON.parse(JSON.stringify(fd)); delete novo.id;
+          novo.empresaId = m.id; novo.empresaNome = m.nome;
+          return;
+        }
+        var alvo = novo || (ps = ps || {etapas:Object.assign({}, md.etapas), analistaId:md.analistaId || "", analistaNome:md.analistaNome || "", impedimento:md.impedimento});
+        alvo.etapas = alvo.etapas || {};
+        Object.keys(fd.etapas || {}).forEach(function(k){
+          var a = alvo.etapas[k], b = fd.etapas[k];
+          if(b && (!a || rankStatus(k, b.status) > rankStatus(k, a.status))) alvo.etapas[k] = b;
+        });
+        if(!String(alvo.analistaNome || "").trim() && String(fd.analistaNome || "").trim()){ alvo.analistaId = fd.analistaId || ""; alvo.analistaNome = fd.analistaNome; }
+        if(!(alvo.impedimento && alvo.impedimento.ativo) && fd.impedimento && fd.impedimento.ativo) alvo.impedimento = fd.impedimento;
+      });
+      if(novo) escritas.push(function(){ return col("empresaSetores", sid(m.id, s.key)).set(novo); });
+      if(ps){ if(!ps.impedimento) delete ps.impedimento; escritas.push(function(){ return col("empresaSetores", md.id).update(ps); }); }
+    });
+    // matriz
+    var pm = {setoresDemanda:demM}, hab = habilitacaoBruta(m);
+    fs.forEach(function(f){
+      var hf = habilitacaoBruta(f);
+      if(RANK_HAB[hf.status] > RANK_HAB[hab.status]) hab = hf;
+      if(f.impedimento && f.impedimento.ativo && !(m.impedimento && m.impedimento.ativo) && !pm.impedimento) pm.impedimento = f.impedimento;
+      if(f.emFoco && !m.emFoco && !pm.emFoco){ pm.emFoco = true; pm.emFocoEm = f.emFocoEm || new Date().toISOString(); }
+      if(f.folhaAtiva && !m.folhaAtiva) pm.folhaAtiva = true;
+    });
+    pm.habilitacao = hab;
+    escritas.push(function(){ return col("empresas", m.id).update(pm); });
+    // filiais: só o vínculo (as filiais de uma filial passam para a mesma matriz)
+    var novas = fs.filter(function(f){ return f.matrizId !== m.id; });
+    fs.forEach(function(f){
+      escritas.push(function(){ return col("empresas", f.id).update({matrizId:m.id, emFoco:false, vinculadaEm:f.vinculadaEm || new Date().toISOString()}); });
+      filiaisDe(f.id).forEach(function(x){ escritas.push(function(){ return col("empresas", x.id).update({matrizId:m.id}); }); });
+    });
+    // Primeiro grava tudo na matriz; só depois apaga o que era das filiais.
+    return Promise.all(escritas.map(function(w){ return w(); })).then(function(){
+      return Promise.all(apagar.map(function(w){ return w(); }));
+    }).then(function(){
+      if(novas.length) registrarAtividade({tipo:"lote", texto:(novas.length === 1 ? "Filial “" + novas[0].nome + "” vinculada" : novas.length + " filiais vinculadas") + " à matriz “" + m.nome + "”"});
+      if(!silencioso) mostrarToast(fs.length === 1 ? "“" + fs[0].nome + "” agora é filial de “" + m.nome + "”." : fs.length + " filiais vinculadas a “" + m.nome + "”.");
+      return fs.length;
+    }).catch(function(err){
+      console.error(err);
+      mostrarToast("Não foi possível vincular a “" + m.nome + "”. Tente de novo.");
+      return 0;
+    });
+  }
+  function vincularFilial(filialId, matrizId, silencioso){ return vincularGrupo(matrizId, [filialId], silencioso); }
+  function desvincularFilial(filialId){
+    var f = grupos.porId[filialId], m = f && grupos.porId[f.matrizId];
+    if(!f || !dbRef) return;
+    confirmar("Desvincular “" + f.nome + "” de “" + (m ? m.nome : "sua matriz") + "”? Ela volta a ser uma empresa separada, sem frentes nem contatos próprios (o que foi juntado continua na matriz).", function(){
+      dbRef.collection("empresas").doc(f.id).update({matrizId:""}).then(function(){
+        registrarAtividade({tipo:"lote", texto:"Filial “" + f.nome + "” desvinculada de “" + (m ? m.nome : "") + "”"});
+        mostrarToast("“" + f.nome + "” voltou a ser uma empresa separada.");
+      });
+    }, "Desvincular");
+  }
+  // Vários grupos: um de cada vez (cada grupo é juntado inteiro de uma vez em vincularGrupo).
+  function vincularVarios(lista, aoFim){
+    var ok = 0;
+    return lista.reduce(function(p, g){ return p.then(function(){ return vincularGrupo(g.m.id, g.fs.map(function(f){ return f.id; }), true).then(function(n){ ok += n; }); }); }, Promise.resolve())
+      .then(function(){ if(aoFim) aoFim(ok); });
+  }
+  // Grupos que parecem matriz + filiais pela raiz do CNPJ (só sugestão: o vínculo é sempre confirmado).
+  function gruposSugeridos(){
+    var porRaiz = {};
+    state.empresas.forEach(function(e){ var r = raizCnpj(e.cnpj); if(r) (porRaiz[r] = porRaiz[r] || []).push(e); });
+    var out = [];
+    Object.keys(porRaiz).forEach(function(r){
+      var es = porRaiz[r];
+      var m = es.filter(function(e){ return ehCnpjMatriz(e.cnpj); })[0];
+      if(!m || es.length < 2) return;
+      var fs = es.filter(function(e){ return e !== m; });
+      if(fs.some(function(e){ return filiaisDe(e.id).length; })) fs = fs.filter(function(e){ return !filiaisDe(e.id).length; });
+      if(fs.length) out.push({m:m, fs:fs});
+    });
+    return out.sort(function(a, b){ return COLLATOR(String(a.m.nome || ""), String(b.m.nome || "")); });
+  }
+  function seloFiliais(e){
+    var fs = filiaisDe(e.id);
+    if(!fs.length) return "";
+    var tit = "Filiais: " + fs.map(function(x){ return x.nome + (x.cnpj ? " (" + x.cnpj + ")" : ""); }).join(" · ");
+    return '<span class="efil" title="' + esc(tit) + '">+' + fs.length + ' filia' + (fs.length === 1 ? 'l' : 'is') + '</span>';
+  }
+  // A busca acha a matriz pelo nome ou CNPJ de uma filial.
+  function matrizesPorBuscaFilial(qn, qd){
+    var achou = {};
+    if(!qn && !(qd && qd.length >= 3)) return achou;
+    Object.keys(grupos.matrizDe).forEach(function(fid){
+      var f = grupos.porId[fid];
+      if((qn && normBusca(f.nome).indexOf(qn) !== -1) || (qd && qd.length >= 3 && String(f.cnpj || "").replace(/\D/g, "").indexOf(qd) !== -1)) achou[grupos.matrizDe[fid]] = true;
+    });
+    return achou;
+  }
   var ui = {
     view:"dashboard",
     agendaDia:null, agendar:{aberto:false, sel:[], data:"", hora:"", mes:"", opcoes:[], ativo:0}, expanded:new Set(), editEmpresa:new Set(), expandedFunc:new Set(), expandedGroups:new Set(["secao:empresas", "secao:contatos"]), collapsedOverride:new Set(), expandedEtapas:new Set(), focoAbertas:new Set(), focoAcaoAberta:new Set(), focoRecemAdicionada:null,
@@ -2526,6 +2737,8 @@
         if(ed.status !== "agendado") return;
         var fAg = funcAnalistaDoDoc(s);
         if(fAg && fAg.statusTreinamento === "agendado") return; // a própria pessoa já está na agenda
+        // A pessoa já está treinada no cadastro dela em Equipe: o agendamento antigo da frente não vale mais.
+        if(etapaAnalistaEfetiva(s).status === "concluido") return;
         out.push({tipo:"etapa", id:s.id, nome:String(s.analistaNome || "").trim() || "Analista não definido", agendadoPara:ed.agendadoPara || "", agendadoHora:ed.agendadoHora || "", empresaId:e.id, empresaNome:e.nome, setor:s.setor});
       });
     });
@@ -3209,6 +3422,7 @@
       state.contatos.forEach(function(c){ if(normBusca(c.nome).indexOf(qn) !== -1 || normBusca(c.email).indexOf(qn) !== -1) achadasPorPessoa[c.empresaId] = true; });
       state.setores.forEach(function(sd){ if(normBusca(sd.analistaNome).indexOf(qn) !== -1) achadasPorPessoa[sd.empresaId] = true; });
     }
+    Object.assign(achadasPorPessoa, matrizesPorBuscaFilial(qn, qd));
     var lista = state.empresas.filter(function(e){
       if(qn && normBusca(e.nome).indexOf(qn) === -1 && !(qd.length >= 3 && String(e.cnpj || "").replace(/\D/g, "").indexOf(qd) !== -1) && !achadasPorPessoa[e.id]) return false;
       if(ui.filtroSetor !== "todos" && !(e.setoresDemanda && e.setoresDemanda[ui.filtroSetor])) return false;
@@ -3404,7 +3618,7 @@
     return '<div class="erow'+(aberto?" open":"")+(selec?" sel":"")+'" data-id="'+e.id+'">' +
       '<div class="erow-main" data-action="toggle">' +
         CHEV +
-        '<span class="ecol-name"><input type="checkbox" class="sel-emp" data-action="sel-empresa" data-id="'+e.id+'"'+(selec?" checked":"")+' aria-label="Selecionar '+esc(e.nome)+'" title="Selecionar para ações em lote"><button class="focostar'+(e.emFoco?" on":"")+'" data-action="toggle-foco" data-id="'+e.id+'" title="'+(e.emFoco?"Remover do foco":"Adicionar ao foco")+'">★</button><span class="ecol-txt"><span class="ename">'+esc(e.nome)+'</span>'+(sub.length?'<span class="esub">'+sub.join('')+'</span>':'')+(motivoImp?'<span class="eimp" title="'+esc(motivoImp)+'">'+esc(cortar(motivoImp, 80))+'</span>':'')+'</span></span>' +
+        '<span class="ecol-name"><input type="checkbox" class="sel-emp" data-action="sel-empresa" data-id="'+e.id+'"'+(selec?" checked":"")+' aria-label="Selecionar '+esc(e.nome)+'" title="Selecionar para ações em lote"><button class="focostar'+(e.emFoco?" on":"")+'" data-action="toggle-foco" data-id="'+e.id+'" title="'+(e.emFoco?"Remover do foco":"Adicionar ao foco")+'">★</button><span class="ecol-txt"><span class="ename">'+esc(e.nome)+seloFiliais(e)+'</span>'+(sub.length?'<span class="esub">'+sub.join('')+'</span>':'')+(motivoImp?'<span class="eimp" title="'+esc(motivoImp)+'">'+esc(cortar(motivoImp, 80))+'</span>':'')+'</span></span>' +
         '<span class="erow-tracks">'+trilhas+'</span>' +
         '<span class="epct"><span class="epct-bar"><i style="width:'+Math.round(pct*100)+'%"></i></span><b>'+Math.round(pct*100)+'%</b></span>' +
       '</div>' +
@@ -3426,7 +3640,6 @@
           '</div>' +
           '<div class="metaline">' +
             '<label><input type="checkbox" class="ee-folha" '+(e.folhaAtiva?"checked":"")+'> Tem folha ativa</label>' +
-            '<label><input type="checkbox" class="ee-rubricas" '+(e.precisaRubricas?"checked":"")+'> Precisa configurar rubricas/variáveis</label>' +
             '<label><input type="checkbox" class="ee-ativo" '+(e.ativo!==false?"checked":"")+'> Empresa ativa</label>' +
           '</div>' +
           '<div class="metaline">' +
@@ -3435,11 +3648,36 @@
               return '<label><input type="checkbox" class="ee-setor" data-setor="'+s.key+'" '+((e.setoresDemanda&&e.setoresDemanda[s.key])?"checked":"")+'> '+s.label+'</label>';
             }).join("") +
           '</div>' +
+          filiaisEditHTML(e) +
           '<div><button class="linkish red" data-action="excluir-empresa">Excluir esta empresa e todo o progresso</button></div>' +
         '</div>' : '') +
         blocos +
       '</div>' : '') + '</div></div>' +
     '</div>';
+  }
+
+  // Filiais da empresa (no cadastro): lista, vincular outra empresa como filial e sugestão pelo CNPJ.
+  function filiaisEditHTML(e){
+    var fs = filiaisDe(e.id), r = raizCnpj(e.cnpj);
+    var mesmaRaiz = function(x){ return !!r && raizCnpj(x.cnpj) === r; };
+    var lista = fs.map(function(f){
+      return '<li><span class="fil-nome">'+esc(f.nome)+'</span>'+(f.cnpj ? '<span class="fil-cnpj">'+esc(f.cnpj)+'</span>' : '')+'<button type="button" class="linkish" data-action="desvincular-filial" data-id="'+f.id+'">desvincular</button></li>';
+    }).join("");
+    var cand = state.empresas.filter(function(x){ return x.id !== e.id && !filiaisDe(x.id).length; })
+      .sort(function(a, b){ return (mesmaRaiz(b) ? 1 : 0) - (mesmaRaiz(a) ? 1 : 0) || COLLATOR(String(a.nome || ""), String(b.nome || "")); });
+    var opts = cand.map(function(x){ return '<option value="'+x.id+'">'+esc(x.nome)+(x.cnpj ? ' · '+esc(x.cnpj) : '')+(mesmaRaiz(x) ? ' (mesma raiz de CNPJ)' : '')+'</option>'; }).join("");
+    var sug = "";
+    if(!fs.length && r && !ehCnpjMatriz(e.cnpj)){
+      var mz = state.empresas.find(function(x){ return x.id !== e.id && mesmaRaiz(x) && ehCnpjMatriz(x.cnpj); });
+      if(mz) sug = '<p class="fil-sug">Pelo CNPJ, esta empresa parece filial de <b>'+esc(mz.nome)+'</b>. <button type="button" class="linkish" data-action="vincular-como-filial" data-filial="'+e.id+'" data-matriz="'+mz.id+'">Vincular como filial</button></p>';
+    }
+    return '<div class="efiliais"><span class="eedit-lbl">Filiais'+(fs.length ? ' ('+fs.length+')' : '')+'</span>' +
+      (lista ? '<ul class="fil-lista">'+lista+'</ul>' : '<span class="note">Nenhuma filial vinculada.</span>') +
+      '<div class="fil-add"><select class="fil-sel" aria-label="Empresa que é filial desta"><option value="">Escolha a empresa que é filial…</option>'+opts+'</select><button type="button" class="fbtn" data-action="vincular-filial" data-matriz="'+e.id+'">Vincular filial</button></div>' + sug +
+      '<p class="note">Ao vincular, os contatos, as frentes e as etapas da filial passam para esta empresa (fica o status mais adiantado de cada etapa) e o grupo conta como uma empresa só.</p></div>';
+  }
+  function confirmarVinculo(f, m){
+    confirmar('Vincular “'+f.nome+'” como filial de “'+m.nome+'”? Os contatos, as frentes e as etapas dela passam para a matriz (fica o status mais adiantado de cada etapa) e ela sai das listas e contagens. Desvincular depois não traz esses dados de volta; se tiver dúvida, baixe o backup antes.', function(){ vincularFilial(f.id, m.id); }, "Vincular");
   }
 
   // Habilitação no Domínio: uma linha só, acima dos setores (vale para a empresa toda).
@@ -3683,8 +3921,23 @@
     return s ? (SETOR_LABEL[s.setor] || s.setor) + ": " + (s.impedimento.descricao || "impedimento") : "";
   }
 
+  // O que falta no cadastro da empresa em foco: analista ou contato de cliente em algum setor com demanda.
+  function faltasCadastroFoco(e, docs){
+    var semAna = [], semCont = [];
+    frentesDaEmpresa(e, docs).forEach(function(f){
+      var rot = SETOR_LABEL[f.setor] || f.setor;
+      if(!String(f.analistaNome || "").trim()) semAna.push(rot);
+      if(!contatosDoSetor(e.id, f.setor).length) semCont.push(rot);
+    });
+    var linhas = [];
+    if(semAna.length) linhas.push("Sem analista: " + semAna.join(", "));
+    if(semCont.length) linhas.push("Sem contato de cliente: " + semCont.join(", "));
+    var rotulo = semAna.length && semCont.length ? "Falta analista e contato" : semAna.length ? "Falta analista" : semCont.length ? "Falta contato de cliente" : "";
+    return {tem:!!linhas.length, rotulo:rotulo, detalhe:linhas.join(" · ")};
+  }
   function renderFocoCard(e, docs){
     var r = resumoEmpresaFoco(e, docs);
+    var falta = faltasCadastroFoco(e, docs);
     var recolhida = !ui.focoAbertas.has(e.id);
     var pct = Math.round(r.pct * 100);
     var dias = diasEmFoco(e);
@@ -3731,11 +3984,11 @@
       '</div>';
     }
 
-    return '<div class="fcard'+(recolhida?" recolhida":"")+(r.completa?" completa":"")+'" data-id="'+e.id+'">' +
+    return '<div class="fcard'+(recolhida?" recolhida":"")+(r.completa?" completa":"")+(falta.tem?" falta":"")+'" data-id="'+e.id+'"'+(falta.tem ? ' title="'+esc(falta.detalhe)+'"' : '')+'>' +
       '<div class="fcard-head">' +
         '<button type="button" class="fcard-toggle" data-action="foco-recolher" data-id="'+e.id+'" title="Recolher ou expandir">'+CHEV+'</button>' +
         '<div class="fcard-title" data-action="foco-recolher" data-id="'+e.id+'">' +
-          '<div class="fcard-name">'+esc(e.nome)+(imp ? '<button type="button" class="flagbadge" data-action="ir-impedimentos" title="'+esc(imp)+'"><i></i>'+esc(cortar(imp, 48))+'</button>' : '')+'</div>' +
+          '<div class="fcard-name">'+esc(e.nome)+(falta.tem ? '<span class="ffalta" title="'+esc(falta.detalhe)+'">'+falta.rotulo+'</span>' : '')+(imp ? '<button type="button" class="flagbadge" data-action="ir-impedimentos" title="'+esc(imp)+'"><i></i>'+esc(cortar(imp, 48))+'</button>' : '')+'</div>' +
           '<div class="fcard-sub">'+sub.join('<span class="sep">·</span>')+'</div>' +
           acao +
           (recolhida ? '<div class="fcard-trilha erow-tracks">'+trilhasEmpresaHTML(e, docs).replace(/ data-tip="<b>([^<]*)<\/b>([^"]*)"/g, ' title="$1: $2"')+'</div>' : '') +
@@ -4232,8 +4485,11 @@
     var doc = state.setores.find(function(s){ return s.id === docId; });
     var statusAntes = statusDe(doc, etapaKey, empresaId, setorKey);
     var dataAntes = (doc && doc.etapas && doc.etapas[etapaKey] && doc.etapas[etapaKey].data) || "";
-    if(statusAntes === novo) return;
     var funcT = etapaKey === "treinamentoAnalista" ? funcAnalistaDoDoc(doc) : null;
+    // Treinamento do analista herdado da pessoa: a frente pode ter um registro antigo (ex.: "agendado")
+    // mesmo com a pessoa já treinada. Nesse caso grava na frente para ela ficar igual, em vez de ignorar o clique.
+    var ownSt = (doc && doc.etapas && doc.etapas.treinamentoAnalista && doc.etapas.treinamentoAnalista.status) || "pendente";
+    if(statusAntes === novo && !(funcT && ownSt !== novo)) return;
     if(funcT){
       // O treinamento é da pessoa: grava no cadastro dela e na frente, com um só "Desfazer" para os dois.
       var ownAntes = Object.assign({status:"pendente", data:"", agendadoPara:""}, doc.etapas && doc.etapas.treinamentoAnalista);
@@ -4242,7 +4498,8 @@
       registrarAtividade({tipo:"etapa", empresaId:empresaId, empresaNome:e.nome, setor:setorKey, item:etapaKey, de:statusAntes, para:novo});
       doc.etapas = Object.assign({}, doc.etapas, {treinamentoAnalista:Object.assign({}, doc.etapas && doc.etapas.treinamentoAnalista, ownNovo)});
       dbRef.collection("empresaSetores").doc(docId).update({etapas:{treinamentoAnalista:ownNovo}});
-      definirStatusFuncionario(funcT.id, novo, ownNovo.agendadoPara, true);
+      if((funcT.statusTreinamento || "pendente") !== novo) definirStatusFuncionario(funcT.id, novo, ownNovo.agendadoPara, true);
+      else renderAll();
       if(!semDesfazer) mostrarToast("Treinamento de "+funcT.nome+": "+STATUS_LABEL[novo], "Desfazer", function(){
         Object.assign(funcT, fAntes);
         doc.etapas = Object.assign({}, doc.etapas, {treinamentoAnalista:Object.assign({}, doc.etapas.treinamentoAnalista, ownAntes)});
@@ -5335,7 +5592,9 @@
       });
     });
     p.semCargo = state.funcionarios.filter(function(f){ return !String(f.cargo || "").trim(); }).sort(function(a, b){ return a.nome.localeCompare(b.nome, "pt-BR"); });
-    p.total = p.analistas.length + p.contatosSemSetor.length + p.contatosForaDemanda.length + (p.semData.length ? 1 : 0) + p.semCargo.length;
+    p.grupos = gruposSugeridos();
+    p.filiaisComDados = filiaisComDados();
+    p.total = p.grupos.length + p.filiaisComDados.length + p.analistas.length + p.contatosSemSetor.length + p.contatosForaDemanda.length + (p.semData.length ? 1 : 0) + p.semCargo.length;
     return p;
   }
   function renderConferir(){
@@ -5352,6 +5611,18 @@
       return '<details class="conf-sec"'+(ui.confAbertas[tit] ? ' open' : '')+' data-tit="'+esc(tit)+'"><summary><span class="conf-tit">'+tit+'</span><span class="conf-n">'+n+'</span></summary><p class="conf-ajuda">'+ajuda+'</p>'+corpo+'</details>';
     };
     var h = "";
+    var nFil = p.grupos.reduce(function(n, g){ return n + g.fs.length; }, 0);
+    h += secao("Empresas que parecem matriz e filiais", "Mesma raiz de CNPJ (8 primeiros dígitos), com a matriz terminando em 0001. Ao vincular, os contatos, as frentes e as etapas das filiais passam para a matriz (fica o status mais adiantado de cada etapa) e o grupo conta como uma empresa só. Baixe o backup completo antes de vincular muitos de uma vez.", p.grupos.length,
+      (p.grupos.length > 1 ? '<div class="conf-item conf-todos"><span class="conf-main"><b>'+p.grupos.length+' grupos · '+nFil+' filiais</b></span><span class="conf-acoes"><button type="button" class="fbtn" data-action="conf-vincular-todos">Vincular todos</button></span></div>' : '') +
+      p.grupos.slice(0, LIM).map(function(g){
+        return '<div class="conf-item"><span class="conf-main"><b>'+esc(g.m.nome)+'</b><span class="conf-sub">Matriz '+esc(g.m.cnpj || "")+' · filia'+(g.fs.length === 1 ? 'l' : 'is')+': '+g.fs.map(function(f){ return esc(f.nome)+(f.cnpj ? ' ('+esc(f.cnpj)+')' : ''); }).join(", ")+'</span></span>' +
+          '<span class="conf-acoes"><button type="button" class="fbtn" data-action="conf-vincular-grupo" data-matriz="'+g.m.id+'">Vincular '+(g.fs.length === 1 ? 'a filial' : 'as '+g.fs.length+' filiais')+'</button></span></div>';
+      }).join("") + mais(p.grupos.length));
+    h += secao("Filiais com dados ainda separados", "A filial já está ligada à matriz, mas ainda tem contatos ou frentes próprios (por exemplo, vindos de uma importação). Juntar passa tudo para a matriz.", p.filiaisComDados.length,
+      p.filiaisComDados.slice(0, LIM).map(function(x){
+        return '<div class="conf-item"><span class="conf-main"><b>'+esc(x.f.nome)+'</b><span class="conf-sub">filial de '+esc(x.m.nome)+' · '+x.contatos+' contato(s) · '+x.frentes+' frente(s)</span></span>' +
+          '<span class="conf-acoes"><button type="button" class="fbtn" data-action="conf-juntar-filial" data-filial="'+x.f.id+'">Juntar na matriz</button></span></div>';
+      }).join("") + mais(p.filiaisComDados.length));
     h += secao("Analistas que não estão cadastrados na Equipe", "Frentes com um nome digitado que não corresponde a ninguém da Equipe: ficam fora da carteira, do filtro por analista e do treinamento herdado.", p.analistas.length,
       p.analistas.slice(0, LIM).map(function(a){
         var setores = Object.keys(a.setores).map(function(k){ return SETOR_TAG[k] + " " + a.setores[k]; }).join(" · ");
@@ -5510,6 +5781,26 @@
     if(a === "ver-sem-contato"){ ui.soSemContato = true; irParaEmpresaComSetor("todos"); return; }
     if(/^conf-/.test(a)) memoProb.sujo = true;
     if(a === "conf-tudo"){ ui.confTudo = true; renderConferir(); return; }
+    if(a === "conf-vincular-grupo"){
+      var cg = gruposSugeridos().find(function(g){ return g.m.id === el.getAttribute("data-matriz"); });
+      if(!cg) return;
+      confirmar('Vincular '+(cg.fs.length === 1 ? '“'+cg.fs[0].nome+'”' : 'as '+cg.fs.length+' filiais')+' a “'+cg.m.nome+'”? Os contatos, as frentes e as etapas das filiais passam para a matriz (fica o status mais adiantado de cada etapa).', function(){
+        el.disabled = true;
+        vincularGrupo(cg.m.id, cg.fs.map(function(f){ return f.id; }));
+      }, "Vincular");
+      return;
+    }
+    if(a === "conf-vincular-todos"){
+      var tg = gruposSugeridos(), tn = tg.reduce(function(n, g){ return n + g.fs.length; }, 0);
+      if(!tg.length) return;
+      confirmar('Vincular '+tn+' filiais em '+tg.length+' grupos? Em cada grupo, os contatos, as frentes e as etapas das filiais passam para a matriz (fica o status mais adiantado de cada etapa). Recomendo baixar o backup completo antes.', function(){
+        el.disabled = true;
+        mostrarToast("Vinculando "+tn+" filiais…");
+        vincularVarios(tg, function(n){ mostrarToast(n+" filiais vinculadas em "+tg.length+" grupos."); });
+      }, "Vincular todos");
+      return;
+    }
+    if(a === "conf-juntar-filial"){ var jfId = el.getAttribute("data-filial"); el.disabled = true; vincularFilial(jfId, grupos.matrizDe[jfId]); return; }
     if(a === "conf-cadastrar-analista"){
       if(!dbRef) return;
       var caNome = el.getAttribute("data-nome");
@@ -5736,6 +6027,19 @@
       }, "Tirar do foco");
       return;
     }
+    if(a === "vincular-filial"){
+      var vfBox = el.closest(".efiliais"), vfSel = vfBox && vfBox.querySelector(".fil-sel");
+      var vfF = vfSel && grupos.porId[vfSel.value], vfM = grupos.porId[el.getAttribute("data-matriz")];
+      if(!vfF){ if(vfSel) vfSel.focus(); mostrarToast("Escolha a empresa que é filial."); return; }
+      if(vfM) confirmarVinculo(vfF, vfM);
+      return;
+    }
+    if(a === "vincular-como-filial"){
+      var vcF = grupos.porId[el.getAttribute("data-filial")], vcM = grupos.porId[el.getAttribute("data-matriz")];
+      if(vcF && vcM) confirmarVinculo(vcF, vcM);
+      return;
+    }
+    if(a === "desvincular-filial"){ desvincularFilial(el.getAttribute("data-id")); return; }
     if(a === "editar-empresa"){
       var eeId = el.getAttribute("data-id");
       if(ui.editEmpresa.has(eeId)) ui.editEmpresa.delete(eeId); else ui.editEmpresa.add(eeId);
@@ -5746,9 +6050,11 @@
       var row2 = el.closest(".erow"), eid = row2.getAttribute("data-id");
       var emp = state.empresas.find(function(x){ return x.id === eid; });
       var contatosEmp = state.contatos.filter(function(c){ return c.empresaId === eid; });
-      confirmar('Excluir “'+(emp?emp.nome:"esta empresa")+'” e todo o progresso registrado?'+(contatosEmp.length ? ' Os '+contatosEmp.length+' contato(s) de cliente dessa empresa também serão excluídos.' : ''), function(){
+      var filsEmp = filiaisDe(eid);
+      confirmar('Excluir “'+(emp?emp.nome:"esta empresa")+'” e todo o progresso registrado?'+(contatosEmp.length ? ' Os '+contatosEmp.length+' contato(s) de cliente dessa empresa também serão excluídos.' : '')+(filsEmp.length ? ' As '+filsEmp.length+' filial(is) dela voltam a ser empresas separadas.' : ''), function(){
         if(!dbRef) return;
         dbRef.collection("empresas").doc(eid).delete();
+        filsEmp.forEach(function(f){ dbRef.collection("empresas").doc(f.id).update({matrizId:""}); });
         state.setores.filter(function(s){ return s.empresaId === eid; }).forEach(function(s){ dbRef.collection("empresaSetores").doc(s.id).delete(); });
         contatosEmp.forEach(function(c){ dbRef.collection("contatos").doc(c.id).delete(); });
       });
@@ -6264,9 +6570,10 @@
       if(!q){ abrir(false); matches = []; return; }
       var qd = raw.replace(/\D/g, "");
 
+      var porFilial = matrizesPorBuscaFilial(normBusca(raw), qd);
       var itensEmp = state.empresas.filter(function(e){
-        return norm(e.nome).indexOf(q) !== -1 || (qd.length >= 3 && String(e.cnpj||"").replace(/\D/g,"").indexOf(qd) !== -1);
-      }).slice(0, 5).map(function(e){ return {tipo:"Empresa", id:e.id, titulo:e.nome, sub:e.cnpj || ""}; });
+        return norm(e.nome).indexOf(q) !== -1 || (qd.length >= 3 && String(e.cnpj||"").replace(/\D/g,"").indexOf(qd) !== -1) || porFilial[e.id];
+      }).slice(0, 5).map(function(e){ return {tipo:"Empresa", id:e.id, titulo:e.nome, sub:(e.cnpj || "") + (porFilial[e.id] && norm(e.nome).indexOf(q) === -1 ? " · achada pela filial" : "")}; });
 
       var itensAna = analistasUnicos(q).slice(0, 5).map(function(nome){
         var n = state.setores.filter(function(s){ return s.analistaNome === nome; }).length;
@@ -6551,13 +6858,19 @@
     delete form.dataset.confirmado;
     var dem = {pessoal:$("#fe-pessoal").checked, contabil:$("#fe-contabil").checked, fiscal:$("#fe-fiscal").checked};
     var folha = $("#fe-folha").checked, rubricas = $("#fe-rubricas").checked;
+    var cnpjNovo = $("#fe-cnpj").value.trim();
     dbRef.collection("empresas").add({
-      nome:nome, cnpj:$("#fe-cnpj").value.trim(), ativo:true, folhaAtiva:folha, precisaRubricas:rubricas,
+      nome:nome, cnpj:cnpjNovo, ativo:true, folhaAtiva:folha, precisaRubricas:rubricas,
       setoresDemanda:dem, impedimento:{ativo:false, descricao:""}, exemplo:false, criadoEm:new Date().toISOString()
     }).then(function(ref){
       var stub = {id:ref.id, nome:nome};
       SETORES.forEach(function(s){ if(dem[s.key]) ensureSetorDoc(stub, s.key); });
       registrarAtividade({tipo:"empresa", empresaId:ref.id, empresaNome:nome});
+      // Mesma raiz de CNPJ de uma matriz já cadastrada: oferece cadastrar como filial dela.
+      var rz = raizCnpj(cnpjNovo), mz = rz && !ehCnpjMatriz(cnpjNovo) && state.empresas.find(function(x){ return x.id !== ref.id && raizCnpj(x.cnpj) === rz && ehCnpjMatriz(x.cnpj); });
+      if(mz) setTimeout(function(){
+        mostrarToast("“"+nome+"” parece filial de “"+mz.nome+"” (mesma raiz de CNPJ).", "Vincular como filial", function(){ vincularFilial(ref.id, mz.id); });
+      }, 600);
     });
     this.reset();
     avisar('Empresa “'+nome+'” cadastrada.', "ok");
@@ -6706,17 +7019,18 @@
   function montarBackup(evs, nomes){
     var wb = XLSX.utils.book_new();
     var empPorId = {};
-    state.empresas.forEach(function(e){ empPorId[e.id] = e; });
+    todasEmpresas().forEach(function(e){ empPorId[e.id] = e; });
     var cnpjDe = function(id){ return (empPorId[id] && empPorId[id].cnpj) || ""; };
 
-    var empresasRows = [["Nome","CNPJ","Ativo","Folha Ativa","Precisa Rubricas","Setor Pessoal","Setor Contabil","Setor Fiscal","Impedimento Ativo","Impedimento Descricao","Em Foco","Em Foco Desde","Proxima Acao","Prazo","Aguardando","Aguardando (outro)","Cadastrado Em","ID"]];
-    state.empresas.forEach(function(e){
+    var empresasRows = [["Nome","CNPJ","Ativo","Folha Ativa","Precisa Rubricas","Setor Pessoal","Setor Contabil","Setor Fiscal","Impedimento Ativo","Impedimento Descricao","Em Foco","Em Foco Desde","Proxima Acao","Prazo","Aguardando","Aguardando (outro)","Cadastrado Em","Matriz CNPJ","Matriz ID","ID"]];
+    todasEmpresas().forEach(function(e){
+      var mzB = matrizDaFilial(e.id);
       empresasRows.push([
         e.nome||"", e.cnpj||"", e.ativo!==false?"SIM":"NAO", e.folhaAtiva?"SIM":"NAO", e.precisaRubricas?"SIM":"NAO",
         (e.setoresDemanda&&e.setoresDemanda.pessoal)?"SIM":"NAO", (e.setoresDemanda&&e.setoresDemanda.contabil)?"SIM":"NAO", (e.setoresDemanda&&e.setoresDemanda.fiscal)?"SIM":"NAO",
         (e.impedimento&&e.impedimento.ativo)?"SIM":"NAO", (e.impedimento&&e.impedimento.descricao)||"", e.emFoco?"SIM":"NAO", e.emFoco ? isoParaPlanilha(e.emFocoEm) : "",
         e.focoProxAcao||"", e.focoPrazo||"", AGUARDANDO[e.focoAguardando] ? (e.focoAguardando === "outro" ? "Outro" : AGUARDANDO[e.focoAguardando]) : "", e.focoAguardando === "outro" ? (e.focoAguardandoOutro||"") : "",
-        isoParaPlanilha(e.criadoEm), e.id
+        isoParaPlanilha(e.criadoEm), mzB ? (mzB.cnpj || "") : "", mzB ? mzB.id : "", e.id
       ]);
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(empresasRows), "Empresas");
@@ -6725,7 +7039,7 @@
     ETAPAS.forEach(function(et){ setoresHead.push(et.label+" Status", et.label+" Data", et.label+" Agendado Para", et.label+" Horario", et.label+" Obs"); });
     setoresHead.push("Contatos Treinados","Impedimento Ativo","Impedimento Descricao");
     var setoresRows = [setoresHead];
-    state.setores.forEach(function(s){
+    (bruto.setores || state.setores).forEach(function(s){
       var emp = empPorId[s.empresaId];
       var row = [s.empresaNome||"", cnpjDe(s.empresaId), SETOR_LABEL[s.setor]||s.setor, (emp && emp.setoresDemanda && emp.setoresDemanda[s.setor]) ? "SIM" : "NAO",
         s.analistaNome||""];
@@ -6751,7 +7065,7 @@
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(funcRows), "Funcionarios");
 
     var contRows = [["Nome","Email","Empresa","CNPJ Empresa","Setores que Acessa","Status Treinamento","Agendado Para","Horario","Concluido Em","Sócio","Cadastrado Em","ID"]];
-    state.contatos.forEach(function(c){
+    (bruto.contatos || state.contatos).forEach(function(c){
       contRows.push([c.nome||"", c.email||"", c.empresaNome||"", cnpjDe(c.empresaId), (c.setores||[]).map(function(s){ return SETOR_LABEL[s]||s; }).join(", "), STATUS_LABEL[c.statusTreinamento]||"Pendente",
         c.statusTreinamento === "agendado" ? (c.agendadoPara||"") : "", c.statusTreinamento === "agendado" ? (c.agendadoHora||"") : "", c.statusTreinamento === "concluido" ? isoParaPlanilha(c.concluidoEm) : "",
         c.socio?"SIM":"NAO", isoParaPlanilha(c.criadoEm), c.id]);
@@ -6781,7 +7095,7 @@
     }
 
     var resumoRows = [["BACKUP · PORTAL DO CLIENTE CONTROLTAX"], ["Gerado em", isoParaPlanilha(new Date().toISOString())], [""],
-      ["Aba","Linhas"], ["Empresas", state.empresas.length], ["Progresso por Setor", state.setores.length], ["Funcionarios", state.funcionarios.length], ["Contatos", state.contatos.length],
+      ["Aba","Linhas"], ["Empresas", todasEmpresas().length], ["Progresso por Setor", (bruto.setores || state.setores).length], ["Funcionarios", state.funcionarios.length], ["Contatos", (bruto.contatos || state.contatos).length],
       ["Alinhamento por Setor", SETORES.length], ["Registro de Atividades", evs.length]].concat(state.auditoriaDominio.length ? [["Auditoria Dominio", state.auditoriaDominio.length]] : []).concat([
       [""], ["Para restaurar, importe este mesmo arquivo na aba Cadastro. O Registro de Atividades é só para consulta: não é reimportado."],
       ["A coluna ID identifica cada registro na restauração: não altere. Em linhas novas, deixe o ID em branco."],
@@ -6795,7 +7109,7 @@
     var hoje = new Date().toISOString().slice(0,10);
     downloadsRef.save({filename:"backup-portal-cliente-controltax-"+hoje+".xlsx", data:blob}).then(function(){
       registrarAtividade({tipo:"backup", texto:"Backup completo baixado"});
-      avisarBackup("Backup baixado com sucesso: " + state.empresas.length + " empresas, " + state.setores.length + " frentes, " + state.contatos.length + " contatos, " + state.funcionarios.length + " funcionários e " + evs.length + " atividades.", "ok");
+      avisarBackup("Backup baixado com sucesso: " + state.empresas.length + " empresas" + (todasEmpresas().length > state.empresas.length ? " (+" + (todasEmpresas().length - state.empresas.length) + " filiais)" : "") + ", " + state.setores.length + " frentes, " + state.contatos.length + " contatos, " + state.funcionarios.length + " funcionários e " + evs.length + " atividades.", "ok");
     }).catch(function(err){
       if(err && err.code === "declined"){ $("#backupStatus").hidden = true; return; }
       avisarBackup("Não foi possível baixar o backup agora. Tente novamente.", "warn");
@@ -6818,11 +7132,13 @@
       ["Status de treinamento (Contatos) aceitos: pendente, agendado, andamento ou concluido. Se agendado, preencha Agendado Para com a data (AAAA-MM-DD) e, se quiser, Horario (HH:MM)."],
       ["Setor (aba Funcionarios) aceito: pessoal, contabil ou fiscal."],
       ["Cargo (aba Funcionarios) aceito: Estagiário(a), Analista, Gestor(a), Coordenador(a), Supervisor(a) ou Diretor(a) (ou em branco)."],
-      ["Setores que Acessa (aba Contatos): liste os setores separados por vírgula, ex.: \"pessoal, fiscal\"."]
+      ["Setores que Acessa (aba Contatos): liste os setores separados por vírgula, ex.: \"pessoal, fiscal\"."],
+      ["Matriz CNPJ (aba Empresas): só para filiais. Informe o CNPJ da matriz; a filial passa a contar junto com ela, e contatos e progresso dela vão para a matriz."]
     ]), "Leia-me");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ["Nome","CNPJ","Ativo","Folha Ativa","Precisa Rubricas","Setor Pessoal","Setor Contabil","Setor Fiscal"],
-      ["Empresa Exemplo Ltda","12.345.678/0001-90","SIM","SIM","NAO","SIM","SIM","NAO"]
+      ["Nome","CNPJ","Ativo","Folha Ativa","Setor Pessoal","Setor Contabil","Setor Fiscal","Matriz CNPJ"],
+      ["Empresa Exemplo Ltda","12.345.678/0001-90","SIM","SIM","SIM","SIM","NAO",""],
+      ["Empresa Exemplo Ltda - Filial","12.345.678/0002-71","SIM","SIM","SIM","SIM","NAO","12.345.678/0001-90"]
     ]), "Empresas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ["Nome","Setor","Cargo","Status Treinamento","Agendado Para","Horario","Observacoes"],
@@ -6868,18 +7184,25 @@
 
   function processarImportacao(wb){
     var resumo = {empresasNovas:0, empresasAtt:0, funcNovos:0, funcAtt:0, contNovos:0, contAtt:0, setoresAtt:0, alinhamentoAtt:0, avisos:[]};
-    var idsEmpresa = new Set(state.empresas.map(function(e){ return e.id; }));
+    var idsEmpresa = new Set(todasEmpresas().map(function(e){ return e.id; }));
     var idsFunc = new Set(state.funcionarios.map(function(f){ return f.id; }));
     var idsSetor = new Set(state.setores.map(function(s){ return s.id; }));
     var idsCont = new Set(state.contatos.map(function(c){ return c.id; }));
 
     var empresaPorNome = {}, empresaPorCnpj = {};
     var digitosCnpj = function(v){ var d = String(v || "").replace(/\D/g, ""); return d.length >= 11 ? d : ""; };
-    state.empresas.forEach(function(e){ empresaPorNome[stripAccents(e.nome).toLowerCase().trim()] = e; var dc = digitosCnpj(e.cnpj); if(dc) empresaPorCnpj[dc] = e; });
+    todasEmpresas().forEach(function(e){ empresaPorNome[stripAccents(e.nome).toLowerCase().trim()] = e; var dc = digitosCnpj(e.cnpj); if(dc) empresaPorCnpj[dc] = e; });
+    // Filial → matriz (as já vinculadas e as que esta planilha vincular): contatos e progresso vão para a matriz.
+    var matrizImport = {}, vinculosImport = [];
+    Object.keys(grupos.matrizDe).forEach(function(fid){ matrizImport[fid] = grupos.matrizDe[fid]; });
+    var nomeEmpresaImport = {};
+    todasEmpresas().forEach(function(e){ nomeEmpresaImport[e.id] = e.nome; });
     // Acha a empresa da linha pelo CNPJ (quando a coluna existe) e, se não der, pelo nome.
     var acharEmpresaLinha = function(row, colNome, colCnpj){
       var dc = digitosCnpj(getCell(row, colCnpj));
-      return (dc && empresaPorCnpj[dc]) || empresaPorNome[stripAccents(String(getCell(row, colNome) || "")).toLowerCase().trim()];
+      var emp = (dc && empresaPorCnpj[dc]) || empresaPorNome[stripAccents(String(getCell(row, colNome) || "")).toLowerCase().trim()];
+      var mz = emp && matrizImport[emp.id];
+      return mz ? {id:mz, nome:nomeEmpresaImport[mz] || emp.nome} : emp;
     };
     var funcPorNome = {};
     state.funcionarios.forEach(function(f){ funcPorNome[stripAccents(f.nome).toLowerCase().trim()] = f; });
@@ -6899,7 +7222,8 @@
         if(!nome) return;
         var key = stripAccents(nome).toLowerCase();
         var idEmpLinha = String(getCell(row,"ID")||"").trim();
-        var existing = (idEmpLinha && idsEmpresa.has(idEmpLinha) && state.empresas.find(function(x){ return x.id === idEmpLinha; })) || empresaPorNome[key];
+        var existing = (idEmpLinha && idsEmpresa.has(idEmpLinha) && todasEmpresas().find(function(x){ return x.id === idEmpLinha; })) || empresaPorNome[key];
+        var matrizCel = String(getCell(row,"Matriz ID")||"").trim(), matrizCnpjCel = String(getCell(row,"Matriz CNPJ")||"").trim();
         var setoresDemanda = {
           pessoal: simNao(getCell(row,"Setor Pessoal"), false),
           contabil: simNao(getCell(row,"Setor Contabil"), false),
@@ -6935,9 +7259,13 @@
           agendar(function(){ return dbRef.collection("empresas").doc(id).set(data); }, function(){ resumo.empresasNovas++; });
         }
         empresaPorNome[key] = {id:id, nome:nome};
+        nomeEmpresaImport[id] = nome;
         if(digitosCnpj(data.cnpj)) empresaPorCnpj[digitosCnpj(data.cnpj)] = {id:id, nome:nome};
+        // Filial: o vínculo é resolvido depois de ler a aba inteira (a matriz pode vir mais abaixo).
+        var ehFilialLinha = !!(matrizCel || digitosCnpj(matrizCnpjCel));
+        if(ehFilialLinha) vinculosImport.push({id:id, nome:nome, matrizId:matrizCel, matrizCnpj:digitosCnpj(matrizCnpjCel), linha:idx+2});
         SETORES.forEach(function(s){
-          if(!setoresDemanda[s.key]) return;
+          if(ehFilialLinha || !setoresDemanda[s.key]) return;
           var sdid = sid(id, s.key);
           if(idsSetor.has(sdid)) return;
           idsSetor.add(sdid);
@@ -6951,6 +7279,16 @@
       });
     }
 
+    // Vínculos de filial lidos na aba Empresas (coluna "Matriz CNPJ" ou "Matriz ID").
+    vinculosImport.forEach(function(v){
+      var mz = (v.matrizId && idsEmpresa.has(v.matrizId) && v.matrizId) || (v.matrizCnpj && empresaPorCnpj[v.matrizCnpj] && empresaPorCnpj[v.matrizCnpj].id) || "";
+      if(mz && matrizImport[mz]) mz = matrizImport[mz];
+      if(!mz || mz === v.id){ resumo.avisos.push("Empresas linha "+v.linha+": matriz de \""+v.nome+"\" não encontrada; ficou como empresa separada."); return; }
+      matrizImport[v.id] = mz;
+      resumo.filiais = (resumo.filiais || 0) + 1;
+      if(dadosEmpresaNova[v.id]) dadosEmpresaNova[v.id].matrizId = mz;
+      else if(grupos.matrizDe[v.id] !== mz) agendar(function(){ return dbRef.collection("empresas").doc(v.id).update({matrizId:mz}); }, null);
+    });
     var wsFunc = wb.Sheets["Funcionarios"];
     if(wsFunc){
       XLSX.utils.sheet_to_json(wsFunc, {defval:""}).forEach(function(row, idx){
@@ -7130,8 +7468,16 @@
                   resumo.contNovos+" contato(s) novo(s), "+resumo.contAtt+" atualizado(s) · "+
                   resumo.setoresAtt+" progresso(s) por setor atualizado(s) · "+
                   resumo.alinhamentoAtt+" alinhamento(s) de setor atualizado(s).";
+        if(resumo.filiais) msg += " " + resumo.filiais + " filial(is) ligada(s) à matriz.";
         registrarAtividade({tipo:"importacao", texto:msg});
         if(resumo.avisos.length) msg += " Avisos: " + resumo.avisos.join(" ");
+        // Filiais com contatos ou frentes próprios: junta na matriz quando os dados novos chegarem do banco.
+        setTimeout(function(){
+          var porM = {};
+          filiaisComDados().forEach(function(x){ (porM[x.m.id] = porM[x.m.id] || {m:x.m, fs:[]}).fs.push(x.f); });
+          var lista = Object.keys(porM).map(function(k){ return porM[k]; });
+          if(lista.length) vincularVarios(lista, function(n){ if(n) mostrarToast("Dados de "+n+" filial(is) juntados nas matrizes."); });
+        }, 2500);
         avisar(msg, resumo.avisos.length ? "warn" : "ok");
         $("#fileImport").value = "";
         $("#fileImportName").textContent = "Nenhum arquivo selecionado";
@@ -8175,7 +8521,7 @@
 
     var POR_PAG_EMP = 22;
     var sw = function(cor){ return '<i style="display:inline-block; width:9px; height:8px; border-radius:1px; background:' + cor + '; margin:0 4px 0 8px;"></i>'; };
-    var legendaTrilha = '<p class="rp-nota">Cada quadrado é uma etapa, nesta ordem: ' + ETAPAS.map(function(e){ return e.label; }).join(" · ") + ' (rubricas só quando se aplicam).' +
+    var legendaTrilha = '<p class="rp-nota">Cada quadrado é uma etapa, nesta ordem: ' + ETAPAS.map(function(e){ return e.label; }).join(" · ") + '.' +
       sw("var(--status-green)") + 'concluída' + sw("var(--st-and)") + 'em andamento' + sw("var(--st-pend)") + 'pendente</p>';
     for(var i = 0; i < m.listaEmp.length; i += POR_PAG_EMP){
       var bloco = m.listaEmp.slice(i, i + POR_PAG_EMP);
@@ -8455,14 +8801,14 @@
     var nEt = ETAPAS.length;
     var colsE = [{h:"Empresa", w:42}, {h:"CNPJ", w:20}, {h:"Setor", w:11}, {h:"Analista", w:24}]
       .concat(ETAPAS.map(function(et){ return {h:et.label, w:17}; }))
-      .concat([{h:"Progresso", w:11, num:true}, {h:"Concluídas no período", w:14, num:true}, {h:"Impedimento", w:32}, {h:"Em foco", w:9}]);
+      .concat([{h:"Progresso", w:11, num:true}, {h:"Concluídas no período", w:14, num:true}, {h:"Impedimento", w:32}, {h:"Em foco", w:9}, {h:"Filiais (CNPJs)", w:36}]);
     var linhasE = [];
     m.listaEmp.forEach(function(o){
       o.frentes.forEach(function(fr){
         var d = fr.doc || {};
         linhasE.push([o.empresa.nome, o.empresa.cnpj || "", fr.setor.label, d.analistaNome || ""]
           .concat(ETAPAS.map(function(et){ return (et.onlyIf && !et.onlyIf(fr.empresa, fr.setor.key)) ? "n/a" : statusDe(fr.doc, et.key, fr.empresa.id, fr.setor.key); }))
-          .concat([fr.prog, fr.periodo, (d.impedimento && d.impedimento.ativo) ? (d.impedimento.descricao || "Sim") : "", o.empresa.emFoco ? "Sim" : ""]));
+          .concat([fr.prog, fr.periodo, (d.impedimento && d.impedimento.ativo) ? (d.impedimento.descricao || "Sim") : "", o.empresa.emFoco ? "Sim" : "", filiaisDe(o.empresa.id).map(function(f){ return f.cnpj || f.nome; }).join(", ")]));
       });
     });
     planilha("Empresas", "Situação por empresa e setor", colsE, linhasE, function(row, vals){
@@ -8533,7 +8879,7 @@
   function sub(name, key, after){
     try{
       dbRef.collection(name).onSnapshot(function(snap){
-        state[key] = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        definirDados(key, snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }));
         chegouDoBanco[key] = true;
         if(faltaCarregar[name]){ delete faltaCarregar[name]; if(!carregando()){ $("#carregandoAviso").hidden = true; doCache = false; } }
         else if(chegouDoBanco.empresas && chegouDoBanco.setores && chegouDoBanco.contatos) $("#carregandoAviso").hidden = true;
@@ -8570,7 +8916,7 @@
     clearTimeout(tCache);
     tCache = setTimeout(function(){
       var copia = {em:Date.now()};
-      CHAVES_CACHE.forEach(function(k){ copia[k] = state[k]; });
+      CHAVES_CACHE.forEach(function(k){ copia[k] = (k in bruto && bruto[k]) || state[k]; });
       abrirCacheLocal().then(function(db){
         try{ db.transaction("dados", "readwrite").objectStore("dados").put(copia, "ultimo"); }catch(e){}
       }).catch(function(){});
@@ -8590,7 +8936,7 @@
   lerCacheLocal().then(function(c){
     // Só usa a cópia se o banco ainda não respondeu e se ela tem até 14 dias.
     if(!c || !carregando() || Date.now() - c.em > 14 * 864e5) return;
-    CHAVES_CACHE.forEach(function(k){ if(Array.isArray(c[k]) && !chegouDoBanco[k]) state[k] = c[k]; });
+    CHAVES_CACHE.forEach(function(k){ if(Array.isArray(c[k]) && !chegouDoBanco[k]) definirDados(k, c[k]); });
     doCache = true;
     var av = $("#carregandoAviso");
     if(av){ av.hidden = false; av.lastChild.textContent = "Mostrando a última cópia salva neste navegador; atualizando com o banco…"; }
@@ -8620,10 +8966,33 @@
     };
     return envolve(db);
   }
+  // Downloads pela página principal: ela também só reconhece dados criados lá. Um Blob ou ArrayBuffer
+  // criado aqui no quadro chegava como "dados inválidos" (bad_request); os bytes são copiados para um
+  // Blob da página principal antes de salvar.
+  function downloadsDoPai(d){
+    var P = window.parent;
+    var bytes = function(x){
+      if(x && typeof x.arrayBuffer === "function") return x.arrayBuffer();
+      if(x && x.buffer && typeof x.byteLength === "number") return Promise.resolve(x.buffer.slice(x.byteOffset || 0, (x.byteOffset || 0) + x.byteLength));
+      return Promise.resolve(x);
+    };
+    return { save:function(req){
+      req = req || {};
+      var pedido = P.JSON.parse(JSON.stringify({filename: String(req.filename || "")}));
+      if(typeof req.data === "string"){ pedido.data = req.data; return d.save(pedido); }
+      return bytes(req.data).then(function(buf){
+        var u = new P.Uint8Array(buf.byteLength);
+        u.set(new Uint8Array(buf));
+        pedido.data = new P.Blob([u]);
+        return d.save(pedido);
+      });
+    }};
+  }
   function usarCap(n){
     try{
       if(window.parent !== window && window.parent.claude && window.parent.claude.use){
         var p = window.parent.claude.use(n);
+        if(n === "downloads") return p.then(function(d){ return d ? downloadsDoPai(d) : d; });
         return n === "db" ? p.then(function(db){ return db ? bancoDoPai(db) : db; }) : p;
       }
     }catch(e){}
