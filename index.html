@@ -3664,9 +3664,24 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     setDpView(btn.dataset.dpView);
   });
 
+  // Os códigos importados das planilhas entraram em "Código", mas são o código no Domínio: move, com confirmação.
+  let migCodAsked = false;
+  async function migrarCodDominio() {
+    if (migCodAsked || state.readOnly || !state.dpLoaded) return;
+    const alvo = state.dpEmpresas.filter(e => e.cod && !e.codigoDominio);
+    if (!alvo.length) return;
+    migCodAsked = true;
+    const ok = await ask(`${alvo.length} empresa(s) têm o número no campo “Código” e o “Código Domínio” vazio.\nMover esses números para o Código Domínio? O campo “Código” fica vazio nelas.`, [{ label:'Agora não', value:false }, { label:'Mover', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    alvo.forEach(e => { const c = e.cod; e.codigoDominio = c; e.cod = ''; marcaHist(e, `Código ${c} movido para Código Domínio`); });
+    renderDpActiveView();
+    const res = await Promise.all(alvo.map(e => persist(() => dpStore.updateFields(e.id, { cod: e.cod, codigoDominio: e.codigoDominio, historico: e.historico, updatedAt: e.updatedAt }))));
+    if (res.every(Boolean)) toast(`${alvo.length} código(s) movidos para Código Domínio e salvos.`);
+  }
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
     evCacheClear();
+    setTimeout(migrarCodDominio, 600);
     if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
     refreshCarteiraOptions();
     refreshSindDatalist();
