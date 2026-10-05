@@ -1864,6 +1864,7 @@
   var ETAPAS = [
     {key:"habilitacaoDominio",   label:"Habilitação no Domínio",        curto:"Habilitação", porEmpresa:true},
     {key:"treinamentoAnalista",  label:"Treinamento do analista",       curto:"Trein. analista"},
+    {key:"cadastroUsuario",      label:"Cadastro do usuário do cliente", curto:"Cadastro usuário", calculada:true},
     {key:"treinamentoCliente",   label:"Treinamento dos clientes",      curto:"Trein. cliente"}
   ];
   var ALINHAMENTO_SETORES = ["pessoal","contabil","fiscal"];
@@ -1927,6 +1928,21 @@
     var fim = st === "concluido" ? lista.map(function(c){ return String(c.concluidoEm||"").slice(0,10); }).sort().pop() : "";
     return {status:st, agendadoPara: st === "agendado" && prox ? prox.agendadoPara : "", agendadoHora: st === "agendado" && prox ? (prox.agendadoHora || "") : "", data:fim||"", total:lista.length, feitos:feitos};
   }
+  // Cadastro do usuário do cliente no Onvio: calculado pelos contatos, como o treinamento. Cada contato guarda
+  // cadastroOnvio {status:"ativo", em, deptos}; sem "deptos" vale para todos os setores do contato.
+  function cadastroAtivoNoSetor(c, setorKey){
+    var co = c && c.cadastroOnvio;
+    if(!co || co.status !== "ativo") return false;
+    return !co.deptos || !co.deptos.length || co.deptos.indexOf(setorKey) !== -1;
+  }
+  function statusCadastroComputado(empresaId, setorKey){
+    var lista = contatosDoSetor(empresaId, setorKey);
+    if(!lista.length) return {status:"pendente", data:"", total:0, feitos:0};
+    var feitos = lista.filter(function(c){ return cadastroAtivoNoSetor(c, setorKey); }).length;
+    var st = feitos === lista.length ? "concluido" : feitos > 0 ? "andamento" : "pendente";
+    var fim = st === "concluido" ? lista.map(function(c){ return String((c.cadastroOnvio && c.cadastroOnvio.em) || "").slice(0,10); }).sort().pop() : "";
+    return {status:st, data:fim || "", total:lista.length, feitos:feitos};
+  }
   // Habilitação no Domínio é uma só para a empresa (gravada em empresas.habilitacao), não por setor.
   var idxEmpresas = {ref:null, n:-1, porId:{}}, idxSetoresEmp = {ref:null, n:-1, mapa:{}};
   function empresaPorId(id){
@@ -1978,6 +1994,7 @@
     if(key === "treinamentoCliente"){
       return statusClienteComputado(empresaId || (setorDoc && setorDoc.empresaId), setorKey || (setorDoc && setorDoc.setor)).status;
     }
+    if(key === "cadastroUsuario") return statusCadastroComputado(empresaId || (setorDoc && setorDoc.empresaId), setorKey || (setorDoc && setorDoc.setor)).status;
     if(key === "treinamentoAnalista") return etapaAnalistaEfetiva(setorDoc).status;
     return (setorDoc && setorDoc.etapas && setorDoc.etapas[key] && setorDoc.etapas[key].status) || "pendente";
   }
@@ -2009,6 +2026,10 @@
   // Status, data e agendamento de uma etapa manual (todas menos Treinamento dos clientes).
   function etapaInfo(doc, key, empresaId){
     if(key === "treinamentoAnalista") return etapaAnalistaEfetiva(doc);
+    if(key === "cadastroUsuario"){
+      var cu = statusCadastroComputado(empresaId || (doc && doc.empresaId), doc && doc.setor);
+      return {status:cu.status, data:cu.data, agendadoPara:"", agendadoHora:"", func:null, herdado:false, total:cu.total, feitos:cu.feitos};
+    }
     if(key === "habilitacaoDominio"){
       var h = habilitacaoEmpresa(empresaId || (doc && doc.empresaId));
       return {status:h.status, data:h.data, agendadoPara:"", agendadoHora:"", obs:h.obs, func:null, herdado:false};
@@ -3806,6 +3827,10 @@
         var comp = statusClienteComputado(e.id, setorKey);
         var edc = (doc && doc.etapas && doc.etapas[et.key]) || {};
         itens.push({tipo:"etapa", key:et.key, label:et.label, status:comp.status, data:"", obs:edc.obs||"", agendadoPara:comp.agendadoPara, agendadoHora:comp.agendadoHora, total:comp.total, feitos:comp.feitos});
+      } else if(et.key === "cadastroUsuario"){
+        var cad = statusCadastroComputado(e.id, setorKey);
+        var edu = (doc && doc.etapas && doc.etapas[et.key]) || {};
+        itens.push({tipo:"etapa", key:et.key, label:et.label, status:cad.status, data:cad.data, obs:edu.obs||"", agendadoPara:"", agendadoHora:"", total:cad.total, feitos:cad.feitos});
       } else {
         var ed = (doc && doc.etapas && doc.etapas[et.key]) || {};
         var inf = etapaInfo(doc, et.key);
@@ -3848,35 +3873,46 @@
       '</div>' +
     '</div>';
   }
+  function cadastroSelectHTML(c, setorKey, prefixo){
+    var ativo = cadastroAtivoNoSetor(c, setorKey);
+    return '<select id="ccad-'+prefixo+c.id+'" class="psel st-'+(ativo ? "concluido" : "pendente")+'" data-action="cont-cadastro" data-id="'+c.id+'" data-setor="'+setorKey+'" title="Cadastro de usuário no Onvio" aria-label="Cadastro no Onvio de '+esc(c.nome)+'">' +
+      '<option value="pendente"'+(ativo ? '' : ' selected')+'>Sem cadastro</option><option value="ativo"'+(ativo ? ' selected' : '')+'>Cadastro ativo</option></select>';
+  }
+  function contatoCadastroFocoHTML(c, setorKey, prefixo, hit, semEmail){
+    return '<div class="ftc-item'+(hit ? ' hit' : '')+'" data-contato-id="'+c.id+'">' +
+      '<div class="ftc-who"><button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>'+seloMesmaPessoa(c)+(semEmail ? '' : '<span>'+esc(c.email||"e-mail não informado")+'</span>')+'</div>' +
+      '<div class="ftc-ctl">'+cadastroSelectHTML(c, setorKey, prefixo)+'</div>' +
+    '</div>';
+  }
   var ICO_NOTA = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.8 8.2h4.4M5.8 10.8h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
   // Uma linha por etapa, com o status já clicável. Observações (e, no treinamento dos clientes,
   // a lista de contatos) ficam atrás de um botão, para o cartão não crescer à toa.
   function renderFocoItem(e, x, it, proxima){
     var key = x.docId+"::"+it.key;
     var open = ui.expandedEtapas.has(key);
-    var isCli = it.key === "treinamentoCliente";
+    var isCli = it.key === "treinamentoCliente", isCad = it.key === "cadastroUsuario", isCalc = isCli || isCad;
     var attrs = 'data-empresa="'+e.id+'" data-setor="'+x.setor.key+'" data-etapa="'+it.key+'"';
-    var ctl = isCli
-      ? '<span class="fchip st-'+it.status+'">'+rotuloStatus(it.status, it.agendadoPara, it.agendadoHora)+'</span>'
+    var ctl = isCalc
+      ? '<span class="fchip st-'+it.status+'">'+(isCad ? STATUS_LABEL[it.status] : rotuloStatus(it.status, it.agendadoPara, it.agendadoHora))+'</span>'
       : seletorEtapa("fst-"+x.docId+"-"+it.key, it.status, e.id, x.setor.key, it.key, it.label) +
         (it.status === "concluido" ? campoConclusao("fcd-"+x.docId+"-"+it.key, attrs, it.data) : '') +
         (it.status === "agendado" ? campoDataAgendada("fag-"+x.docId+"-"+it.key, "ag-data", attrs, it.agendadoPara, it.agendadoHora) +
           (etapaAgendamentoAtrasado(it.agendadoPara) ? '<span class="atrasado" title="A data do treinamento já passou e a etapa continua como Agendada">Atrasado</span>' : '') : '');
     var obs = valorRascunho("obs:"+x.docId+":"+it.key, it.obs);
     var toggleAttrs = 'data-action="foco-etapa" data-key="'+esc(key)+'" data-empresa="'+e.id+'" aria-expanded="'+open+'"';
-    var btn = isCli
+    var btn = isCalc
       ? (it.total
-        ? '<button type="button" class="fitem-btn" '+toggleAttrs+' title="Ver e editar os contatos deste setor">Contatos · '+it.feitos+'/'+it.total+CHEV+'</button>'
+        ? '<button type="button" class="fitem-btn" '+toggleAttrs+' title="Ver e editar os contatos deste setor">'+(isCad ? 'Usuários' : 'Contatos')+' · '+it.feitos+'/'+it.total+CHEV+'</button>'
         : '<button type="button" class="linkish fitem-novo" data-action="foco-contato-novo" data-key="'+esc(key)+'" data-docid="'+x.docId+'" data-empresa="'+e.id+'">+ Cadastrar contato</button>')
       : '<button type="button" class="fitem-nota'+(obs ? ' tem' : '')+'" '+toggleAttrs+' title="'+(obs ? esc(obs) : 'Anotar algo sobre esta etapa')+'" aria-label="Observações de '+esc(it.label)+'">'+ICO_NOTA+'</button>';
     var oid = "fobs-"+x.docId+"-"+it.key;
     var extra = '<label class="ffield"><span class="ffield-top">Observações<span class="fsave" id="fs-'+oid+'"></span></span>' +
       '<input type="text" id="'+oid+'" class="fobs" data-docid="'+x.docId+'" '+attrs+' value="'+esc(obs)+'" placeholder="Anote algo sobre esta etapa…"></label>';
-    if(isCli){
+    if(isCalc){
       var contatosSetor = contatosDoSetor(e.id, x.setor.key);
       var achados = (buscaFocoEmpresa(e) || {contatos:{}}).contatos;
       var listaContatos = contatosSetor.length
-        ? '<div class="ftc-list">'+contatosSetor.map(function(c){ return contatoFocoHTML(c, "fcag-", !!achados[c.id]); }).join("")+'</div>'
+        ? '<div class="ftc-list">'+contatosSetor.map(function(c){ return isCad ? contatoCadastroFocoHTML(c, x.setor.key, "fcad-", !!achados[c.id]) : contatoFocoHTML(c, "fcag-", !!achados[c.id]); }).join("")+'</div>'
         : '<span class="fnote">Nenhum contato de cliente cadastrado para este setor.</span>';
       var formContato = ui.focoContatoForm === x.docId
         ? '<form class="ftc-form" data-action="foco-contato-submit" data-docid="'+x.docId+'" data-empresa="'+e.id+'" data-setor="'+x.setor.key+'">' +
@@ -3890,7 +3926,7 @@
     // No item de "Treinamento dos clientes" a linha inteira abre/fecha (não só o botão Contatos),
     // já que o controle ali é só um selo, sem nada para clicar sem querer.
     return '<div class="fitem'+(open?" open":"")+(proxima?" proxima":"")+'" data-key="'+esc(key)+'">' +
-      '<div class="fitem-row'+(isCli ? ' fitem-row-toggle' : '')+'"'+(isCli ? ' '+toggleAttrs : '')+'>' +
+      '<div class="fitem-row'+(isCalc ? ' fitem-row-toggle' : '')+'"'+(isCalc ? ' '+toggleAttrs : '')+'>' +
         '<span class="fitem-nome"><span class="fitem-rot"'+(it.func ? ' title="Treinamento de '+esc(it.func.nome)+' (cadastro em Equipe): mudar aqui vale para todas as empresas dele(a)"' : '')+'>'+esc(it.label)+'</span>'+(proxima ? '<span class="fprox">Próxima</span>' : '')+'</span>' +
         '<span class="fitem-ctl">'+ctl+'</span>' + btn +
       '</div>' +
@@ -4205,7 +4241,7 @@
   // Uma entrada por frente (empresa × setor) onde a etapa se aplica, já no recorte de setor.
   function itensEtapa(cx, etapaKey){
     var et = ETAPAS.find(function(x){ return x.key === etapaKey; });
-    var isCli = etapaKey === "treinamentoCliente";
+    var isCli = etapaKey === "treinamentoCliente", isCad = etapaKey === "cadastroUsuario";
     var setorSel = cx.setor();
     var porEmpresa = {};
     state.setores.forEach(function(s){ (porEmpresa[s.empresaId] = porEmpresa[s.empresaId] || []).push(s); });
@@ -4227,15 +4263,15 @@
         if(et.onlyIf && !et.onlyIf(e, s.key)) return;
         if(setorSel !== "todos" && s.key !== setorSel) return;
         var doc = docs.find(function(x){ return x.setor === s.key; });
-        var comp = isCli ? statusClienteComputado(e.id, s.key) : null;
-        var contatos = isCli ? contatosDoSetor(e.id, s.key) : [];
-        var ed2 = isCli ? {} : etapaInfo(doc, etapaKey);
+        var comp = isCli ? statusClienteComputado(e.id, s.key) : isCad ? statusCadastroComputado(e.id, s.key) : null;
+        var contatos = isCli || isCad ? contatosDoSetor(e.id, s.key) : [];
+        var ed2 = isCli || isCad ? {} : etapaInfo(doc, etapaKey);
         out.push({
           e:e, s:s, doc:doc, docId:sid(e.id, s.key), ana:resolverAnalista(doc), comp:comp,
-          contatos:contatos, atrasados:contatos.filter(agendamentoAtrasado),
-          st: isCli ? comp.status : statusDe(doc, etapaKey, e.id, s.key),
-          data: isCli ? "" : (ed2.data || ""), func: isCli ? null : ed2.func,
-          agendadoPara: isCli ? "" : (ed2.agendadoPara || ""), agendadoHora: isCli ? "" : (ed2.agendadoHora || "")
+          contatos:contatos, atrasados:isCli ? contatos.filter(agendamentoAtrasado) : [],
+          st: isCli || isCad ? comp.status : statusDe(doc, etapaKey, e.id, s.key),
+          data: isCli || isCad ? "" : (ed2.data || ""), func: isCli || isCad ? null : ed2.func,
+          agendadoPara: isCli || isCad ? "" : (ed2.agendadoPara || ""), agendadoHora: isCli || isCad ? "" : (ed2.agendadoHora || "")
         });
       });
     });
@@ -4262,7 +4298,7 @@
     if(ui[P+"Analista"] && ui[P+"Analista"] !== "__sem__" && !state.funcionarios.some(function(f){ return f.id === ui[P+"Analista"]; })) ui[P+"Analista"] = "";
     var etapaSel = ETAPAS.find(function(et){ return et.key === ui[P+"Sel"]; }) || ETAPAS[0];
     ui[P+"Sel"] = etapaSel.key;
-    var isCli = etapaSel.key === "treinamentoCliente", isAna = etapaSel.key === "treinamentoAnalista";
+    var isCli = etapaSel.key === "treinamentoCliente", isAna = etapaSel.key === "treinamentoAnalista", isCad = etapaSel.key === "cadastroUsuario", isCalc = isCli || isCad;
     var soAtrasados = isCli && ui[P+"Atrasados"];
     var ordem = ordemStatus(etapaSel.key);
     if(ui[P+"Status"] !== "todos" && ordem.indexOf(ui[P+"Status"]) === -1) ui[P+"Status"] = "todos";
@@ -4365,7 +4401,9 @@
       var mantida = ui[P+"Mantidas"].has(it.docId) && !(noEscopo(it) && passaStatus(it));
       var sk = it.s ? it.s.key : "";
       var attrs = 'data-empresa="'+it.e.id+'" data-setor="'+sk+'" data-etapa="'+etapaSel.key+'"';
-      var controle = isCli
+      var controle = isCad
+        ? '<span class="fchip st-'+it.st+'">'+STATUS_LABEL[it.st]+'</span><span class="note">'+it.comp.feitos+'/'+it.comp.total+' cadastrados</span>'
+        : isCli
         ? '<span class="fchip st-'+it.st+'">'+rotuloStatus(it.st, it.comp.agendadoPara, it.comp.agendadoHora)+'</span><span class="note">'+it.comp.feitos+'/'+it.comp.total+' treinados</span>'
         : seletorEtapa(pre+"st-"+it.docId, it.st, it.e.id, sk, etapaSel.key, etapaSel.label) +
           (it.st === "concluido" ? campoConclusao(pre+"cd-"+it.docId+"-"+etapaSel.key, attrs, it.data) : '') +
@@ -4375,11 +4413,11 @@
         ? selectAnalistaHTML(it.doc, it.docId, it.e.id, it.s.key, pre+"ana-"+it.docId) + '<span class="fsave" id="fs-'+pre+'ana-'+it.docId+'"></span>'
         : '';
       var contatosVer = soAtrasados ? it.atrasados : it.contatos;
-      var contatosLinha = isCli
-        ? '<div class="fer-contatos">' + (contatosVer.map(function(c){ return contatoFocoHTML(c, pre+"cag-", false, true); }).join("") || '<span class="fnote">Nenhum contato de cliente cadastrado para este setor.</span>') + '</div>'
+      var contatosLinha = isCalc
+        ? '<div class="fer-contatos">' + (contatosVer.map(function(c){ return isCad ? contatoCadastroFocoHTML(c, sk, pre+"cad-", false, true) : contatoFocoHTML(c, pre+"cag-", false, true); }).join("") || '<span class="fnote">Nenhum contato de cliente cadastrado para este setor.</span>') + '</div>'
         : '';
       return '<div class="fer-row'+(mantida ? " fer-mantida" : "")+'"'+dc+' data-docid="'+it.docId+'"'+(it.s ? ' style="--sc:var(--sector-'+sk+')"' : '')+'>' +
-        (isCli ? '' : '<input type="checkbox" class="fer-sel"'+dc+' data-docid="'+it.docId+'" aria-label="Selecionar '+esc(it.e.nome)+(it.s ? ' · '+it.s.label : '')+'"'+(ui[P+"Selecionadas"].has(it.docId) ? " checked" : "")+'>') +
+        (isCalc ? '' : '<input type="checkbox" class="fer-sel"'+dc+' data-docid="'+it.docId+'" aria-label="Selecionar '+esc(it.e.nome)+(it.s ? ' · '+it.s.label : '')+'"'+(ui[P+"Selecionadas"].has(it.docId) ? " checked" : "")+'>') +
         (it.s ? '<span class="fsetor-tag">'+it.s.tag+'</span>' : '') +
         (mostrarEmpresa ? '<button type="button" class="fer-emp-nome fer-emp-link" data-action="foco-etapa-abrir"'+dc+' data-id="'+it.e.id+'" title="'+esc(cx.tituloAbrir)+'">'+esc(it.e.nome)+'</button>' : '') +
         analista + controle +
@@ -4389,8 +4427,8 @@
     };
     // Grupos (empresa ou analista) recolhíveis; a seleção em lote funciona mesmo com o grupo fechado.
     cx.grupos = {};
-    cx.visiveis = isCli ? [] : visiveis.map(function(it){ return it.docId; });
-    grupos.forEach(function(g){ if(!isCli) cx.grupos[(g.empresa ? "emp:" : "ana:") + g.chave] = g.itens.map(function(it){ return it.docId; }); });
+    cx.visiveis = isCalc ? [] : visiveis.map(function(it){ return it.docId; });
+    grupos.forEach(function(g){ if(!isCalc) cx.grupos[(g.empresa ? "emp:" : "ana:") + g.chave] = g.itens.map(function(it){ return it.docId; }); });
     var totalGrupos = plana ? visiveis.length : grupos.length, limite = cx.paginar ? (ui[P+"Limite"] || CONS_ETAPA_PAGINA) : totalGrupos;
     var html = plana ? '<div class="fer-empresa fer-tabela">' + visiveis.slice(0, limite).map(function(it){ return linha(it, true); }).join("") + '</div>' : grupos.slice(0, limite).map(function(g){
       var gk = (g.empresa ? "emp:" : "ana:") + g.chave;
@@ -4406,7 +4444,7 @@
         (nSelG ? (g.itens.length > 1 || recolhido ? ' · ' : '') + '<b>'+nSelG+' selecionada'+(nSelG === 1 ? '' : 's')+'</b>' : '') + '</span>';
       return '<div class="fer-empresa'+(g.empresa ? '' : ' fer-grupo-ana')+(recolhido ? ' recolhido' : '')+'" data-grupo="'+esc(gk)+'"><div class="fer-empresa-head">' +
           '<button type="button" class="fer-toggle" data-action="fer-grupo-toggle"'+dc+' data-grupo="'+esc(gk)+'" aria-expanded="'+(recolhido ? "false" : "true")+'" aria-label="'+(recolhido ? "Expandir " : "Recolher ")+esc(nome)+'">'+CHEV+'</button>' +
-          (isCli ? '' : '<input type="checkbox" class="fer-sel-grupo"'+dc+' data-grupo="'+esc(gk)+'" aria-label="Selecionar todas as frentes de '+esc(nome)+'"'+(nSelG && nSelG === ids.length ? " checked" : "")+(nSelG && nSelG < ids.length ? ' data-parcial="1"' : '')+'>') +
+          (isCalc ? '' : '<input type="checkbox" class="fer-sel-grupo"'+dc+' data-grupo="'+esc(gk)+'" aria-label="Selecionar todas as frentes de '+esc(nome)+'"'+(nSelG && nSelG === ids.length ? " checked" : "")+(nSelG && nSelG < ids.length ? ' data-parcial="1"' : '')+'>') +
           head + resumo +
         '</div>' +
         (recolhido ? '' : '<div class="fer-rows">'+g.itens.map(function(it){ return linha(it, !g.empresa); }).join("")+'</div>') +
@@ -4421,7 +4459,7 @@
     var todasSel = visiveis.every(function(it){ return ui[P+"Selecionadas"].has(it.docId); });
     if(ordem.indexOf(cx.bulkStatus) === -1) cx.bulkStatus = "concluido";
     var unidade = etapaSel.porEmpresa ? "empresas" : "frentes";
-    var bulk = isCli ? '' :
+    var bulk = isCalc ? '' :
       '<div class="fer-bulk'+(nSel ? " ativo" : "")+'">' +
         '<label class="fer-bulk-todas"><input type="checkbox" id="'+cx.ids.todas+'" class="fer-sel-todas"'+dc+(todasSel ? " checked" : "")+'> Selecionar todas ('+visiveis.length+')</label>' +
         (nSel
@@ -4677,6 +4715,7 @@
           '<span class="pmain-sub">'+esc(c.email||"e-mail não informado")+'</span>' +
         '</div>' +
         '<div class="prow-ctl">' +
+          cadastroSelectHTML(c, setorKey, "cag-") +
           '<select id="csel-cag-'+c.id+'" class="psel st-'+cst+'" data-action="cont-status" data-id="'+c.id+'" aria-label="Treinamento de '+esc(c.nome)+'">' + STATUS_CLIENTE.map(function(st){ return '<option value="'+st+'"'+(cst===st?" selected":"")+'>'+STATUS_LABEL[st]+'</option>'; }).join("") + '</select>' +
           (cst === "agendado" ? campoDataContato(c, "cag-") : '') +
           '<button class="xbtn" data-action="excluir-cont" data-id="'+c.id+'" title="Excluir">✕</button>' +
@@ -4711,6 +4750,14 @@
           '<span class="fchip st-'+comp.status+'">'+rotuloStatus(comp.status, comp.agendadoPara, comp.agendadoHora)+'</span>' +
           '<span class="step-name">'+et.label+'</span>' +
           (comp.total ? '<span class="note">'+comp.feitos+'/'+comp.total+' treinados</span>' : '') +
+        '</div>';
+      }
+      if(et.key === "cadastroUsuario"){
+        var cc = statusCadastroComputado(empresa.id, setorDef.key);
+        return '<div class="step">' +
+          '<span class="fchip st-'+cc.status+'">'+STATUS_LABEL[cc.status]+'</span>' +
+          '<span class="step-name">'+et.label+'</span>' +
+          (cc.total ? '<span class="note">'+cc.feitos+'/'+cc.total+' cadastrados</span>' : '') +
         '</div>';
       }
       var ed = etapaInfo(d, et.key);
@@ -5226,6 +5273,28 @@
     $("#bulkPessoaTodas").textContent = "Selecionar as " + visiveis + " visíveis";
     $("#bulkPessoaTodas").hidden = !visiveis || ui.ultimaListaPessoas.every(function(k){ return ui.selPessoas.has(k); });
   }
+  // O cadastro no Onvio é por empresa (cada contato), diferente do treinamento, que é da pessoa.
+  function definirCadastroContato(id, setorKey, novo){
+    var c = state.contatos.find(function(x){ return x.id === id; });
+    if(!c || !dbRef) return;
+    var antes = c.cadastroOnvio || null, deptos = ((antes && antes.deptos) || []).slice(), patch;
+    if(novo === "ativo"){
+      if(deptos.length && deptos.indexOf(setorKey) === -1) deptos.push(setorKey);
+      patch = {status:"ativo", em:(antes && antes.status === "ativo" && antes.em) || hojeISO(), deptos:deptos};
+    } else {
+      var resto = deptos.filter(function(d){ return d !== setorKey; });
+      patch = deptos.length > 1 && deptos.indexOf(setorKey) !== -1 ? {status:"ativo", em:(antes && antes.em) || hojeISO(), deptos:resto} : {status:"pendente", em:"", deptos:[]};
+    }
+    c.cadastroOnvio = patch;
+    dbRef.collection("contatos").doc(id).update({cadastroOnvio:patch});
+    registrarAtividade({tipo:"cadastro-contato", empresaId:c.empresaId, empresaNome:c.empresaNome, setor:setorKey, nome:c.nome, de:antes && antes.status === "ativo" ? "concluido" : "pendente", para:novo === "ativo" ? "concluido" : "pendente"});
+    renderAll();
+    mostrarToast(c.nome + ": cadastro " + (novo === "ativo" ? "ativo" : "removido"), "Desfazer", function(){
+      c.cadastroOnvio = antes || {status:"pendente", em:"", deptos:[]};
+      dbRef.collection("contatos").doc(id).update({cadastroOnvio:c.cadastroOnvio});
+      renderAll();
+    });
+  }
   // O treinamento é da pessoa: contatos com o mesmo e-mail em outras empresas acompanham.
   function definirStatusContato(csId, novo, agendadoPara, semDesfazer){
     var csObj = state.contatos.find(function(x){ return x.id === csId; });
@@ -5584,7 +5653,7 @@
       fs.forEach(function(sd){
         if(sd.semRegistro) return;
         ETAPAS.forEach(function(et){
-          if(et.porEmpresa || et.key === "treinamentoCliente") return;
+          if(et.porEmpresa || et.calculada || et.key === "treinamentoCliente") return;
           if(et.onlyIf && !et.onlyIf(e, sd.setor)) return;
           var own = sd.etapas && sd.etapas[et.key];
           if(own && own.status === "concluido" && !own.data) p.semData.push({tipo:"etapa", e:e, doc:sd, key:et.key});
@@ -6362,6 +6431,10 @@
       var fsId = el.getAttribute("data-id");
       definirStatusFuncionario(fsId, el.value);
       if(el.value === "agendado") focarDataAgendada("ffag-" + fsId);
+      return;
+    }
+    if(el.getAttribute("data-action") === "cont-cadastro"){
+      definirCadastroContato(el.getAttribute("data-id"), el.getAttribute("data-setor"), el.value);
       return;
     }
     if(el.getAttribute("data-action") === "cont-status"){
@@ -7367,7 +7440,7 @@
         ETAPAS.forEach(function(et){
           var obsCel = getCell(row, et.label+" Obs");
           var obsNova = obsCel !== undefined ? String(obsCel).trim() : undefined;
-          if(et.key === "treinamentoCliente"){
+          if(et.key === "treinamentoCliente" || et.calculada){
             if(obsNova !== undefined) etapas[et.key] = Object.assign({}, etapas[et.key], {obs:obsNova});
             return;
           }
@@ -7591,8 +7664,8 @@
   function razao(a, b){ return b ? a / b : 0; }
   function cortar(txt, n){ txt = String(txt || ""); return txt.length > n ? txt.slice(0, n - 1) + "…" : txt; }
 
-  var TIPOS_ATV = {backup:"Backup", lote:"Ação em lote", etapa:"Etapa", alinhamento:"Alinhamento", setor:"Setor", empresa:"Empresa", contato:"Contato", "treino-contato":"Treino cliente", "acesso-contato":"Acesso contato", "treino-func":"Treino equipe", impedimento:"Impedimento", importacao:"Importação"};
-  var GRUPO_ATV = {backup:"cadastro", lote:"cadastro", etapa:"etapas", alinhamento:"etapas", setor:"cadastro", empresa:"cadastro", importacao:"cadastro", contato:"clientes", "treino-contato":"clientes", "acesso-contato":"clientes", "treino-func":"equipe", impedimento:"impedimentos"};
+  var TIPOS_ATV = {backup:"Backup", lote:"Ação em lote", etapa:"Etapa", alinhamento:"Alinhamento", setor:"Setor", empresa:"Empresa", contato:"Contato", "treino-contato":"Treino cliente", "cadastro-contato":"Cadastro Onvio", "acesso-contato":"Acesso contato", "treino-func":"Treino equipe", impedimento:"Impedimento", importacao:"Importação"};
+  var GRUPO_ATV = {backup:"cadastro", lote:"cadastro", etapa:"etapas", alinhamento:"etapas", setor:"cadastro", empresa:"cadastro", importacao:"cadastro", contato:"clientes", "treino-contato":"clientes", "cadastro-contato":"clientes", "acesso-contato":"clientes", "treino-func":"equipe", impedimento:"impedimentos"};
 
   function rotuloItem(key){
     if(key === "alinhamento") return "Alinhamento com o gestor do setor";
@@ -7608,6 +7681,7 @@
       case "empresa": return {txt:"Empresa cadastrada"};
       case "contato": return {txt:"Contato cadastrado: " + (e.nome || "")};
       case "treino-contato": return {txt:"Treinamento de " + (e.nome || "contato"), de:e.de, para:e.para};
+      case "cadastro-contato": return {txt:"Cadastro no Onvio de " + (e.nome || "contato"), de:e.de, para:e.para};
       case "treino-func": return {txt:"Treinamento de " + (e.nome || "funcionário") + " (equipe)", de:e.de, para:e.para};
       case "impedimento": return {txt:(e.para === "removido" ? "Impedimento resolvido" : "Impedimento registrado") + (e.texto ? ": " + e.texto : "") + (e.resolucao ? " · como: " + e.resolucao : "")};
       case "importacao": return {txt:"Importação de planilha: " + (e.texto || "")};
@@ -7644,7 +7718,7 @@
       var emp = empPorId[s.empresaId];
       ETAPAS.forEach(function(et){
         if(et.porEmpresa) return;
-        var ed = et.key === "treinamentoCliente" ? statusClienteComputado(s.empresaId, s.setor) : (s.etapas && s.etapas[et.key]);
+        var ed = et.key === "treinamentoCliente" ? statusClienteComputado(s.empresaId, s.setor) : et.key === "cadastroUsuario" ? statusCadastroComputado(s.empresaId, s.setor) : (s.etapas && s.etapas[et.key]);
         if(!ed || ed.status !== "concluido" || !ed.data) return;
         if(et.onlyIf && emp && !et.onlyIf(emp, s.setor)) return;
         if(vistos[s.empresaId + "|" + s.setor + "|" + et.key + "|" + ed.data]) return;
@@ -7764,7 +7838,7 @@
         ps.aplic++; ps[st]++; f.aplic++; A.aplic++;
         if(st === "concluido"){
           f.conc++; A.conc++;
-          var ds = et.key === "treinamentoCliente" ? statusClienteComputado(f.empresa.id, f.setor.key).data : etapaInfo(f.doc, et.key, f.empresa.id).data;
+          var ds = et.key === "treinamentoCliente" ? statusClienteComputado(f.empresa.id, f.setor.key).data : et.key === "cadastroUsuario" ? statusCadastroComputado(f.empresa.id, f.setor.key).data : etapaInfo(f.doc, et.key, f.empresa.id).data;
           if(!ds && primeira) semDataConc++;
           if(noPeriodo(ds)){
             ps.periodo++; o.periodoSetor[f.setor.key]++; f.periodo++; A.periodo++;
