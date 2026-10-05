@@ -1,6 +1,6 @@
 # Control Hub (ControlTax) — preferências do projeto
 
-Painel interno da ControlTax. Arquivos: `index.html` (tudo) e `portal.html` (Portal do Cliente). Responder sempre em português.
+Painel interno da ControlTax. Arquivos: `index.html` (tudo), `portal.html` (Portal do Cliente) e `importador.js` (ferramenta Importador Domínio do DP, carregada sob demanda). Responder sempre em português.
 
 ## Design (preferências da usuária)
 - **Nada de formas arredondadas demais.** Cantos retos ou quase retos: 3–4px em chips, etiquetas, botões, cartões, avatares e blocos; até 6px só em janelas grandes. Sem pílulas (raio 999px/14px+). Círculo só onde é semanticamente um ponto ou gráfico (pontos de status, anéis de progresso, rosca).
@@ -15,5 +15,10 @@ Painel interno da ControlTax. Arquivos: `index.html` (tudo) e `portal.html` (Por
 
 ## Fluxo de trabalho
 - Testar com Playwright (servidor `python3 -m http.server 8765`, pdf.js servido localmente) antes de publicar.
-- Commit + push e publicar sempre no mesmo artefato: https://claude.ai/artifact/SGDHdEfbJi2qBjfNRo3vXS (`index.html` + `portal.html`).
+- Commit + push e publicar sempre no mesmo artefato: https://claude.ai/artifact/SGDHdEfbJi2qBjfNRo3vXS (`index.html` + `portal.html` + `importador.js`).
 - Aplicar as melhorias direto, sem pedir permissão a cada passo.
+
+## Ferramentas (DP)
+- `importador.js` é gerado por `scratchpad/imp/build.sh` a partir de `head.js` + `core.js` (saída de `port.py`, que porta o gerador original) + `tail.js`. Editar as partes, nunca o arquivo final. Começa com BOM UTF-8, porque é servido sem charset.
+- Bibliotecas pesadas (SheetJS, pdf.js) vêm do cdnjs sob demanda, nunca embutidas.
+- A regra de negócio do gerador não muda: há teste de regressão byte a byte contra o HTML original (`scratchpad/imp/reg.js`).

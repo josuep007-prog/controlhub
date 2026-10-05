@@ -1352,6 +1352,221 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .portal-frame{position:fixed; inset:0; width:100%; height:100%; border:0; z-index:500; background:var(--page);}
 .portal-frame[hidden]{display:none;}
 body.portal-open{overflow:hidden;}
+/* ============ DP › Ferramentas (vitrine) ============ */
+.fe-wrap{padding:16px 22px 28px; display:flex; flex-direction:column; gap:22px;}
+.fe-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap:10px;}
+.fe-card{display:flex; align-items:flex-start; gap:12px; padding:14px; border:1px solid var(--rule); border-left:3px solid var(--blue-deep); border-radius:4px; background:var(--surface); color:var(--ink); font:inherit; text-align:left; cursor:pointer; transition:border-color .15s, background .15s;}
+.fe-card:hover{background:var(--surface-2); border-color:var(--blue-deep);}
+.fe-card:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.fe-ico{flex:none; width:34px; height:34px; display:grid; place-items:center; border-radius:4px; background:var(--blue-pale); color:var(--blue-deep);}
+.fe-card-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.fe-card-txt b{font-family:"Archivo",sans-serif; font-size:14px;}
+.fe-card-txt > span{font-size:12.5px; color:var(--ink-2); line-height:1.45;}
+.fe-card-txt .fe-card-meta{font-size:11.5px; color:var(--ink-3); margin-top:3px; font-variant-numeric:tabular-nums;}
+.fe-card-ir{flex:none; align-self:center; font-size:12px; font-weight:600; color:var(--blue-deep);}
+.fe-log-h{display:flex; align-items:baseline; gap:10px; margin-bottom:8px;}
+.fe-log-h h3{font-family:"Archivo",sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3);}
+.fe-log-lista{max-height:min(460px, 60vh); overflow:auto; border:1px solid var(--rule); border-radius:4px; scrollbar-width:thin;}
+.fe-table{table-layout:fixed; min-width:780px;} .fe-table th{position:sticky; top:0; z-index:1; white-space:normal;}
+.fe-table td{overflow-wrap:break-word; font-size:12.5px; vertical-align:top;} .fe-table .dp-cell-sub{display:block; white-space:normal;}
+.fe-table th:nth-child(1){width:84px;} .fe-table th:nth-child(2){width:24%;} .fe-table th:nth-child(3){width:116px;} .fe-table th:nth-child(4){width:104px;} .fe-table th:nth-child(5){width:20%;} .fe-table th:nth-child(6){width:108px;} .fe-table th:nth-child(7){width:13%;}
+.fe-num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
+.fe-quando{color:var(--ink-3); font-variant-numeric:tabular-nums;}
+.fe-emp{all:unset; cursor:pointer; color:var(--ink); font-weight:600;} .fe-emp:hover{color:var(--blue-deep); text-decoration:underline;} .fe-emp:focus-visible{outline:2px solid var(--blue-deep);}
+.fe-tool-bar{display:flex; align-items:center; gap:10px; padding:12px 22px 0;}
+.fe-voltar{all:unset; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--blue-deep); padding:4px 0;} .fe-voltar:hover{text-decoration:underline;} .fe-voltar:focus-visible{outline:2px solid var(--blue-deep);}
+.fe-tool-nome{font-size:12.5px; color:var(--ink-3);} .fe-tool-nome::before{content:"/"; margin-right:10px; color:var(--rule-strong);}
+@media (max-width:760px){ .fe-wrap{padding-inline:16px;} .fe-tool-bar{padding-inline:16px;} }
+
+/* ============ Importador Domínio (importador.js) ============ */
+.imp{--imp-mono:"IBM Plex Mono",ui-monospace,monospace; padding:14px 22px 30px; display:flex; flex-direction:column; gap:14px; color:var(--ink); min-width:0;}
+.imp b{font-weight:700;}
+.imp-cab{display:flex; align-items:flex-start; gap:14px 20px; flex-wrap:wrap; justify-content:space-between;}
+.imp-cab-txt{flex:1 1 360px; min-width:0;}
+.imp-cab h3{font-family:"Archivo",sans-serif; font-size:18px; letter-spacing:-.01em;}
+.imp-cab p{margin:4px 0 0; font-size:13px; color:var(--ink-2); line-height:1.5; max-width:72ch;}
+.imp-mods button{padding:7px 14px;} .imp-mods small{font-weight:500; color:var(--ink-3); font-size:11px;}
+.imp-mods button.active{background:var(--blue-deep); color:#fff;} .imp-mods button.active small{color:inherit; opacity:.8;}
+:root[data-theme="dark"] .imp-mods button.active, :root:not([data-theme="light"]) .imp-mods button.active{color:#0B1015;}
+.imp-leiaute > summary{cursor:pointer; font-size:12px; color:var(--ink-3); width:max-content; max-width:100%;} .imp-leiaute > summary:hover{color:var(--ink);}
+.imp-fita{display:flex; margin-top:8px; border:1px solid var(--rule); border-radius:4px; overflow:hidden; font-family:var(--imp-mono); font-size:10.5px;}
+.imp-fita span{flex:var(--n) 1 0; min-width:0; padding:6px 0 6px 4px; border-left:1px solid var(--rule); background:var(--surface); overflow-wrap:anywhere;}
+.imp-fita span:first-child{border-left:0;} .imp-fita span:nth-child(even){background:var(--surface-2);}
+.imp-fita span:hover{background:var(--blue-pale);}
+.imp-fita i{display:block; font-style:normal; color:var(--ink-3);} .imp-fita u{display:block; text-decoration:none; color:var(--ink-2); font-family:"Inter",sans-serif; font-size:10.5px; line-height:1.25;}
+.imp-passo{border:1px solid var(--rule); border-radius:4px; background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s, background .15s;}
+.imp-passo.over{border-color:var(--blue-deep); background:var(--blue-pale);}
+.imp-passo.lendo{opacity:.7; pointer-events:none;}
+.imp-passo-h{display:flex; align-items:center; gap:10px;}
+.imp-passo-h h4{font-family:"Archivo",sans-serif; font-size:14px;}
+.imp-n{flex:none; width:22px; height:22px; display:grid; place-items:center; border-radius:3px; background:var(--blue-deep); color:#fff; font:700 12px var(--imp-mono);}
+:root[data-theme="dark"] .imp-n, :root:not([data-theme="light"]) .imp-n{color:#0B1015;}
+.imp-txt{margin:0; font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+.imp-dica{margin:0; font-size:11.5px; color:var(--ink-3);}
+.imp-sub{font-size:12px; color:var(--ink-3);}
+.imp-emp-linha{display:flex; flex-direction:column; gap:6px;}
+.imp-emp{max-width:560px;}
+.imp-emp-lista{max-height:300px;}
+.imp-emp-grupo{padding:8px 10px 4px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3);}
+.imp-emp-lista .cb-op{display:flex; flex-direction:column; gap:1px;}
+.imp-emp-sub{font-size:11.5px; font-weight:500; color:var(--ink-3);}
+.imp-emp-info{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 16px; font-size:12.5px; color:var(--ink-2);}
+.imp-emp-info b{color:var(--ink); font-variant-numeric:tabular-nums;}
+.imp-falta{color:var(--brand-red); font-weight:600;}
+.imp-link-sutil{color:var(--ink-3);}
+.imp-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.imp-colar{flex-basis:100%;} .imp-colar > summary{cursor:pointer; font-size:12px; color:var(--ink-3); width:max-content;}
+.imp-colar textarea{display:block; width:100%; margin:8px 0 6px; font-family:var(--imp-mono); font-size:12px;}
+.imp-drop{display:flex; align-items:center; gap:14px; padding:18px; border:1px dashed var(--rule-strong); border-radius:4px; background:var(--surface-2); cursor:pointer; transition:border-color .15s, background .15s;}
+.imp-drop > .ic{flex:none; width:22px; height:22px; color:var(--blue-deep);}
+.imp-drop:hover,.imp-drop.over{border-color:var(--blue-deep); background:var(--blue-pale);}
+.imp-drop:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.imp-drop.ok{border-style:solid; border-color:var(--status-green);}
+.imp-drop-tit{font-weight:600; font-size:13.5px;}
+.imp-drop-dica{font-size:12px; color:var(--ink-3); margin-top:2px; line-height:1.45;}
+.imp-drop-arq{font:600 12px var(--imp-mono); color:var(--status-green); margin-top:4px; overflow-wrap:anywhere;} .imp-drop-arq:empty{display:none;}
+.imp-bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.imp-status{font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+.imp-atalho{margin-left:auto; font-size:11px; color:var(--ink-3);}
+.imp kbd,.imp-dlg kbd{font:600 10px var(--imp-mono); border:1px solid var(--rule-strong); border-radius:3px; padding:0 4px; background:var(--surface);}
+.imp-rodape{margin:6px 0 0; font-size:11.5px; color:var(--ink-3); line-height:1.5;}
+/* avisos */
+.imp .msg,.imp-dlg .msg{border:1px solid var(--rule); border-left:3px solid var(--blue-deep); border-radius:4px; background:var(--surface); padding:10px 14px; font-size:12.5px; line-height:1.5; margin-bottom:8px;}
+.imp .msg strong,.imp-dlg .msg strong{display:block; font-size:13px; margin-bottom:2px;}
+.imp .msg ul,.imp-dlg .msg ul{margin:4px 0 0; padding-left:18px; max-height:180px; overflow:auto; scrollbar-width:thin;}
+.imp .msg.ok{border-left-color:var(--status-green);}
+.imp .msg.warn,.imp-dlg .msg.warn{border-left-color:var(--cv-soon);}
+.imp .msg.err{border-left-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp .msg code{font-family:var(--imp-mono); font-size:11.5px; overflow-wrap:anywhere;}
+.imp .msg-acao{margin-top:8px; border:1px solid var(--rule-strong); background:var(--surface); border-radius:4px; padding:5px 10px; font:600 12px inherit; cursor:pointer; color:var(--ink);}
+.imp .msg-acao:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+/* conferência */
+.imp #imp-saida h2{font-family:"Archivo",sans-serif; font-size:15px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin:6px 0 10px;}
+.imp #imp-saida .step{width:22px; height:22px; display:inline-grid; place-items:center; border-radius:3px; background:var(--blue-deep); color:#fff; font:700 12px var(--imp-mono);}
+:root[data-theme="dark"] .imp #imp-saida .step, :root:not([data-theme="light"]) .imp #imp-saida .step{color:#0B1015;}
+.imp .h2-note{font-family:"Inter",sans-serif; font-size:11.5px; font-weight:500; color:var(--ink-3);}
+.imp .lote-info{margin:0 0 10px; font-size:13px; color:var(--ink-2);}
+.imp .carimbo{font-size:11.5px; color:var(--ink-3); margin-left:6px;}
+.imp .recon{display:flex; align-items:baseline; gap:10px; padding:9px 12px; border-radius:4px; margin-bottom:10px; font-size:12.5px; border:1px solid var(--rule);}
+.imp .recon-tag{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+.imp .recon-ok{background:var(--dp-ok-bg);} .imp .recon-ok .recon-tag{color:var(--dp-ok);}
+.imp .recon-dif{background:var(--dp-late-bg);} .imp .recon-dif .recon-tag{color:var(--dp-late);}
+.imp .tot{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+.imp .tot > div{flex:1 1 140px; border:1px solid var(--rule); border-radius:4px; background:var(--surface); padding:9px 12px; font-size:11.5px; color:var(--ink-3);}
+.imp .tot b{display:block; font:600 18px var(--imp-mono); color:var(--ink); margin-top:2px; font-variant-numeric:tabular-nums;}
+.imp .resumo-grupo{margin-bottom:12px;} .imp .resumo-grupo > summary{cursor:pointer; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px;}
+.imp table.tabela-resumo,.imp table.tabela-lote{width:100%; border-collapse:collapse; font-size:12.5px; border:1px solid var(--rule); border-radius:4px; background:var(--surface);}
+.imp .tabela-resumo th,.imp .tabela-lote th{background:var(--surface-2); text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--rule);}
+.imp .tabela-resumo td,.imp .tabela-lote td{padding:7px 10px; border-bottom:1px solid var(--rule); overflow-wrap:anywhere; vertical-align:top;}
+.imp .num{text-align:right;} .imp .pos{font-family:var(--imp-mono); font-size:12px; font-variant-numeric:tabular-nums;}
+.imp .tabela-lote .acoes{white-space:nowrap; text-align:right;}
+.imp .mini{border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:3px; padding:3px 8px; font-size:11.5px; font-weight:600; cursor:pointer; margin-left:4px;}
+.imp .mini:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+.imp .linha-erro td{background:var(--brand-red-soft);} .imp .status-erro{color:var(--brand-red); font-weight:700; font-size:11.5px;}
+.imp .linha-total td{font-weight:700; background:var(--surface-2);}
+.imp .pill-erro{background:var(--dp-late-bg); color:var(--dp-late);} .imp .pill-neutro{background:var(--st-pend-bg); color:var(--st-pend-ink);}
+.imp .rec-toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;}
+.imp .rec-filter{flex:1 1 200px; min-width:0;}
+.imp .rec-filtro-count{font-size:11.5px; color:var(--ink-3); font-variant-numeric:tabular-nums;}
+.imp .rec-sort{width:auto;}
+.imp .rec-tool-btn,.imp-dlg .rec-tool-btn{border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:4px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer;}
+.imp .rec-tool-btn:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+.imp .rec-grupo-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:14px 0 6px;}
+.imp .rec-grupo-head .nome{font-weight:700; font-size:13.5px;}
+.imp .rec-grupo-meta{font:500 11.5px var(--imp-mono); color:var(--ink-3);} .imp .rec-grupo-meta b{color:var(--blue-deep);}
+.imp .rec{border:1px solid var(--rule); border-radius:4px; background:var(--surface); margin-bottom:6px; transition:border-color .15s;}
+.imp .rec:hover{border-color:var(--rule-strong);} .imp .rec.open{border-color:var(--blue-deep);}
+.imp .rec-head{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:8px 12px;}
+.imp .rec-toggle{all:unset; flex:1 1 200px; min-width:0; display:flex; align-items:baseline; gap:8px; cursor:pointer; font-size:13px; font-weight:600;}
+.imp .rec-toggle::before{content:"›"; font-family:var(--imp-mono); color:var(--ink-3); transition:transform .15s; display:inline-block;}
+.imp .rec.open .rec-toggle::before{transform:rotate(90deg); color:var(--blue-deep);}
+.imp .rec-toggle:hover{color:var(--blue-deep);} .imp .rec-toggle:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.imp .rec-nome{overflow-wrap:anywhere;}
+.imp .chip-editado{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; background:var(--blue-pale); color:var(--blue-deep);}
+.imp .rec-valor-wrap{font:500 12px var(--imp-mono); color:var(--ink-3); display:inline-flex; align-items:center; gap:4px;}
+.imp .rec-valor-input{width:120px; text-align:right; font:500 13px var(--imp-mono); padding:4px 7px;}
+.imp .rec-valor-input.invalido{border-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp .rec-n{font:500 11px var(--imp-mono); color:var(--ink-3);}
+.imp .rec-body{display:none; padding:12px; border-top:1px solid var(--rule);}
+.imp .rec.open .rec-body{display:block;}
+.imp .fita-reg-wrap{overflow-x:auto; background:var(--surface-2); border:1px solid var(--rule); border-radius:4px; padding:8px 10px; margin-bottom:10px; scrollbar-width:thin;}
+.imp .regua,.imp .fita-reg{display:flex; min-width:max-content; font-family:var(--imp-mono); font-size:12px; white-space:pre;}
+.imp .regua{font-size:10.5px; margin-bottom:2px;}
+.imp .regua span,.imp .fita-reg span{flex:none; width:calc(var(--n) * 1ch); border-left:1px solid var(--rule-strong); padding-left:0;}
+.imp .regua span:first-child,.imp .fita-reg span:first-child{border-left:0;}
+.imp .regua span{color:var(--ink-3);}
+.imp .fita-reg span{color:var(--ink);}
+.imp .fita-reg span:nth-child(even){background:var(--surface-3);}
+.imp .fita-reg span.hl{background:var(--blue-pale); color:var(--blue-deep);} .imp .regua span.hl{color:var(--blue-deep); font-weight:700;}
+.imp .rec-body table{width:100%; border-collapse:collapse; font-size:12px;}
+.imp .rec-body th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--rule);}
+.imp .rec-body td{padding:5px 8px; border-bottom:1px solid var(--rule); overflow-wrap:anywhere;}
+.imp .rec-body td.val{font-family:var(--imp-mono); white-space:pre-wrap;}
+.imp .rec-body tr.hl td{background:var(--blue-pale);}
+/* soltar arquivo em qualquer ponto da ferramenta */
+.imp-drag{position:fixed; inset:0; z-index:60; display:grid; place-items:center; background:color-mix(in srgb, var(--page) 80%, transparent); backdrop-filter:blur(2px); pointer-events:none;}
+.imp-drag[hidden]{display:none;}
+.imp-drag-card{display:flex; flex-direction:column; gap:4px; padding:22px 28px; border:2px dashed var(--blue-deep); border-radius:6px; background:var(--surface); text-align:center; font-size:12.5px; color:var(--ink-2);}
+.imp-drag-card b{font-family:"Archivo",sans-serif; font-size:16px; color:var(--ink);}
+/* janelas do importador */
+.imp-dlg .imp-dlg-tit{min-width:0;} .imp-dlg .imp-dlg-tit p{margin:2px 0 0; font-size:12px; color:var(--ink-3);}
+.imp-dlg .dlg-body{gap:12px;} .imp-dlg .dlg-body > *{flex-shrink:0;} .imp-check[hidden]{display:none;}
+.imp-campos{display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px 12px;}
+.imp-campos .imp-campo-largo{grid-column:1 / -1;}
+.imp-campos input.faltando,.imp-dlg input.faltando{border-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp-tipo-nome{font-size:11.5px; font-weight:500; color:var(--status-green);} .imp-tipo-nome.desconhecido{color:var(--cv-soon);}
+.imp-tipos > summary{cursor:pointer; font-size:11.5px; font-weight:500; color:var(--blue-deep); width:max-content;}
+.imp-tipos-pop{margin-top:6px; padding:8px; border:1px solid var(--rule); border-radius:4px; background:var(--surface-2); display:flex; flex-direction:column; gap:6px; font-weight:500;}
+.imp-tipos-pop table{border-collapse:collapse; font-size:12px; color:var(--ink);}
+.imp-tipos-pop td{padding:3px 6px; border-bottom:1px solid var(--rule); cursor:pointer;} .imp-tipos-pop tr:hover td{background:var(--surface);}
+.imp-tipos-pop .ajuda-cod{font-family:var(--imp-mono); font-weight:700; width:1%;}
+.imp-tipos-pop .ajuda-vazio{color:var(--ink-3); cursor:default;}
+.imp-tipos-pop textarea{width:100%; font-family:var(--imp-mono); font-size:12px; margin-bottom:6px;}
+.imp-check{display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--ink-2); line-height:1.45; cursor:pointer;}
+.imp-check input{margin-top:2px;}
+.imp-lista-h{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-top:4px;}
+.imp-lista-h h4{font-size:13px; font-family:"Archivo",sans-serif;}
+.imp-conta{font:500 11.5px var(--imp-mono); color:var(--ink-3);}
+.imp-lista-acoes{display:flex; gap:12px; margin-left:auto;}
+.imp-lista-busca{width:100%;}
+.imp-lista{border:1px solid var(--rule); border-radius:4px; max-height:280px; overflow-y:auto; scrollbar-width:thin;}
+.imp-lista .item,.imp-cad-lista .imp-item{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:7px 10px; border-bottom:1px solid var(--rule); font-size:12.5px; cursor:pointer; color:var(--ink-3);}
+.imp-lista .item:last-child{border-bottom:0;}
+.imp-lista .item.marcado,.imp-cad-lista .imp-item.marcado{color:var(--ink);}
+.imp-lista .item:hover,.imp-cad-lista .imp-item:hover{background:var(--surface-2);}
+.imp-lista .item.sem-codigo{background:var(--brand-red-soft);}
+.imp-lista .item[hidden]{display:none;}
+.imp-lista .item-cod{font:600 12px var(--imp-mono); min-width:44px;}
+.imp-lista .item-cod-input{width:90px; font:500 12px var(--imp-mono); padding:4px 6px;}
+.imp-lista .item-cod-input.faltando{border-color:var(--brand-red);}
+.imp-lista .item-nome{flex:1 1 180px; min-width:0; overflow-wrap:anywhere; font-weight:600;}
+.imp-lista .item-meta{font-size:11.5px; color:var(--ink-3);}
+.imp-lista .item-vazio{margin:0; padding:12px; font-size:12.5px; color:var(--ink-3);}
+.imp-dlg .selo{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; white-space:nowrap;}
+.imp-dlg .selo-var{background:var(--blue-pale); color:var(--blue-deep);}
+.imp-dlg .selo-fix{background:var(--st-pend-bg); color:var(--st-pend-ink);}
+.imp-dlg .selo-auto{background:var(--dp-late-bg); color:var(--dp-late);}
+.imp-dlg .selo-neu{background:var(--surface-3); color:var(--ink-2);}
+.imp-lista-nada{margin:0; font-size:12px; color:var(--ink-3);}
+.imp-descartadas > summary{cursor:pointer; font-size:12px; color:var(--ink-3);}
+.imp-descartadas > div{font-size:12px; color:var(--ink-2); line-height:1.6; margin-top:6px;}
+.imp-add-rub{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+.imp-add-rub #imp-cpNovoCod{width:90px;} .imp-add-rub #imp-cpNovoDesc{flex:1 1 200px; min-width:0;}
+.imp-erro{font-size:12px; font-weight:600; color:var(--brand-red);} .imp-erro:empty{display:none;}
+.imp-nota{margin:0; font-size:12px; color:var(--ink-3); line-height:1.5;}
+.imp-resumo{flex:1 1 auto; font-size:12px; color:var(--ink-2); align-self:center; min-width:0;}
+.imp-dlg .dlg-actions{flex-wrap:wrap; align-items:center;}
+.imp-cad-lista{display:flex; flex-direction:column;}
+.imp-cad-lista h4{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); margin:10px 0 4px;}
+.imp-cad-lista .imp-item{border:1px solid var(--rule); border-bottom-width:0;} .imp-cad-lista .imp-item:last-of-type{border-bottom-width:1px;}
+.imp-cad-lista .imp-item span{flex:1; min-width:0; overflow-wrap:anywhere;}
+.imp-novo{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; background:var(--dp-ok-bg); color:var(--dp-ok); margin-left:4px;}
+@media (max-width:760px){
+  .imp{padding-inline:16px;}
+  .imp-atalho{display:none;}
+  .imp .tabela-lote{display:block; overflow-x:auto;}
+  .imp .rec-valor-input{width:100px;}
+}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -1456,6 +1671,7 @@ body.portal-open{overflow:hidden;}
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="sindicatos">Convenções <span class="dp-tab-badge" id="sd-badge" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes <span class="dp-tab-badge" id="ct-badge" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="ferramentas">Ferramentas</button>
       </div>
 
       <div class="dp-view" id="dp-view-painel">
@@ -1633,6 +1849,13 @@ body.portal-open{overflow:hidden;}
         </div>
       </div>
 
+      <div class="dp-view" id="dp-view-ferramentas" hidden>
+        <div id="fe-vitrine"></div>
+        <div id="fe-tool" hidden>
+          <div class="fe-tool-bar"><button type="button" class="fe-voltar" id="fe-voltar">‹ Ferramentas</button><span class="fe-tool-nome" id="fe-tool-nome"></span></div>
+          <div id="fe-tool-root"></div>
+        </div>
+      </div>
       <div class="dp-view" id="dp-view-cartela" hidden>
         <div class="dp-toolbar">
           <div class="seg" id="ct-modo" role="group" aria-label="Visão da cartela">
@@ -2120,7 +2343,7 @@ body.portal-open{overflow:hidden;}
     toolsQuery: '',
     prefs: { theme: null, dpCarteira: '' },
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
-    dpCarteira: '', dpView: 'painel', dpCalMes: '',
+    dpCarteira: '', dpView: 'painel', dpCalMes: '', dpFerr: '', dpImports: [], dpTiposProc: null,
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
     dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
@@ -2361,6 +2584,8 @@ body.portal-open{overflow:hidden;}
       {key:'tipo', label:'Tipo', width:1},
       {key:'estab', label:'Estab.', width:1},
       {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
+      {key:'cpf', label:'CPF', width:1},
       {key:'valor', label:'Valor', width:1, type:'money'},
       {key:'iss', label:'ISS', width:0.8},
       {key:'obs', label:'Observação', width:1.6},
@@ -2388,6 +2613,7 @@ body.portal-open{overflow:hidden;}
     ]},
     funcionarios: { title:'Funcionários', addLabel:'Adicionar funcionário', fields:[
       {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
       {key:'cargo', label:'Cargo', width:1.2},
       {key:'admissao', label:'Admissão', width:1, type:'date'},
       {key:'status', label:'Situação', width:1, type:'select', options:['Ativo','Férias','Afastado','Desligado']},
@@ -2902,14 +3128,14 @@ body.portal-open{overflow:hidden;}
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
   let pendingEmp = null;
-  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela'];
+  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
-    return state.activeModule === 'dp' ? `dp/${state.dpView}` : '';
+    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : '';
   }
   function syncRoute() {
     const r = currentRoute();
-    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}` : '';
+    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : '';
     savePrefs();
     try { const h = r ? '#' + r : ''; if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch {}
   }
@@ -2919,6 +3145,7 @@ body.portal-open{overflow:hidden;}
     closePortal();
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
+    if (parts[1] === 'ferramentas') state.dpFerr = FERRAMENTAS_DP.some(f => f.id === parts[2]) ? parts[2] : '';
     openDpModule(DP_VIEWS.includes(parts[1]) ? parts[1] : 'painel');
   }
   // Portal do Cliente: página própria (portal.html) aberta por cima do Hub, na mesma origem,
@@ -3293,7 +3520,13 @@ body.portal-open{overflow:hidden;}
     renderDpActiveView();
     syncRoute();
   }
-  $('.dp-tabs').addEventListener('click', (e) => { const btn = e.target.closest('.dp-tab'); if (btn) setDpView(btn.dataset.dpView); });
+  $('.dp-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-tab');
+    if (!btn) return;
+    // Clicar em Ferramentas estando numa ferramenta volta para a vitrine.
+    if (btn.dataset.dpView === 'ferramentas' && state.dpView === 'ferramentas') state.dpFerr = '';
+    setDpView(btn.dataset.dpView);
+  });
 
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
@@ -3310,6 +3543,7 @@ body.portal-open{overflow:hidden;}
     else if (v === 'funcionarios') renderDpFuncionarios();
     else if (v === 'cartela') renderCartela();
     else if (v === 'sindicatos') renderSindTab();
+    else if (v === 'ferramentas') renderFerramentasDp();
     if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
   }
   function renderBadges() {
@@ -4854,10 +5088,10 @@ body.portal-open{overflow:hidden;}
   const URL_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   const URL_PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const scriptsExt = {};
-  function carregarScriptExt(src) {
+  function carregarScriptExt(src, msgErro) {
     if (!scriptsExt[src]) scriptsExt[src] = new Promise((ok, falha) => {
-      const el = document.createElement('script'); el.src = src; el.async = true;
-      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; falha(new Error('Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
+      const el = document.createElement('script'); el.src = src; el.async = true; el.charset = 'utf-8';
+      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; el.remove(); falha(new Error(msgErro || 'Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
       document.head.appendChild(el);
     });
     return scriptsExt[src];
@@ -6811,6 +7045,166 @@ body.portal-open{overflow:hidden;}
     moverEmpresas(ids, an.dataset.ctAn);
   });
 
+  // ---------- Ferramentas do DP: vitrine e Importador Domínio ----------
+  // O código da ferramenta fica em importador.js, carregado só quando ela é aberta.
+  function makeImpLocal() {
+    const KEY = 'control-hub:dp-importacoes';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const impDb = { async save(itens) { await db.doc('dp_config/importacoes').set({ itens }); } };
+  let impStore = makeImpLocal();
+  // Mesma chave do gerador original: a lista que já estava no navegador vem junto.
+  function makeTiposLocal() {
+    const KEY = 'dominio_tipos_processo';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const tiposDb = { async save(itens) { await db.doc('dp_config/tipos_processo').set({ itens }); } };
+  let tiposStore = makeTiposLocal();
+  const IMP_MAX = 300;
+  const normalizeImports = (v) => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object' && x.id).map(x => ({
+    id: String(x.id), em: Number(x.em) || 0, autor: String(x.autor || ''), empId: String(x.empId || ''), empresa: String(x.empresa || '').slice(0, 140), cod: String(x.cod || ''),
+    modulo: x.modulo === 'lancamentos' ? 'lancamentos' : 'rpa', comp: String(x.comp || ''), tipo: String(x.tipo || ''),
+    linhas: Number(x.linhas) || 0, pessoas: Number(x.pessoas) || 0, total: Number(x.total) || 0, arquivo: String(x.arquivo || '').slice(0, 160),
+  })).sort((a, b) => b.em - a.em).slice(0, IMP_MAX);
+  const normalizeTipos = (v) => (Array.isArray(v) ? v : []).filter(t => t && /^\d{1,2}$/.test(String(t.codigo || ''))).map(t => ({ codigo: String(t.codigo), nome: String(t.nome || '').slice(0, 80) }));
+
+  const FERRAMENTAS_DP = [
+    { id: 'importador', nome: 'Importador Domínio', icone: 'upload', script: 'importador.js?v=1',
+      desc: 'RPA e lançamentos de rubricas: modelo travado para o cliente, conferência linha a linha e o arquivo .txt para o Domínio.' },
+  ];
+  const URL_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  const IMP_MOD = { rpa: 'RPA', lancamentos: 'Lançamentos' };
+  const soDig = (v) => String(v ?? '').replace(/\D/g, '');
+  let impInst = null, impCarregando = null;
+
+  function impsVisiveis() {
+    if (!state.dpCarteira) return state.dpImports;
+    return state.dpImports.filter(i => { const e = i.empId && findDpEmpresa(i.empId); return e && naCarteira(e); });
+  }
+  function renderFerramentasDp() {
+    const f = FERRAMENTAS_DP.find(x => x.id === state.dpFerr);
+    $('#fe-vitrine').hidden = !!f;
+    $('#fe-tool').hidden = !f;
+    if (f) { $('#fe-tool-nome').textContent = f.nome; abrirFerramenta(f); return; }
+    renderVitrine();
+  }
+  function renderVitrine() {
+    const mes = ymd(hoje()).slice(0, 7);
+    const lista = impsVisiveis();
+    const doMes = lista.filter(i => ymd(new Date(i.em)).slice(0, 7) === mes).length;
+    const cards = FERRAMENTAS_DP.map(f => `<button type="button" class="fe-card" data-fe-abrir="${f.id}">
+      <span class="fe-ico">${ic(f.icone)}</span>
+      <span class="fe-card-txt"><b>${escapeHtml(f.nome)}</b><span>${escapeHtml(f.desc)}</span>
+      <span class="fe-card-meta">${doMes ? `${doMes} arquivo${doMes === 1 ? '' : 's'} gerado${doMes === 1 ? '' : 's'} este mês` : 'Nenhum arquivo gerado este mês'}</span></span>
+      <span class="fe-card-ir">Abrir ›</span></button>`).join('');
+    const fmtQuando = (ms) => { const d = new Date(ms); return `${fmtDM(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    const linhas = lista.slice(0, 60).map(i => {
+      const e = i.empId && findDpEmpresa(i.empId);
+      const emp = e ? `<button type="button" class="fe-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button>` : escapeHtml(i.empresa);
+      const qtd = i.modulo === 'rpa' ? `${i.pessoas} autônomo${i.pessoas === 1 ? '' : 's'}` : `${i.linhas} lançamento${i.linhas === 1 ? '' : 's'}${i.pessoas ? ` · ${i.pessoas} empregado${i.pessoas === 1 ? '' : 's'}` : ''}`;
+      return `<tr><td class="fe-quando">${fmtQuando(i.em)}</td><td>${emp}<span class="dp-cell-sub">${i.cod ? 'Domínio ' + escapeHtml(i.cod) : ''}</span></td>
+        <td>${IMP_MOD[i.modulo]}${i.tipo ? `<span class="dp-cell-sub">processo ${escapeHtml(i.tipo)}</span>` : ''}</td><td>${escapeHtml(i.comp)}</td>
+        <td>${qtd}</td><td class="fe-num">${brl(i.total)}</td><td><span data-uid="${escapeHtml(i.autor)}">${i.autor ? '' : '—'}</span></td></tr>`;
+    }).join('');
+    const quem = state.dpCarteira ? `carteira: ${escapeHtml(carteiraNome())}` : 'equipe toda';
+    const log = lista.length
+      ? `<div class="fe-log-lista"><table class="ct-table fe-table"><thead><tr><th>Quando</th><th>Empresa</th><th>Módulo</th><th>Competência</th><th>Registros</th><th class="fe-num">Total</th><th>Por</th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      : `<div class="dp-empty"><strong>Nenhuma importação registrada${state.dpCarteira ? ' nesta carteira' : ''}</strong>Cada arquivo .txt baixado no Importador Domínio aparece aqui e no histórico da empresa.</div>`;
+    $('#fe-vitrine').innerHTML = `<div class="fe-wrap">
+      <div class="fe-grid">${cards}</div>
+      <section class="fe-log"><div class="fe-log-h"><h3>Últimas importações</h3><span class="dp-count">${quem} · ${lista.length}</span></div>${log}</section>
+    </div>`;
+    fillNames($('#fe-vitrine'));
+  }
+  function abrirFerramenta(f) {
+    if (impInst) { impInst.atualizar(); return; }
+    if (impCarregando) return;
+    const alvo = $('#fe-tool-root');
+    alvo.innerHTML = '<div class="dp-empty">Carregando a ferramenta…</div>';
+    impCarregando = carregarScriptExt(f.script, 'Não foi possível carregar a ferramenta. Verifique a conexão.')
+      .then(() => { impInst = window.HubImportador.montar(alvo, impApi()); })
+      .catch((e) => { alvo.innerHTML = `<div class="dp-empty"><strong>${escapeHtml(e.message)}</strong><button type="button" class="btn btn-sm" data-fe-abrir="${f.id}">Tentar de novo</button></div>`; })
+      .finally(() => { impCarregando = null; });
+  }
+  $('#dp-view-ferramentas').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-fe-abrir]');
+    if (a) { state.dpFerr = a.dataset.feAbrir; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); return; }
+    if (e.target.closest('#fe-voltar')) { state.dpFerr = ''; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); }
+  });
+
+  // Ponte entre a ferramenta e o Hub: dados do DP, downloads, cadastro e registro da equipe.
+  function impApi() {
+    return {
+      empresas: () => state.dpEmpresas.filter(ativa).map(e => ({ ...e, daCarteira: !!state.dpCarteira && naCarteira(e) }))
+        .sort((a, b) => (b.daCarteira - a.daCarteira) || byNome(a, b)),
+      temCarteira: () => !!state.dpCarteira,
+      empresa: (id) => findDpEmpresa(id) || null,
+      empresaPorCnpj: (c) => { const k = cnpjClean(c); return k.length === 14 ? (state.dpEmpresas.find(e => cnpjClean(e.cnpj) === k) || null) : null; },
+      empresaPorCodigo: (c) => { const k = soDig(c).replace(/^0+/, ''); if (!k) return null; const m = state.dpEmpresas.filter(e => soDig(e.codigoDominio).replace(/^0+/, '') === k); return m.find(ativa) || m[0] || null; },
+      nomeEmpHtml,
+      toast: (msg) => toast(msg),
+      somenteLeitura: () => state.readOnly,
+      salvar: (bytes, nome, mime) => offerFile(nome, bytes, mime),
+      carregarXlsx: async () => { await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o leitor de planilhas. Verifique a conexão.'); if (!window.XLSX) throw new Error('O leitor de planilhas não carregou.'); },
+      carregarPdf: async () => { await carregarScriptExt(URL_PDFJS); await carregarScriptExt(URL_PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER; return window.pdfjsLib; },
+      tipos: () => state.dpTiposProc,
+      salvarTipos: salvarTiposProc,
+      abrirEmpresa: (id) => { const e = findDpEmpresa(id); if (e) openDpDetail(e); },
+      atualizarCadastro: impAtualizarCadastro,
+      registrar: impRegistrar,
+    };
+  }
+  async function salvarTiposProc(lista) {
+    if (state.readOnly) return;
+    state.dpTiposProc = normalizeTipos(lista);
+    if (await persist(() => tiposStore.save(state.dpTiposProc))) toast('Tipos de processo salvos para a equipe.');
+  }
+  async function impRegistrar(r) {
+    if (state.readOnly) return;
+    const agora = Date.now(), autor = state.meId || '';
+    // Baixar o mesmo arquivo de novo não vira outro registro.
+    if (state.dpImports.some(x => x.arquivo === r.arquivo && x.autor === autor && x.linhas === r.linhas && Math.abs(x.total - r.total) < 0.005 && agora - x.em < 10 * 60 * 1000)) return;
+    const e = (r.empId && findDpEmpresa(r.empId)) || null;
+    const [item] = normalizeImports([{ id: uid(), em: agora, autor, empId: e?.id || '', empresa: e?.nome || r.empresaNome || (r.empresaCod ? `Código ${r.empresaCod}` : 'Empresa não identificada'),
+      cod: r.empresaCod, modulo: r.modulo, comp: r.competencia, tipo: r.tipo, linhas: r.linhas, pessoas: r.pessoas, total: r.total, arquivo: r.arquivo }]);
+    state.dpImports = [item, ...state.dpImports].slice(0, IMP_MAX);
+    let campos = null;
+    if (e) {
+      const qtd = item.modulo === 'rpa' ? `${item.pessoas} autônomo(s)` : `${item.linhas} lançamento(s) de ${item.pessoas} empregado(s)`;
+      marcaHist(e, `Importação de ${IMP_MOD[item.modulo]} ${item.comp} gerada no Importador Domínio: ${qtd}, ${brl(item.total)} (${item.arquivo})`);
+      campos = { historico: e.historico, updatedAt: e.updatedAt };
+    }
+    await persist(async () => { await impStore.save(state.dpImports); if (campos) await dpStore.updateFields(e.id, campos); });
+  }
+  async function impAtualizarCadastro(id, itens) {
+    const e = findDpEmpresa(id);
+    if (!e || state.readOnly) return false;
+    const campos = {}, n = { rub: 0, rpa: 0, func: 0 }, partes = [];
+    itens.forEach(it => {
+      if (it.tipo === 'empresa') { e.codigoDominio = it.valor; campos.codigoDominio = it.valor; partes.push(`código Domínio ${it.valor}`); return; }
+      if (it.tipo === 'rubrica') { const r = normalizeDpRow(it.dado, DP_SECTIONS.rubricas.fields); if (r) { e.rubricas.push(r); campos.rubricas = e.rubricas; n.rub++; } return; }
+      const sec = it.tipo === 'rpa' ? 'rpa' : 'funcionarios';
+      if (it.id) { const r = e[sec].find(x => x.id === it.id); if (!r) return; Object.assign(r, it.mud); }
+      else { const r = normalizeDpRow(it.novo, DP_SECTIONS[sec].fields); if (!r) return; e[sec].push(r); }
+      campos[sec] = e[sec]; n[sec === 'rpa' ? 'rpa' : 'func']++;
+    });
+    if (n.rub) partes.push(`${n.rub} rubrica(s)`);
+    if (n.rpa) partes.push(`${n.rpa} autônomo(s)`);
+    if (n.func) partes.push(`${n.func} funcionário(s)`);
+    if (!partes.length) return false;
+    marcaHist(e, `Importador Domínio atualizou o cadastro: ${partes.join(', ')}`);
+    campos.historico = e.historico; campos.updatedAt = e.updatedAt;
+    const ok = await persist(() => dpStore.updateFields(e.id, campos));
+    if (ok) { toast(`Cadastro de ${e.nome} atualizado: ${partes.join(', ')}.`); refreshOpenDetail(); renderDpActiveView(); }
+    return ok;
+  }
+
   // ---------- inicialização ----------
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
@@ -6824,6 +7218,10 @@ body.portal-open{overflow:hidden;}
     state.dpSind = normalizeSinds(sindStore.load());
     cctStore = makeCctLocal();
     state.dpCcts = normalizeCcts(cctStore.load());
+    impStore = makeImpLocal();
+    state.dpImports = normalizeImports(impStore.load());
+    tiposStore = makeTiposLocal();
+    state.dpTiposProc = normalizeTipos(tiposStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
@@ -6876,6 +7274,24 @@ body.portal-open{overflow:hidden;}
     db.doc('dp_config/sindicatos').onSnapshot((s) => {
       state.dpSind = normalizeSinds(s.exists ? s.data().itens : []);
       refreshAll();
+    }, caiu);
+
+    impStore = impDb;
+    db.doc('dp_config/importacoes').onSnapshot((s) => {
+      state.dpImports = normalizeImports(s.exists ? s.data().itens : []);
+      if (state.activeModule === 'dp' && state.dpView === 'ferramentas') renderDpActiveView();
+    }, caiu);
+
+    // Tipos de processo do importador: lista da equipe. Na primeira vez, sobe a que estava no navegador.
+    tiposStore = tiposDb;
+    let tiposMigrados = false;
+    db.doc('dp_config/tipos_processo').onSnapshot((s) => {
+      if (s.exists) state.dpTiposProc = normalizeTipos(s.data().itens);
+      else {
+        state.dpTiposProc = normalizeTipos(makeTiposLocal().load());
+        if (state.dpTiposProc.length && !state.readOnly && !tiposMigrados) { tiposMigrados = true; tiposDb.save(state.dpTiposProc).catch(() => {}); }
+      }
+      if (impInst) impInst.atualizar();
     }, caiu);
 
     cobStore = cobDb;
