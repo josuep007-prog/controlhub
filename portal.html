@@ -1737,6 +1737,20 @@
       </div>
 
       <div>
+        <div class="sec-label">Cadastro de usuários no Onvio</div>
+        <div class="panel panel-pad">
+          <h2>Importar o relatório “Usuários do cliente”</h2>
+          <div class="sub">Use o PDF emitido no Onvio. O sistema casa cada empresa pelo nome e cada usuário pelo e-mail, mostra a conferência e só grava depois que você confirmar. Quem tem cadastro ativo passa a contar na etapa “Cadastro do usuário do cliente”.</div>
+          <div class="import-actions">
+            <label class="btn-ghost file-btn" for="fileOnvio">Escolher o PDF</label>
+            <input type="file" id="fileOnvio" accept=".pdf,application/pdf" hidden>
+            <span class="note" id="fileOnvioName">Nenhum arquivo selecionado</span>
+          </div>
+          <div id="onvioConf"></div>
+        </div>
+      </div>
+
+      <div>
         <div class="sec-label">Cadastro manual</div>
         <div class="cadastro-grid">
           <div class="panel panel-pad">
@@ -8486,6 +8500,152 @@
   window.addEventListener("resize", function(){
     if(ui.view !== "relatorios") return;
     clearTimeout(relResize); relResize = setTimeout(renderRelatorios, 150);
+  });
+
+
+  /* ---------- usuários do Onvio: relatório "Usuários do cliente" (PDF) ---------- */
+  var URL_PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  var URL_PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  function chaveEmpresaOnvio(nome){
+    return normBusca(nome).replace(/[^a-z0-9 ]/g, " ").replace(/\b(ltda|sa|s a|me|epp|eireli|e)\b/g, " ").replace(/\s+/g, " ").trim();
+  }
+  // Texto do relatório (páginas já em texto corrido, sem o cabeçalho) -> [{empresa, usuarios:[{email, ativo, deptos}]}]
+  function onvioParsear(paginas){
+    var txt = paginas.join(" ").replace(/\s+/g, " ");
+    // E-mails quebrados em duas linhas pelo PDF ("agridrones.com .br", "technort.com. br", "ativa.co m.br"): cola de volta.
+    var tk = txt.split(" "), colado = [];
+    for(var ti = 0; ti < tk.length; ti++){
+      var cur = tk[ti];
+      if(cur.indexOf("@") > 0){
+        while(ti + 1 < tk.length){
+          var f = tk[ti + 1];
+          var ok = (/\.$/.test(cur) && /^[a-z]{2,3}(\.[a-z]{2,3})?$/i.test(f)) ||
+            (/^\.[a-z]{2,3}(\.[a-z]{2,3})?$/i.test(f)) ||
+            (/\.co$/i.test(cur) && /^m(\.br)?$/i.test(f));
+          if(!ok) break;
+          cur += f; ti++;
+        }
+      }
+      colado.push(cur);
+    }
+    txt = colado.join(" ");
+    var blocos = txt.split(/Cliente:\s*\|?/).slice(1), out = [], porChave = {};
+    blocos.forEach(function(b){
+      var rx = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, m, marcas = [];
+      while((m = rx.exec(b))) marcas.push({email:m[0].toLowerCase(), ini:m.index, fim:m.index + m[0].length});
+      var empresa = (marcas.length ? b.slice(0, marcas[0].ini) : b).replace(/[|\s]+$/g, "").replace(/^[|\s]+/g, "").trim();
+      if(!empresa) return;
+      var k = chaveEmpresaOnvio(empresa), item = porChave[k];
+      if(!item){ item = porChave[k] = {empresa:empresa, usuarios:[], vistos:{}}; out.push(item); }
+      marcas.forEach(function(mk, i){
+        var seg = b.slice(mk.fim, i + 1 < marcas.length ? marcas[i + 1].ini : b.length);
+        var depKey = [["contabil", /Cont[áa]bil/], ["fiscal", /Fiscal/], ["pessoal", /Pessoal/]].filter(function(d){ return d[1].test(seg); }).map(function(d){ return d[0]; });
+        var u = item.vistos[mk.email];
+        if(!u){ u = item.vistos[mk.email] = {email:mk.email, ativo:false, deptos:[], suspeito:/Inativo\s+n[ãa]o\s+excluir/i.test(seg)}; item.usuarios.push(u); }
+        if(/(^|[\s|])Ativo(\s|\||$)/.test(seg)) u.ativo = true;
+        depKey.forEach(function(d){ if(u.deptos.indexOf(d) === -1) u.deptos.push(d); });
+      });
+    });
+    return out.map(function(x){ return {empresa:x.empresa, usuarios:x.usuarios}; });
+  }
+  // Compara o relatório com as empresas e os contatos do Portal, sem gravar nada.
+  function onvioConferir(grupos){
+    var porNome = {};
+    state.empresas.forEach(function(e){ (porNome[chaveEmpresaOnvio(e.nome)] = porNome[chaveEmpresaOnvio(e.nome)] || []).push(e); });
+    var r = {aplicar:[], jaAtivos:0, semContato:[], semEmpresa:[], inativos:0, usuarios:0, empresasCasadas:0, ausentes:[]};
+    var tocados = {};
+    grupos.forEach(function(g){
+      var emps = porNome[chaveEmpresaOnvio(g.empresa)];
+      if(!emps){ r.semEmpresa.push(g.empresa); return; }
+      r.empresasCasadas++;
+      g.usuarios.forEach(function(u){
+        r.usuarios++;
+        if(!u.ativo){ r.inativos++; return; }
+        var achou = false;
+        emps.forEach(function(e){
+          state.contatos.filter(function(c){ return c.empresaId === e.id && String(c.email || "").trim().toLowerCase() === u.email; }).forEach(function(c){
+            achou = true; tocados[c.id] = true;
+            var co = c.cadastroOnvio, igual = co && co.status === "ativo" && (co.deptos || []).slice().sort().join() === u.deptos.slice().sort().join();
+            if(igual) r.jaAtivos++; else r.aplicar.push({c:c, empresa:e.nome, deptos:u.deptos.slice(), suspeito:u.suspeito});
+          });
+        });
+        if(!achou) r.semContato.push({empresa:g.empresa, email:u.email});
+      });
+      emps.forEach(function(e){
+        state.contatos.filter(function(c){ return c.empresaId === e.id && !tocados[c.id] && !(c.cadastroOnvio && c.cadastroOnvio.status === "ativo"); })
+          .forEach(function(c){ r.ausentes.push({empresa:e.nome, nome:c.nome, email:c.email || ""}); });
+      });
+    });
+    return r;
+  }
+  var onvioPendente = null;
+  function onvioLista(tit, ajuda, itens, linha){
+    if(!itens.length) return "";
+    var LIM = 200;
+    return '<details class="conf-sec"><summary><span class="conf-tit">'+tit+'</span><span class="conf-n">'+itens.length+'</span></summary><p class="conf-ajuda">'+ajuda+'</p><div style="padding:0 20px 14px;font-size:12px;line-height:1.7;color:var(--ink-2)">' +
+      itens.slice(0, LIM).map(function(i){ return '<div>'+linha(i)+'</div>'; }).join("") + (itens.length > LIM ? '<div class="note">… e mais '+(itens.length - LIM)+' (todos entram na gravação; a lista mostra só os primeiros).</div>' : '') + '</div></details>';
+  }
+  function onvioRender(){
+    var box = $("#onvioConf"), r = onvioPendente;
+    if(!r){ box.innerHTML = ""; return; }
+    box.innerHTML = '<div class="import-status" style="margin-top:14px">' +
+      '<b>'+r.usuarios+' usuários</b> em '+r.empresasCasadas+' empresas casadas com o Portal. ' +
+      '<b>'+r.aplicar.length+'</b> contato(s) passam a ter cadastro ativo' + (r.jaAtivos ? ' · '+r.jaAtivos+' já estavam assim' : '') + (r.inativos ? ' · '+r.inativos+' usuário(s) inativos ignorados' : '') + '.</div>' +
+      '<div class="conf-box" style="margin-top:10px;border:1px solid var(--rule)">' +
+      onvioLista("Serão marcados com cadastro ativo", "Contatos do Portal encontrados pelo e-mail dentro da empresa.", r.aplicar, function(i){ return esc(i.empresa)+' · '+esc(i.c.nome)+' <span class="note">'+esc(i.c.email||"")+(i.deptos.length ? ' · '+i.deptos.map(function(d){ return SETOR_LABEL[d]; }).join(", ") : '')+(i.suspeito ? ' · nome “Inativo não excluir” no Onvio' : '')+'</span>'; }) +
+      onvioLista("Usuários do relatório sem contato no Portal", "Nada é criado: cadastre o contato na empresa e importe de novo.", r.semContato, function(i){ return esc(i.empresa)+' · <span class="note">'+esc(i.email)+'</span>'; }) +
+      onvioLista("Empresas do relatório sem correspondência no Portal", "O nome precisa ser igual ao cadastrado (acentos e “Ltda” não contam).", r.semEmpresa.map(function(n){ return {n:n}; }), function(i){ return esc(i.n); }) +
+      onvioLista("Contatos do Portal que não aparecem no relatório", "Continuam sem cadastro ativo.", r.ausentes, function(i){ return esc(i.empresa)+' · '+esc(i.nome)+' <span class="note">'+esc(i.email)+'</span>'; }) +
+      '</div>' +
+      '<div class="import-actions" style="margin-top:12px"><button type="button" class="btn" id="btnOnvioAplicar"'+(r.aplicar.length ? '' : ' disabled')+'>Gravar cadastro ativo em '+r.aplicar.length+' contato(s)</button><button type="button" class="btn-ghost" id="btnOnvioCancelar">Descartar</button></div>';
+  }
+  function onvioLerPdf(file){
+    var box = $("#onvioConf");
+    box.innerHTML = '<div class="import-status" style="margin-top:14px">Lendo o PDF…</div>';
+    return Promise.all([carregarScript(URL_PDFJS), carregarScript(URL_PDFJS_WORKER)]).then(function(){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER;
+      return file.arrayBuffer();
+    }).then(function(buf){
+      return window.pdfjsLib.getDocument({data:buf}).promise;
+    }).then(function(doc){
+      var paginas = [], seq = Promise.resolve();
+      for(var i = 1; i <= doc.numPages; i++){ (function(n){ seq = seq.then(function(){ return doc.getPage(n).then(function(pg){ return pg.getTextContent(); }).then(function(tc){
+        var itens = tc.items.map(function(t){ return t.str; }), ix = itens.indexOf("Nome Completo");
+        paginas.push(itens.slice(ix + 1).join(" "));
+      }); }); })(i); }
+      return seq.then(function(){ return paginas; });
+    }).then(function(paginas){
+      var grupos = onvioParsear(paginas);
+      if(!grupos.length) throw new Error("Não encontrei usuários neste PDF. Ele é o relatório “Usuários do cliente” do Onvio?");
+      onvioPendente = onvioConferir(grupos);
+      onvioRender();
+    }).catch(function(e){
+      onvioPendente = null;
+      box.innerHTML = '<div class="import-status warn" style="margin-top:14px">'+esc(e && e.message || "Não foi possível ler o PDF.")+'</div>';
+    });
+  }
+  $("#fileOnvio").addEventListener("change", function(){
+    var f = this.files && this.files[0];
+    $("#fileOnvioName").textContent = f ? f.name : "Nenhum arquivo selecionado";
+    if(f) onvioLerPdf(f);
+  });
+  $("#onvioConf").addEventListener("click", function(ev){
+    if(ev.target.closest("#btnOnvioCancelar")){ onvioPendente = null; $("#fileOnvio").value = ""; $("#fileOnvioName").textContent = "Nenhum arquivo selecionado"; onvioRender(); return; }
+    if(!ev.target.closest("#btnOnvioAplicar") || !onvioPendente || !dbRef) return;
+    var alvos = onvioPendente.aplicar, em = hojeISO(), btn = ev.target.closest("#btnOnvioAplicar");
+    btn.disabled = true;
+    var feitos = 0, falhas = 0;
+    var gravar = function(i){
+      if(i >= alvos.length) return Promise.resolve();
+      var a = alvos[i], patch = {status:"ativo", em:em, deptos:a.deptos};
+      return dbRef.collection("contatos").doc(a.c.id).update({cadastroOnvio:patch}).then(function(){ a.c.cadastroOnvio = patch; feitos++; }, function(){ falhas++; }).then(function(){ return gravar(i + 1); });
+    };
+    gravar(0).then(function(){
+      registrarAtividade({tipo:"importacao", texto:"Usuários do Onvio: cadastro ativo em " + feitos + " contato(s)"});
+      onvioPendente = null; $("#fileOnvio").value = ""; $("#fileOnvioName").textContent = "Nenhum arquivo selecionado";
+      $("#onvioConf").innerHTML = '<div class="import-status '+(falhas ? "warn" : "ok")+'" style="margin-top:14px">Cadastro ativo gravado em '+feitos+' contato(s)'+(falhas ? ' · '+falhas+' falharam, importe de novo para tentar outra vez' : '')+'.</div>';
+      renderAll();
+    });
   });
 
   /* ---------- relatórios: geração de arquivos ---------- */
