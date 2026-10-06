@@ -857,6 +857,15 @@
 
 
   /* ============ cartão de foco: etapas com contatos, visual limpo e plano ============ */
+  /* etapas separadas: cada uma é um bloco próprio, com faixa na cor do setor */
+  .fsetor .fitens{background:transparent; gap:10px;}
+  .fsetor .fitem{border:1px solid var(--rule-strong); border-left:4px solid var(--sc, var(--rule-strong)); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow-1);}
+  .fsetor .fitem:first-child{border-top:1px solid var(--rule-strong);}
+  .fsetor .fitem.open{box-shadow:0 0 0 1px var(--sc, var(--rule-strong)), var(--shadow-1);}
+  .fsetor .fitem-row{padding:11px 12px 11px 12px;}
+  .fsetor .fitem.open > .fitem-row{border-bottom:1px solid var(--rule-strong);}
+  .fsetor .fitem-extra{padding-top:8px;}
+  .fsetor .fitem .ftc-list{border-top:0;}
   .fitem-btn{border-color:transparent; background:none; color:var(--ink-3); padding:4px 6px;}
   .fitem-btn:hover{border-color:transparent; background:none; color:var(--blue-deep);}
   .fitem .fchip.st-pendente{border:0; background:var(--surface-3); color:var(--ink-2);}
