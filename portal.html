@@ -855,6 +855,29 @@
   .ftc-who{min-width:0;}
   .ftc-ctl{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
 
+
+  /* ============ cartão de foco: etapas com contatos, visual limpo e plano ============ */
+  .fitem-btn{border-color:transparent; background:none; color:var(--ink-3); padding:4px 6px;}
+  .fitem-btn:hover{border-color:transparent; background:none; color:var(--blue-deep);}
+  .fitem .fchip.st-pendente{border:0; background:var(--surface-3); color:var(--ink-2);}
+  .fitem .psel.st-pendente{border-color:transparent; background:var(--surface-3); color:var(--ink-2);}
+  .fitem-extra{padding:4px 12px 14px 10px; gap:12px;}
+  .ftc-wrap{align-items:flex-start; gap:6px;}
+  .ftc-wrap > .ftc-list, .ftc-wrap > .ftc-form{align-self:stretch;}
+  .ftc-list{gap:0; border-left:0; padding:0; border-top:1px solid var(--rule);}
+  .ftc-item{padding:9px 0; border-bottom:1px solid var(--rule);}
+  .ftc-item + .ftc-item{border-top:0; padding-top:9px;}
+  .ftc-item .contact-name-link{font-size:13px;}
+  .ftc-item .ftc-who > span{font-size:11.5px;}
+  .ftc-ctl .psel{border-color:transparent; min-width:112px;}
+  .ftc-ctl .psel.st-concluido{border-color:transparent; background:color-mix(in srgb, var(--status-green) 16%, var(--surface)); color:var(--status-green);}
+  :root[data-theme="dark"] .ftc-ctl .psel.st-concluido, :root:not([data-theme="light"]) .ftc-ctl .psel.st-concluido{color:var(--status-green);}
+  .ftc-add, .fitem-novo{border-color:transparent; background:none; padding:2px 0; font-size:12px;}
+  .ftc-add:hover, .fitem-novo:hover{border-color:transparent; background:none; text-decoration:underline; text-underline-offset:2px;}
+  .fitem-extra .ffield{gap:2px; font-weight:500;}
+  .fitem-extra .ffield input{border:0; border-bottom:1px solid var(--rule-strong); border-radius:0; background:transparent; padding:5px 0; box-shadow:none;}
+  .fitem-extra .ffield input:focus{border-bottom-color:var(--blue-deep); box-shadow:none;}
+
   /* ============ relatórios ============ */
   .rel-acoes{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
   .rel-acoes .btn{margin-top:0;}
@@ -3917,7 +3940,7 @@
     var btn = isCalc
       ? (it.total
         ? '<button type="button" class="fitem-btn" '+toggleAttrs+' title="Ver e editar os contatos deste setor">'+(isCad ? 'Usuários' : 'Contatos')+' · '+it.feitos+'/'+it.total+CHEV+'</button>'
-        : '<button type="button" class="linkish fitem-novo" data-action="foco-contato-novo" data-key="'+esc(key)+'" data-docid="'+x.docId+'" data-empresa="'+e.id+'">+ Cadastrar contato</button>')
+        : '<button type="button" class="linkish fitem-novo ftc-add" data-action="foco-contato-novo" data-key="'+esc(key)+'" data-docid="'+x.docId+'" data-empresa="'+e.id+'">+ Cadastrar contato</button>')
       : '<button type="button" class="fitem-nota'+(obs ? ' tem' : '')+'" '+toggleAttrs+' title="'+(obs ? esc(obs) : 'Anotar algo sobre esta etapa')+'" aria-label="Observações de '+esc(it.label)+'">'+ICO_NOTA+'</button>';
     var oid = "fobs-"+x.docId+"-"+it.key;
     var extra = '<label class="ffield"><span class="ffield-top">Observações<span class="fsave" id="fs-'+oid+'"></span></span>' +
@@ -3934,7 +3957,7 @@
             '<input type="text" class="ftc-email" placeholder="E-mail (opcional)">' +
             '<div class="ftc-form-btns"><button type="submit" class="fbtn">Salvar contato</button><button type="button" class="fbtn" data-action="foco-contato-cancelar">Cancelar</button></div>' +
           '</form>'
-        : '<button type="button" class="linkish" data-action="foco-contato-abrir" data-docid="'+x.docId+'">+ Cadastrar contato</button>';
+        : '<button type="button" class="linkish ftc-add" data-action="foco-contato-abrir" data-docid="'+x.docId+'">+ Cadastrar contato</button>';
       extra = '<div class="ftc-wrap">'+listaContatos+formContato+'</div>' + extra;
     }
     // No item de "Treinamento dos clientes" a linha inteira abre/fecha (não só o botão Contatos),
