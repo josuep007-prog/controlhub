@@ -863,6 +863,9 @@
   .fsetor .fitem:first-child{border-top:1px solid var(--rule-strong);}
   .fsetor .fitem.open{box-shadow:0 0 0 1px var(--sc, var(--rule-strong)), var(--shadow-1);}
   .fsetor .fitem-row{padding:11px 12px 11px 12px;}
+  /* data de conclusão compacta: a linha do controle não pode quebrar em três (Fiscal ficava mais alto) */
+  .fsetor .fitem .conc-txt{display:none;}
+  .fsetor .fitem .conc-lbl .ag-input{padding:2px 4px; font-size:11px; width:auto;}
   .fsetor .fitem.open > .fitem-row{border-bottom:1px solid var(--rule-strong);}
   .fsetor .fitem-extra{padding-top:8px;}
   .fsetor .fitem .ftc-list{border-top:0;}
@@ -2652,7 +2655,7 @@
   function campoConclusao(id, attrs, valor){
     if(!valor) return '<span class="ag-lbl conc-lbl conc-vazia">concluído · <button type="button" class="linkish conc-informar" data-action="conc-informar" data-for="'+id+'">informar data</button>' +
       '<input type="date" id="'+id+'" class="ag-input conc-data vazio" '+attrs+' value="" hidden aria-label="Data de conclusão"></span>';
-    return '<label class="ag-lbl conc-lbl" for="'+id+'" title="Data de conclusão: clique para corrigir">concluído em <input type="date" id="'+id+'" class="ag-input conc-data" '+attrs+' value="'+esc(valor || "")+'"></label>';
+    return '<label class="ag-lbl conc-lbl" for="'+id+'" title="Data de conclusão: clique para corrigir"><span class="conc-txt">concluído em</span> <input type="date" id="'+id+'" class="ag-input conc-data" '+attrs+' value="'+esc(valor || "")+'" aria-label="Data de conclusão"></label>';
   }
   function campoDataAgendada(id, classe, attrs, valor, hora){
     return '<label class="ag-lbl" for="' + id + '">para <input type="date" id="' + id + '" class="ag-input ' + classe + (valor ? '' : ' vazio') + '" ' + attrs + ' value="' + esc(valor || "") + '" title="Data do treinamento"></label>' +
