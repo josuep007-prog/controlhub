@@ -1980,17 +1980,21 @@
   }
   // Cadastro do usuário do cliente no Onvio: calculado pelos contatos, como o treinamento. Cada contato guarda
   // cadastroOnvio {status:"ativo", em, deptos}; sem "deptos" vale para todos os setores do contato.
-  function cadastroAtivoNoSetor(c, setorKey){
+  // Contato já treinado: pressupõe-se que o usuário dele está ativo no Onvio e que a empresa foi habilitada no Domínio.
+  function contatoTreinado(c){ return !!c && c.statusTreinamento === "concluido"; }
+  function cadastroExplicitoNoSetor(c, setorKey){
     var co = c && c.cadastroOnvio;
     if(!co || co.status !== "ativo") return false;
     return !co.deptos || !co.deptos.length || co.deptos.indexOf(setorKey) !== -1;
   }
+  function cadastroAtivoNoSetor(c, setorKey){ return contatoTreinado(c) || cadastroExplicitoNoSetor(c, setorKey); }
+  function cadastroInferido(c, setorKey){ return contatoTreinado(c) && !cadastroExplicitoNoSetor(c, setorKey); }
   function statusCadastroComputado(empresaId, setorKey){
     var lista = contatosDoSetor(empresaId, setorKey);
     if(!lista.length) return {status:"pendente", data:"", total:0, feitos:0};
     var feitos = lista.filter(function(c){ return cadastroAtivoNoSetor(c, setorKey); }).length;
     var st = feitos === lista.length ? "concluido" : feitos > 0 ? "andamento" : "pendente";
-    var fim = st === "concluido" ? lista.map(function(c){ return String((c.cadastroOnvio && c.cadastroOnvio.em) || "").slice(0,10); }).sort().pop() : "";
+    var fim = st === "concluido" ? lista.map(function(c){ return String((c.cadastroOnvio && c.cadastroOnvio.em) || (contatoTreinado(c) && c.concluidoEm) || "").slice(0,10); }).sort().pop() : "";
     return {status:st, data:fim || "", total:lista.length, feitos:feitos};
   }
   // Habilitação no Domínio é uma só para a empresa (gravada em empresas.habilitacao), não por setor.
@@ -2010,7 +2014,27 @@
     return idxSetoresEmp.mapa[empresaId] || [];
   }
   var RANK_HAB = {pendente:0, andamento:1, concluido:2};
+  // Empresa com algum contato treinado: a habilitação no Domínio é dada como concluída (data = o primeiro treinamento).
+  var idxTreinados = {ref:null, mapa:{}};
+  function primeiroTreinoDaEmpresa(empresaId){
+    if(idxTreinados.ref !== state.contatos){
+      var mapa = {};
+      state.contatos.forEach(function(c){
+        if(!contatoTreinado(c)) return;
+        var d = String(c.concluidoEm || "").slice(0,10), at = mapa[c.empresaId];
+        if(at === undefined || (d && (!at || d < at))) mapa[c.empresaId] = d;
+      });
+      idxTreinados = {ref:state.contatos, mapa:mapa};
+    }
+    return idxTreinados.mapa[empresaId];
+  }
   function habilitacaoEmpresa(empresaId){
+    var h = habilitacaoDeclarada(empresaId);
+    if(h.status === "concluido") return h;
+    var d = primeiroTreinoDaEmpresa(empresaId);
+    return d === undefined ? h : {status:"concluido", data:d, obs:h.obs, herdada:false, inferida:true};
+  }
+  function habilitacaoDeclarada(empresaId){
     var e = empresaPorId(empresaId);
     if(e && e.habilitacao && RANK_HAB[e.habilitacao.status] !== undefined)
       return {status:e.habilitacao.status, data:e.habilitacao.status === "concluido" ? (e.habilitacao.data || "") : "", obs:e.habilitacao.obs || "", herdada:false};
@@ -2029,7 +2053,7 @@
   }
   // O registro completo (status, data e observações) vai sempre inteiro, para não depender do que foi herdado dos setores.
   function habilitacaoCompleta(empresaId, patch){
-    var h = habilitacaoEmpresa(empresaId);
+    var h = habilitacaoDeclarada(empresaId);
     return Object.assign({status:h.status, data:h.data, obs:h.obs}, patch);
   }
   function salvarHabilitacao(empresaId, patch){
@@ -3929,8 +3953,8 @@
     '</div>';
   }
   function cadastroSelectHTML(c, setorKey, prefixo){
-    var ativo = cadastroAtivoNoSetor(c, setorKey);
-    return '<select id="ccad-'+prefixo+c.id+'" class="psel st-'+(ativo ? "concluido" : "pendente")+'" data-action="cont-cadastro" data-id="'+c.id+'" data-setor="'+setorKey+'" title="Cadastro de usuário no Onvio" aria-label="Cadastro no Onvio de '+esc(c.nome)+'">' +
+    var ativo = cadastroAtivoNoSetor(c, setorKey), auto = cadastroInferido(c, setorKey);
+    return '<select id="ccad-'+prefixo+c.id+'" class="psel st-'+(ativo ? "concluido" : "pendente")+'" data-action="cont-cadastro" data-id="'+c.id+'" data-setor="'+setorKey+'"'+(auto ? ' disabled' : '')+' title="'+(auto ? "Ativo porque o contato já foi treinado" : "Cadastro de usuário no Onvio")+'" aria-label="Cadastro no Onvio de '+esc(c.nome)+'">' +
       '<option value="pendente"'+(ativo ? '' : ' selected')+'>Sem cadastro</option><option value="ativo"'+(ativo ? ' selected' : '')+'>Cadastro ativo</option></select>';
   }
   function contatoCadastroFocoHTML(c, setorKey, prefixo, hit, semEmail){
@@ -4625,6 +4649,7 @@
   function setHabilitacaoStatus(e, novo, dataRestaurada, semDesfazer){
     var hAntes = habilitacaoEmpresa(e.id);
     if(hAntes.status === novo) return;
+    if(hAntes.inferida){ renderAll(); mostrarToast("Habilitação no Domínio já vale como concluída: a empresa tem contato treinado."); return; }
     registrarAtividade({tipo:"etapa", empresaId:e.id, empresaNome:e.nome, setor:"", item:"habilitacaoDominio", de:hAntes.status, para:novo});
     var antes = resumoEmpresaFoco(e, docsDaEmpresa(e.id)).completa;
     var dataNova = dataRestaurada !== undefined ? dataRestaurada : (novo === "concluido" ? new Date().toISOString().slice(0,10) : "");
@@ -5333,6 +5358,7 @@
     var c = state.contatos.find(function(x){ return x.id === id; });
     if(!c || !dbRef) return;
     var antes = c.cadastroOnvio || null, deptos = ((antes && antes.deptos) || []).slice(), patch;
+    if(novo !== "ativo" && cadastroInferido(c, setorKey)){ renderAll(); mostrarToast(c.nome + ": cadastro ativo porque o treinamento está concluído."); return; }
     if(novo === "ativo"){
       if(deptos.length && deptos.indexOf(setorKey) === -1) deptos.push(setorKey);
       patch = {status:"ativo", em:(antes && antes.status === "ativo" && antes.em) || hojeISO(), deptos:deptos};
