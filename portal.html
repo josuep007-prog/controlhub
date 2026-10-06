@@ -1419,6 +1419,7 @@
               <button type="button" class="toggle-chip" id="btnSoImpedimentoProgresso">Só com impedimento</button>
               <button type="button" class="toggle-chip" id="btnSemAnalista">Sem analista</button>
               <button type="button" class="toggle-chip" id="btnSemContato" title="Empresas sem nenhum contato de cliente em algum setor">Sem contato</button>
+              <button type="button" class="toggle-chip" id="btnSoConcluidas" title="Empresas com todas as etapas de todos os setores concluídas">Só 100% concluídas</button>
               <span class="analista-chip" id="filtroAnalistaChip" hidden></span>
               <button type="button" class="clear-filters" id="btnLimparProgresso" hidden>Limpar filtros</button>
               <button type="button" class="linkish" id="btnSalvarFiltro" hidden>Salvar este filtro</button>
@@ -2338,7 +2339,7 @@
     agendaDia:null, agendar:{aberto:false, sel:[], data:"", hora:"", mes:"", opcoes:[], ativo:0}, expanded:new Set(), editEmpresa:new Set(), expandedFunc:new Set(), expandedGroups:new Set(["secao:empresas", "secao:contatos"]), collapsedOverride:new Set(), expandedEtapas:new Set(), focoAbertas:new Set(), focoAcaoAberta:new Set(), focoRecemAdicionada:null,
     selecionadas:new Set(), ultimaLista:[],
     selFunc:new Set(), ultimaListaFunc:[], selPessoas:new Set(), ultimaListaPessoas:[],
-    busca:"", filtroSetor:"todos", filtroAnalista:null, soPendentes:false, soImpedimento:false, soSemAnalista:false, soSemContato:false,
+    busca:"", filtroSetor:"todos", filtroAnalista:null, soPendentes:false, soImpedimento:false, soSemAnalista:false, soSemContato:false, soConcluidas:false,
     treinoBusca:"", treinoStatus:"todos", treinoSoImpedimento:false,
     impBusca:"", impTipo:"empresa", impResolvendo:null, confTudo:false, confAbertas:{}, tagMenuAberto:null, focoContatoForm:null, carteiraAddAberto:null,
     pessoasBusca:"", pessoasFiltroSetor:"todos", pessoasFiltroEmpresa:"", expandedPessoas:new Set(), pessoaVincularForm:null,
@@ -2428,7 +2429,7 @@
     // Sem isso, um filtro deixado ligado força a barra a reabrir sozinha ao voltar — a
     // seção só fica de fato recolhida se sair da aba também limpar os filtros das 3 listas.
     ui.busca = ""; ui.filtroSetor = "todos"; ui.filtroAnalista = null;
-    ui.soPendentes = false; ui.soImpedimento = false; ui.soSemAnalista = false; ui.soSemContato = false;
+    ui.soPendentes = false; ui.soImpedimento = false; ui.soSemAnalista = false; ui.soSemContato = false; ui.soConcluidas = false;
     ui.treinoBusca = ""; ui.treinoStatus = "todos"; ui.treinoSoImpedimento = false;
     ui.pessoasBusca = ""; ui.pessoasFiltroSetor = "todos"; ui.pessoasFiltroEmpresa = "";
     ui.consEtapaStatus = "todos"; ui.consEtapaAnalista = ""; ui.consEtapaAtrasados = false; ui.consEtapaLimite = 40;
@@ -3461,6 +3462,9 @@
     var btnSemCont = $("#btnSemContato");
     btnSemCont.classList.toggle("on", ui.soSemContato);
     btnSemCont.onclick = function(){ ui.soSemContato = !ui.soSemContato; renderEmpresas(); };
+    var btnConc = $("#btnSoConcluidas");
+    btnConc.classList.toggle("on", ui.soConcluidas);
+    btnConc.onclick = function(){ ui.soConcluidas = !ui.soConcluidas; renderEmpresas(); };
 
     var chipAnalista = $("#filtroAnalistaChip");
     if(ui.filtroAnalista){
@@ -3471,10 +3475,10 @@
       chipAnalista.hidden = true;
     }
 
-    var filtrosAtivosProgresso = ui.busca || ui.filtroSetor !== "todos" || !!ui.filtroAnalista || ui.soPendentes || ui.soImpedimento || ui.soSemAnalista || ui.soSemContato;
+    var filtrosAtivosProgresso = ui.busca || ui.filtroSetor !== "todos" || !!ui.filtroAnalista || ui.soPendentes || ui.soImpedimento || ui.soSemAnalista || ui.soSemContato || ui.soConcluidas;
     btnClear.hidden = !filtrosAtivosProgresso;
     btnClear.onclick = function(){
-      ui.busca = ""; ui.filtroSetor = "todos"; ui.filtroAnalista = null; ui.soPendentes = false; ui.soImpedimento = false; ui.soSemAnalista = false; ui.soSemContato = false;
+      ui.busca = ""; ui.filtroSetor = "todos"; ui.filtroAnalista = null; ui.soPendentes = false; ui.soImpedimento = false; ui.soSemAnalista = false; ui.soSemContato = false; ui.soConcluidas = false;
       $("#empresaSearch").value = "";
       renderEmpresas();
     };
@@ -3502,6 +3506,7 @@
       if(ui.soImpedimento && !empresaBloqueada(e, docs)) return false;
       if(ui.soSemAnalista && !empresaSemAnalista(e, docs)) return false;
       if(ui.soSemContato && comContatoIdx()[e.id]) return false;
+      if(ui.soConcluidas && !(frentesDaEmpresa(e, docs).length && progressoEmpresa(e, docs) > 0.9999)) return false;
       return true;
     });
 
@@ -3512,7 +3517,7 @@
     else if(ui.consOrdem === "semAnalista") lista.forEach(function(e){ chaveOrd[e.id] = empresaSemAnalista(e, porEmpresa[e.id] || []) ? 0 : 1; });
     lista.sort(function(a, b){ return ((chaveOrd[a.id] || 0) - (chaveOrd[b.id] || 0)) || COLLATOR(String(a.nome || ""), String(b.nome || "")); });
     // Trocou filtro, busca ou ordem: volta a mostrar só as primeiras 50.
-    var sig = [ui.busca, ui.filtroSetor, ui.filtroAnalista, ui.soPendentes, ui.soImpedimento, ui.soSemAnalista, ui.soSemContato, ui.consOrdem].join("|");
+    var sig = [ui.busca, ui.filtroSetor, ui.filtroAnalista, ui.soPendentes, ui.soImpedimento, ui.soSemAnalista, ui.soSemContato, ui.soConcluidas, ui.consOrdem].join("|");
     if(sig !== ui.consSig){ ui.consSig = sig; ui.consLimite = 50; }
 
     $("#progressoCount").textContent = lista.length+" de "+state.empresas.length;
@@ -3566,7 +3571,7 @@
   var CHAVE_FILTROS = "ct-filtros-consulta";
   function lerFiltrosSalvos(){ try{ var l = JSON.parse(localStorage.getItem(CHAVE_FILTROS) || "[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
   function gravarFiltrosSalvos(l){ try{ localStorage.setItem(CHAVE_FILTROS, JSON.stringify(l)); }catch(e){} }
-  var CAMPOS_FILTRO = ["busca","filtroSetor","filtroAnalista","soPendentes","soImpedimento","soSemAnalista","soSemContato","consOrdem"];
+  var CAMPOS_FILTRO = ["busca","filtroSetor","filtroAnalista","soPendentes","soImpedimento","soSemAnalista","soSemContato","soConcluidas","consOrdem"];
   function descricaoFiltro(){
     var p = [];
     if(ui.filtroSetor !== "todos") p.push(SETOR_LABEL[ui.filtroSetor]);
@@ -3575,6 +3580,7 @@
     if(ui.soImpedimento) p.push("com impedimento");
     if(ui.soSemAnalista) p.push("sem analista");
     if(ui.soSemContato) p.push("sem contato");
+    if(ui.soConcluidas) p.push("100% concluídas");
     if(ui.busca) p.push("“" + ui.busca + "”");
     return p.join(" · ") || "Filtro";
   }
@@ -5548,7 +5554,7 @@
   function salvarUI(){
     try{
       localStorage.setItem(CHAVE_UI, JSON.stringify({
-        view:ui.view, filtroSetor:ui.filtroSetor, soPendentes:ui.soPendentes, soImpedimento:ui.soImpedimento, soSemAnalista:ui.soSemAnalista, soSemContato:ui.soSemContato,
+        view:ui.view, filtroSetor:ui.filtroSetor, soPendentes:ui.soPendentes, soImpedimento:ui.soImpedimento, soSemAnalista:ui.soSemAnalista, soSemContato:ui.soSemContato, soConcluidas:ui.soConcluidas,
         focoModo:ui.focoModo, focoEtapaSel:ui.focoEtapaSel, focoEtapaStatus:ui.focoEtapaStatus, treinoStatus:ui.treinoStatus, agendaCompleta:!!ui.agendaCompleta,
         focoEtapaSetor:ui.focoEtapaSetor, focoEtapaAnalista:ui.focoEtapaAnalista, focoEtapaOrdem:ui.focoEtapaOrdem,
         pessoasFiltroSetor:ui.pessoasFiltroSetor, focoOrdem:ui.focoOrdem, focoEtapaFiltrosAbertos:!!ui.focoEtapaFiltrosAbertos,
@@ -5564,7 +5570,7 @@
     // A aba inicial é sempre "Hoje": a aba salva da última visita não é restaurada.
     ui.view = "dashboard";
     if(["todos","pessoal","contabil","fiscal"].indexOf(d.filtroSetor) !== -1) ui.filtroSetor = d.filtroSetor;
-    ["soPendentes","soImpedimento","soSemAnalista","soSemContato","agendaCompleta"].forEach(function(k){ if(typeof d[k] === "boolean") ui[k] = d[k]; });
+    ["soPendentes","soImpedimento","soSemAnalista","soSemContato","soConcluidas","agendaCompleta"].forEach(function(k){ if(typeof d[k] === "boolean") ui[k] = d[k]; });
     if(d.focoModo === "empresa" || d.focoModo === "etapa") ui.focoModo = d.focoModo;
     if(["recentes","parada","prazo","progresso","impedimento"].indexOf(d.focoOrdem) !== -1) ui.focoOrdem = d.focoOrdem;
     if(typeof d.focoEtapaFiltrosAbertos === "boolean") ui.focoEtapaFiltrosAbertos = d.focoEtapaFiltrosAbertos;
