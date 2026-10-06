@@ -1439,6 +1439,9 @@ button.sd-kpi{cursor:pointer;} button.sd-kpi:hover{background:var(--surface-2);}
 .portal-frame{position:fixed; inset:0; width:100%; height:100%; border:0; z-index:500; background:var(--page);}
 .portal-frame[hidden]{display:none;}
 body.portal-open{overflow:hidden;}
+/* Contábil: abre ao lado da barra lateral, como o DP */
+body.frame-rail .side-rail{display:block!important; z-index:510;}
+@media (min-width:761px){ body.frame-rail .portal-frame.com-rail{left:64px; width:calc(100% - 64px);} }
 
 /* ============ DP: movimento (abas, painel) ============ */
 .dp-tabs.com-ind{position:relative;}
@@ -2572,6 +2575,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   function applyTheme() {
     if (state.prefs.theme) document.documentElement.dataset.theme = state.prefs.theme;
     try { localStorage.setItem(THEME_KEY, state.prefs.theme || ''); } catch {}
+    $$('.portal-frame').forEach(f => { try { if (state.prefs.theme) f.contentDocument.documentElement.dataset.theme = state.prefs.theme; } catch {} });
     const dark = currentTheme() === 'dark';
     document.body.classList.toggle('tema-claro', !dark);
     const tit = dark ? 'Usar tema claro' : 'Usar tema escuro';
@@ -3024,7 +3028,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         : t.url
         ? `<a class="card-stretch" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}"${target} aria-label="Abrir ${escapeHtml(t.name)}" title="${escapeHtml(t.name)}"></a>`
         : `<button type="button" class="card-stretch" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Configurar ${escapeHtml(t.name)}" title="${escapeHtml(t.name)} (sem link: clique para configurar)"></button>`;
-      const on = t.moduleKey && t.moduleKey === state.activeModule;
+      const on = t.moduleKey && t.moduleKey === (state.frameModule || state.activeModule);
       const fixo = !!t.virtual;
       return `
       <div class="card${t.url || t.moduleKey ? '' : ' no-link'}${on ? ' nav-on' : ''}"${fixo ? '' : ` data-id="${escapeHtml(t.id)}"`} style="--accent:${t.color}" ${draggable && !fixo ?'draggable="true"':''}>
@@ -3038,7 +3042,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
 
     const novo = ro ? '' : `<div class="card rail-add"><button type="button" class="card-stretch" data-action="new" aria-label="Nova ferramenta" title="Nova ferramenta"></button><div class="card-icon">${ic('plus', 'ic-lg')}</div><div class="card-title">Nova ferramenta</div></div>`;
     container.innerHTML = (list.length ? tiles : '<div class="modules-empty">Nenhum módulo cadastrado.</div>') + novo;
-    $('#nav-home').classList.toggle('nav-on', !state.activeModule);
+    $('#nav-home').classList.toggle('nav-on', !state.activeModule && !state.frameModule);
   }
 
   // Ícones desenhados para os módulos principais. Só valem enquanto a ferramenta ainda usa o emoji original;
@@ -3121,12 +3125,14 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   function openModule(key) {
     document.activeElement?.blur();
     closeRail();
+    if (!FRAMES[key]) closeFrames();
     if (key === 'dp') openDpModule();
     else if (key === 'uso') openUsoModule();
     else if (FRAMES[key]) openFrame(key);
   }
 
   function goHome() {
+    closeFrames();
     state.activeModule = null;
     syncShell();
     $$('.module-view').forEach(el => { el.hidden = true; });
@@ -3280,17 +3286,21 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil' } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true } };
   function openFrame(key) {
     Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
     let f = $(`#${key}-frame`);
     if (!f) {
       f = document.createElement('iframe');
-      f.id = `${key}-frame`; f.className = 'portal-frame'; f.title = FRAMES[key].title; f.src = FRAMES[key].src;
+      f.id = `${key}-frame`; f.className = 'portal-frame' + (FRAMES[key].rail ? ' com-rail' : ''); f.title = FRAMES[key].title; f.src = FRAMES[key].src;
       document.body.appendChild(f);
     }
     f.hidden = false;
     document.body.classList.add('portal-open');
+    // Com barra lateral: o módulo fica marcado nela e dá para trocar de módulo sem voltar ao início.
+    state.frameModule = key;
+    document.body.classList.toggle('frame-rail', !!FRAMES[key].rail);
+    closeRail(); renderFerramentas();
     try { if (location.hash !== '#' + key) history.replaceState(null, '', '#' + key); } catch {}
     f.focus();
   }
@@ -3298,6 +3308,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     const f = $(`#${key}-frame`);
     if (!f || f.hidden) return;
     f.hidden = true;
+    if (state.frameModule === key) { state.frameModule = null; document.body.classList.remove('frame-rail'); renderFerramentas(); }
     if (!Object.keys(FRAMES).some(k => { const g = $(`#${k}-frame`); return g && !g.hidden; })) document.body.classList.remove('portal-open');
     try { if (location.hash === '#' + key) history.replaceState(null, '', location.pathname + location.search); } catch {}
   }
