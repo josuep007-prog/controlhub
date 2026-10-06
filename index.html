@@ -1523,6 +1523,240 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
 @media (hover:hover){
   .agm-ev:hover{white-space:normal; position:relative; z-index:2; box-shadow:0 4px 12px rgba(16,24,32,.16);}
   .agm-ev:hover .agm-t{white-space:normal; overflow:visible;}
+/* ============ DP › Ferramentas (vitrine) ============ */
+.fe-wrap{padding:16px 22px 28px; display:flex; flex-direction:column; gap:22px;}
+.fe-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap:10px;}
+.fe-card{display:flex; align-items:flex-start; gap:12px; padding:14px; border:1px solid var(--rule); border-left:3px solid var(--blue-deep); border-radius:4px; background:var(--surface); color:var(--ink); font:inherit; text-align:left; cursor:pointer; transition:border-color .15s, background .15s;}
+.fe-card:hover{background:var(--surface-2); border-color:var(--blue-deep);}
+.fe-card:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.fe-ico{flex:none; width:34px; height:34px; display:grid; place-items:center; border-radius:4px; background:var(--blue-pale); color:var(--blue-deep);}
+.fe-card-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+.fe-card-txt b{font-family:"Archivo",sans-serif; font-size:14px;}
+.fe-card-txt > span{font-size:12.5px; color:var(--ink-2); line-height:1.45;}
+.fe-card-txt .fe-card-meta{font-size:11.5px; color:var(--ink-3); margin-top:3px; font-variant-numeric:tabular-nums;}
+.fe-card-ir{flex:none; align-self:center; font-size:12px; font-weight:600; color:var(--blue-deep);}
+.fe-log-h{display:flex; align-items:baseline; gap:10px; margin-bottom:8px;}
+.fe-log-h h3{font-family:"Archivo",sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3);}
+.fe-log-lista{max-height:min(460px, 60vh); overflow:auto; border:1px solid var(--rule); border-radius:4px; scrollbar-width:thin;}
+.fe-table{table-layout:fixed; min-width:780px;} .fe-table th{position:sticky; top:0; z-index:1; white-space:normal;}
+.fe-table td{overflow-wrap:break-word; font-size:12.5px; vertical-align:top;} .fe-table .dp-cell-sub{display:block; white-space:normal;}
+.fe-table th:nth-child(1){width:84px;} .fe-table th:nth-child(2){width:24%;} .fe-table th:nth-child(3){width:116px;} .fe-table th:nth-child(4){width:104px;} .fe-table th:nth-child(5){width:20%;} .fe-table th:nth-child(6){width:108px;} .fe-table th:nth-child(7){width:13%;}
+.fe-num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
+.fe-quando{color:var(--ink-3); font-variant-numeric:tabular-nums;}
+/* ============ Uso do banco ============ */
+.uso-wrap{padding:6px 22px 30px; display:flex; flex-direction:column; gap:20px;}
+.uso-wrap .kpi-grid{padding:10px 0 0;}
+.uso-cap{display:flex; flex-direction:column; gap:6px;}
+.uso-cap-txt{display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; font-size:12.5px; color:var(--ink-2);}
+.uso-bar{height:8px; background:var(--surface-2); border:1px solid var(--rule); border-radius:3px; overflow:hidden;}
+.uso-bar i{display:block; height:100%; background:var(--blue-deep); min-width:2px;}
+.uso-bar.is-soon i{background:var(--cv-soon);} .uso-bar.is-late i{background:var(--brand-red);}
+.uso-mini{display:flex; align-items:center; gap:8px; min-width:0;} .uso-mini .uso-bar{flex:1; height:6px; min-width:36px;}
+.uso-sec h3{font-family:"Archivo",sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); margin-bottom:8px;}
+.uso-tabela{overflow:auto; border:1px solid var(--rule); border-radius:4px; scrollbar-width:thin;}
+.uso-tabela table{min-width:760px; table-layout:fixed;} .uso-tabela th{white-space:normal;} .uso-tabela td{overflow-wrap:anywhere; font-size:12.5px; vertical-align:top;}
+.uso-tabela tfoot td{font-weight:700; border-top:1px solid var(--rule-strong);}
+.uso-tabela .uso-erro{color:var(--brand-red);} .uso-tabela .dp-cell-sub{display:block; white-space:normal;}
+.kpi-card.is-soon{border-left:3px solid var(--cv-soon);} .kpi-card.is-soon .kpi-value{color:var(--cv-soon);}
+.uso-nota{font-size:12px; color:var(--ink-3); line-height:1.55; max-width:90ch;}
+.uso-extra{display:flex; flex-wrap:wrap; gap:8px; align-items:center;} .uso-extra input{min-width:0; flex:1 1 220px; max-width:320px;}
+.uso-rm{all:unset; cursor:pointer; color:var(--ink-3); font-size:12px; margin-left:6px;} .uso-rm:hover{color:var(--brand-red);} .uso-rm:focus-visible{outline:2px solid var(--blue-deep);}
+.uso-trend{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; font-size:12.5px; color:var(--ink-2);} .uso-trend svg{width:min(100%, 260px); height:44px; color:var(--blue-deep);}
+@media (max-width:760px){ .uso-wrap{padding-inline:16px;} }
+.fe-emp{all:unset; cursor:pointer; color:var(--ink); font-weight:600;} .fe-emp:hover{color:var(--blue-deep); text-decoration:underline;} .fe-emp:focus-visible{outline:2px solid var(--blue-deep);}
+.fe-tool-bar{display:flex; align-items:center; gap:10px; padding:12px 22px 0;}
+.fe-voltar{all:unset; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--blue-deep); padding:4px 0;} .fe-voltar:hover{text-decoration:underline;} .fe-voltar:focus-visible{outline:2px solid var(--blue-deep);}
+.fe-tool-nome{font-size:12.5px; color:var(--ink-3);} .fe-tool-nome::before{content:"/"; margin-right:10px; color:var(--rule-strong);}
+@media (max-width:760px){ .fe-wrap{padding-inline:16px;} .fe-tool-bar{padding-inline:16px;} }
+
+/* ============ Importador Domínio (importador.js) ============ */
+.imp{--imp-mono:"IBM Plex Mono",ui-monospace,monospace; padding:14px 22px 30px; display:flex; flex-direction:column; gap:14px; color:var(--ink); min-width:0;}
+.imp b{font-weight:700;}
+.imp-cab{display:flex; align-items:flex-start; gap:14px 20px; flex-wrap:wrap; justify-content:space-between;}
+.imp-cab-txt{flex:1 1 360px; min-width:0;}
+.imp-cab h3{font-family:"Archivo",sans-serif; font-size:18px; letter-spacing:-.01em;}
+.imp-cab p{margin:4px 0 0; font-size:13px; color:var(--ink-2); line-height:1.5; max-width:72ch;}
+.imp-mods button{padding:7px 14px;} .imp-mods small{font-weight:500; color:var(--ink-3); font-size:11px;}
+.imp-mods button.active{background:var(--blue-deep); color:#fff;} .imp-mods button.active small{color:inherit; opacity:.8;}
+:root[data-theme="dark"] .imp-mods button.active, :root:not([data-theme="light"]) .imp-mods button.active{color:#0B1015;}
+.imp-leiaute > summary{cursor:pointer; font-size:12px; color:var(--ink-3); width:max-content; max-width:100%;} .imp-leiaute > summary:hover{color:var(--ink);}
+.imp-fita{display:flex; margin-top:8px; border:1px solid var(--rule); border-radius:4px; overflow:hidden; font-family:var(--imp-mono); font-size:10.5px;}
+.imp-fita span{flex:var(--n) 1 0; min-width:0; padding:6px 0 6px 4px; border-left:1px solid var(--rule); background:var(--surface); overflow-wrap:anywhere;}
+.imp-fita span:first-child{border-left:0;} .imp-fita span:nth-child(even){background:var(--surface-2);}
+.imp-fita span:hover{background:var(--blue-pale);}
+.imp-fita i{display:block; font-style:normal; color:var(--ink-3);} .imp-fita u{display:block; text-decoration:none; color:var(--ink-2); font-family:"Inter",sans-serif; font-size:10.5px; line-height:1.25;}
+.imp-passo{border:1px solid var(--rule); border-radius:4px; background:var(--surface); padding:14px 16px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s, background .15s;}
+.imp-passo.over{border-color:var(--blue-deep); background:var(--blue-pale);}
+.imp-passo.lendo{opacity:.7; pointer-events:none;}
+.imp-passo-h{display:flex; align-items:center; gap:10px;}
+.imp-passo-h h4{font-family:"Archivo",sans-serif; font-size:14px;}
+.imp-n{flex:none; width:22px; height:22px; display:grid; place-items:center; border-radius:3px; background:var(--blue-deep); color:#fff; font:700 12px var(--imp-mono);}
+:root[data-theme="dark"] .imp-n, :root:not([data-theme="light"]) .imp-n{color:#0B1015;}
+.imp-txt{margin:0; font-size:12.5px; color:var(--ink-2); line-height:1.5;}
+.imp-dica{margin:0; font-size:11.5px; color:var(--ink-3);}
+.imp-sub{font-size:12px; color:var(--ink-3);}
+.imp-emp-linha{display:flex; flex-direction:column; gap:6px;}
+.imp-emp{max-width:560px;}
+.imp-emp-lista{max-height:300px;}
+.imp-emp-grupo{padding:8px 10px 4px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3);}
+.imp-emp-lista .cb-op{display:flex; flex-direction:column; gap:1px;}
+.imp-emp-sub{font-size:11.5px; font-weight:500; color:var(--ink-3);}
+.imp-emp-info{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 16px; font-size:12.5px; color:var(--ink-2);}
+.imp-emp-info b{color:var(--ink); font-variant-numeric:tabular-nums;}
+.imp-falta{color:var(--brand-red); font-weight:600;}
+.imp-link-sutil{color:var(--ink-3);}
+.imp-acoes{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.imp-colar{flex-basis:100%;} .imp-colar > summary{cursor:pointer; font-size:12px; color:var(--ink-3); width:max-content;}
+.imp-colar textarea{display:block; width:100%; margin:8px 0 6px; font-family:var(--imp-mono); font-size:12px;}
+.imp-drop{display:flex; align-items:center; gap:14px; padding:18px; border:1px dashed var(--rule-strong); border-radius:4px; background:var(--surface-2); cursor:pointer; transition:border-color .15s, background .15s;}
+.imp-drop > .ic{flex:none; width:22px; height:22px; color:var(--blue-deep);}
+.imp-drop:hover,.imp-drop.over{border-color:var(--blue-deep); background:var(--blue-pale);}
+.imp-drop:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.imp-drop.ok{border-style:solid; border-color:var(--status-green);}
+.imp-drop-tit{font-weight:600; font-size:13.5px;}
+.imp-drop-dica{font-size:12px; color:var(--ink-3); margin-top:2px; line-height:1.45;}
+.imp-drop-arq{font:600 12px var(--imp-mono); color:var(--status-green); margin-top:4px; overflow-wrap:anywhere;} .imp-drop-arq:empty{display:none;}
+.imp-bar{display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
+.imp-status{font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+.imp-atalho{margin-left:auto; font-size:11px; color:var(--ink-3);}
+.imp kbd,.imp-dlg kbd{font:600 10px var(--imp-mono); border:1px solid var(--rule-strong); border-radius:3px; padding:0 4px; background:var(--surface);}
+.imp-rodape{margin:6px 0 0; font-size:11.5px; color:var(--ink-3); line-height:1.5;}
+/* avisos */
+.imp .msg,.imp-dlg .msg{border:1px solid var(--rule); border-left:3px solid var(--blue-deep); border-radius:4px; background:var(--surface); padding:10px 14px; font-size:12.5px; line-height:1.5; margin-bottom:8px;}
+.imp .msg strong,.imp-dlg .msg strong{display:block; font-size:13px; margin-bottom:2px;}
+.imp .msg ul,.imp-dlg .msg ul{margin:4px 0 0; padding-left:18px; max-height:180px; overflow:auto; scrollbar-width:thin;}
+.imp .msg.ok{border-left-color:var(--status-green);}
+.imp .msg.warn,.imp-dlg .msg.warn{border-left-color:var(--cv-soon);}
+.imp .msg.err{border-left-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp .msg code{font-family:var(--imp-mono); font-size:11.5px; overflow-wrap:anywhere;}
+.imp .msg-acao{margin-top:8px; border:1px solid var(--rule-strong); background:var(--surface); border-radius:4px; padding:5px 10px; font:600 12px inherit; cursor:pointer; color:var(--ink);}
+.imp .msg-acao:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+/* conferência */
+.imp #imp-saida h2{font-family:"Archivo",sans-serif; font-size:15px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin:6px 0 10px;}
+.imp #imp-saida .step{width:22px; height:22px; display:inline-grid; place-items:center; border-radius:3px; background:var(--blue-deep); color:#fff; font:700 12px var(--imp-mono);}
+:root[data-theme="dark"] .imp #imp-saida .step, :root:not([data-theme="light"]) .imp #imp-saida .step{color:#0B1015;}
+.imp .h2-note{font-family:"Inter",sans-serif; font-size:11.5px; font-weight:500; color:var(--ink-3);}
+.imp .lote-info{margin:0 0 10px; font-size:13px; color:var(--ink-2);}
+.imp .carimbo{font-size:11.5px; color:var(--ink-3); margin-left:6px;}
+.imp .recon{display:flex; align-items:baseline; gap:10px; padding:9px 12px; border-radius:4px; margin-bottom:10px; font-size:12.5px; border:1px solid var(--rule);}
+.imp .recon-tag{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+.imp .recon-ok{background:var(--dp-ok-bg);} .imp .recon-ok .recon-tag{color:var(--dp-ok);}
+.imp .recon-dif{background:var(--dp-late-bg);} .imp .recon-dif .recon-tag{color:var(--dp-late);}
+.imp .tot{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+.imp .tot > div{flex:1 1 140px; border:1px solid var(--rule); border-radius:4px; background:var(--surface); padding:9px 12px; font-size:11.5px; color:var(--ink-3);}
+.imp .tot b{display:block; font:600 18px var(--imp-mono); color:var(--ink); margin-top:2px; font-variant-numeric:tabular-nums;}
+.imp .resumo-grupo{margin-bottom:12px;} .imp .resumo-grupo > summary{cursor:pointer; font-size:12px; font-weight:600; color:var(--ink-2); margin-bottom:6px;}
+.imp table.tabela-resumo,.imp table.tabela-lote{width:100%; border-collapse:collapse; font-size:12.5px; border:1px solid var(--rule); border-radius:4px; background:var(--surface);}
+.imp .tabela-resumo th,.imp .tabela-lote th{background:var(--surface-2); text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--rule);}
+.imp .tabela-resumo td,.imp .tabela-lote td{padding:7px 10px; border-bottom:1px solid var(--rule); overflow-wrap:anywhere; vertical-align:top;}
+.imp .num{text-align:right;} .imp .pos{font-family:var(--imp-mono); font-size:12px; font-variant-numeric:tabular-nums;}
+.imp .tabela-lote .acoes{white-space:nowrap; text-align:right;}
+.imp .mini{border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:3px; padding:3px 8px; font-size:11.5px; font-weight:600; cursor:pointer; margin-left:4px;}
+.imp .mini:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+.imp .linha-erro td{background:var(--brand-red-soft);} .imp .status-erro{color:var(--brand-red); font-weight:700; font-size:11.5px;}
+.imp .linha-total td{font-weight:700; background:var(--surface-2);}
+.imp .pill-erro{background:var(--dp-late-bg); color:var(--dp-late);} .imp .pill-neutro{background:var(--st-pend-bg); color:var(--st-pend-ink);}
+.imp .rec-toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;}
+.imp .rec-filter{flex:1 1 200px; min-width:0;}
+.imp .rec-filtro-count{font-size:11.5px; color:var(--ink-3); font-variant-numeric:tabular-nums;}
+.imp .rec-sort{width:auto;}
+.imp .rec-tool-btn,.imp-dlg .rec-tool-btn{border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:4px; padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer;}
+.imp .rec-tool-btn:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+.imp .rec-grupo-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:14px 0 6px;}
+.imp .rec-grupo-head .nome{font-weight:700; font-size:13.5px;}
+.imp .rec-grupo-meta{font:500 11.5px var(--imp-mono); color:var(--ink-3);} .imp .rec-grupo-meta b{color:var(--blue-deep);}
+.imp .rec{border:1px solid var(--rule); border-radius:4px; background:var(--surface); margin-bottom:6px; transition:border-color .15s;}
+.imp .rec:hover{border-color:var(--rule-strong);} .imp .rec.open{border-color:var(--blue-deep);}
+.imp .rec-head{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; padding:8px 12px;}
+.imp .rec-toggle{all:unset; flex:1 1 200px; min-width:0; display:flex; align-items:baseline; gap:8px; cursor:pointer; font-size:13px; font-weight:600;}
+.imp .rec-toggle::before{content:"›"; font-family:var(--imp-mono); color:var(--ink-3); transition:transform .15s; display:inline-block;}
+.imp .rec.open .rec-toggle::before{transform:rotate(90deg); color:var(--blue-deep);}
+.imp .rec-toggle:hover{color:var(--blue-deep);} .imp .rec-toggle:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+.imp .rec-nome{overflow-wrap:anywhere;}
+.imp .chip-editado{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; background:var(--blue-pale); color:var(--blue-deep);}
+.imp .rec-valor-wrap{font:500 12px var(--imp-mono); color:var(--ink-3); display:inline-flex; align-items:center; gap:4px;}
+.imp .rec-valor-input{width:120px; text-align:right; font:500 13px var(--imp-mono); padding:4px 7px;}
+.imp .rec-valor-input.invalido{border-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp .rec-n{font:500 11px var(--imp-mono); color:var(--ink-3);}
+.imp .rec-body{display:none; padding:12px; border-top:1px solid var(--rule);}
+.imp .rec.open .rec-body{display:block;}
+.imp .fita-reg-wrap{overflow-x:auto; background:var(--surface-2); border:1px solid var(--rule); border-radius:4px; padding:8px 10px; margin-bottom:10px; scrollbar-width:thin;}
+.imp .regua,.imp .fita-reg{display:flex; min-width:max-content; font-family:var(--imp-mono); font-size:12px; white-space:pre;}
+.imp .regua{font-size:10.5px; margin-bottom:2px;}
+.imp .regua span,.imp .fita-reg span{flex:none; width:calc(var(--n) * 1ch); border-left:1px solid var(--rule-strong); padding-left:0;}
+.imp .regua span:first-child,.imp .fita-reg span:first-child{border-left:0;}
+.imp .regua span{color:var(--ink-3);}
+.imp .fita-reg span{color:var(--ink);}
+.imp .fita-reg span:nth-child(even){background:var(--surface-3);}
+.imp .fita-reg span.hl{background:var(--blue-pale); color:var(--blue-deep);} .imp .regua span.hl{color:var(--blue-deep); font-weight:700;}
+.imp .rec-body table{width:100%; border-collapse:collapse; font-size:12px;}
+.imp .rec-body th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-3); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--rule);}
+.imp .rec-body td{padding:5px 8px; border-bottom:1px solid var(--rule); overflow-wrap:anywhere;}
+.imp .rec-body td.val{font-family:var(--imp-mono); white-space:pre-wrap;}
+.imp .rec-body tr.hl td{background:var(--blue-pale);}
+/* soltar arquivo em qualquer ponto da ferramenta */
+.imp-drag{position:fixed; inset:0; z-index:60; display:grid; place-items:center; background:color-mix(in srgb, var(--page) 80%, transparent); backdrop-filter:blur(2px); pointer-events:none;}
+.imp-drag[hidden]{display:none;}
+.imp-drag-card{display:flex; flex-direction:column; gap:4px; padding:22px 28px; border:2px dashed var(--blue-deep); border-radius:6px; background:var(--surface); text-align:center; font-size:12.5px; color:var(--ink-2);}
+.imp-drag-card b{font-family:"Archivo",sans-serif; font-size:16px; color:var(--ink);}
+/* janelas do importador */
+.imp-dlg .imp-dlg-tit{min-width:0;} .imp-dlg .imp-dlg-tit p{margin:2px 0 0; font-size:12px; color:var(--ink-3);}
+.imp-dlg .dlg-body{gap:12px;} .imp-dlg .dlg-body > *{flex-shrink:0;} .imp-check[hidden]{display:none;}
+.imp-campos{display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px 12px;}
+.imp-campos .imp-campo-largo{grid-column:1 / -1;}
+.imp-campos input.faltando,.imp-dlg input.faltando{border-color:var(--brand-red); background:var(--brand-red-soft);}
+.imp-tipo-nome{font-size:11.5px; font-weight:500; color:var(--status-green);} .imp-tipo-nome.desconhecido{color:var(--cv-soon);}
+.imp-tipos > summary{cursor:pointer; font-size:11.5px; font-weight:500; color:var(--blue-deep); width:max-content;}
+.imp-tipos-pop{margin-top:6px; padding:8px; border:1px solid var(--rule); border-radius:4px; background:var(--surface-2); display:flex; flex-direction:column; gap:6px; font-weight:500;}
+.imp-tipos-pop table{border-collapse:collapse; font-size:12px; color:var(--ink);}
+.imp-tipos-pop td{padding:3px 6px; border-bottom:1px solid var(--rule); cursor:pointer;} .imp-tipos-pop tr:hover td{background:var(--surface);}
+.imp-tipos-pop .ajuda-cod{font-family:var(--imp-mono); font-weight:700; width:1%;}
+.imp-tipos-pop .ajuda-vazio{color:var(--ink-3); cursor:default;}
+.imp-tipos-pop textarea{width:100%; font-family:var(--imp-mono); font-size:12px; margin-bottom:6px;}
+.imp-check{display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--ink-2); line-height:1.45; cursor:pointer;}
+.imp-check input{margin-top:2px;}
+.imp-lista-h{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-top:4px;}
+.imp-lista-h h4{font-size:13px; font-family:"Archivo",sans-serif;}
+.imp-conta{font:500 11.5px var(--imp-mono); color:var(--ink-3);}
+.imp-lista-acoes{display:flex; gap:12px; margin-left:auto;}
+.imp-lista-busca{width:100%;}
+.imp-lista{border:1px solid var(--rule); border-radius:4px; max-height:280px; overflow-y:auto; scrollbar-width:thin;}
+.imp-lista .item,.imp-cad-lista .imp-item{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:7px 10px; border-bottom:1px solid var(--rule); font-size:12.5px; cursor:pointer; color:var(--ink-3);}
+.imp-lista .item:last-child{border-bottom:0;}
+.imp-lista .item.marcado,.imp-cad-lista .imp-item.marcado{color:var(--ink);}
+.imp-lista .item:hover,.imp-cad-lista .imp-item:hover{background:var(--surface-2);}
+.imp-lista .item.sem-codigo{background:var(--brand-red-soft);}
+.imp-lista .item[hidden]{display:none;}
+.imp-lista .item-cod{font:600 12px var(--imp-mono); min-width:44px;}
+.imp-lista .item-cod-input{width:90px; font:500 12px var(--imp-mono); padding:4px 6px;}
+.imp-lista .item-cod-input.faltando{border-color:var(--brand-red);}
+.imp-lista .item-nome{flex:1 1 180px; min-width:0; overflow-wrap:anywhere; font-weight:600;}
+.imp-lista .item-meta{font-size:11.5px; color:var(--ink-3);}
+.imp-lista .item-vazio{margin:0; padding:12px; font-size:12.5px; color:var(--ink-3);}
+.imp-dlg .selo{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; white-space:nowrap;}
+.imp-dlg .selo-var{background:var(--blue-pale); color:var(--blue-deep);}
+.imp-dlg .selo-fix{background:var(--st-pend-bg); color:var(--st-pend-ink);}
+.imp-dlg .selo-auto{background:var(--dp-late-bg); color:var(--dp-late);}
+.imp-dlg .selo-neu{background:var(--surface-3); color:var(--ink-2);}
+.imp-lista-nada{margin:0; font-size:12px; color:var(--ink-3);}
+.imp-descartadas > summary{cursor:pointer; font-size:12px; color:var(--ink-3);}
+.imp-descartadas > div{font-size:12px; color:var(--ink-2); line-height:1.6; margin-top:6px;}
+.imp-add-rub{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+.imp-add-rub #imp-cpNovoCod{width:90px;} .imp-add-rub #imp-cpNovoDesc{flex:1 1 200px; min-width:0;}
+.imp-erro{font-size:12px; font-weight:600; color:var(--brand-red);} .imp-erro:empty{display:none;}
+.imp-nota{margin:0; font-size:12px; color:var(--ink-3); line-height:1.5;}
+.imp-resumo{flex:1 1 auto; font-size:12px; color:var(--ink-2); align-self:center; min-width:0;}
+.imp-dlg .dlg-actions{flex-wrap:wrap; align-items:center;}
+.imp-cad-lista{display:flex; flex-direction:column;}
+.imp-cad-lista h4{font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); margin:10px 0 4px;}
+.imp-cad-lista .imp-item{border:1px solid var(--rule); border-bottom-width:0;} .imp-cad-lista .imp-item:last-of-type{border-bottom-width:1px;}
+.imp-cad-lista .imp-item span{flex:1; min-width:0; overflow-wrap:anywhere;}
+.imp-novo{font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; background:var(--dp-ok-bg); color:var(--dp-ok); margin-left:4px;}
+@media (max-width:760px){
+  .imp{padding-inline:16px;}
+  .imp-atalho{display:none;}
+  .imp .tabela-lote{display:block; overflow-x:auto;}
+  .imp .rec-valor-input{width:100px;}
 }
 </style>
 
@@ -1536,6 +1770,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-banco" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
@@ -1628,6 +1863,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="sindicatos">Convenções <span class="dp-tab-badge" id="sd-badge" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes <span class="dp-tab-badge" id="ct-badge" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="ferramentas">Ferramentas</button>
       </div>
 
       <div class="dp-view" id="dp-view-painel">
@@ -1791,6 +2027,13 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         </div>
       </div>
 
+      <div class="dp-view" id="dp-view-ferramentas" hidden>
+        <div id="fe-vitrine"></div>
+        <div id="fe-tool" hidden>
+          <div class="fe-tool-bar"><button type="button" class="fe-voltar" id="fe-voltar">‹ Ferramentas</button><span class="fe-tool-nome" id="fe-tool-nome"></span></div>
+          <div id="fe-tool-root"></div>
+        </div>
+      </div>
       <div class="dp-view" id="dp-view-cartela" hidden>
         <div class="dp-toolbar">
           <div class="seg" id="ct-modo" role="group" aria-label="Visão da cartela">
@@ -1828,6 +2071,17 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         <div class="ct-pane" id="ct-pane-aus" hidden></div>
         <div class="ct-pane" id="ct-pane-mov" hidden></div>
       </div>
+    </section>
+
+    <!-- ===== módulo: uso do banco ===== -->
+    <section id="view-uso" class="module-view" hidden>
+      <div class="module-view-head">
+        <h2>Uso do banco de dados</h2>
+        <span class="dp-count" id="uso-quando"></span>
+        <button type="button" class="btn btn-ghost" id="uso-csv">Exportar CSV</button>
+        <button type="button" class="btn btn-primary" id="uso-atualizar">Medir agora</button>
+      </div>
+      <div id="uso-root"></div>
     </section>
   </main>
 </div>
@@ -2298,7 +2552,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     toolsQuery: '',
     prefs: { theme: null, dpCarteira: '' },
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
-    dpCarteira: '', dpView: 'painel', dpCalMes: '',
+    dpCarteira: '', dpView: 'painel', dpCalMes: '', dpFerr: '', dpImports: [], dpTiposProc: null,
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
     dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
@@ -2539,6 +2793,8 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
       {key:'tipo', label:'Tipo', width:1},
       {key:'estab', label:'Estab.', width:1},
       {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
+      {key:'cpf', label:'CPF', width:1},
       {key:'valor', label:'Valor', width:1, type:'money'},
       {key:'iss', label:'ISS', width:0.8},
       {key:'obs', label:'Observação', width:1.6},
@@ -2566,6 +2822,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     ]},
     funcionarios: { title:'Funcionários', addLabel:'Adicionar funcionário', fields:[
       {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
       {key:'cargo', label:'Cargo', width:1.2},
       {key:'admissao', label:'Admissão', width:1, type:'date'},
       {key:'status', label:'Situação', width:1, type:'select', options:['Ativo','Férias','Afastado','Desligado']},
@@ -2730,8 +2987,11 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     const hay = [t.name,t.description,t.category,t.url,t.notes,...t.tags].join(' ').toLowerCase();
     return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
   }
+  // "Uso do banco" é fixo do Hub: aparece junto das ferramentas sem ser gravado no banco.
+  const USO_TOOL = { id:'uso-banco', name:'Uso do banco', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Mede quanto do banco de dados do artefato está em uso.', tags:['banco','armazenamento','limite'], moduleKey:'uso', virtual:true, favorite:false, newTab:false, order:9999, uses:0 };
+  const toolsComUso = () => state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
   function visibleTools() {
-    return state.tools
+    return toolsComUso()
       .filter(t => matchesToolQuery(t, state.toolsQuery))
       .sort((a,b) => a.order-b.order || 0)
       .sort((a,b) => b.favorite - a.favorite);
@@ -2765,11 +3025,12 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         ? `<a class="card-stretch" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}"${target} aria-label="Abrir ${escapeHtml(t.name)}" title="${escapeHtml(t.name)}"></a>`
         : `<button type="button" class="card-stretch" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Configurar ${escapeHtml(t.name)}" title="${escapeHtml(t.name)} (sem link: clique para configurar)"></button>`;
       const on = t.moduleKey && t.moduleKey === state.activeModule;
+      const fixo = !!t.virtual;
       return `
-      <div class="card${t.url || t.moduleKey ? '' : ' no-link'}${on ? ' nav-on' : ''}" data-id="${escapeHtml(t.id)}" style="--accent:${t.color}" ${draggable?'draggable="true"':''}>
+      <div class="card${t.url || t.moduleKey ? '' : ' no-link'}${on ? ' nav-on' : ''}"${fixo ? '' : ` data-id="${escapeHtml(t.id)}"`} style="--accent:${t.color}" ${draggable && !fixo ?'draggable="true"':''}>
         ${stretch}
-        ${ro ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="${t.favorite ? 'Tirar dos favoritos' : 'Favoritar'}" aria-pressed="${t.favorite}">${ic('star', 'ic-sm')}</button>`}
-        ${ro ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar ${escapeHtml(t.name)}">${ic('edit', 'ic-sm')}</button>`}
+        ${ro || fixo ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="${t.favorite ? 'Tirar dos favoritos' : 'Favoritar'}" aria-pressed="${t.favorite}">${ic('star', 'ic-sm')}</button>`}
+        ${ro || fixo ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar ${escapeHtml(t.name)}">${ic('edit', 'ic-sm')}</button>`}
         <div class="card-icon">${toolIcon(t)}</div>
         <div class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
       </div>`;
@@ -2787,6 +3048,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   const ZAPPY_LOGO = 'data:image/png;base64,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';
   const norm2 = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   function toolIcon(t) {
+    if (t.virtual && t.moduleKey === 'uso') return ic('banco');
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
     if (t.id === 'zappy' && t.icon === '💬') return `<img class="brand-img" src="${ZAPPY_LOGO}" alt="" width="26" height="26">`;
@@ -2860,6 +3122,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     document.activeElement?.blur();
     closeRail();
     if (key === 'dp') openDpModule();
+    else if (key === 'uso') openUsoModule();
     else if (FRAMES[key]) openFrame(key);
   }
 
@@ -2912,7 +3175,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     const dataLonga = t.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
     const hol = feriado(t);
 
-    const tools = [...state.tools].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
+    const tools = [...toolsComUso()].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
     const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-dock">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
 
     // Nome de quem está usando, para a saudação (carrega uma vez).
@@ -2994,14 +3257,14 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
   let pendingEmp = null;
-  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela'];
+  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
-    return state.activeModule === 'dp' ? `dp/${state.dpView}` : '';
+    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
   }
   function syncRoute() {
     const r = currentRoute();
-    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}` : '';
+    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
     savePrefs();
     try { const h = r ? '#' + r : ''; if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch {}
   }
@@ -3009,8 +3272,10 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     const parts = String(r || '').split('/');
     if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
     closeFrames();
+    if (parts[0] === 'uso') { openUsoModule(); return; }
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
+    if (parts[1] === 'ferramentas') state.dpFerr = FERRAMENTAS_DP.some(f => f.id === parts[2]) ? parts[2] : '';
     openDpModule(DP_VIEWS.includes(parts[1]) ? parts[1] : 'painel');
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
@@ -3430,11 +3695,32 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
   }
   window.addEventListener('resize', () => { if (state.activeModule === 'dp') dpIndicador(false); });
-  $('.dp-tabs').addEventListener('click', (e) => { const btn = e.target.closest('.dp-tab'); if (btn) setDpView(btn.dataset.dpView); });
+  $('.dp-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-tab');
+    if (!btn) return;
+    // Clicar em Ferramentas estando numa ferramenta volta para a vitrine.
+    if (btn.dataset.dpView === 'ferramentas' && state.dpView === 'ferramentas') state.dpFerr = '';
+    setDpView(btn.dataset.dpView);
+  });
 
+  // Os códigos importados das planilhas entraram em "Código", mas são o código no Domínio: move, com confirmação.
+  let migCodAsked = false;
+  async function migrarCodDominio() {
+    if (migCodAsked || state.readOnly || !state.dpLoaded) return;
+    const alvo = state.dpEmpresas.filter(e => e.cod && !e.codigoDominio);
+    if (!alvo.length) return;
+    migCodAsked = true;
+    const ok = await ask(`${alvo.length} empresa(s) têm o número no campo “Código” e o “Código Domínio” vazio.\nMover esses números para o Código Domínio? O campo “Código” fica vazio nelas.`, [{ label:'Agora não', value:false }, { label:'Mover', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    alvo.forEach(e => { const c = e.cod; e.codigoDominio = c; e.cod = ''; marcaHist(e, `Código ${c} movido para Código Domínio`); });
+    renderDpActiveView();
+    const res = await Promise.all(alvo.map(e => persist(() => dpStore.updateFields(e.id, { cod: e.cod, codigoDominio: e.codigoDominio, historico: e.historico, updatedAt: e.updatedAt }))));
+    if (res.every(Boolean)) toast(`${alvo.length} código(s) movidos para Código Domínio e salvos.`);
+  }
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
     evCacheClear();
+    setTimeout(migrarCodDominio, 600);
     if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
     refreshCarteiraOptions();
     refreshSindDatalist();
@@ -3447,6 +3733,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     else if (v === 'funcionarios') renderDpFuncionarios();
     else if (v === 'cartela') renderCartela();
     else if (v === 'sindicatos') renderSindTab();
+    else if (v === 'ferramentas') renderFerramentasDp();
     if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
   }
   function renderBadges() {
@@ -5045,10 +5332,10 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   const URL_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   const URL_PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const scriptsExt = {};
-  function carregarScriptExt(src) {
+  function carregarScriptExt(src, msgErro) {
     if (!scriptsExt[src]) scriptsExt[src] = new Promise((ok, falha) => {
-      const el = document.createElement('script'); el.src = src; el.async = true;
-      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; falha(new Error('Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
+      const el = document.createElement('script'); el.src = src; el.async = true; el.charset = 'utf-8';
+      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; el.remove(); falha(new Error(msgErro || 'Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
       document.head.appendChild(el);
     });
     return scriptsExt[src];
@@ -7251,6 +7538,316 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     moverEmpresas(ids, an.dataset.ctAn);
   });
 
+  // ---------- Ferramentas do DP: vitrine e Importador Domínio ----------
+  // O código da ferramenta fica em importador.js, carregado só quando ela é aberta.
+  function makeImpLocal() {
+    const KEY = 'control-hub:dp-importacoes';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const impDb = { async save(itens) { await db.doc('dp_config/importacoes').set({ itens }); } };
+  let impStore = makeImpLocal();
+  // Mesma chave do gerador original: a lista que já estava no navegador vem junto.
+  function makeTiposLocal() {
+    const KEY = 'dominio_tipos_processo';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const tiposDb = { async save(itens) { await db.doc('dp_config/tipos_processo').set({ itens }); } };
+  let tiposStore = makeTiposLocal();
+  const IMP_MAX = 300;
+  const normalizeImports = (v) => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object' && x.id).map(x => ({
+    id: String(x.id), em: Number(x.em) || 0, autor: String(x.autor || ''), empId: String(x.empId || ''), empresa: String(x.empresa || '').slice(0, 140), cod: String(x.cod || ''),
+    modulo: x.modulo === 'lancamentos' ? 'lancamentos' : 'rpa', comp: String(x.comp || ''), tipo: String(x.tipo || ''),
+    linhas: Number(x.linhas) || 0, pessoas: Number(x.pessoas) || 0, total: Number(x.total) || 0, arquivo: String(x.arquivo || '').slice(0, 160),
+  })).sort((a, b) => b.em - a.em).slice(0, IMP_MAX);
+  const normalizeTipos = (v) => (Array.isArray(v) ? v : []).filter(t => t && /^\d{1,2}$/.test(String(t.codigo || ''))).map(t => ({ codigo: String(t.codigo), nome: String(t.nome || '').slice(0, 80) }));
+
+  const FERRAMENTAS_DP = [
+    { id: 'importador', nome: 'Importador Domínio', icone: 'upload', script: 'importador.js?v=1',
+      desc: 'RPA e lançamentos de rubricas: modelo travado para o cliente, conferência linha a linha e o arquivo .txt para o Domínio.' },
+  ];
+  const URL_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  const IMP_MOD = { rpa: 'RPA', lancamentos: 'Lançamentos' };
+  const soDig = (v) => String(v ?? '').replace(/\D/g, '');
+  let impInst = null, impCarregando = null;
+
+  function impsVisiveis() {
+    if (!state.dpCarteira) return state.dpImports;
+    return state.dpImports.filter(i => { const e = i.empId && findDpEmpresa(i.empId); return e && naCarteira(e); });
+  }
+  function renderFerramentasDp() {
+    const f = FERRAMENTAS_DP.find(x => x.id === state.dpFerr);
+    $('#fe-vitrine').hidden = !!f;
+    $('#fe-tool').hidden = !f;
+    if (f) { $('#fe-tool-nome').textContent = f.nome; abrirFerramenta(f); return; }
+    renderVitrine();
+  }
+  function renderVitrine() {
+    const mes = ymd(hoje()).slice(0, 7);
+    const lista = impsVisiveis();
+    const doMes = lista.filter(i => ymd(new Date(i.em)).slice(0, 7) === mes).length;
+    const cards = FERRAMENTAS_DP.map(f => `<button type="button" class="fe-card" data-fe-abrir="${f.id}">
+      <span class="fe-ico">${ic(f.icone)}</span>
+      <span class="fe-card-txt"><b>${escapeHtml(f.nome)}</b><span>${escapeHtml(f.desc)}</span>
+      <span class="fe-card-meta">${doMes ? `${doMes} arquivo${doMes === 1 ? '' : 's'} gerado${doMes === 1 ? '' : 's'} este mês` : 'Nenhum arquivo gerado este mês'}</span></span>
+      <span class="fe-card-ir">Abrir ›</span></button>`).join('');
+    const fmtQuando = (ms) => { const d = new Date(ms); return `${fmtDM(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    const linhas = lista.slice(0, 60).map(i => {
+      const e = i.empId && findDpEmpresa(i.empId);
+      const emp = e ? `<button type="button" class="fe-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button>` : escapeHtml(i.empresa);
+      const qtd = i.modulo === 'rpa' ? `${i.pessoas} autônomo${i.pessoas === 1 ? '' : 's'}` : `${i.linhas} lançamento${i.linhas === 1 ? '' : 's'}${i.pessoas ? ` · ${i.pessoas} empregado${i.pessoas === 1 ? '' : 's'}` : ''}`;
+      return `<tr><td class="fe-quando">${fmtQuando(i.em)}</td><td>${emp}<span class="dp-cell-sub">${i.cod ? 'Domínio ' + escapeHtml(i.cod) : ''}</span></td>
+        <td>${IMP_MOD[i.modulo]}${i.tipo ? `<span class="dp-cell-sub">processo ${escapeHtml(i.tipo)}</span>` : ''}</td><td>${escapeHtml(i.comp)}</td>
+        <td>${qtd}</td><td class="fe-num">${brl(i.total)}</td><td><span data-uid="${escapeHtml(i.autor)}">${i.autor ? '' : '—'}</span></td></tr>`;
+    }).join('');
+    const quem = state.dpCarteira ? `carteira: ${escapeHtml(carteiraNome())}` : 'equipe toda';
+    const log = lista.length
+      ? `<div class="fe-log-lista"><table class="ct-table fe-table"><thead><tr><th>Quando</th><th>Empresa</th><th>Módulo</th><th>Competência</th><th>Registros</th><th class="fe-num">Total</th><th>Por</th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      : `<div class="dp-empty"><strong>Nenhuma importação registrada${state.dpCarteira ? ' nesta carteira' : ''}</strong>Cada arquivo .txt baixado no Importador Domínio aparece aqui e no histórico da empresa.</div>`;
+    $('#fe-vitrine').innerHTML = `<div class="fe-wrap">
+      <div class="fe-grid">${cards}</div>
+      <section class="fe-log"><div class="fe-log-h"><h3>Últimas importações</h3><span class="dp-count">${quem} · ${lista.length}</span></div>${log}</section>
+    </div>`;
+    fillNames($('#fe-vitrine'));
+  }
+  function abrirFerramenta(f) {
+    if (impInst) { impInst.atualizar(); return; }
+    if (impCarregando) return;
+    const alvo = $('#fe-tool-root');
+    alvo.innerHTML = '<div class="dp-empty">Carregando a ferramenta…</div>';
+    impCarregando = carregarScriptExt(f.script, 'Não foi possível carregar a ferramenta. Verifique a conexão.')
+      .then(() => { impInst = window.HubImportador.montar(alvo, impApi()); })
+      .catch((e) => { alvo.innerHTML = `<div class="dp-empty"><strong>${escapeHtml(e.message)}</strong><button type="button" class="btn btn-sm" data-fe-abrir="${f.id}">Tentar de novo</button></div>`; })
+      .finally(() => { impCarregando = null; });
+  }
+  $('#dp-view-ferramentas').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-fe-abrir]');
+    if (a) { state.dpFerr = a.dataset.feAbrir; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); return; }
+    if (e.target.closest('#fe-voltar')) { state.dpFerr = ''; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); }
+  });
+
+  // Ponte entre a ferramenta e o Hub: dados do DP, downloads, cadastro e registro da equipe.
+  function impApi() {
+    return {
+      empresas: () => state.dpEmpresas.filter(ativa).map(e => ({ ...e, daCarteira: !!state.dpCarteira && naCarteira(e) }))
+        .sort((a, b) => (b.daCarteira - a.daCarteira) || byNome(a, b)),
+      temCarteira: () => !!state.dpCarteira,
+      empresa: (id) => findDpEmpresa(id) || null,
+      empresaPorCnpj: (c) => { const k = cnpjClean(c); return k.length === 14 ? (state.dpEmpresas.find(e => cnpjClean(e.cnpj) === k) || null) : null; },
+      empresaPorCodigo: (c) => { const k = soDig(c).replace(/^0+/, ''); if (!k) return null; const m = state.dpEmpresas.filter(e => soDig(e.codigoDominio).replace(/^0+/, '') === k); return m.find(ativa) || m[0] || null; },
+      nomeEmpHtml,
+      toast: (msg) => toast(msg),
+      somenteLeitura: () => state.readOnly,
+      salvar: (bytes, nome, mime) => offerFile(nome, bytes, mime),
+      carregarXlsx: async () => { await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o leitor de planilhas. Verifique a conexão.'); if (!window.XLSX) throw new Error('O leitor de planilhas não carregou.'); },
+      carregarPdf: async () => { await carregarScriptExt(URL_PDFJS); await carregarScriptExt(URL_PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER; return window.pdfjsLib; },
+      tipos: () => state.dpTiposProc,
+      salvarTipos: salvarTiposProc,
+      abrirEmpresa: (id) => { const e = findDpEmpresa(id); if (e) openDpDetail(e); },
+      atualizarCadastro: impAtualizarCadastro,
+      registrar: impRegistrar,
+    };
+  }
+  async function salvarTiposProc(lista) {
+    if (state.readOnly) return;
+    state.dpTiposProc = normalizeTipos(lista);
+    if (await persist(() => tiposStore.save(state.dpTiposProc))) toast('Tipos de processo salvos para a equipe.');
+  }
+  async function impRegistrar(r) {
+    if (state.readOnly) return;
+    const agora = Date.now(), autor = state.meId || '';
+    // Baixar o mesmo arquivo de novo não vira outro registro.
+    if (state.dpImports.some(x => x.arquivo === r.arquivo && x.autor === autor && x.linhas === r.linhas && Math.abs(x.total - r.total) < 0.005 && agora - x.em < 10 * 60 * 1000)) return;
+    const e = (r.empId && findDpEmpresa(r.empId)) || null;
+    const [item] = normalizeImports([{ id: uid(), em: agora, autor, empId: e?.id || '', empresa: e?.nome || r.empresaNome || (r.empresaCod ? `Código ${r.empresaCod}` : 'Empresa não identificada'),
+      cod: r.empresaCod, modulo: r.modulo, comp: r.competencia, tipo: r.tipo, linhas: r.linhas, pessoas: r.pessoas, total: r.total, arquivo: r.arquivo }]);
+    state.dpImports = [item, ...state.dpImports].slice(0, IMP_MAX);
+    let campos = null;
+    if (e) {
+      const qtd = item.modulo === 'rpa' ? `${item.pessoas} autônomo(s)` : `${item.linhas} lançamento(s) de ${item.pessoas} empregado(s)`;
+      marcaHist(e, `Importação de ${IMP_MOD[item.modulo]} ${item.comp} gerada no Importador Domínio: ${qtd}, ${brl(item.total)} (${item.arquivo})`);
+      campos = { historico: e.historico, updatedAt: e.updatedAt };
+    }
+    await persist(async () => { await impStore.save(state.dpImports); if (campos) await dpStore.updateFields(e.id, campos); });
+  }
+  async function impAtualizarCadastro(id, itens) {
+    const e = findDpEmpresa(id);
+    if (!e || state.readOnly) return false;
+    const campos = {}, n = { rub: 0, rpa: 0, func: 0 }, partes = [];
+    itens.forEach(it => {
+      if (it.tipo === 'empresa') { e.codigoDominio = it.valor; campos.codigoDominio = it.valor; partes.push(`código Domínio ${it.valor}`); return; }
+      if (it.tipo === 'rubrica') { const r = normalizeDpRow(it.dado, DP_SECTIONS.rubricas.fields); if (r) { e.rubricas.push(r); campos.rubricas = e.rubricas; n.rub++; } return; }
+      const sec = it.tipo === 'rpa' ? 'rpa' : 'funcionarios';
+      if (it.id) { const r = e[sec].find(x => x.id === it.id); if (!r) return; Object.assign(r, it.mud); }
+      else { const r = normalizeDpRow(it.novo, DP_SECTIONS[sec].fields); if (!r) return; e[sec].push(r); }
+      campos[sec] = e[sec]; n[sec === 'rpa' ? 'rpa' : 'func']++;
+    });
+    if (n.rub) partes.push(`${n.rub} rubrica(s)`);
+    if (n.rpa) partes.push(`${n.rpa} autônomo(s)`);
+    if (n.func) partes.push(`${n.func} funcionário(s)`);
+    if (!partes.length) return false;
+    marcaHist(e, `Importador Domínio atualizou o cadastro: ${partes.join(', ')}`);
+    campos.historico = e.historico; campos.updatedAt = e.updatedAt;
+    const ok = await persist(() => dpStore.updateFields(e.id, campos));
+    if (ok) { toast(`Cadastro de ${e.nome} atualizado: ${partes.join(', ')}.`); refreshOpenDetail(); renderDpActiveView(); }
+    return ok;
+  }
+
+  // ---------- Uso do banco ----------
+  // O banco do artefato não informa tamanho nem cota: só tem limites fixos (5.000 documentos no total,
+  // 256 KiB por documento). O módulo lê todas as coleções que o Hub, o Portal e o Contábil usam e estima
+  // o tamanho de cada documento pelo JSON gravado.
+  const DB_MAX_DOCS = 5000, DB_MAX_DOC = 256 * 1024;
+  const USO_FIXAS = [
+    { path:'tools', app:'Hub' }, { path:'dp_empresas', app:'Hub' }, { path:'dp_config', app:'Hub' },
+    { path:'ctb_emp', app:'Contábil' }, { path:'ctb_comp', app:'Contábil' }, { path:'ctb_ano', app:'Contábil' }, { path:'ctb_config', app:'Contábil' },
+    { path:'empresas', app:'Portal' }, { path:'empresaSetores', app:'Portal' }, { path:'funcionarios', app:'Portal' }, { path:'contatos', app:'Portal' },
+    { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
+  ];
+  const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
+  const usoCaminhoOk = (p) => { const s = String(p).split('/'); return s.length % 2 === 1 && s.length <= 15 && s.every(x => USO_SEG.test(x) && x !== '.' && x !== '..'); };
+  const usoExtras = {
+    load() { try { const l = JSON.parse(localStorage.getItem('control-hub:uso-extras') || '[]'); return Array.isArray(l) ? l.filter(usoCaminhoOk) : []; } catch { return []; } },
+    save(l) { try { localStorage.setItem('control-hub:uso-extras', JSON.stringify(l)); } catch {} },
+  };
+  state.uso = { medindo:false, res:null, em:0, hist:[], extras:usoExtras.load(), semBanco:false };
+  const fmtBytes = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toLocaleString('pt-BR', { maximumFractionDigits:1 })} KB` : `${(b / 1048576).toLocaleString('pt-BR', { maximumFractionDigits:2 })} MB`;
+  const usoPct = (p) => `${p.toLocaleString('pt-BR', { maximumFractionDigits: p < 10 ? 1 : 0 })}%`;
+  const usoNivel = (p) => p >= 90 ? 'is-late' : p >= 70 ? 'is-soon' : '';
+  const usoBarra = (p) => `<div class="uso-bar ${usoNivel(p)}" role="img" aria-label="${usoPct(p)}"><i style="width:${Math.min(100, p).toFixed(1)}%"></i></div>`;
+
+  function usoColecoes() {
+    const l = USO_FIXAS.map(c => ({ ...c }));
+    if (state.meId) l.push({ path:`data/users/${state.meId}/agenda/lembretes`, app:'Hub (só os seus)', rotulo:'lembretes pessoais' });
+    state.uso.extras.forEach(p => { if (!l.some(c => c.path === p)) l.push({ path:p, app:'Extra', extra:true }); });
+    return l;
+  }
+
+  async function usoMedir() {
+    const u = state.uso;
+    if (u.medindo) return;
+    if (!db) { u.semBanco = true; renderUso(); return; }
+    u.medindo = true; renderUso();
+    const enc = new TextEncoder(), res = [];
+    for (const c of usoColecoes()) {
+      try {
+        const snap = await db.collection(c.path).get();
+        const docs = snap.docs.map(d => ({ id:d.id, bytes:enc.encode(JSON.stringify(d.data())).length }));
+        const bytes = docs.reduce((s, d) => s + d.bytes, 0);
+        res.push({ ...c, n:docs.length, bytes, docs });
+      } catch (e) { res.push({ ...c, n:0, bytes:0, docs:[], erro:e?.code || 'erro' }); }
+    }
+    u.res = res; u.em = Date.now(); u.medindo = false;
+    try { const h = await db.doc('dp_config/uso_banco').get(); u.hist = h.exists && Array.isArray(h.data().itens) ? h.data().itens.filter(i => i && /^\d{4}-\d\d-\d\d$/.test(i.d)) : []; } catch {}
+    renderUso();
+    usoRegistrar();
+  }
+  // Uma linha por dia (a última medição do dia vale), para mostrar o crescimento.
+  async function usoRegistrar() {
+    const u = state.uso;
+    if (state.readOnly || !db || !u.res) return;
+    const n = u.res.reduce((s, c) => s + c.n, 0), b = u.res.reduce((s, c) => s + c.bytes, 0), d = ymd(new Date());
+    const ult = u.hist[u.hist.length - 1];
+    if (ult && ult.d === d && ult.n === n && ult.b === b) return;
+    const itens = u.hist.filter(i => i.d !== d).concat({ d, n, b }).slice(-120);
+    try { await db.doc('dp_config/uso_banco').set({ itens }); u.hist = itens; renderUso(); } catch {}
+  }
+
+  const usoTotais = (res) => {
+    const n = res.reduce((s, c) => s + c.n, 0), bytes = res.reduce((s, c) => s + c.bytes, 0);
+    const todos = res.flatMap(c => c.docs.map(d => ({ ...d, col:c.path })));
+    todos.sort((a, b) => b.bytes - a.bytes);
+    return { n, bytes, todos, maior:todos[0] || null };
+  };
+  const usoNomeDoc = (d) => {
+    const e = d.col === 'dp_empresas' && findDpEmpresa(d.id);
+    return e ? `<button type="button" class="fe-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">dp_empresas</span>` : `${escapeHtml(d.id)}<span class="dp-cell-sub">${escapeHtml(d.col)}</span>`;
+  };
+
+  function renderUso() {
+    const u = state.uso, root = $('#uso-root');
+    $('#uso-atualizar').disabled = u.medindo;
+    $('#uso-csv').disabled = !u.res;
+    $('#uso-quando').textContent = u.em ? `medido em ${fmtDMY(new Date(u.em))} ${String(new Date(u.em).getHours()).padStart(2, '0')}:${String(new Date(u.em).getMinutes()).padStart(2, '0')}` : '';
+    if (u.semBanco && !u.res) { root.innerHTML = `<div class="uso-wrap"><div class="dp-empty"><strong>Sem conexão com o banco do artefato</strong>Este painel está em modo local, sem banco compartilhado. Abra o Control Hub pelo artefato para medir o uso.</div></div>`; return; }
+    if (!u.res) { root.innerHTML = `<div class="uso-wrap"><div class="dp-empty"><strong>${u.medindo ? 'Medindo…' : 'Ainda não medido'}</strong>Lendo as coleções do Hub, do Portal e do Contábil.</div></div>`; return; }
+    const t = usoTotais(u.res), pctN = t.n / DB_MAX_DOCS * 100;
+    const pctMaior = t.maior ? t.maior.bytes / DB_MAX_DOC * 100 : 0;
+    const emRisco = t.todos.filter(d => d.bytes / DB_MAX_DOC >= .7).length;
+    // evolução
+    let tendencia = '';
+    if (u.hist.length >= 2) {
+      const h = u.hist, a = h[0], z = h[h.length - 1], mx = Math.max(...h.map(i => i.n), 1), mn = Math.min(...h.map(i => i.n));
+      const pts = h.map((i, k) => `${(k / (h.length - 1) * 100).toFixed(1)},${(40 - (mx === mn ? .5 : (i.n - mn) / (mx - mn)) * 36 - 2).toFixed(1)}`).join(' ');
+      const dN = z.n - a.n, dB = z.b - a.b, dt = (s) => fmtDMY(new Date(s + 'T12:00:00'));
+      tendencia = `<section class="uso-sec"><h3>Evolução</h3><div class="uso-trend"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Documentos por dia"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg><span>De ${dt(a.d)} a ${dt(z.d)}: ${dN >= 0 ? '+' : '−'}${Math.abs(dN).toLocaleString('pt-BR')} documento(s) e ${dB >= 0 ? '+' : '−'}${fmtBytes(Math.abs(dB))}.</span></div></section>`;
+    }
+    const linhas = [...u.res].sort((a, b) => b.n - a.n || b.bytes - a.bytes).map(c => {
+      const p = t.n ? c.n / t.n * 100 : 0, maior = c.docs.reduce((m, d) => d.bytes > (m?.bytes || -1) ? d : m, null);
+      const nome = `<b>${escapeHtml(c.rotulo || c.path)}</b>${c.rotulo ? `<span class="dp-cell-sub">${escapeHtml(c.path.replace(/^data\/users\/[^/]+/, 'data/users/…'))}</span>` : ''}${c.extra ? `<button type="button" class="uso-rm" data-uso-rm="${escapeHtml(c.path)}" aria-label="Tirar ${escapeHtml(c.path)} da lista">tirar</button>` : ''}`;
+      if (c.erro) return `<tr><td>${nome}</td><td>${escapeHtml(c.app)}</td><td colspan="5" class="uso-erro">Não foi possível ler (${escapeHtml(c.erro)}).</td></tr>`;
+      return `<tr><td>${nome}</td><td>${escapeHtml(c.app)}</td><td class="fe-num">${c.n.toLocaleString('pt-BR')}</td><td><div class="uso-mini">${usoBarra(p)}<span>${usoPct(p)}</span></div></td><td class="fe-num">${fmtBytes(c.bytes)}</td><td class="fe-num">${c.n ? fmtBytes(Math.round(c.bytes / c.n)) : '—'}</td><td>${maior ? `${fmtBytes(maior.bytes)}<span class="dp-cell-sub">${usoPct(maior.bytes / DB_MAX_DOC * 100)} do limite</span>` : '—'}</td></tr>`;
+    }).join('');
+    const topo = t.todos.slice(0, 10).map(d => `<tr><td>${usoNomeDoc(d)}</td><td class="fe-num">${fmtBytes(d.bytes)}</td><td><div class="uso-mini">${usoBarra(d.bytes / DB_MAX_DOC * 100)}<span>${usoPct(d.bytes / DB_MAX_DOC * 100)}</span></div></td></tr>`).join('');
+    root.innerHTML = `<div class="uso-wrap">
+      <div class="kpi-grid">
+        <div class="kpi-card ${usoNivel(pctN) === 'is-late' ? 'is-late' : usoNivel(pctN) === 'is-soon' ? 'is-soon' : 'is-ok'}"><span class="kpi-value">${t.n.toLocaleString('pt-BR')} <small>/ ${DB_MAX_DOCS.toLocaleString('pt-BR')}</small></span><span class="kpi-label">Documentos no banco</span></div>
+        <div class="kpi-card"><span class="kpi-value">${fmtBytes(t.bytes)}</span><span class="kpi-label">Tamanho estimado</span></div>
+        <div class="kpi-card ${usoNivel(pctMaior) === 'is-late' ? 'is-late' : usoNivel(pctMaior) === 'is-soon' ? 'is-soon' : ''}"><span class="kpi-value">${t.maior ? fmtBytes(t.maior.bytes) : '—'} <small>/ 256 KB</small></span><span class="kpi-label">Maior documento</span></div>
+        <div class="kpi-card"><span class="kpi-value">${u.res.filter(c => c.n).length}</span><span class="kpi-label">Coleções com dados</span></div>
+      </div>
+      <div class="uso-cap"><div class="uso-cap-txt"><b>${usoPct(pctN)}</b> do limite de documentos usado · restam ${(DB_MAX_DOCS - t.n).toLocaleString('pt-BR')}</div>${usoBarra(pctN)}</div>
+      ${pctN >= 70 || emRisco ? `<p class="uso-nota" style="color:var(--${pctN >= 90 ? 'brand-red' : 'cv-soon'})">${pctN >= 70 ? `O banco está em ${usoPct(pctN)} do limite de documentos: ao chegar a 100% não dá mais para criar registros novos (os existentes continuam editáveis). ` : ''}${emRisco ? `${emRisco} documento(s) passam de 70% do tamanho máximo de 256 KB.` : ''}</p>` : ''}
+      ${tendencia}
+      <section class="uso-sec"><h3>Por coleção</h3><div class="uso-tabela"><table class="ct-table"><thead><tr><th style="width:21%">Coleção</th><th style="width:13%">Módulo</th><th class="fe-num" style="width:11%">Documentos</th><th style="width:17%">% do banco</th><th class="fe-num" style="width:11%">Tamanho</th><th class="fe-num" style="width:11%">Média</th><th>Maior documento</th></tr></thead><tbody>${linhas}</tbody>
+        <tfoot><tr><td>Total</td><td></td><td class="fe-num">${t.n.toLocaleString('pt-BR')}</td><td></td><td class="fe-num">${fmtBytes(t.bytes)}</td><td class="fe-num">${t.n ? fmtBytes(Math.round(t.bytes / t.n)) : '—'}</td><td></td></tr></tfoot></table></div>
+        <form class="uso-extra" id="uso-extra-form" style="margin-top:10px"><input type="text" id="uso-extra-in" placeholder="Outra coleção (ex.: minha_colecao)" autocomplete="off" aria-label="Outra coleção para medir"><button type="submit" class="btn">Incluir na medição</button></form>
+      </section>
+      <section class="uso-sec"><h3>Maiores documentos</h3>${topo ? `<div class="uso-tabela"><table class="ct-table" style="min-width:560px"><thead><tr><th>Documento</th><th class="fe-num" style="width:110px">Tamanho</th><th style="width:30%">% do limite de 256 KB</th></tr></thead><tbody>${topo}</tbody></table></div>` : '<p class="uso-nota">Nenhum documento encontrado.</p>'}</section>
+      <p class="uso-nota">O tamanho é estimado pelo conteúdo gravado (JSON); o banco não informa o valor exato. A medição cobre as coleções listadas acima — o banco não permite listar todas — e, dentro de <i>data/users</i>, só a sua área pessoal (as dos outros usuários são privadas). Coleções novas podem ser incluídas pelo campo acima. Os limites são 5.000 documentos por artefato e 256 KB por documento.</p>
+    </div>`;
+    fillNames(root);
+  }
+
+  function openUsoModule() {
+    document.activeElement?.blur();
+    $('#view-home').hidden = true;
+    state.activeModule = 'uso';
+    syncShell(); closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-uso'; });
+    renderFerramentas(); syncRoute();
+    window.scrollTo(0, 0);
+    renderUso();
+    if (!state.uso.res && !state.uso.medindo) usoMedir();
+  }
+  $('#uso-atualizar').addEventListener('click', usoMedir);
+  $('#uso-csv').addEventListener('click', () => {
+    const u = state.uso; if (!u.res) return;
+    const rows = [['Coleção','Módulo','Documentos','Tamanho (bytes)','Maior documento (bytes)','Observação']];
+    u.res.forEach(c => rows.push([c.path, c.app, c.n, c.bytes, c.docs.reduce((m, d) => Math.max(m, d.bytes), 0), c.erro ? `erro: ${c.erro}` : '']));
+    const t = usoTotais(u.res); rows.push(['Total', '', t.n, t.bytes, t.maior?.bytes || 0, `limite ${DB_MAX_DOCS} documentos / ${DB_MAX_DOC} bytes por documento`]);
+    offerFile(`uso-banco-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  $('#uso-root').addEventListener('click', (e) => {
+    const rm = e.target.closest('[data-uso-rm]');
+    if (rm) { const u = state.uso; u.extras = u.extras.filter(p => p !== rm.dataset.usoRm); usoExtras.save(u.extras); if (u.res) u.res = u.res.filter(c => c.path !== rm.dataset.usoRm); renderUso(); return; }
+    const emp = e.target.closest('[data-open-emp]');
+    if (emp) { const x = findDpEmpresa(emp.dataset.openEmp); if (x) { openDpModule('empresas'); openDpDetail(x); } }
+  });
+  $('#uso-root').addEventListener('submit', (e) => {
+    if (e.target.id !== 'uso-extra-form') return;
+    e.preventDefault();
+    const v = $('#uso-extra-in').value.trim().replace(/^\/+|\/+$/g, ''), u = state.uso;
+    if (!usoCaminhoOk(v)) { toast('Informe o nome de uma coleção (número ímpar de partes separadas por “/”).'); return; }
+    if (usoColecoes().some(c => c.path === v)) { toast('Essa coleção já está na medição.'); return; }
+    u.extras.push(v); usoExtras.save(u.extras); usoMedir();
+  });
+
   // ---------- inicialização ----------
   function startLocal() {
     toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
@@ -7264,6 +7861,10 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     state.dpSind = normalizeSinds(sindStore.load());
     cctStore = makeCctLocal();
     state.dpCcts = normalizeCcts(cctStore.load());
+    impStore = makeImpLocal();
+    state.dpImports = normalizeImports(impStore.load());
+    tiposStore = makeTiposLocal();
+    state.dpTiposProc = normalizeTipos(tiposStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
     state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
@@ -7316,6 +7917,24 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     db.doc('dp_config/sindicatos').onSnapshot((s) => {
       state.dpSind = normalizeSinds(s.exists ? s.data().itens : []);
       refreshAll();
+    }, caiu);
+
+    impStore = impDb;
+    db.doc('dp_config/importacoes').onSnapshot((s) => {
+      state.dpImports = normalizeImports(s.exists ? s.data().itens : []);
+      if (state.activeModule === 'dp' && state.dpView === 'ferramentas') renderDpActiveView();
+    }, caiu);
+
+    // Tipos de processo do importador: lista da equipe. Na primeira vez, sobe a que estava no navegador.
+    tiposStore = tiposDb;
+    let tiposMigrados = false;
+    db.doc('dp_config/tipos_processo').onSnapshot((s) => {
+      if (s.exists) state.dpTiposProc = normalizeTipos(s.data().itens);
+      else {
+        state.dpTiposProc = normalizeTipos(makeTiposLocal().load());
+        if (state.dpTiposProc.length && !state.readOnly && !tiposMigrados) { tiposMigrados = true; tiposDb.save(state.dpTiposProc).catch(() => {}); }
+      }
+      if (impInst) impInst.atualizar();
     }, caiu);
 
     cobStore = cobDb;
@@ -7372,3 +7991,4 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   if (rotaInicial) applyRoute(rotaInicial); else renderHome();
 })();
 </script>
+
