@@ -752,6 +752,23 @@
   }
   function slug(t) { return norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x"; }
 
+  function divergencias(rows) {
+    var reais = rows.filter(function (x) { return !x.exemplo; }), out = [], porCnpj = {};
+    reais.forEach(function (x) {
+      if (!x.analista) out.push({t: "Sem analista: " + x.nome, sub: MODN[x.modulo], tom: "warn", mod: x.modulo, abrir: {empresa: x.id}});
+      if (!x.cnpj) out.push({t: "Sem CNPJ: " + x.nome, sub: MODN[x.modulo], tom: "", mod: x.modulo, abrir: {empresa: x.id}});
+      if (x.cnpj) (porCnpj[x.cnpj] = porCnpj[x.cnpj] || []).push(x);
+    });
+    var ativo = function (x) { var s = norm(x.situacao || "ativa"); return /^ativ/.test(s); };
+    Object.keys(porCnpj).forEach(function (c) {
+      var g = porCnpj[c]; if (g.length < 2) return;
+      var at = g.filter(ativo), in2 = g.filter(function (x) { return !ativo(x); });
+      if (at.length && in2.length) out.push({t: "Situação diferente: " + g[0].nome, sub: g.map(function (x) { return MODN[x.modulo] + ": " + (x.situacao || "ativa"); }).join(" · "), tom: "late", mod: in2[0].modulo, abrir: {empresa: in2[0].id}});
+      var nomes = {}; g.forEach(function (x) { nomes[norm(x.nome).replace(/\b(ltda|me|epp|eireli|s a|sa)\b/g, "").trim()] = x.nome; });
+      if (Object.keys(nomes).length > 1) out.push({t: "Nomes diferentes para o CNPJ " + c, sub: g.map(function (x) { return MODN[x.modulo] + ": " + x.nome; }).join(" · "), tom: "", mod: g[0].modulo, abrir: {empresa: g[0].id}});
+    });
+    return out;
+  }
   function ferramentasIA(cartoes) {
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
     var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "funcionarios", "lembretes", "uso"];
@@ -808,20 +825,7 @@
         inputSchema: {type: "object", properties: {}},
         execute: function () {
           return listarTudo().then(function (rows) {
-            var reais = rows.filter(function (x) { return !x.exemplo; }), out = [], porCnpj = {};
-            reais.forEach(function (x) {
-              if (!x.analista) out.push({t: "Sem analista: " + x.nome, sub: MODN[x.modulo], tom: "warn", mod: x.modulo, abrir: {empresa: x.id}});
-              if (!x.cnpj) out.push({t: "Sem CNPJ: " + x.nome, sub: MODN[x.modulo], tom: "", mod: x.modulo, abrir: {empresa: x.id}});
-              if (x.cnpj) (porCnpj[x.cnpj] = porCnpj[x.cnpj] || []).push(x);
-            });
-            var ativo = function (x) { var s = norm(x.situacao || "ativa"); return /^ativ/.test(s); };
-            Object.keys(porCnpj).forEach(function (c) {
-              var g = porCnpj[c]; if (g.length < 2) return;
-              var at = g.filter(ativo), in2 = g.filter(function (x) { return !ativo(x); });
-              if (at.length && in2.length) out.push({t: "Situação diferente: " + g[0].nome, sub: g.map(function (x) { return MODN[x.modulo] + ": " + (x.situacao || "ativa"); }).join(" · "), tom: "late", mod: in2[0].modulo, abrir: {empresa: in2[0].id}});
-              var nomes = {}; g.forEach(function (x) { nomes[norm(x.nome).replace(/\b(ltda|me|epp|eireli|s a|sa)\b/g, "").trim()] = x.nome; });
-              if (Object.keys(nomes).length > 1) out.push({t: "Nomes diferentes para o CNPJ " + c, sub: g.map(function (x) { return MODN[x.modulo] + ": " + x.nome; }).join(" · "), tom: "", mod: g[0].modulo, abrir: {empresa: g[0].id}});
-            });
+            var out = divergencias(rows);
             if (out.length) cartoes.push({tipo: "linhas", titulo: "Divergências de cadastro · " + out.length, linhas: out.slice(0, 8), todas: out, nota: ""});
             return {total: out.length, itens: out.slice(0, 40).map(function (l) { return l.t + " — " + l.sub; })};
           });
@@ -1152,7 +1156,8 @@
     '#tx-mascote.tx-dorme .tx-eo{animation:none;visibility:hidden}#tx-mascote.tx-dorme .tx-ec{animation:none;visibility:visible}' +
     '#tx-mascote.tx-parado .tx-corpo{animation:txRespira 3s ease-in-out infinite}#tx-mascote.tx-acena .tx-corpo{animation:txPula .32s ease-out 4}' +
     '#tx-mascote .tx-z{position:absolute;right:-6px;top:-8px;font:700 13px Archivo,sans-serif;color:var(--blue-deep,#3C659B);opacity:0}#tx-mascote.tx-dorme .tx-z{animation:txZ 2.4s ease-out infinite}' +
-    '#tx-mascote .tx-balao{position:absolute;bottom:calc(var(--tx-hm,44px) + 8px);left:50%;transform:translateX(-50%) scale(.9);transform-origin:50% 100%;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;padding:6px 10px;font:600 12px "IBM Plex Sans",sans-serif;white-space:nowrap;box-shadow:0 6px 18px rgba(16,24,32,.18);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}' +
+    '#tx-mascote .tx-balao{position:absolute;bottom:calc(var(--tx-hm,44px) + 8px);left:50%;transform:translateX(-50%) scale(.9);transform-origin:50% 100%;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;padding:6px 10px;font:600 12px "IBM Plex Sans",sans-serif;white-space:normal;width:max-content;max-width:240px;line-height:1.35;text-align:center;box-shadow:0 6px 18px rgba(16,24,32,.18);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}' +
+    '#tx-mascote .tx-badge{position:absolute;top:-6px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--brand-red,#C2000C);color:#fff;font:700 10px/16px "IBM Plex Sans",sans-serif;text-align:center;box-shadow:0 0 0 2px var(--surface,#fff)}#tx-mascote .tx-badge[hidden]{display:none}' +
     '#tx-mascote .tx-balao.on{opacity:1;transform:translateX(-50%) scale(1)}' +
     '@keyframes txVA{0%{visibility:visible}50%{visibility:hidden}}@keyframes txVB{0%{visibility:hidden}50%{visibility:visible}}@keyframes txBob{50%{transform:translateY(-3px)}}' +
     '@keyframes txPisca{0%,94%{visibility:visible}95%,97%{visibility:hidden}98%,100%{visibility:visible}}@keyframes txPisca2{0%,94%{visibility:hidden}95%,97%{visibility:visible}98%,100%{visibility:hidden}}' +
@@ -1221,7 +1226,8 @@
   function classe(add, rem) { (rem || []).forEach(function (c) { el.classList.remove(c); }); (add || []).forEach(function (c) { el.classList.add(c); }); }
   function balao(txt, ms) {
     var b = $(".tx-balao", el); if (!b) return;
-    b.textContent = txt; b.classList.add("on"); clearTimeout(b.__t); b.__t = setTimeout(function () { b.classList.remove("on"); }, ms || 3200);
+    b.textContent = txt; b.style.marginLeft = "0px"; b.classList.add("on"); clearTimeout(b.__t); b.__t = setTimeout(function () { b.classList.remove("on"); }, ms || 3200);
+    try { var r = b.getBoundingClientRect(), dx = 0; if (r.right > vw() - 8) dx = vw() - 8 - r.right; else if (r.left < 8) dx = 8 - r.left; b.style.marginLeft = dx + "px"; } catch (e) {}
   }
   function acordar() { dormiu = false; classe([], ["tx-dorme"]); clearTimeout(tSono); tSono = setTimeout(adormecer, 120000); }
   function adormecer() { if (aberto || andando) { tSono = setTimeout(adormecer, 30000); return; } dormiu = true; classe(["tx-dorme"], ["tx-acena"]); }
@@ -1965,6 +1971,7 @@
   }
   // Ganchos preenchidos por outras partes (mascote, avisos, equipe).
   var aoConfirmar = function () {};
+  var emote = function () {};
   // Desfaz, do mais recente para o mais antigo, o que o assistente gravou na última hora (com confirmação).
   function desfazerRecentes() {
     var lim = Date.now() - 36e5, lista = feitosSessao.filter(function (x) { return x.t >= lim && !x.ctl.desfeito && x.plano.desfazer; });
@@ -2003,6 +2010,7 @@
         boasVindas(true);
       } else boasVindas(false);
     }
+    if (filaAvisos.length) mostrarFila();
     carregarTodos();
     setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); rolar(); }, 30);
   }
@@ -2057,8 +2065,203 @@
       el.classList.toggle("tx-oculto", esconde);
       if (painel) painel.classList.toggle("tx-oculto", algumDialogo() && !aberto ? true : false);
     }, 600);
-    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos();
+    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos(); iniciarAvisos(); atualizarBadge();
     if (!oculto && !lerPref().visto) { salvarPref({visto: 1}); setTimeout(function () { balao("Oi! Sou o Tax. Clique em mim para conversar.", 5200); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 2000); }, 1800); }
+  }
+
+  /* ============ avisos proativos (sem IA: só regras sobre os dados dos módulos) ============ */
+  var AV = "tx-avisos-v1", AG = "tx-agendados-v1", filaAvisos = [];
+  function lerAv() {
+    var a = lerLS(AV, {});
+    if (a.dia !== ymd(hoje())) a = {dia: ymd(hoje()), alertados: {}, pend: a.pend || null, snap: a.snap || null, snapAnt: a.snap || a.snapAnt || null};
+    a.alertados = a.alertados || {};
+    return a;
+  }
+  function gravarAv(a) { gravarLS(AV, a); }
+  function emFoco() { return (+lerPref().focoAte || 0) > Date.now(); }
+  function opt(k) { return lerPref()["av_" + k] !== false; }
+  function algumAviso() { return ["resumo", "sexta", "prazos", "lembretes", "cliente"].some(opt); }
+  function diasUteisDepois(d, n) {
+    var fer = feriadosEntre(d, addDias(d, n * 2 + 15)), c = new Date(d), k = 0;
+    while (k < n) { c = addDias(c, 1); if (c.getDay() % 6 && !fer[ymd(c)]) k++; }
+    return c;
+  }
+  // Fotografia do momento: vencimentos, atrasos, pendências do cliente e pontos de atenção.
+  function situacao() {
+    return carregarTodos().then(quemSou).then(function () {
+      var h = hoje(), ate2 = diasUteisDepois(h, 2), meu = euNome ? casarEu(indice().analistas) : "";
+      var s = {meu: meu, vencHoje: [], prox: [], atrasos: {}, pend: {}, lembretes: [], feriados: [], atencao: [], exemplo: []};
+      ["dp", "contabil", "fiscal", "portal"].forEach(function (m) {
+        var a = carregados[m]; if (!a) return;
+        if (a.exemplo && a.exemplo()) { s.exemplo.push(m); return; }
+        try {
+          var v = a.consultar("vencimentos", {de: ymd(h), ate: ymd(ate2), analista: meu}) || {linhas: []};
+          v.linhas.forEach(function (l) { if (l.tom === "ok") return; var x = Object.assign({mod: m}, l); if (l.data === ymd(h)) s.vencHoje.push(x); else if (l.data > ymd(h)) s.prox.push(x); });
+          var at = a.consultar("atrasos", {analista: meu}); if (at) s.atrasos[m] = at.total;
+          if (m === "fiscal" || m === "contabil") { var pd = a.consultar("pendencias", {analista: meu}); var mp = {}; (pd && pd.linhas || []).forEach(function (l) { mp[l.t] = l.sub; }); s.pend[m] = mp; }
+          if (m === "dp") {
+            var lb = a.consultar("lembretes", {de: ymd(h), ate: ymd(h)}); (lb && lb.linhas || []).forEach(function (l) { if (l.dados && !l.dados.feito) s.lembretes.push(Object.assign({mod: "dp"}, l)); });
+            var cv = a.consultar("convencoes", {}), mesN = norm(MESES[h.getMonth()]);
+            (cv && cv.linhas || []).forEach(function (l) { if (l.dados && norm(l.dados.dataBase) === mesN) s.atencao.push(Object.assign({mod: "dp"}, l, {t: "Data-base neste mês: " + l.t.replace(/^Convenção /, "")})); });
+            var fe = (at && at.linhas || []).filter(function (l) { return /f[ée]rias/i.test(l.t); });
+            if (fe.length) s.atencao.push({mod: "dp", t: fe.length + " alerta(s) de férias no DP", sub: fe.slice(0, 3).map(function (l) { return l.t; }).join(" · "), tom: "late", abrir: fe[0].abrir});
+            var us = a.consultar("uso", {}); (us && us.linhas || []).forEach(function (l) { if (l.dados && l.dados.docs > 4000) s.atencao.push(Object.assign({mod: "dp"}, l, {t: "Banco perto do limite: " + l.t})); });
+          }
+        } catch (e) { if (window.__txDebug) console.error(e); }
+      });
+      var fi = carregados.fiscal;
+      if (fi) { var fr = fi.consultar("feriados", {de: ymd(h), ate: ymd(addDias(h, 7))}); s.feriados = (fr && fr.linhas || []).map(function (l) { return Object.assign({mod: "fiscal"}, l); }); }
+      var ca = carregados.cardapio;
+      if (ca && ca.podeEditar && ca.podeEditar()) {
+        var cd = ca.consultar("cardapio", {de: ymd(h), ate: ymd(addDias(h, 6))}), falta = (cd && cd.linhas || []).filter(function (l) { return /ainda não cadastrado/.test(l.sub); });
+        if (falta.length) s.atencao.push({mod: "cardapio", t: "Cardápio sem cadastro: " + falta.map(function (l) { return l.t.split(",")[0].toLowerCase() + " " + l.data.slice(8); }).join(", "), sub: "você pode editar o cardápio", tom: "warn", abrir: {aba: "", opts: {dia: falta[0].data}}});
+      }
+      return listarTudo().then(function (rows) { s.divergencias = divergencias(rows); return s; });
+    });
+  }
+  function totalAtrasos(s) { return Object.keys(s.atrasos).reduce(function (t, k) { return t + (s.atrasos[k] || 0); }, 0); }
+  function linhasBloco(titulo, ls, max) { return {tipo: "linhas", titulo: titulo + " · " + ls.length, linhas: ls.slice(0, max || 6), todas: ls, nota: ""}; }
+  function mudancas(s, ant) {
+    if (!ant) return "";
+    var ps = Object.keys(s.atrasos).filter(function (k) { return ant.atrasos && ant.atrasos[k] != null && ant.atrasos[k] !== s.atrasos[k]; }).map(function (k) { var d = s.atrasos[k] - ant.atrasos[k]; return MODN[k] + " " + ant.atrasos[k] + " → " + s.atrasos[k] + " (" + (d > 0 ? "+" : "") + d + ")"; });
+    return ps.length ? "Desde a sua última visita (" + dm(new Date(ant.t)) + "), atrasos: " + ps.join(" · ") + "." : "";
+  }
+  function snapDe(s) { return {t: Date.now(), atrasos: s.atrasos}; }
+  // Resumo do dia (também em /resumo). Devolve {blocos, curto}.
+  function montarResumo(s, tipo) {
+    var h = new Date(), saud = h.getHours() < 12 ? "Bom dia" : h.getHours() < 18 ? "Boa tarde" : "Boa noite", av = lerAv();
+    var bl = [{tipo: "cab", texto: (tipo === "sexta" ? "Resumo da semana · " : "Resumo do dia · ") + SEM[h.getDay()] + ", " + dm(h) + (s.meu ? " · carteira de " + s.meu : "")}];
+    var nAt = totalAtrasos(s), partes = [];
+    partes.push(s.vencHoje.length ? s.vencHoje.length + (s.vencHoje.length === 1 ? " prazo vence hoje" : " prazos vencem hoje") : "nada vence hoje");
+    if (s.prox.length) partes.push(s.prox.length + " nos próximos 2 dias úteis");
+    partes.push(nAt ? nAt + " atraso(s) no total" : "nenhum atraso");
+    bl.push(T(saud + (euNome ? ", " + euNome.split(" ")[0] : "") + "! " + partes.join(", ") + "."));
+    if (s.vencHoje.length) bl.push(linhasBloco("Vence hoje", s.vencHoje));
+    if (s.prox.length) bl.push(linhasBloco("Próximos 2 dias úteis", s.prox));
+    if (nAt) bl.push({tipo: "grafico", titulo: "Atrasos por módulo", itens: Object.keys(s.atrasos).filter(function (k) { return s.atrasos[k]; }).map(function (k) { return {rotulo: MODN[k], valor: s.atrasos[k]}; })});
+    var mud = mudancas(s, av.snapAnt); if (mud) bl.push({tipo: "rodape", texto: mud});
+    var at = s.atencao.slice();
+    s.feriados.forEach(function (f) { at.push(Object.assign({}, f, {t: "Feriado: " + f.t, sub: "os prazos que caem nele mudam de dia"})); });
+    s.lembretes.forEach(function (l) { at.push(l); });
+    if (s.divergencias && s.divergencias.length) at.push({t: s.divergencias.length + " divergência(s) de cadastro entre os setores", sub: s.divergencias.slice(0, 2).map(function (x) { return x.t; }).join(" · "), tom: "warn", mod: s.divergencias[0].mod, abrir: s.divergencias[0].abrir});
+    if (at.length) bl.push(linhasBloco("Atenção", at));
+    if (s.exemplo.length) bl.push({tipo: "rodape", texto: "Sem avisos de " + s.exemplo.map(function (m) { return MODN[m]; }).join(", ") + ": está com dados de exemplo."});
+    bl.push(CH([{rot: "O que vence esta semana", enviar: "/semana"}, {rot: "Quem está atrasado", enviar: "/atrasos"}, {rot: "Silenciar avisos por 1h", acao: function () { focar(); return Promise.resolve([T("Ok, fico quieto por 1 hora. 🤫")]); }}]));
+    var curto = saud + "! " + (s.vencHoje.length ? s.vencHoje.length + " vence(m) hoje" : "Nada vence hoje") + (nAt ? ", " + nAt + " atraso(s)" : "") + ". Clique em mim.";
+    return {blocos: bl, curto: curto};
+  }
+  // Nota do mês: no começo do mês, quanto cada analista fechou da competência anterior.
+  function notaDoMes() {
+    var h = hoje(); if (h.getDate() > 6) return [];
+    var comp = ymd(new Date(h.getFullYear(), h.getMonth() - 1, 1)).slice(0, 7), out = [];
+    ["fiscal", "contabil"].forEach(function (m) {
+      var a = carregados[m]; if (!a || (a.exemplo && a.exemplo())) return;
+      var r = a.consultar("competencia", {comp: comp}); if (!r || !r.resumo || !r.resumo.length) return;
+      out.push({tipo: "grafico", titulo: MODN[m] + ": % fechado de " + MESES[+comp.slice(5) - 1] + " por analista", unidade: "%", itens: r.resumo.filter(function (q) { return q.empresas; }).map(function (q) { return {rotulo: q.analista, valor: Math.round(q.fechadas / q.empresas * 100)}; }).sort(function (a2, b2) { return b2.valor - a2.valor; })});
+    });
+    return out;
+  }
+  function avisar(curto, blocos) {
+    filaAvisos.push(blocos);
+    if (aberto) { mostrarFila(); return; }
+    atualizarBadge();
+    if (emFoco()) return;
+    balao(curto, 8000); emote("alerta");
+  }
+  function mostrarFila() { if (!msgs) return; var f = filaAvisos; filaAvisos = []; f.forEach(function (b) { addBot(b); }); atualizarBadge(); }
+  function atualizarBadge() { if (!el) return; var b = $(".tx-badge", el); if (!b) { b = doc.createElement("span"); b.className = "tx-badge"; b.setAttribute("aria-hidden", "true"); el.appendChild(b); } b.textContent = filaAvisos.length ? String(filaAvisos.length) : ""; b.hidden = !filaAvisos.length; el.setAttribute("aria-label", "Abrir o assistente " + nomeTax() + (filaAvisos.length ? " (" + filaAvisos.length + " aviso(s))" : "")); }
+  function focar() { var ate = Date.now() + 36e5; salvarPref({focoAte: ate}); balao("Modo foco: sem avisos até " + pad2(new Date(ate).getHours()) + ":" + pad2(new Date(ate).getMinutes()) + ".", 3000); }
+  // Primeira checagem do dia: resumo (e de sexta à tarde, o da semana).
+  function checarDia() {
+    if (!algumAviso()) return;
+    situacao().then(function (s) {
+      var av = lerAv(), agora = new Date();
+      var novos = s.vencHoje.concat(s.prox).map(function (l) { return l.mod + "|" + l.t + "|" + l.data; });
+      if (opt("resumo") && !av.resumo) {
+        var r = montarResumo(s, "dia"); av.resumo = 1; novos.forEach(function (k) { av.alertados[k] = 1; });
+        avisar(r.curto, r.blocos.concat(notaDoMes()));
+      } else if (opt("prazos")) {
+        var nv = s.vencHoje.concat(s.prox).filter(function (l) { return !av.alertados[l.mod + "|" + l.t + "|" + l.data]; });
+        if (nv.length) { nv.forEach(function (l) { av.alertados[l.mod + "|" + l.t + "|" + l.data] = 1; }); avisar("⏰ " + nv.length + " prazo(s) chegando: " + nv[0].t, [T("Prazos chegando (hoje e nos próximos 2 dias úteis):"), linhasBloco("Prazos", nv)]); }
+      }
+      if (opt("sexta") && agora.getDay() === 5 && agora.getHours() >= 15 && !av.sexta) {
+        av.sexta = 1;
+        var seg = diasUteisDepois(hoje(), 1), carregadas = [];
+        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(addDias(hoje(), -4)), ate: ymd(seg), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") carregadas.push(Object.assign({mod: m}, l)); }); });
+        var ficou = carregadas.filter(function (l) { return l.data <= ymd(hoje()); }), segunda = carregadas.filter(function (l) { return l.data > ymd(hoje()); });
+        var bl = [{tipo: "cab", texto: "Resumo da semana"}, T(ficou.length || segunda.length ? "Antes do fim de semana: " + ficou.length + " item(ns) da semana ainda pendente(s) e " + segunda.length + " vencendo no próximo dia útil (" + SEM[seg.getDay()] + ")." : "Semana limpa: nada pendente e nada vencendo no próximo dia útil. Bom descanso! 🎉")];
+        if (ficou.length) bl.push(linhasBloco("Ficou pendente na semana", ficou));
+        if (segunda.length) bl.push(linhasBloco("Vence no próximo dia útil", segunda));
+        avisar("Resumo da semana: " + ficou.length + " pendente(s), " + segunda.length + " para " + SEM[seg.getDay()] + ".", bl);
+      }
+      // pendências do cliente que saíram de "aguardando" desde a última checagem
+      if (opt("cliente") && av.pend) {
+        var sairam = [];
+        Object.keys(s.pend).forEach(function (m) { var antes = av.pend[m] || {}; Object.keys(antes).forEach(function (n) { if (!s.pend[m][n]) sairam.push({mod: m, t: n, sub: "saiu de “aguardando o cliente” (" + MODN[m] + ")", tom: "ok"}); }); });
+        if (sairam.length) avisar("📬 " + sairam.length + " pendência(s) do cliente resolvida(s)", [T("Chegou do cliente (ou foi encerrada) desde a última vez:"), linhasBloco("Pendências encerradas", sairam)]);
+      }
+      av.pend = s.pend; av.snap = snapDe(s);
+      gravarAv(av);
+    }).catch(function (e) { if (window.__txDebug) console.error(e); });
+  }
+  // Lembretes do DP no horário e agendamentos do assistente (a cada 30 s).
+  function checarHorarios() {
+    var agora = Date.now(), av = lerAv(), mudou = false;
+    if (opt("lembretes") && carregados.dp) {
+      try {
+        var lb = carregados.dp.consultar("lembretes", {de: ymd(hoje()), ate: ymd(hoje())});
+        (lb && lb.linhas || []).forEach(function (l) {
+          var d = l.dados || {}; if (!d.hora || d.feito) return;
+          var hm = d.hora.split(":"), quando = new Date(); quando.setHours(+hm[0], +hm[1] || 0, 0, 0);
+          var k = "lem|" + d.texto + "|" + d.hora;
+          if (!av.alertados[k] && agora >= quando - 5 * 6e4 && agora <= quando + 30 * 6e4) { av.alertados[k] = 1; mudou = true; avisar("🔔 " + d.hora + " · " + d.texto, [T("🔔 Lembrete das " + d.hora + ": " + d.texto), linhasBloco("Lembrete", [Object.assign({mod: "dp"}, l)])]); }
+        });
+      } catch (e) {}
+    }
+    var ag = lerLS(AG, []), resto = [];
+    ag.forEach(function (x) {
+      if (x.quando > agora) { resto.push(x); return; }
+      var atraso = agora - x.quando > 10 * 6e4;
+      avisar("⏰ " + x.texto, [T("⏰ " + (atraso ? "(era para " + pad2(new Date(x.quando).getHours()) + ":" + pad2(new Date(x.quando).getMinutes()) + ") " : "") + x.texto + (x.mod ? "\nAbri " + MODN[x.mod] + (x.aba ? " · " + x.aba : "") + " para você." : ""))]);
+      if (x.mod) abrirItem(x.mod, {aba: x.aba || "", manter: true}).catch(function () {});
+    });
+    if (resto.length !== ag.length) gravarLS(AG, resto);
+    if (mudou) gravarAv(av);
+  }
+  function agendamentosBlocos() {
+    var ag = lerLS(AG, []);
+    if (!ag.length) return [T("Nenhum agendamento. Peça, por exemplo: “amanhã às 9h me lembre de conferir a agenda e abra o Fiscal”.")];
+    return [T("Seus agendamentos (neste navegador):"), CH(ag.map(function (x) { var d = new Date(x.quando); return {rot: "✕ " + dm(d) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + " · " + x.texto, acao: function () { gravarLS(AG, lerLS(AG, []).filter(function (y) { return y.id !== x.id; })); return Promise.resolve([T("Agendamento cancelado: " + x.texto)]); }}; }))];
+  }
+  COMANDOS_EXTRA.resumo = function () { return situacao().then(function (s) { var r = montarResumo(s, "dia"); return r.blocos.concat(notaDoMes()); }); }; COMANDOS_EXTRA.resumo.rot = "Resumo do dia (prazos, atrasos e pontos de atenção)";
+  COMANDOS_EXTRA.foco = function () { if (emFoco()) { salvarPref({focoAte: 0}); return Promise.resolve([T("Modo foco desligado: volto a avisar.")]); } focar(); return Promise.resolve([T("Modo foco por 1 hora: guardo os avisos e mostro quando você abrir a conversa.")]); }; COMANDOS_EXTRA.foco.rot = "Silenciar os avisos por 1 hora (ou religar)";
+  COMANDOS_EXTRA.agendados = function () { return Promise.resolve(agendamentosBlocos()); }; COMANDOS_EXTRA.agendados.rot = "Ver e cancelar agendamentos";
+  FERRAMENTAS_EXTRA.push(function (cartoes) {
+    return {name: "agendar", description: "Agenda um aviso do assistente para um horário (funciona enquanto o Hub estiver aberto neste navegador; se estiver fechado, avisa na próxima abertura). Pode abrir uma tela no horário. Prepara um cartão de confirmação.",
+      inputSchema: {type: "object", properties: {quando: {type: "string", description: "AAAA-MM-DDTHH:MM (horário local)"}, texto: {type: "string"}, abrir_modulo: {type: "string", enum: ["dp", "contabil", "fiscal", "portal", "cardapio"]}, abrir_aba: {type: "string"}}, required: ["quando", "texto"]},
+      execute: function (i) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/.exec(i.quando || ""); if (!m) return "Horário inválido: use AAAA-MM-DDTHH:MM.";
+        var q = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]); if (q < Date.now() - 6e4) return "Esse horário já passou.";
+        var x = {id: "a" + Date.now().toString(36), quando: +q, texto: String(i.texto || "").slice(0, 160), mod: i.abrir_modulo || "", aba: i.abrir_aba || ""};
+        cartoes.push({tipo: "confirma", titulo: "Agendar aviso", plano: {titulo: "Agendar aviso", empresa: "", linhas: [dm(q) + " às " + pad2(q.getHours()) + ":" + pad2(q.getMinutes()) + ": " + x.texto].concat(x.mod ? ["e abrir " + MODN[x.mod] + (x.aba ? " · " + x.aba : "")] : []), aviso: "Fica neste navegador; avisa enquanto o Hub estiver aberto.",
+          executar: function () { var l = lerLS(AG, []); l.push(x); gravarLS(AG, l); return Promise.resolve("Agendado."); },
+          desfazer: function () { gravarLS(AG, lerLS(AG, []).filter(function (y) { return y.id !== x.id; })); return Promise.resolve(); }}});
+        return "Cartão de agendamento preparado; falta o usuário confirmar.";
+      }};
+  });
+  CFG.push({sec: "Avisos", itens: [
+    {k: "av_resumo", rot: "Resumo do dia na primeira abertura", tipo: "bool", padrao: true},
+    {k: "av_sexta", rot: "Resumo da semana na sexta à tarde", tipo: "bool", padrao: true},
+    {k: "av_prazos", rot: "Avisar prazos chegando (2 dias úteis)", tipo: "bool", padrao: true},
+    {k: "av_lembretes", rot: "Lembretes do DP no horário", tipo: "bool", padrao: true},
+    {k: "av_cliente", rot: "Avisar quando sair pendência do cliente", tipo: "bool", padrao: true},
+    {rot: "Silenciar avisos por 1 hora", tipo: "botao", ao: function (b) { focar(); b.textContent = "Silenciado por 1 hora"; }}
+  ]});
+  function iniciarAvisos() {
+    setTimeout(function () { if (algumAviso()) checarDia(); }, 7000);
+    setInterval(function () { if (!doc.hidden && algumAviso()) checarDia(); }, 10 * 6e4);
+    setInterval(function () { if (!doc.hidden) checarHorarios(); }, 30000);
+    setTimeout(checarHorarios, 9000);
   }
 
   window.__assistenteHub = {
