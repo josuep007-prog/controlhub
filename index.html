@@ -8042,6 +8042,24 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
       }
       return null;
     },
+    vocab: () => ({ etapas: [], obrigacoes: [] }),
+    // Ações do DP: lembrete pessoal (só o próprio usuário vê). Nada grava até executar().
+    acao(tipo, p = {}) {
+      if (tipo !== 'lembrete') return { erro: 'Ainda não sei fazer isso no DP.' };
+      if (!podeCriarMeu()) return { erro: state.meusOff || 'Você não tem permissão para criar lembretes aqui.' };
+      const texto = String(p.texto || '').trim().slice(0, 200);
+      if (!texto) return { erro: 'Diga o que devo lembrar (ex.: “me lembra de ligar para o cliente amanhã”).' };
+      const data = parseYmd(p.data) ? p.data : ymd(addDays(hoje(), 0));
+      const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '';
+      const l = normalizeMeu({ texto, data, hora, rep: 'nao', empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: state.meId || '', atualizadoEm: Date.now() });
+      const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
+      return {
+        titulo: 'Criar lembrete só seu', empresa: emp ? emp.nome : '',
+        linhas: [`“${texto}”`, `${fmtDateStr(data)}${hora ? ' às ' + hora : ''}`], aviso: '',
+        executar: async () => { if (!(await meusWrite(() => meusStore.save(l)))) throw new Error('falhou'); setMeuLocal(l); refreshAll(); return 'Lembrete criado.'; },
+        desfazer: async () => { if (await meusWrite(() => meusStore.del(l.id))) { state.meus = state.meus.filter(x => x.id !== l.id); refreshAll(); } },
+      };
+    },
   };
   window.__hubApi = {
     versao: 1,
@@ -8058,7 +8076,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     },
     modulos: () => ['dp', ...Object.keys(FRAMES)],
   };
-  carregarScriptExt('assistente.js?v=1').catch(() => {});
+  carregarScriptExt('assistente.js?v=2').catch(() => {});
 
   loadPrefs();
   applyTheme();

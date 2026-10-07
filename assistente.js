@@ -183,6 +183,7 @@
     {t: "Etapas do Portal do Cliente", m: "portal", k: "etapas portal habilitacao treinamento analista cadastro usuario cliente implantacao", a: "O Portal acompanha quatro etapas por setor: habilitação no Domínio, treinamento do analista, cadastro do usuário do cliente e treinamento dos clientes. Contato treinado já conta como habilitação concluída e usuário ativo.", ir: {m: "portal", aba: "dashboard"}},
     {t: "Impedimentos no Portal", m: "portal", k: "impedimento impedimentos bloqueio portal empresa", a: "Na aba Impedimentos ficam as empresas, setores e pessoas travados, com o motivo, desde quando e de quem se aguarda retorno.", ir: {m: "portal", aba: "impedimentos"}},
     {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
+    {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
     {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas."},
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
     {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar dispensar esconder voltar atalho", a: "Clique num espaço vazio da tela e eu vou até lá. Clicando em mim, abre a conversa. Para me dispensar, use “Dormir por hoje” no topo da conversa; aperte Ctrl+J para me chamar de volta a qualquer hora."}
@@ -250,6 +251,8 @@
   function responder(texto) {
     var t = norm(texto);
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
+    if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
+    if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
     if (RX.dormir.test(t) && t.split(" ").length <= 4) { setTimeout(dormirHoje, 600); return Promise.resolve([T("Tá bom! Volto amanhã, ou é só apertar Ctrl+J. 👋")]); }
     return carregarTodos().then(quemSou).then(function () { return entender(texto, t); });
   }
@@ -266,6 +269,9 @@
     if (euRef && euNome) analista = casarEu(nomesAna) || "";
     var navega = RX.navegar.test(t);
     var intent = "";
+
+    var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per) : null;
+    if (pedido) return prepararAcao(pedido, texto);
 
     if (RX.saudacao.test(t) && t.split(" ").length <= 4) intent = "saudacao";
     else if (RX.obrigado.test(t)) intent = "obrigado";
@@ -312,6 +318,129 @@
     var r = texto.split(/(\s+)/).map(function (w) { if (!ok && norm(w) === pr) { ok = true; return nome; } return w; }).join("");
     return ok ? r : texto + " " + nome;
   }
+
+  /* ============ ações (sempre com confirmação) ============ */
+  var STOP_ETAPA = {de: 1, do: 1, da: 1, dos: 1, das: 1, e: 1, ao: 1, em: 1, para: 1, ao: 1};
+  function limpo(t) { return " " + t.replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim() + " "; }
+  function melhorPorTokens(tt, itens, rotulos) {
+    // itens: lista; rotulos(i) -> lista de textos alternativos. Devolve {item, pts, empate}
+    var melhor = null, pts = 0, empate = [];
+    itens.forEach(function (it) {
+      var p = 0;
+      rotulos(it).forEach(function (r) {
+        var ws = limpo(norm(r)).trim().split(" ").filter(function (w) { return w && !STOP_ETAPA[w] && w.length >= 2; });
+        if (!ws.length) return;
+        var hits = ws.filter(function (w) { return tt.indexOf(" " + w + " ") !== -1 || (w.length >= 5 && tt.indexOf(" " + w.slice(0, 5)) !== -1); }).length;
+        if (!hits) return;
+        var q = hits / ws.length + (hits === ws.length ? 1 : 0) + (ws.length === 1 ? 0 : 0.1 * hits);
+        if (q > p) p = q;
+      });
+      if (p > pts + 1e-9) { pts = p; melhor = it; empate = [it]; }
+      else if (p && Math.abs(p - pts) < 1e-9) empate.push(it);
+    });
+    return {item: melhor, pts: pts, empate: empate};
+  }
+  function detectarAcao(t, texto, emps, mods, per) {
+    var tt = limpo(t);
+    // lembrete pessoal (DP): não precisa de empresa
+    if (/\b(me lembr\w*|lembra (de|pra|para) |(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete)\b/.test(t)) {
+      var hora = (/\b(\d{1,2})\s?(?:h|:)\s?(\d{2})?\b/.exec(t) || []);
+      var h = hora[1] && +hora[1] <= 23 ? pad2(+hora[1]) + ":" + (hora[2] || "00") : "";
+      var txt = texto.replace(/^\s*(por favor[, ]*)?/i, "").replace(/\b(me )?lembr(a|e|ar)\b( de| que| para| pra)?/i, "").replace(/\b(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete( de| para| pra| que| sobre)?/i, "")
+        .replace(/(^|\s)(depois de amanh[ãa]|amanh[ãa]|hoje|ontem)(?=[\s,.;]|$)/ig, " ").replace(/\bdia \d{1,2}\b/ig, "").replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, "").replace(/(^|\s)(às|as)\s+\d{1,2}(h|:)?\d{0,2}h?(?=\s|$)/ig, " ").replace(/(^|\s)\d{1,2}\s?h(\d{2})?(?=\s|$)/ig, " ")
+        .replace(/\bna (segunda|terça|quarta|quinta|sexta)\b/ig, "").replace(/\s+/g, " ").replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "");
+      return {tipo: "lembrete", mod: "dp", texto: txt, data: per ? ymd(per.de) : ymd(hoje()), hora: h, emp: emps.length ? emps[0] : null};
+    }
+    if (!emps.length) return null;
+    var verbo = /\b(marc\w*|conclu\w*|finaliz\w*|fech\w*|dar? baixa|baixa|registr\w*|lanc\w*|anot\w*|cobr\w*|desmarc\w*|reabr\w*|desfaz\w*|retific\w*|entreg\w*|receb\w*|chegou|chegaram|mandou|enviou|enviei|transmiti\w*|termin\w*|inici\w*|comec\w*|coloca\w*|poe|bota)\b/.test(t);
+    if (!verbo) return null;
+    if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+    var e = emps[0], modsEmp = Object.keys(e.g.refs);
+    var status = /\b(desmarc\w*|reabr\w*|desfaz\w*|volta\w*|pendente)\b/.test(t) ? "" : /\b(inici\w*|comec\w*|em andamento|andamento)\b/.test(t) ? "a" : /\bretific\w*\b/.test(t) ? "r" : "c";
+    var comp = per && ymd(per.de).slice(0, 7) === ymd(per.ate).slice(0, 7) && /\b(competencia|fechamento|de |do mes|em |mes)\b/.test(t) && !/\b(hoje|amanha|ontem|dia \d)/.test(t) ? ymd(per.de).slice(0, 7) : "";
+    // pendência do cliente
+    var temPend = /\b(pendencia|pendente do cliente|aguardando|falta o cliente|cliente (nao )?(mandou|enviou)|cobrei|cobrado|cobranca|cobrar de novo)\b/.test(t) || /\bcliente\b.*\b(mandou|enviou|chegou)\b|\b(receb\w+|chegou|chegaram)\b.*\b(do|da) cliente\b/.test(t);
+    if (temPend) {
+      var modo = /\b(cobrei|cobrado|cobranca|cobrar de novo)\b/.test(t) ? "cobrado" : /\b(receb\w+|chegou|chegaram|mandou|enviou|resolvid\w+|resolveu)\b/.test(t) && !/\bnao\b/.test(t) ? "recebida" : "registrar";
+      var tx = "";
+      if (modo === "registrar") {
+        var i = texto.indexOf(":");
+        tx = i >= 0 ? texto.slice(i + 1) : texto.replace(/^.*?\b(pend[êe]ncia|falta(ndo)?|aguardando)( do cliente| d[oa] cliente)?( de| do| da| dos| das| o| a| os| as)?\b/i, "");
+        if (i < 0 && tx === texto) tx = "";
+        tx = tx.replace(/\b(na|no|da|do) [^,:;]*$/i, function (m) { return m; }).replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "");
+      }
+      return {tipo: "pendencia", modo: modo, texto: tx, emp: e, mods: mods, comp: comp};
+    }
+    // obrigação (Fiscal) e etapa (Fiscal/Contábil): usam o vocabulário dos módulos
+    var vf = carregados.fiscal && carregados.fiscal.vocab ? carregados.fiscal.vocab() : null, vc = carregados.contabil && carregados.contabil.vocab ? carregados.contabil.vocab() : null;
+    if (vf && modsEmp.indexOf("fiscal") !== -1 && vf.obrigacoes.length) {
+      var ob = melhorPorTokens(tt, vf.obrigacoes, function (o) { return [o.l]; });
+      if (ob.item && ob.pts >= 0.5 && !/\b(etapa|escrituracao|apuracao|fechamento)\b/.test(t)) {
+        if (ob.empate.length > 1) return {tipo: "ambigua_ob", emp: e, opcoes: ob.empate, texto: texto};
+        return {tipo: "entrega", mod: "fiscal", emp: e, ob: ob.item.k, rotulo: ob.item.l, status: status === "a" ? "c" : status, comp: comp};
+      }
+    }
+    var mods = mods.filter(function (m) { return m === "fiscal" || m === "contabil"; });
+    var cands = [];
+    if (vf && modsEmp.indexOf("fiscal") !== -1) cands.push(["fiscal", vf.etapas]);
+    if (vc && modsEmp.indexOf("contabil") !== -1) cands.push(["contabil", vc.etapas]);
+    var achados = [];
+    cands.forEach(function (c) {
+      if (mods.length && mods.indexOf(c[0]) === -1) return;
+      var r = melhorPorTokens(tt, c[1], function (x) { return [x.c, x.l]; });
+      if (r.item && r.pts >= 1 && r.empate.length === 1) achados.push({mod: c[0], et: r.item});
+    });
+    if (achados.length === 1) return {tipo: "etapa", mod: achados[0].mod, emp: e, etapa: achados[0].et.k, rotulo: achados[0].et.l, status: status, comp: comp};
+    if (achados.length > 1) return {tipo: "ambigua_mod", emp: e, mods: achados.map(function (a) { return a.mod; }), texto: texto};
+    // fechar a empresa
+    if (/\b(fech\w+|conclu\w+|finaliz\w+|termin\w+)\b/.test(t) && !/\b(mes|ano)\b.*\bcontab/.test(t)) return {tipo: "fechar", emp: e, mods: mods, comp: comp};
+    return null;
+  }
+  function escolherModulo(pedido, candidatos) {
+    // candidatos: módulos onde a empresa existe e que sabem agir
+    var sel = (pedido.mods || []).filter(function (m) { return m === "fiscal" || m === "contabil"; });
+    var c = candidatos.filter(function (m) { return !sel.length || sel.indexOf(m) !== -1; });
+    if (!c.length) c = candidatos;
+    if (c.length === 1) return c[0];
+    var ativo = H.ativo();
+    if (c.indexOf(ativo) !== -1) return ativo;
+    return c.length ? "?" : "";
+  }
+  var pendente = null;
+  function prepararAcao(pd, texto) {
+    if (pd.tipo === "ambigua") {
+      return Promise.resolve([T("Achei mais de uma empresa parecida. Qual delas?"), CH(pd.emps.map(function (x) { return {rot: x.g.nome, enviar: substituirEmpresa(texto, x.g.nome)}; }))]);
+    }
+    if (pd.tipo === "ambigua_ob") {
+      return Promise.resolve([T("Qual obrigação você quer dizer?"), CH(pd.opcoes.slice(0, 6).map(function (o) { return {rot: o.l, enviar: texto + " " + o.l}; }))]);
+    }
+    if (pd.tipo === "ambigua_mod") {
+      return Promise.resolve([T("Essa empresa está em mais de um módulo. Em qual?"), CH(pd.mods.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]);
+    }
+    var e = pd.emp, mod = pd.mod;
+    if (pd.tipo === "lembrete") mod = "dp";
+    else if (!mod) {
+      var cand = Object.keys(e.g.refs).filter(function (m) { return m === "fiscal" || m === "contabil"; });
+      if (!cand.length) return Promise.resolve([T("Só consigo marcar etapas e pendências em empresas do Fiscal ou do Contábil, e essa não está em nenhum dos dois.")]);
+      mod = escolherModulo(pd, cand);
+      if (mod === "?") return Promise.resolve([T("“" + e.g.nome + "” está no Fiscal e no Contábil. Em qual deles?"), CH(cand.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]);
+    }
+    return modulo(mod).then(function (a) {
+      if (!a || !a.acao) return [T("Ainda não consigo fazer isso no " + MODN[mod] + ".")];
+      var id = e ? e.g.refs[mod] : "";
+      var p = {id: id, etapa: pd.etapa, status: pd.status, ob: pd.ob, modo: pd.modo, texto: pd.texto, comp: pd.comp, data: pd.data, hora: pd.hora};
+      var plano = a.acao(pd.tipo, p);
+      if (!plano || plano.erro) return [T(plano && plano.erro ? plano.erro : "Não consegui preparar essa ação.")];
+      return [{tipo: "confirma", plano: plano, mod: mod, titulo: plano.titulo}];
+    });
+  }
+  function substituirEmpresa(texto, nome) {
+    var q = norm(nome).split(" ").filter(function (w) { return w.length >= 3; });
+    var ws = texto.split(/(\s+)/), out = [], colocou = false;
+    ws.forEach(function (w) { if (q.some(function (x) { return norm(w).indexOf(x.slice(0, 5)) === 0 && norm(w).length >= 3; })) { if (!colocou) { out.push(nome); colocou = true; } } else out.push(w); });
+    return colocou ? out.join("").replace(/\s+/g, " ") : texto + " " + nome;
+  }
+
   function quem() {
     return [T("Eu consigo:\n• responder o que vence, o que está atrasado e quem está aguardando o cliente (DP, Contábil, Fiscal e Portal);\n• mostrar a situação de uma empresa pelo nome ou CNPJ;\n• ver a carteira de um analista;\n• dizer o cardápio do dia;\n• abrir qualquer tela (“abrir a agenda do Fiscal”);\n• tirar dúvidas de como usar."),
       CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))];
@@ -471,6 +600,11 @@
     '.tx-lin i{width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--rule-strong,#C2CCD5)}.tx-lin.late i{background:var(--dp-late,#C2000C)}.tx-lin.warn i{background:var(--dp-today,#B5530C)}.tx-lin.ok i{background:var(--dp-ok,#167A45)}' +
     '.tx-lin b{display:block;font-weight:600;overflow-wrap:anywhere}.tx-lin span{display:block;font-size:11.5px;color:var(--ink-3,#5F6D77);overflow-wrap:anywhere}' +
     '.tx-mais{display:block;width:100%;border:0;border-top:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA);color:var(--blue-deep,#3C659B);font:600 12px "IBM Plex Sans",sans-serif;padding:7px 10px;text-align:left;cursor:pointer}.tx-mais:hover{text-decoration:underline}' +
+    '.tx-conf{border:1px solid var(--blue-deep,#3C659B);border-radius:8px;background:var(--surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:5px}.tx-conf-ocupado{opacity:.6;pointer-events:none}' +
+    '.tx-conf-h{font:700 12px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--blue-deep,#3C659B)}.tx-conf-ok .tx-conf-h{color:var(--dp-ok,#167A45)}.tx-conf-erro .tx-conf-h{color:var(--dp-late,#C2000C)}.tx-conf-cancelado{border-color:var(--rule,#DCE3E9)}.tx-conf-cancelado .tx-conf-h{color:var(--ink-3,#5F6D77)}' +
+    '.tx-conf-e{font-weight:700}.tx-conf-l{color:var(--ink-2,#47545F);overflow-wrap:anywhere}.tx-conf-av{font-size:11.5px;color:var(--dp-today,#B5530C)}' +
+    '.tx-conf-b{display:flex;gap:6px;margin-top:4px}.tx-cb{border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--ink,#101820);border-radius:6px;padding:6px 12px;font:600 12.5px "IBM Plex Sans",sans-serif;cursor:pointer}.tx-cb:hover{border-color:var(--blue-deep,#3C659B)}.tx-cb-ok{background:var(--blue-deep,#3C659B);border-color:var(--blue-deep,#3C659B);color:#fff}' +
+    ':root[data-theme="dark"] .tx-cb-ok{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tx-cb-ok{color:#0B1015}}' +
     '.tx-chips{display:flex;flex-wrap:wrap;gap:6px}.tx-chip{border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--blue-deep,#3C659B);border-radius:14px;padding:5px 11px;font:600 12px "IBM Plex Sans",sans-serif;cursor:pointer;text-align:left}.tx-chip:hover{background:var(--blue-pale,#DCE8F1);border-color:var(--blue-deep,#3C659B)}' +
     '.tx-rod{font-size:11.5px;color:var(--ink-3,#5F6D77);padding:0 2px}' +
     '.tx-aj{border-left:3px solid var(--blue-deep,#3C659B);background:var(--surface-2,#F5F8FA);border-radius:4px 10px 10px 4px;padding:8px 11px;line-height:1.45}.tx-aj b{display:block;margin-bottom:3px;font-family:Archivo,sans-serif}' +
@@ -592,6 +726,7 @@
   function rolar() { msgs.scrollTop = msgs.scrollHeight; }
   function addUser(txt) { var d = doc.createElement("div"); d.className = "tx-m-u"; d.textContent = txt; msgs.appendChild(d); rolar(); }
   function addBot(blocos) {
+    if (!blocos || !blocos.length) return null;
     var d = doc.createElement("div"); d.className = "tx-m-b";
     blocos.forEach(function (b) { var n = blocoDom(b); if (n) d.appendChild(n); });
     msgs.appendChild(d);
@@ -608,11 +743,12 @@
       d = doc.createElement("div"); d.className = "tx-chips";
       b.itens.forEach(function (c) {
         var x = doc.createElement("button"); x.type = "button"; x.className = "tx-chip"; x.textContent = c.rot;
-        x.onclick = function () { if (c.enviar) enviar(c.enviar); else if (c.acao) { var r = c.acao(); if (r && r.then) r.catch(function () {}); } };
+        x.onclick = function () { if (c.enviar) enviar(c.enviar); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
         d.appendChild(x);
       });
       return d;
     }
+    if (b.tipo === "confirma") return cartaoConfirma(b);
     if (b.tipo === "linhas") {
       d = doc.createElement("div"); d.className = "tx-bloco";
       var h = doc.createElement("h4"); h.textContent = b.titulo; if (b.nota) { var s = doc.createElement("small"); s.textContent = b.nota; h.appendChild(s); } d.appendChild(h);
@@ -626,6 +762,39 @@
       return d;
     }
     return null;
+  }
+
+  // Cartão de confirmação: nada grava antes do clique em "Confirmar" (ou de um "sim" na conversa).
+  function cartaoConfirma(b) {
+    var pl = b.plano, d = doc.createElement("div"); d.className = "tx-conf";
+    var ctl = {feito: false};
+    function pintar(estado, msg) {
+      d.innerHTML = "";
+      var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = estado === "ok" ? "Feito" : estado === "cancelado" ? "Cancelado" : estado === "desfeito" ? "Desfeito" : estado === "erro" ? "Não consegui" : (pl.titulo || "Confirmar");
+      d.appendChild(h);
+      d.className = "tx-conf" + (estado ? " tx-conf-" + estado : "");
+      if (estado === "ok" || estado === "erro" || estado === "desfeito") { var m = doc.createElement("div"); m.className = "tx-conf-l"; m.textContent = msg || ""; d.appendChild(m); }
+      else {
+        if (pl.empresa) { var em = doc.createElement("div"); em.className = "tx-conf-e"; em.textContent = pl.empresa; d.appendChild(em); }
+        (pl.linhas || []).forEach(function (l) { var x = doc.createElement("div"); x.className = "tx-conf-l"; x.textContent = l; d.appendChild(x); });
+        if (pl.aviso) { var av = doc.createElement("div"); av.className = "tx-conf-av"; av.textContent = pl.aviso; d.appendChild(av); }
+      }
+      var bt = doc.createElement("div"); bt.className = "tx-conf-b";
+      function btn(rot, cls, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-cb " + cls; x.textContent = rot; x.onclick = fn; bt.appendChild(x); return x; }
+      if (!estado) { btn("Confirmar", "tx-cb-ok", ctl.confirmar); btn("Cancelar", "", ctl.cancelar); }
+      else if (estado === "ok" && pl.desfazer) btn("Desfazer", "", ctl.desfazer);
+      if (bt.children.length) d.appendChild(bt);
+    }
+    ctl.confirmar = function () {
+      if (ctl.feito) return Promise.resolve(); ctl.feito = true; if (pendente === ctl) pendente = null;
+      d.classList.add("tx-conf-ocupado");
+      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); }, function (e) { console.error(e); pintar("erro", "Não foi possível salvar. Nada foi alterado ou a gravação falhou: confira a tela do módulo."); });
+    };
+    ctl.cancelar = function () { if (ctl.feito) return; ctl.feito = true; if (pendente === ctl) pendente = null; pintar("cancelado", ""); };
+    ctl.desfazer = function () { d.classList.add("tx-conf-ocupado"); return Promise.resolve().then(function () { return pl.desfazer(); }).then(function () { pintar("desfeito", "Voltei ao que estava antes."); }, function () { pintar("erro", "Não consegui desfazer. Ajuste direto no módulo."); }); };
+    pendente = ctl;
+    pintar("", "");
+    return d;
   }
   function enviar(txt) {
     addUser(txt);

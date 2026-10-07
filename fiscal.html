@@ -2071,6 +2071,64 @@ window.__assistente = {
       return {titulo: "Carteira do Fiscal", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com atraso · " + q.cli + " aguardando cliente", tom: q.atr ? "warn" : "ok", abrir: {aba: "empresas", opts: {"em.ana": a === "(sem analista)" ? "" : a, "em.faixa": "", "em.busca": ""}}}; })};
     }
     return null;
+  },
+  vocab: function(){ return {etapas: ETAPAS.map(function(x){ return {k:x.k, l:x.l, c:x.c}; }), obrigacoes: (S.cfg.obrig || []).map(function(d){ return {k:d.k, l:d.l}; })}; },
+  // Prepara uma ação (nada grava até executar()). Devolve {erro} ou {titulo, linhas, aviso, executar, desfazer}.
+  acao: function(tipo, p){
+    p = p || {};
+    var e = S.empresas[p.id];
+    if(!e) return {erro: "Não achei essa empresa no Fiscal."};
+    if(!podeMarcar(e)) return {erro: "Você não pode alterar “" + e.nome + "”: ela é da carteira de " + (e.analista || "outra pessoa") + "."};
+    var aviso = S.exemplo ? "Dados de exemplo: a alteração fica só na memória e não grava no banco." : "";
+    var comp = p.comp || "", cef = compEmFechamento();
+    if(!comp){ comp = cef; compsControle().some(function(c){ if(c <= cef && naComp(e, c) && !resumo(e, c).fechada){ comp = c; return true; } return false; }); }
+    var quando = "Competência " + compRot(comp) + (p.comp ? "" : " (a mais antiga em aberto)");
+    var guarda = function(fn){ return function(){ return Promise.resolve().then(fn); }; };
+    if(tipo === "etapa" || tipo === "fechar"){
+      var antes = clone(entrada(comp, e.id)), m = {}, ls = [];
+      if(tipo === "fechar"){
+        ETAPAS.forEach(function(et){ var a = stEtapa(antes, et.k); if(a !== "n" && a !== "c"){ m[et.k] = "c"; ls.push(et.l + ": " + ST_ROT[a] + " → " + ST_ROT.c); } });
+        if(!ls.length) return {erro: "“" + e.nome + "” já está fechada em " + compRot(comp) + "."};
+      } else {
+        var et = ETAPAS.filter(function(x){ return x.k === p.etapa; })[0], st = p.status || "";
+        if(!et) return {erro: "Não conheci essa etapa."};
+        var at = stEtapa(antes, et.k);
+        if(at === st) return {erro: et.l + " já está “" + ST_ROT[st].toLowerCase() + "” para essa empresa em " + compRot(comp) + "."};
+        m[et.k] = st; ls.push(et.l + ": " + ST_ROT[at] + " → " + ST_ROT[st]);
+      }
+      return {titulo: tipo === "fechar" ? "Concluir o fechamento" : "Marcar etapa do fechamento", empresa: e.nome, linhas: ls.concat([quando]), aviso: aviso,
+        executar: guarda(function(){ var res = marcarEtapas(comp, e, m); return salvarCompEntrada(comp, e.id, res.ent).then(function(){ return res.fechou ? "Pronto: “" + e.nome + "” fechou " + compRot(comp) + "." : "Pronto, marcado."; }); }),
+        desfazer: guarda(function(){ return salvarCompEntrada(comp, e.id, antes); })};
+    }
+    if(tipo === "pendencia"){
+      var ent0 = clone(entrada(comp, e.id)), modo = p.modo || "registrar", ent = clone(ent0), hj = ymd(hoje());
+      if(modo === "registrar"){
+        var txt = String(p.texto || "").trim().slice(0, 200);
+        if(!txt) return {erro: "Diga o que falta o cliente mandar (ex.: “registra pendência na Alfa: XML das notas”)."};
+        ent.pendEm = ent0.pend ? (ent0.pendEm || hj) : hj; ent.cobr = ent0.pend ? (ent0.cobr || []) : []; ent.pend = txt;
+        var ls2 = ["Aguardando o cliente: “" + txt + "”"]; if(ent0.pend) ls2.push("Substitui: “" + ent0.pend + "”"); ls2.push(quando);
+        return {titulo: "Registrar pendência do cliente", empresa: e.nome, linhas: ls2, aviso: aviso,
+          executar: guarda(function(){ return salvarCompEntrada(comp, e.id, ent).then(function(){ return "Pendência registrada."; }); }), desfazer: guarda(function(){ return salvarCompEntrada(comp, e.id, ent0); })};
+      }
+      if(!ent0.pend) return {erro: "“" + e.nome + "” não tem pendência do cliente aberta em " + compRot(comp) + "."};
+      if(modo === "recebida"){ ent.pend = ""; ent.pendEm = ""; ent.cobr = []; }
+      else { ent.cobr = (ent0.cobr || []).concat([hj]).slice(-20); }
+      return {titulo: modo === "recebida" ? "Dar a pendência por recebida" : "Registrar cobrança de hoje", empresa: e.nome, linhas: ["Pendência: “" + ent0.pend + "”", quando], aviso: aviso,
+        executar: guarda(function(){ return salvarCompEntrada(comp, e.id, ent).then(function(){ return modo === "recebida" ? "Pendência encerrada." : "Cobrança registrada."; }); }), desfazer: guarda(function(){ return salvarCompEntrada(comp, e.id, ent0); })};
+    }
+    if(tipo === "entrega"){
+      var def = (S.cfg.obrig || []).filter(function(d){ return d.k === p.ob; })[0];
+      if(!def) return {erro: "Não conheci essa obrigação."};
+      var s2 = p.status === undefined ? "c" : p.status;
+      var ocs = ocDe(e).filter(function(o){ return o.def.k === def.k && (!p.comp || o.comp === p.comp); });
+      var alvo = s2 ? ocs.filter(function(o){ return !feitoOb(stOb(o.comp, e, def.k)); })[0] : ocs.filter(function(o){ return feitoOb(stOb(o.comp, e, def.k)); }).pop();
+      if(!alvo) return {erro: s2 ? def.l + " de “" + e.nome + "” não tem entrega pendente" + (p.comp ? " em " + compRot(p.comp) : "") + "." : "Não achei entrega de " + def.l + " marcada para desfazer."};
+      var a0 = stOb(alvo.comp, e, def.k);
+      return {titulo: s2 ? "Marcar entrega" : "Desmarcar entrega", empresa: e.nome, linhas: [def.l + " de " + compRot(alvo.comp) + ": " + OB_ROT[a0] + " → " + OB_ROT[s2], "Vencimento " + dataBR(alvo.ds)], aviso: aviso,
+        executar: guarda(function(){ return marcarEntrega(alvo.comp, e, def.k, s2).then(function(){ return "Pronto: " + def.l + " de " + compCurta(alvo.comp) + " " + (s2 ? OB_ROT[s2].toLowerCase() : "desmarcada") + "."; }); }),
+        desfazer: guarda(function(){ return marcarEntrega(alvo.comp, e, def.k, a0); })};
+    }
+    return {erro: "Ainda não sei fazer isso no Fiscal."};
   }
 };
 
