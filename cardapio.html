@@ -101,6 +101,13 @@ h1{font-size:clamp(26px,4.5vw,36px);line-height:1.1;margin-top:6px;font-weight:7
 @media (prefers-reduced-motion: reduce){*{transition-duration:.001ms!important}}
 
 .nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* Navegação de semana discreta: a troca é automática, as setas ficam só para consulta/ajuste. */
+.nav .seg{border-color:transparent;background:none;gap:2px}
+.nav .chip{padding:4px 9px;font-size:15px;line-height:1;font-weight:500;color:var(--ink-3);opacity:.55;border-radius:var(--r);transition:opacity .15s,color .15s}
+.nav .chip + .chip{border-left:0}
+.nav .chip:hover,.nav .chip:focus-visible{opacity:1;color:var(--blue-deep)}
+.nav #today{font-size:12px;font-weight:600;opacity:.85}
+.nav #today[hidden]{display:none}
 .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule-strong);background:var(--surface);color:var(--ink-2);border-radius:var(--r);padding:8px 13px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:var(--blue-deep);color:var(--blue-deep)}
 .btn:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
@@ -212,6 +219,7 @@ function renderHead(){
     ? a.getDate()+" a "+b.getDate()+" de "+MESES[b.getMonth()]
     : a.getDate()+" de "+MESES[a.getMonth()]+" a "+b.getDate()+" de "+MESES[b.getMonth()];
   document.getElementById("title").textContent = "Semana de " + t;
+  document.getElementById("today").hidden = keyOf(weekStart) === keyOf(mondayOf(now));
   var n = weekDays().filter(function(d){ var x = data[keyOf(d)]; return x && x.tipo!=="feriado"; }).length;
   document.getElementById("sub").textContent = !loaded ? "" : n ? n+(n===1?" dia":" dias")+" com cardápio · "+b.getFullYear() : "Nenhum cardápio cadastrado nesta semana";
 }
@@ -312,6 +320,21 @@ document.getElementById("next").onclick = function(){ goWeek(1); };
 document.getElementById("today").onclick = function(){ weekStart = mondayOf(now); goWeek(0); };
 
 renderHead(); renderGrid(); renderDetail();
+
+// Virada de dia: com a tela aberta, quem estava vendo a semana atual passa para a nova semana sozinho (e o "hoje" acompanha).
+// Se alguém estiver editando um dia, a troca espera terminar para não perder o que está sendo digitado.
+function checkDay(){
+  var n = new Date();
+  if (keyOf(n) === keyOf(now)) return;
+  var estavaNaAtual = keyOf(weekStart) === keyOf(mondayOf(now));
+  if (estavaNaAtual && editing) return;
+  now = n;
+  if (estavaNaAtual) weekStart = mondayOf(now);
+  renderHead(); renderGrid();
+}
+setInterval(checkDay, 30000);
+document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkDay(); });
+window.addEventListener("focus", checkDay);
 
 // Aberto dentro do Control Hub, usa a conexão da página principal (ela só aceita objetos criados lá).
 function noPai(){ try{ return window.parent !== window && window.parent.claude && window.parent.claude.use ? window.parent : null; }catch(e){ return null; } }
