@@ -131,23 +131,46 @@
   /* ============ layout ============ */
   main{padding-block:26px 110px; display:flex; flex-direction:column; gap:26px;}
   .db-warning{display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:var(--r); border:1px solid var(--brand-red); background:var(--brand-red-soft); color:var(--brand-red-deep); font-size:13px; line-height:1.5;}
-  .agenda{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%, 260px),1fr));}
+  /* agenda única por dia: grupos de dia > sessões (mesmo dia, horário e empresa) */
+  .agenda{display:block; padding:2px 18px 6px;}
+  .atencao-col h3 .mono{letter-spacing:0; font-family:"IBM Plex Sans",sans-serif; font-variant-numeric:tabular-nums; font-weight:600;}
+  .agenda-scroll.ags-lista{max-height:560px;}
+  .ags-grupo + .ags-grupo{margin-top:6px;}
+  .ags-dia-h{position:sticky; top:0; z-index:1; display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:12px 0 6px; background:var(--surface); border-bottom:1px solid var(--rule-strong); font-family:"Archivo",sans-serif; font-size:13px; font-weight:700; letter-spacing:0; color:var(--ink-2);}
+  .ags-dia-h small{font-family:"IBM Plex Sans",sans-serif; font-size:12px; font-weight:500; color:var(--ink-3); margin-left:6px;}
+  .ags-dia-h .mono{font-family:"IBM Plex Sans",sans-serif; font-variant-numeric:tabular-nums; font-size:12px; font-weight:600; color:var(--ink-3);}
+  .ags-grupo.atr .ags-dia-h, .ags-grupo.atr .ags-dia-h .mono{color:var(--brand-red);}
+  .ags-grupo.hoje .ags-dia-h, .ags-grupo.hoje .ags-dia-h .mono{color:var(--blue-deep);}
+  .ags-ses{display:grid; grid-template-columns:64px minmax(0,1fr) auto; align-items:start; gap:4px 16px; padding:10px 0; border-top:1px solid var(--rule);}
+  .ags-dia-h + .ags-ses{border-top:none;}
+  .ags-ses.arrastado{opacity:.45;}
+  .ags-quando{display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding-top:1px; cursor:grab;}
+  .ags-quando .ag-horario{margin-right:0;}
+  .ags-sem-hora{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3); padding:0 5px;}
+  .ags-data{font-size:11px; font-weight:600; color:var(--ink-3); white-space:nowrap;}
+  .ags-grupo.atr .ags-data{color:var(--brand-red);}
+  .ags-corpo{min-width:0; display:flex; flex-direction:column; gap:2px;}
+  .ags-pessoas{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 6px; font-size:13px; font-weight:600; line-height:1.35;}
+  .ags-sep{color:var(--ink-3); font-weight:400;}
+  .ags-nome{background:none; border:none; padding:0; text-align:left; cursor:pointer; font:inherit; color:inherit;}
+  .ags-nome:hover{color:var(--brand-red); text-decoration:underline; text-underline-offset:2px;}
+  .ags-onde{font-size:12px; color:var(--ink-3); line-height:1.4;}
+  .ags-onde b{font-weight:600; color:var(--ink-2);}
+  .ags-qtd{font-size:11px; font-weight:600; color:var(--blue-deep); background:var(--blue-pale); border-radius:3px; padding:0 5px; margin-left:2px;}
+  .ags-acoes{display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-wrap:wrap; padding-top:1px;}
+  .ags-acoes .ag-acoes{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;}
+  .ags-por-pessoa{grid-column:2 / -1; display:flex; flex-direction:column; margin-top:4px; border-left:2px solid var(--rule-strong); padding-left:12px;}
+  .ags-por-pessoa[hidden]{display:none;}
+  .ags-pp{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:5px 0; font-size:12.5px;}
+  .ags-pp + .ags-pp{border-top:1px dashed var(--rule);}
+  .ags-pp .ag-acoes{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .ags-vazio{padding:14px 0 10px; font-size:13px; color:var(--ink-3);}
+  @media (max-width:600px){
+    .ags-ses{grid-template-columns:52px minmax(0,1fr);}
+    .ags-acoes{grid-column:2; justify-content:flex-start;}
+    .ags-acoes .ag-acoes{justify-content:flex-start;}
+  }
   .agenda-rodape{display:flex; align-items:center; justify-content:flex-end; gap:14px; flex-wrap:wrap; padding:10px 18px; border-top:1px solid var(--rule); font-size:12px; color:var(--ink-3);}
-  .ag-onde b{font-weight:600; color:var(--ink-2);}
-  .ag-onde.ok{color:var(--status-green);}
-  .agenda-col.foco h3{color:var(--sector-pessoal);}
-  .agenda-col{padding:14px 18px 16px; border-left:1px solid var(--rule); min-width:0;}
-  .agenda-col:first-child{border-left:none;}
-  .agenda-col h3{font-family:"Archivo",sans-serif; font-size:13px; font-weight:700; letter-spacing:0; color:var(--ink-3); display:flex; justify-content:space-between; gap:8px; margin-bottom:8px;}
-  .agenda-col.atrasados h3{color:var(--brand-red);}
-  .agenda-col h3 .mono, .atencao-col h3 .mono{letter-spacing:0; font-family:"IBM Plex Sans",sans-serif; font-variant-numeric:tabular-nums; font-weight:600;}
-  .ag-item{display:grid; grid-template-columns:46px minmax(0,1fr); gap:2px 12px; width:100%; border-top:1px solid var(--rule); padding:8px 0;}
-  .ag-item:first-of-type{border-top:none;}
-  .ag-nome{background:none; border:none; padding:0; text-align:left; cursor:pointer; font:inherit; color:inherit;}
-  .ag-nome:hover{color:var(--brand-red); text-decoration:underline; text-underline-offset:2px;}
-  .ag-acoes{grid-column:2; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; opacity:.55; transition:opacity .15s;}
-  .ag-item:hover .ag-acoes, .ag-item:focus-within .ag-acoes{opacity:1;}
-  @media (hover:none){ .ag-acoes{opacity:1;} }
   .ag-ok{border:1px solid var(--status-green); color:var(--status-green); background:none; border-radius:2px; font-family:"IBM Plex Sans",sans-serif; font-size:11px; font-weight:600; letter-spacing:0; padding:3px 7px; cursor:pointer;}
   .ag-ok:hover{background:var(--status-green); color:var(--surface);}
   .ag-remarcar-btn{font-size:11px;}
@@ -159,20 +182,6 @@
   .ag-horario{display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:600; color:var(--blue-deep); background:var(--blue-pale); border-radius:3px; padding:0 5px; margin-right:6px; vertical-align:1px;}
   .ag-lbl-hora{margin-left:4px;}
   input.ag-hora{width:auto; min-width:0;}
-  .ag-dia{grid-row:span 3; align-self:start; display:flex; flex-direction:column; align-items:center; justify-content:center; width:46px; padding:4px 0 5px; border:1px solid var(--rule-strong); border-radius:var(--r); background:var(--surface); line-height:1.1; color:var(--blue-deep);}
-  .ag-dia b{font-family:"IBM Plex Mono",monospace; font-size:17px; font-weight:600;}
-  .ag-dia small{display:block; font-size:10.5px; font-weight:600; color:var(--ink-3); text-transform:lowercase;}
-  .ag-dia.ag-hoje{background:var(--blue-deep); border-color:var(--blue-deep); color:#fff;}
-  .ag-dia.ag-hoje small{color:rgba(255,255,255,.8);}
-  .agenda-col.atrasados .ag-dia{border-color:var(--brand-red); color:var(--brand-red); background:var(--brand-red-soft);}
-  .ag-dia.ag-pct{color:var(--ink);}
-  .ag-barra{grid-column:2; display:block; height:5px; border-radius:99px; background:var(--track); overflow:hidden; margin-top:5px; max-width:220px;}
-  .ag-barra i{display:block; height:100%; background:var(--status-green); border-radius:99px;}
-  :root[data-theme="dark"] .ag-dia.ag-hoje, :root:not([data-theme="light"]) .ag-dia.ag-hoje{color:#0B1015;}
-  :root[data-theme="dark"] .ag-dia.ag-hoje small, :root:not([data-theme="light"]) .ag-dia.ag-hoje small{color:rgba(11,16,21,.75);}
-  .ag-nome{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .ag-onde{font-size:11px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .agenda .att-empty{padding:4px 0;}
   .agenda-scroll{max-height:292px; overflow-y:auto; overscroll-behavior:contain; margin-right:-10px; padding-right:10px; scrollbar-width:thin; scrollbar-color:var(--rule-strong) transparent; outline:none; --fade:28px;}
   .agenda-scroll:focus-visible{box-shadow:0 0 0 2px var(--blue-pale); border-radius:var(--r);}
   .agenda-scroll::-webkit-scrollbar{width:6px;}
@@ -182,10 +191,8 @@
   .agenda-scroll.desce{-webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - var(--fade)), transparent); mask-image:linear-gradient(to bottom, #000 calc(100% - var(--fade)), transparent);}
   .agenda-scroll.sobe{-webkit-mask-image:linear-gradient(to bottom, transparent, #000 var(--fade)); mask-image:linear-gradient(to bottom, transparent, #000 var(--fade));}
   .agenda-scroll.sobe.desce{-webkit-mask-image:linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent); mask-image:linear-gradient(to bottom, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);}
-  .agenda-scroll .ag-item:first-child{border-top:none;}
   .agenda-vazio{padding:18px 20px; font-size:13px; color:var(--ink-3);}
   .foco-resumo .alerta b, .foco-resumo .alerta{color:var(--brand-red);}
-  @media (max-width:700px){ .agenda-col{border-left:none; border-top:1px solid var(--rule);} .agenda-col:first-child{border-top:none;} }
   .carregando-aviso{display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:var(--r); background:var(--surface); border:1px solid var(--rule); color:var(--ink-2); font-size:13px;}
   .spinner{width:14px; height:14px; border-radius:50%; border:2px solid var(--rule-strong); border-top-color:var(--blue-deep); animation:girar .8s linear infinite; flex:none;}
   @keyframes girar{to{transform:rotate(360deg);}}
@@ -287,9 +294,7 @@
   .sm-add .sm-mais{font-size:22px; line-height:1; font-weight:500;}
   .sm-add.on{box-shadow:inset 0 -3px 0 var(--blue-deep);}
   .sm-dia.drop-alvo{outline:2px dashed var(--blue-deep); outline-offset:-4px; background:var(--blue-pale);}
-  .ag-item[draggable="true"] .ag-dia{cursor:grab;}
   body.arrastando .sm-dia:not(.sm-atr):not(.sm-add){background-image:linear-gradient(var(--blue-pale), var(--blue-pale)); background-size:100% 4px; background-repeat:no-repeat; background-position:bottom;}
-  .ag-item.arrastado{opacity:.45;}
   body.agd-aberto{overflow:hidden;}
   .agd-bg{position:fixed; inset:0; z-index:98; background:rgba(8,13,17,.55); display:flex; align-items:center; justify-content:center; padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px)); animation:agdFade .15s ease;}
   .agd{background:var(--surface); color:var(--ink); border:1px solid var(--rule); border-radius:10px; box-shadow:0 24px 60px rgba(0,0,0,.35); width:min(880px,100%); max-height:100%; display:flex; flex-direction:column; overflow:hidden; animation:agdSobe .18s ease;}
@@ -397,7 +402,6 @@
     .ht-data{font-size:22px;}
     .ht-num{min-width:0; flex:1 1 40%;}
   }
-  @media (min-width:900px){ .agenda-col.dia-sel{grid-column:span 2;} }
   .feito{padding:4px 18px;}
   .fh-item{display:grid; grid-template-columns:44px 16px minmax(0,1fr); align-items:baseline; gap:4px 8px; padding:9px 0; border-top:1px solid var(--rule); font-size:13px;}
   .fh-item:first-child{border-top:none;}
@@ -438,7 +442,7 @@
   .att-meta{font-family:"IBM Plex Sans",sans-serif; font-size:11px; font-weight:600; color:var(--ink-3); white-space:nowrap;}
   .att-empty{font-size:12px; color:var(--ink-3); padding:10px 0;}
   .scroll-220{max-height:220px; overflow-y:auto;}
-  .atencao-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:14px; align-items:start;}
+  .atencao-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:14px; align-items:start;}
   .atencao-col{padding:14px 18px 12px; min-width:0;}
   .atencao-col h3{font-family:"Archivo",sans-serif; font-size:13px; font-weight:700; display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;}
   .atencao-col h3 .mono{color:var(--ink-3); font-weight:600;}
@@ -450,6 +454,7 @@
   button.att-item{width:100%; background:none; border:none; border-top:1px solid var(--rule); text-align:left; font:inherit; color:inherit;}
   button.att-item:first-child{border-top:none;}
   .att-item .att-name{min-width:0;}
+  .att-desc.atn-atr{color:var(--brand-red);}
   .att-desc{display:block; font-size:11px; font-weight:400; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .att-mais{display:block; margin:6px 0 2px; font-size:11px; color:var(--ink-3);}
   .linkish.att-mais{display:inline-flex; align-self:flex-start; margin:8px 0 2px;}
@@ -826,7 +831,6 @@
   .fer-empresa-head{cursor:pointer;}
   .fcard-name .flagbadge{margin-left:10px; vertical-align:3px; font-family:"IBM Plex Sans",sans-serif; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .fcard-actions .linkish{font-size:11px;}
-  .ag-onde.atr, .ag-onde.atr b{color:var(--brand-red);}
   @media (max-width:600px){
     .fprox{display:none;}
     .fcard-prog{flex-basis:100%;}
@@ -1371,6 +1375,10 @@
           <div class="panel atencao-col">
             <h3><span>Empresas sem contato</span><span class="atn-dir"><span class="mono" id="atnContN"></span><button type="button" class="btn-xls" data-action="baixar-lista" data-lista="semContato" title="Baixar a lista completa em planilha (.xlsx)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.8 8 10.3l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>XLS</button></span></h3>
             <div class="att" id="listSemContato"></div>
+          </div>
+          <div class="panel atencao-col">
+            <h3><span>Em foco: parada ou com prazo vencido</span><span class="mono" id="atnFocoN"></span></h3>
+            <div class="att" id="listFocoParado"></div>
           </div>
         </div>
       </div>
@@ -2776,51 +2784,114 @@
     });
     return ordem;
   }
-  function itemAgendaHTML(g, hoje){
+  // Botões de uma pessoa da agenda: ✓ Treinado e Remarcar (data e horário, que só aparecem ao clicar).
+  function acoesTreinoHTML(c){
+    var tipo = c.tipo === "etapa" ? "etapa" : c.tipo === "funcionario" ? "funcionario" : "contato";
+    var alvo = tipo === "etapa" ? 'data-tipo="etapa" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'"' : 'data-id="'+c.id+'" data-tipo="'+tipo+'"';
+    var idBase = tipo === "etapa" ? "agd-et-" + c.id : "agd-" + (tipo === "funcionario" ? "func-" : "") + c.id;
+    var cls = tipo === "etapa" ? "" : (tipo === "funcionario" ? " func-ag-data" : " cont-ag-data");
+    var dados = tipo === "etapa" ? 'data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-etapa="treinamentoAnalista"' : 'data-id="'+c.id+'"';
+    return '<span class="ag-acoes">' +
+      '<button type="button" class="ag-ok" data-action="agenda-concluir" '+alvo+' title="'+(tipo === "etapa" ? "Marcar o treinamento do analista como concluído" : "Marcar o treinamento como concluído")+'">✓ Treinado</button>' +
+      '<button type="button" class="linkish ag-remarcar-btn" data-action="ag-remarcar">Remarcar</button>' +
+      '<span class="ag-remarcar-campos" hidden>' +
+        '<label class="ag-remarcar" title="Nova data">Nova data <input type="date" id="'+idBase+'" class="ag-input'+cls+'" '+dados+' value="'+esc(c.agendadoPara || "")+'"></label>' +
+        '<label class="ag-remarcar" title="Horário (opcional)"><input type="time" step="300" id="'+idBase+'-h" class="ag-input ag-hora'+cls+(c.agendadoHora ? '' : ' vazio')+'" '+dados+' value="'+esc(c.agendadoHora || "")+'"></label>' +
+      '</span>' +
+    '</span>';
+  }
+  // Nome clicável de quem será treinado; "+N" quando a mesma pessoa está agendada em outras empresas.
+  function nomeAgendaHTML(g){
     var c = g.rep;
-    if(c.tipo === "etapa") return itemAgendaEtapaHTML(c, hoje);
-    var ehFunc = c.tipo === "funcionario";
-    var onde = ehFunc
-      ? g.membros.map(function(m){ return [SETOR_LABEL[m.setor] || m.setor, m.cargo].filter(Boolean).join(" · "); }).join(" + ")
-      : g.membros.map(function(m){
-          var setores = (m.setores || []).map(function(sk){ return SETOR_LABEL[sk] || sk; }).join(", ");
-          return [m.empresaNome, setores].filter(Boolean).join(" · ");
-        }).join(" + ");
+    var acao = c.tipo === "etapa" ? 'data-action="ir-empresa" data-id="'+c.empresaId+'" title="Abrir a empresa"'
+      : c.tipo === "funcionario" ? 'data-action="ir-funcionario" data-nome="'+esc(c.nome)+'" title="Abrir o cadastro"'
+      : 'data-action="ir-contato" data-id="'+c.id+'" title="Abrir o cadastro"';
     var multi = g.membros.length > 1 ? '<span class="multi-emp" title="Mesma pessoa, agendada nessa mesma data em '+g.membros.length+' empresas. Uma ação resolve todas.">+'+(g.membros.length - 1)+'</span>' : '';
-    var irAction = ehFunc ? 'data-action="ir-funcionario" data-nome="'+esc(c.nome)+'"' : 'data-action="ir-contato" data-id="'+c.id+'"';
-    return '<div class="ag-item" draggable="true" title="Arraste até um dia da faixa da semana para remarcar" data-tipo="'+(ehFunc?"funcionario":"contato")+'" data-id="'+c.id+'" data-nome="'+esc(c.nome)+'" data-antes="'+esc(c.agendadoPara || "")+'">' +
-      '<span class="ag-dia'+(c.agendadoPara === hoje ? ' ag-hoje' : '')+'" title="'+(c.agendadoPara ? diaBR(c.agendadoPara) : 'Sem data')+'">'+diaAgendaHTML(c.agendadoPara, hoje)+'</span>' +
-      '<button type="button" class="ag-nome" '+irAction+' title="Abrir o cadastro">'+(c.agendadoHora ? '<span class="ag-horario">'+esc(c.agendadoHora)+'</span>' : '')+esc(c.nome)+multi+'</button>' +
-      '<span class="ag-onde">'+esc(onde)+'</span>' +
-      '<span class="ag-acoes">' +
-        '<button type="button" class="ag-ok" data-action="agenda-concluir" data-id="'+c.id+'" data-tipo="'+(ehFunc?"funcionario":"contato")+'" title="Marcar o treinamento como concluído">✓ Treinado</button>' +
-        '<button type="button" class="linkish ag-remarcar-btn" data-action="ag-remarcar">Remarcar</button>' +
-        '<span class="ag-remarcar-campos" hidden>' +
-        '<label class="ag-remarcar" title="Nova data">Nova data <input type="date" id="agd-'+(ehFunc?"func-":"")+c.id+'" class="ag-input '+(ehFunc?"func-ag-data":"cont-ag-data")+'" data-id="'+c.id+'" value="'+esc(c.agendadoPara || "")+'"></label>' +
-        '<label class="ag-remarcar" title="Horário (opcional)"><input type="time" step="300" id="agd-'+(ehFunc?"func-":"")+c.id+'-h" class="ag-input ag-hora '+(ehFunc?"func-ag-data":"cont-ag-data")+(c.agendadoHora ? '' : ' vazio')+'" data-id="'+c.id+'" value="'+esc(c.agendadoHora || "")+'"></label>' +
-        '</span>' +
-      '</span>' +
+    return '<button type="button" class="ags-nome" '+acao+'>'+esc(c.nome)+'</button>'+multi;
+  }
+  // Mesmo dia, mesmo horário e mesma empresa viram uma sessão só (o treinamento do analista fica sozinho).
+  var sessoesAgenda = {};
+  function sessoesDe(grupos){
+    var porK = {}, out = [];
+    grupos.forEach(function(g){
+      var c = g.rep;
+      var k = c.tipo === "etapa" ? "et:" + c.id
+        : (c.agendadoPara || "") + "|" + (c.agendadoHora || "") + "|" + (c.tipo === "funcionario" ? "eq:" + (c.setor || "") : "emp:" + (c.empresaId || ""));
+      if(!porK[k]){ porK[k] = {chave:k, grupos:[]}; out.push(porK[k]); sessoesAgenda[k] = porK[k]; }
+      porK[k].grupos.push(g);
+    });
+    return out;
+  }
+  function ondeSessaoHTML(s){
+    var c = s.grupos[0].rep;
+    if(c.tipo === "etapa") return 'Treinamento do analista · <b>'+esc(c.empresaNome)+'</b> · '+esc(SETOR_LABEL[c.setor] || c.setor);
+    if(c.tipo === "funcionario"){
+      var cargos = {};
+      s.grupos.forEach(function(g){ if(g.rep.cargo) cargos[g.rep.cargo] = true; });
+      return '<b>Equipe</b> · '+esc(SETOR_LABEL[c.setor] || c.setor || "")+(Object.keys(cargos).length === 1 ? ' · '+esc(Object.keys(cargos)[0]) : '');
+    }
+    var setores = {};
+    s.grupos.forEach(function(g){ (g.rep.setores || []).forEach(function(sk){ setores[SETOR_LABEL[sk] || sk] = true; }); });
+    var sl = Object.keys(setores);
+    return '<b>'+esc(c.empresaNome || "Empresa não informada")+'</b>'+(sl.length ? ' · '+esc(sl.join(", ")) : '');
+  }
+  function sessaoAgendaHTML(s, comData){
+    var c = s.grupos[0].rep, multi = s.grupos.length > 1, d = parseDia(c.agendadoPara);
+    var quando = (c.agendadoHora ? '<span class="ag-horario">'+esc(c.agendadoHora)+'</span>' : '<span class="ags-sem-hora" title="Sem horário">—</span>') +
+      (comData && d ? '<span class="ags-data">'+DIAS_SEMANA[d.getDay()]+' '+pad2(d.getDate())+'/'+pad2(d.getMonth() + 1)+'</span>' : '');
+    var pessoas = s.grupos.map(nomeAgendaHTML).join('<span class="ags-sep">·</span>');
+    var acoes = multi
+      ? '<button type="button" class="ag-ok" data-action="agenda-concluir-sessao" data-ses="'+esc(s.chave)+'" title="Marcar o treinamento de todas as '+s.grupos.length+' pessoas como concluído">✓ Todos treinados</button>' +
+        '<button type="button" class="linkish ag-remarcar-btn" data-action="ags-por-pessoa" aria-expanded="false">Por pessoa</button>'
+      : acoesTreinoHTML(c);
+    var porPessoa = multi ? '<div class="ags-por-pessoa" hidden>' + s.grupos.map(function(g){
+      return '<div class="ags-pp"><span>'+nomeAgendaHTML(g)+'</span>'+acoesTreinoHTML(g.rep)+'</div>';
+    }).join("") + '</div>' : '';
+    return '<div class="ags-ses" draggable="true" data-ses="'+esc(s.chave)+'" title="Arraste até um dia da faixa da semana para remarcar">' +
+      '<div class="ags-quando">'+quando+'</div>' +
+      '<div class="ags-corpo"><div class="ags-pessoas">'+pessoas+(multi ? '<span class="ags-qtd">'+s.grupos.length+' pessoas</span>' : '')+'</div><div class="ags-onde">'+ondeSessaoHTML(s)+'</div></div>' +
+      '<div class="ags-acoes">'+acoes+'</div>' + porPessoa +
     '</div>';
   }
-  function diaAgendaHTML(iso, hoje){
-    var d = parseDia(iso);
-    if(!d) return '<b>—</b><small>sem data</small>';
-    return '<small>' + (iso === hoje ? "hoje" : DIAS_SEMANA[d.getDay()]) + '</small><b>' + pad2(d.getDate()) + '</b><small>' + MESES_CURTOS[d.getMonth()] + '</small>';
-  }
-  function itemAgendaEtapaHTML(c, hoje){
-    return '<div class="ag-item" draggable="true" title="Arraste até um dia da faixa da semana para remarcar" data-tipo="etapa" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-nome="'+esc(c.nome)+'" data-antes="'+esc(c.agendadoPara || "")+'">' +
-      '<span class="ag-dia'+(c.agendadoPara === hoje ? ' ag-hoje' : '')+'" title="'+(c.agendadoPara ? diaBR(c.agendadoPara) : 'Sem data')+'">'+diaAgendaHTML(c.agendadoPara, hoje)+'</span>' +
-      '<button type="button" class="ag-nome" data-action="ir-empresa" data-id="'+c.empresaId+'" title="Abrir a empresa">'+(c.agendadoHora ? '<span class="ag-horario">'+esc(c.agendadoHora)+'</span>' : '')+esc(c.nome)+'</button>' +
-      '<span class="ag-onde">Treinamento do analista · '+esc(c.empresaNome)+' · '+esc(SETOR_LABEL[c.setor] || c.setor)+'</span>' +
-      '<span class="ag-acoes">' +
-        '<button type="button" class="ag-ok" data-action="agenda-concluir" data-tipo="etapa" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" title="Marcar o treinamento do analista como concluído">✓ Treinado</button>' +
-        '<button type="button" class="linkish ag-remarcar-btn" data-action="ag-remarcar">Remarcar</button>' +
-        '<span class="ag-remarcar-campos" hidden>' +
-        '<label class="ag-remarcar" title="Nova data">Nova data <input type="date" id="agd-et-'+c.id+'" class="ag-input" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-etapa="treinamentoAnalista" value="'+esc(c.agendadoPara || "")+'"></label>' +
-        '<label class="ag-remarcar" title="Horário (opcional)"><input type="time" step="300" id="agd-et-'+c.id+'-h" class="ag-input ag-hora'+(c.agendadoHora ? '' : ' vazio')+'" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-etapa="treinamentoAnalista" value="'+esc(c.agendadoHora || "")+'"></label>' +
-        '</span>' +
-      '</span>' +
-    '</div>';
+  // Uma pessoa (ou analista de uma frente) da agenda no formato que remarcarPara usa.
+  function infoArraste(c){ return {tipo:c.tipo === "etapa" ? "etapa" : c.tipo, id:c.id, empresa:c.empresaId, setor:c.setor, nome:c.nome, antes:c.agendadoPara || ""}; }
+  // "✓ Todos treinados": conclui cada pessoa da sessão com um aviso e um Desfazer só.
+  function concluirSessao(chave){
+    var s = sessoesAgenda[chave];
+    if(!s || !dbRef) return;
+    var antesC = [], antesF = [];
+    s.grupos.forEach(function(g){
+      var c = g.rep;
+      if(c.tipo === "contato"){
+        var co = state.contatos.find(function(x){ return x.id === c.id; });
+        if(co) [co].concat(mesmaPessoa(co)).forEach(function(x){ antesC.push({id:x.id, statusTreinamento:x.statusTreinamento || "pendente", concluidoEm:x.concluidoEm || "", agendadoPara:x.agendadoPara || "", agendadoHora:x.agendadoHora || ""}); });
+      } else if(c.tipo === "funcionario"){
+        var f = state.funcionarios.find(function(x){ return x.id === c.id; });
+        if(f) antesF.push({id:f.id, statusTreinamento:f.statusTreinamento || "pendente", concluidoEm:f.concluidoEm || "", agendadoPara:f.agendadoPara || "", agendadoHora:f.agendadoHora || ""});
+      }
+    });
+    emLote(function(){
+      s.grupos.forEach(function(g){
+        var c = g.rep;
+        if(c.tipo === "contato") definirStatusContato(c.id, "concluido", undefined, true);
+        else if(c.tipo === "funcionario") definirStatusFuncionario(c.id, "concluido", undefined, true);
+      });
+    });
+    var c0 = s.grupos[0].rep;
+    mostrarToast(s.grupos.length + " pessoas treinadas · " + (c0.tipo === "funcionario" ? "Equipe" : (c0.empresaNome || "")), "Desfazer", function(){
+      emLote(function(){
+        antesC.forEach(function(a){
+          var c = state.contatos.find(function(x){ return x.id === a.id; }), p0 = Object.assign({}, a); delete p0.id;
+          if(c) Object.assign(c, p0);
+          dbRef.collection("contatos").doc(a.id).update(p0);
+        });
+        antesF.forEach(function(a){
+          var f = state.funcionarios.find(function(x){ return x.id === a.id; }), p0 = Object.assign({}, a); delete p0.id;
+          if(f) Object.assign(f, p0);
+          dbRef.collection("funcionarios").doc(a.id).update(p0);
+        });
+      });
+    });
   }
   // Treinamento do analista agendado (etapa por empresa × setor), só nas frentes com demanda de empresas ativas.
   function agendaEtapasAnalista(){
@@ -3175,36 +3246,40 @@
       });
     });
   }
-  // Arrastar um item da agenda para um dia da faixa remarca a data (o horário é mantido).
-  function remarcarPara(info, iso){
+  // Arrastar uma sessão da agenda para um dia da faixa remarca a data de todos nela (o horário é mantido).
+  function campoRemarcar(info){
     var el = document.createElement("input");
     if(info.tipo === "contato"){ el.className = "cont-ag-data"; el.setAttribute("data-id", info.id); }
     else if(info.tipo === "funcionario"){ el.className = "func-ag-data"; el.setAttribute("data-id", info.id); }
     else { el.setAttribute("data-empresa", info.empresa); el.setAttribute("data-setor", info.setor); el.setAttribute("data-etapa", "treinamentoAnalista"); }
-    var antes = info.antes || "";
-    el.value = iso;
-    var ed = edicaoDataDe(el);
-    ed.aplicar(); if(dbRef) ed.salvar();
-    renderAll();
+    return el;
+  }
+  function remarcarPara(infos, iso){
+    var campos = infos.map(function(info){ return {el:campoRemarcar(info), antes:info.antes || ""}; });
+    var gravar = function(campo){ return function(x){ x.el.value = campo(x); var ed = edicaoDataDe(x.el); ed.aplicar(); if(dbRef) ed.salvar(); }; };
+    emLote(function(){ campos.forEach(gravar(function(){ return iso; })); });
     var d = parseDia(iso);
-    mostrarToast((info.nome || "Treinamento") + " remarcado para " + (d ? DIAS_SEMANA[d.getDay()] + " " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) : iso), "Desfazer", function(){
-      el.value = antes; var ed2 = edicaoDataDe(el); ed2.aplicar(); if(dbRef) ed2.salvar(); renderAll();
+    var quem = infos.length === 1 ? (infos[0].nome || "Treinamento") + " remarcado" : infos.length + " treinamentos remarcados";
+    mostrarToast(quem + " para " + (d ? DIAS_SEMANA[d.getDay()] + " " + pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) : iso), "Desfazer", function(){
+      emLote(function(){ campos.forEach(gravar(function(x){ return x.antes; })); });
     });
   }
   (function(){
     var origem = null, arrastando = null;
     document.addEventListener("mousedown", function(ev){ origem = ev.target; }, true);
     document.addEventListener("dragstart", function(ev){
-      var it = ev.target.closest && ev.target.closest('.ag-item[draggable="true"]');
+      var it = ev.target.closest && ev.target.closest('.ags-ses[draggable="true"]');
       if(!it) return;
       if(origem && origem.closest && origem.closest("input, select, button, label, a")){ ev.preventDefault(); return; }
-      arrastando = {tipo:it.getAttribute("data-tipo"), id:it.getAttribute("data-id"), empresa:it.getAttribute("data-empresa"), setor:it.getAttribute("data-setor"), nome:it.getAttribute("data-nome"), antes:it.getAttribute("data-antes")};
-      try{ ev.dataTransfer.setData("text/plain", arrastando.nome || "treinamento"); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
+      var sesA = sessoesAgenda[it.getAttribute("data-ses")];
+      if(!sesA){ ev.preventDefault(); return; }
+      arrastando = sesA.grupos.map(function(g){ return infoArraste(g.rep); });
+      try{ ev.dataTransfer.setData("text/plain", arrastando[0].nome || "treinamento"); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
       it.classList.add("arrastado"); document.body.classList.add("arrastando");
     });
     document.addEventListener("dragend", function(){
       arrastando = null; document.body.classList.remove("arrastando");
-      $$(".ag-item.arrastado").forEach(function(x){ x.classList.remove("arrastado"); });
+      $$(".ags-ses.arrastado").forEach(function(x){ x.classList.remove("arrastado"); });
       $$(".sm-dia.drop-alvo").forEach(function(x){ x.classList.remove("drop-alvo"); });
     });
     document.addEventListener("dragover", function(ev){
@@ -3219,7 +3294,7 @@
       ev.preventDefault();
       var info = arrastando; arrastando = null;
       document.body.classList.remove("arrastando");
-      if(info.antes === alvo.getAttribute("data-soltar")) return;
+      if(info[0].antes === alvo.getAttribute("data-soltar")) return;
       remarcarPara(info, alvo.getAttribute("data-soltar"));
     });
     document.addEventListener("input", function(ev){
@@ -3280,60 +3355,52 @@
     $("#hojeFita").hidden = false;
     renderFitaHoje(A);
     renderSemana(A);
-    var focos = listaFoco().map(function(e){ return {e:e, r:resumoEmpresaFoco(e, docsDaEmpresa(e.id)), parada:diasParada(e)}; })
-      .filter(function(x){ return !x.r.completa && (prazoFocoVencido(x.e) || (x.parada !== null && x.parada >= 7)); })
-      .sort(function(a, b){ return (prazoFocoVencido(b.e) ? 1 : 0) - (prazoFocoVencido(a.e) ? 1 : 0) || (b.parada || 0) - (a.parada || 0); });
     var cnt = [];
     if(atr.length) cnt.push(atr.length + " atrasado" + (atr.length === 1 ? "" : "s"));
     if(sem.length) cnt.push(sem.length + " nesta semana");
     $("#agendaCount").textContent = cnt.join(" · ");
-    // Cada coluna mostra tudo numa área de altura fixa que rola com a roda do mouse.
-    var coluna = function(cls, titulo, itens, html, vazio){
-      var linhas = itens.map(html).join("");
-      return '<div class="agenda-col '+cls+'"><h3><span>'+titulo+'</span><span class="mono">'+itens.length+'</span></h3>' +
-        (linhas ? '<div class="agenda-scroll" tabindex="0" data-col="'+esc(titulo)+'" aria-label="'+esc(titulo)+'">'+linhas+'</div>' : '<div class="att-empty">'+vazio+'</div>') + '</div>';
+    // Uma lista só, por dia: só aparecem os dias com alguém agendado; dentro do dia, uma linha por sessão.
+    sessoesAgenda = {};
+    var blocos = [];
+    var amanha = diaLocal(somarDias(parseDia(hoje), 1));
+    var grupoDia = function(cls, titulo, sub, grupos, comData){
+      if(!grupos.length) return;
+      blocos.push('<section class="ags-grupo ' + cls + '"><h3 class="ags-dia-h"><span>' + titulo + (sub ? '<small>' + sub + '</small>' : '') + '</span><span class="mono">' + grupos.length + '</span></h3>' +
+        sessoesDe(grupos).map(function(se){ return sessaoAgendaHTML(se, comData); }).join("") + '</section>');
     };
-    var itemFoco = function(x){
-      var pct = Math.round(x.r.pct * 100);
-      var motivo = prazoFocoVencido(x.e) ? '<span class="ag-onde atr">Prazo venceu em '+dataCurta(x.e.focoPrazo)+'</span>' : (x.parada !== null ? '<span class="ag-onde atr">Parada há '+x.parada+' dias</span>' : '');
-      var passo = x.e.focoProxAcao ? '<span class="ag-onde'+(prazoFocoVencido(x.e) ? ' atr' : '')+'">Próxima ação: <b>'+esc(x.e.focoProxAcao)+'</b>'+(x.e.focoPrazo ? ' · até '+dataCurta(x.e.focoPrazo) : '')+'</span>'
-        : x.r.completa ? '<span class="ag-onde ok">Todas as etapas concluídas</span>'
-        : x.r.prox ? '<span class="ag-onde">Próximo: <b>'+esc(x.r.prox.item.label)+'</b>'+(x.r.prox.setor ? ' · '+x.r.prox.setor.label : '')+'</span>' : '<span class="ag-onde">Nenhum setor com demanda</span>';
-      return '<div class="ag-item"><span class="ag-dia ag-pct"><b>'+pct+'</b><small>%</small></span>' +
-        '<button type="button" class="ag-nome" data-action="abrir-foco-empresa" data-id="'+x.e.id+'" title="Abrir no Foco">'+esc(x.e.nome)+'</button>' + motivo + passo +
-        '<span class="ag-barra"><i style="width:'+pct+'%"></i></span></div>';
+    var dia = function(iso){
+      var d = parseDia(iso);
+      var tit = iso === hoje ? "Hoje" : iso === amanha ? "Amanhã" : d.toLocaleDateString("pt-BR", {weekday:"long"});
+      grupoDia(iso === hoje ? "hoje" : "", tit.charAt(0).toUpperCase() + tit.slice(1), d.toLocaleDateString("pt-BR", {day:"numeric", month:"short"}).replace(".", ""), A.doDia(iso), false);
     };
-    var item = function(g){ return itemAgendaHTML(g, hoje); };
-    var colFoco = coluna("foco", "Em foco: paradas ou com prazo vencido", focos, itemFoco, listaFoco().length ? 'Nenhuma empresa em foco parada há 7 dias ou mais, nem com prazo vencido.' : 'Nenhuma empresa em foco. <button type="button" class="linkish" data-action="ir-foco">Escolher empresas no Foco</button>');
-    var cols;
     var diaSel = ui.agendaDia;
     if(diaSel && diaSel !== "atrasados" && (diaSel < hoje || diaSel > A.lim7)) diaSel = ui.agendaDia = null;
-    if(diaSel){
-      var dsel = parseDia(diaSel);
-      var tit = diaSel === "atrasados" ? "Treinamentos atrasados"
-        : "Treinamentos de " + (diaSel === hoje ? "hoje" : dsel.toLocaleDateString("pt-BR", {weekday:"long", day:"numeric", month:"long"}));
-      var lista = diaSel === "atrasados" ? atr : A.doDia(diaSel);
-      cols = [coluna(diaSel === "atrasados" ? "atrasados dia-sel" : "dia-sel", tit, lista, item, diaSel === "atrasados" ? "Nenhum atrasado." : "Nada agendado para este dia."), colFoco];
-    } else {
-      cols = [
-        coluna("atrasados", "Treinamentos atrasados", atr, item, "Nenhum atrasado."),
-        coluna("", "Treinamentos: hoje e próximos 7 dias", sem, item, "Nada agendado para esta semana."),
-        colFoco
-      ];
+    if(diaSel === "atrasados") grupoDia("atr", "Atrasados", "", atr, true);
+    else if(diaSel) dia(diaSel);
+    else {
+      grupoDia("atr", "Atrasados", "", atr, true);
+      var dias = [];
+      sem.forEach(function(g){ if(dias.indexOf(g.rep.agendadoPara) === -1) dias.push(g.rep.agendadoPara); });
+      dias.sort().forEach(dia);
       if(ui.agendaCompleta){
-        cols.push(coluna("", "Treinamentos mais adiante", adiante, item, "Nada mais adiante."));
-        cols.push(coluna("", "Agendados sem data", semData, item, "Todos têm data."));
+        grupoDia("", "Mais adiante", "depois de " + dataCurta(A.lim7), adiante, true);
+        grupoDia("", "Sem data", "agendados sem dia marcado", semData, false);
       }
     }
-    var painelAg = $("#agendaPanel"), rolagem = {};
-    $$(".agenda-scroll", painelAg).forEach(function(el){ rolagem[el.getAttribute("data-col")] = el.scrollTop; });
-    painelAg.innerHTML = cols.join("");
-    $$(".agenda-scroll", painelAg).forEach(function(el){
-      var y = rolagem[el.getAttribute("data-col")];
-      if(y) el.scrollTop = y;
-      marcarRolagemAgenda(el);
-      el.addEventListener("scroll", function(){ marcarRolagemAgenda(el); }, {passive:true});
-    });
+    var agendarLink = ' <button type="button" class="linkish" data-action="agendar-abrir">Agendar treinamento</button>';
+    var vazio = diaSel === "atrasados" ? "Nenhum treinamento atrasado."
+      : diaSel ? "Nada agendado para este dia." + agendarLink
+      : "Nada atrasado nem agendado para os próximos 7 dias." + agendarLink;
+    var painelAg = $("#agendaPanel"), rolagemAntes = 0;
+    var listaAntes = painelAg.querySelector(".ags-lista");
+    if(listaAntes) rolagemAntes = listaAntes.scrollTop;
+    painelAg.innerHTML = blocos.length ? '<div class="agenda-scroll ags-lista" tabindex="0" aria-label="Agenda de treinamentos">' + blocos.join("") + '</div>' : '<div class="ags-vazio">' + vazio + '</div>';
+    var listaAg = painelAg.querySelector(".ags-lista");
+    if(listaAg){
+      if(rolagemAntes) listaAg.scrollTop = rolagemAntes;
+      marcarRolagemAgenda(listaAg);
+      listaAg.addEventListener("scroll", function(){ marcarRolagemAgenda(listaAg); }, {passive:true});
+    }
     var extra = adiante.length + semData.length;
     $("#agendaRodape").innerHTML = diaSel
       ? '<button type="button" class="linkish" data-action="hoje-dia" data-dia="">Ver a semana inteira</button>'
@@ -3374,6 +3441,19 @@
       return '<button type="button" class="att-item" data-action="ir-empresa" data-id="'+x.e.id+'"><span class="att-name">'+esc(x.e.nome)+'</span><span class="att-meta">'+tags(x.falta)+'</span></button>';
     }, "Todas as frentes têm analista.", function(n){
       return '<button type="button" class="linkish att-mais" data-action="ver-sem-analista">Ver todas em Consulta ('+(n + LIM)+')</button>';
+    });
+
+    // Empresas em foco paradas há 7 dias ou mais, ou com o prazo da próxima ação vencido.
+    var focos = listaFoco().map(function(e){ return {e:e, r:resumoEmpresaFoco(e, docsDaEmpresa(e.id)), parada:diasParada(e)}; })
+      .filter(function(x){ return !x.r.completa && (prazoFocoVencido(x.e) || (x.parada !== null && x.parada >= 7)); })
+      .sort(function(a, b){ return (prazoFocoVencido(b.e) ? 1 : 0) - (prazoFocoVencido(a.e) ? 1 : 0) || (b.parada || 0) - (a.parada || 0); });
+    $("#atnFocoN").textContent = focos.length;
+    lista($("#listFocoParado"), focos, function(x){
+      var motivo = prazoFocoVencido(x.e) ? "Prazo venceu em " + dataCurta(x.e.focoPrazo) : "Parada há " + x.parada + " dias";
+      var passo = x.e.focoProxAcao ? " · " + x.e.focoProxAcao : (x.r.prox ? " · Próximo: " + x.r.prox.item.label + (x.r.prox.setor ? " (" + x.r.prox.setor.label + ")" : "") : "");
+      return '<button type="button" class="att-item" data-action="abrir-foco-empresa" data-id="'+x.e.id+'"><span class="att-name">'+esc(x.e.nome)+'<span class="att-desc atn-atr">'+esc(motivo + passo)+'</span></span><span class="att-meta">'+Math.round(x.r.pct * 100)+'%</span></button>';
+    }, listaFoco().length ? "Nenhuma empresa em foco parada há 7 dias ou mais, nem com prazo vencido." : 'Nenhuma empresa em foco. <button type="button" class="linkish" data-action="ir-foco">Escolher empresas no Foco</button>', function(n){
+      return '<button type="button" class="linkish att-mais" data-action="ir-foco">Ver todas no Foco ('+(n + LIM)+')</button>';
     });
 
     var semCont = listaSemContato(m);
@@ -6274,6 +6354,12 @@
     if(a === "atv-fechar"){ ui.rel.atvPer = ""; renderRelAtividades(); return; }
     if(a === "ver-sem-analista"){ ui.soSemAnalista = true; irParaEmpresaComSetor("todos"); return; }
     if(a === "abrir-foco-empresa"){ setView("foco"); irParaFocoEmpresa(el.getAttribute("data-id")); return; }
+    if(a === "agenda-concluir-sessao"){ concluirSessao(el.getAttribute("data-ses")); return; }
+    if(a === "ags-por-pessoa"){
+      var ppBox = el.closest(".ags-ses") && el.closest(".ags-ses").querySelector(".ags-por-pessoa");
+      if(ppBox){ ppBox.hidden = !ppBox.hidden; el.setAttribute("aria-expanded", String(!ppBox.hidden)); el.textContent = ppBox.hidden ? "Por pessoa" : "Fechar"; }
+      return;
+    }
     if(a === "agenda-concluir"){
       if(el.getAttribute("data-tipo") === "etapa") focoSetStatus(el.getAttribute("data-empresa"), el.getAttribute("data-setor"), "treinamentoAnalista", "concluido");
       else if(el.getAttribute("data-tipo") === "funcionario") definirStatusFuncionario(el.getAttribute("data-id"), "concluido");
