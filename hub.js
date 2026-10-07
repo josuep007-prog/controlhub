@@ -1,0 +1,5604 @@
+(() => {
+  'use strict';
+
+  const HOSTED = typeof window.claude?.use === 'function';
+  const THEME_KEY = 'controlhub-theme';
+  const PREFS_KEY = 'controlhub-prefs';
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const ic = (n, cls = '') => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+  const escapeHtml = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const validId = (id) => typeof id === 'string' && /^[A-Za-z0-9_\-.~:@+]{1,120}$/.test(id) && id !== '.' && id !== '..';
+
+  function safeUrl(url) {
+    try { const u = new URL(url); return ['http:','https:'].includes(u.protocol) ? u.href : null; }
+    catch { return null; }
+  }
+  function hostOf(url) {
+    if (!url) return 'Link não configurado';
+    try { return new URL(url).host; } catch { return url; }
+  }
+  let toastTimer;
+  function hideToast() {
+    const el = $('#toast');
+    el.classList.remove('show');
+    clearTimeout(toastTimer);
+  }
+  // Uma janela modal deixa inerte o que está fora dela; o toast vai para dentro da janela aberta para o "Desfazer" funcionar.
+  function toast(msg, action) {
+    const el = $('#toast');
+    const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body;
+    if (el.parentNode !== host) host.append(el);
+    el.textContent = '';
+    const ok = /copiad|salv|exclu|vincul|carregad|unificad|aplicad|importad|cadastrad|atualizad/i.test(msg);
+    el.classList.toggle('ok', ok);
+    if (ok) { const ico = document.createElement('span'); ico.className = 'toast-ico'; ico.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>'; el.append(ico); }
+    const tx = document.createElement('span'); tx.className = 'toast-tx'; tx.textContent = msg; el.append(tx);
+    if (action) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'toast-btn'; b.textContent = action.label;
+      b.addEventListener('click', () => { hideToast(); action.fn(); });
+      el.append(b);
+    }
+    el.classList.toggle('has-action', !!action);
+    clearTimeout(toastTimer);
+    requestAnimationFrame(() => el.classList.add('show'));
+    toastTimer = setTimeout(hideToast, action ? 7000 : ok ? 4200 : 3200);
+  }
+
+  function ask(message, buttons) {
+    const dlg = $('#dlg-ask');
+    $('#ask-message').textContent = message;
+    const actions = $('#ask-actions');
+    actions.innerHTML = '<span class="spacer"></span>' + buttons.map((b,i) =>
+      `<button type="button" class="btn ${b.kind||''}" data-i="${i}">${escapeHtml(b.label)}</button>`).join('');
+    return new Promise((resolve) => {
+      const done = (value) => { dlg.removeEventListener('close', onClose); actions.onclick = null; if (dlg.open) dlg.close(); resolve(value); };
+      const onClose = () => done(null);
+      actions.onclick = (e) => { const btn = e.target.closest('[data-i]'); if (btn) done(buttons[btn.dataset.i].value); };
+      dlg.addEventListener('close', onClose);
+      dlg.showModal();
+    });
+  }
+
+  // ---------- estado ----------
+  const state = {
+    tools: [], toolsLoaded: false,
+    readOnly: false,
+    toolsQuery: '',
+    prefs: { theme: null, dpCarteira: '' },
+    dpEmpresas: [], dpLoaded: false, dpGerais: [],
+    dpCarteira: '', dpView: 'painel', dpCalMes: '', dpFerr: '', dpImports: [], dpTiposProc: null,
+    dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
+    dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
+    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
+    dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
+    dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
+    meus: [], meusLoaded: false, meusOff: '', meusSel: '',
+    meId: null,
+    activeModule: null,
+  };
+
+  let db = null, downloads = null, userNs = null;
+
+  function loadPrefs() { try { Object.assign(state.prefs, JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')); } catch {} if (['cards', 'tempo'].includes(state.prefs.convModo)) state.dpConvModo = state.prefs.convModo; }
+  function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(state.prefs)); } catch {} }
+  const systemDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
+  function currentTheme() { return document.documentElement.dataset.theme || state.prefs.theme || (systemDark() ? 'dark' : 'light'); }
+  function applyTheme() {
+    if (state.prefs.theme) document.documentElement.dataset.theme = state.prefs.theme;
+    try { localStorage.setItem(THEME_KEY, state.prefs.theme || ''); } catch {}
+    $$('.portal-frame').forEach(f => { try { if (state.prefs.theme) f.contentDocument.documentElement.dataset.theme = state.prefs.theme; } catch {} });
+    const dark = currentTheme() === 'dark';
+    document.body.classList.toggle('tema-claro', !dark);
+    const tit = dark ? 'Usar tema claro' : 'Usar tema escuro';
+    $$('.theme-ico').forEach(el => { el.innerHTML = ic(dark ? 'sun' : 'moon', 'ic-lg'); });
+    $$('.theme-lbl').forEach(el => { el.textContent = dark ? 'Tema claro' : 'Tema escuro'; });
+    $$('[data-theme-toggle]').forEach(b => { b.title = tit; b.setAttribute('aria-label', tit); });
+  }
+
+  // ---------- normalização: ferramentas ----------
+  const DEFAULT_TOOLS = [
+    { id:'gestta', name:'Gestta', url:'https://app.gestta.com.br', icon:'📈', category:'Acompanhamento', color:'#0F7A55', description:'Andamento das empresas.', tags:['empresas'] },
+    { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Painel de implantação do Portal do Cliente.', tags:['cliente'], moduleKey:'portal' },
+    { id:'planilha-dp', name:'Departamento Pessoal', url:'', icon:'👥', category:'Atalhos', color:'#C2000C', description:'Empresas, agenda, funcionários, convenções e cartela de clientes.', tags:['dp','folha'], moduleKey:'dp' },
+    { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Fechamento, agenda de obrigações e saúde fiscal das empresas.', tags:['planilha','fiscal'], moduleKey:'fiscal' },
+    { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#0F7A55', description:'Carteira, fechamento mensal e prazos do contábil.', tags:['planilha','contábil'], moduleKey:'contabil' },
+    { id:'zappy', name:'Zappy', url:'', icon:'💬', category:'Comunicação', color:'#167A45', description:'Só os contatos.', tags:['whatsapp','contatos'] },
+    { id:'zimbra', name:'Zimbra', url:'', icon:'✉️', category:'Comunicação', color:'#167A45', description:'Agendamento das salas e monitoramento das comunicações.', tags:['e-mail','salas'] },
+    { id:'pasta-servidor', name:'Pasta Servidor', url:'', icon:'🗄️', category:'Monitoramento', color:'#B5530C', description:'Arquivos fora do padrão ou salvos no local errado.', tags:['servidor','arquivos'] },
+  ];
+
+  function normalizeTool(t, i=0) {
+    return {
+      id: validId(t.id) ? t.id : uid(),
+      name: String((t.id === 'planilha-dp' && String(t.name).trim() === 'DP' ? 'Departamento Pessoal' : t.name) || 'Sem nome').slice(0,60),
+      url: safeUrl(t.url) || '',
+      icon: t.icon || '🔧',
+      category: String(t.category || 'Geral').trim() || 'Geral',
+      color: t.id === 'planilha-dp' && String(t.color).toUpperCase() === '#9A6B00' ? '#C2000C' : /^#[0-9a-f]{6}$/i.test(t.color||'') ? t.color : '#3C659B',
+      description: t.id === 'planilha-dp' && t.description === 'Particularidades de folha por empresa.' ? 'Empresas, agenda, funcionários, convenções e cartela de clientes.' : t.id === 'planilha-contabil' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Carteira, fechamento mensal e prazos do contábil.' : t.id === 'planilha-fiscal' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Fechamento, agenda de obrigações e saúde fiscal das empresas.' : (t.description || ''),
+      tags: Array.isArray(t.tags) ? t.tags.filter(Boolean).map(String) : [],
+      notes: t.notes || '',
+      favorite: !!t.favorite,
+      newTab: t.newTab !== false,
+      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : t.id === 'planilha-fiscal' && !safeUrl(t.url) ? 'fiscal' : String(t.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === 'cardapio' ? 'cardapio' : ''),
+      order: Number.isFinite(t.order) ? t.order : i,
+      uses: Number(t.uses) || 0,
+      lastUsed: t.lastUsed || null,
+      createdAt: t.createdAt || Date.now(),
+    };
+  }
+
+  // ---------- persistência (genérica por coleção) ----------
+  function makeLocalStore(key, defaultsFn) {
+    return {
+      shared:false,
+      load() { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : defaultsFn(); } catch { return defaultsFn(); } },
+      persistAll(list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch { toast('Não foi possível salvar no navegador.'); } },
+      async saveOne(item) { const list = this.load(); const i = list.findIndex(x => x.id === item.id); if (i >= 0) list[i] = item; else list.push(item); this.persistAll(list); },
+      async saveMany(items) { const list = this.load(); items.forEach(item => { const i = list.findIndex(x => x.id === item.id); if (i >= 0) list[i] = item; else list.push(item); }); this.persistAll(list); },
+      async updateFields(id, fields) { const list = this.load(); const i = list.findIndex(x => x.id === id); if (i >= 0) { Object.assign(list[i], fields); this.persistAll(list); } },
+      async deleteOne(id) { this.persistAll(this.load().filter(x => x.id !== id)); },
+    };
+  }
+  function makeDbStore(collection) {
+    return {
+      shared:true,
+      async saveOne(item) { const { id, ...body } = item; await db.doc(`${collection}/${id}`).set(body); },
+      async saveMany(list) { for (const item of list) await this.saveOne(item); },
+      async updateFields(id, fields) { await db.doc(`${collection}/${id}`).update(fields); },
+      async deleteOne(id) { await db.doc(`${collection}/${id}`).delete(); },
+    };
+  }
+
+  let toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
+  const toolsDbStore = makeDbStore('tools');
+
+  // ---------- módulo DP: texto, datas, feriados e dias úteis ----------
+  const norm = (s='') => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const matchQ = (parts, q) => { if (!q) return true; const hay = norm(parts.join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w)); };
+  const cnpjClean = (s) => String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
+  // Filial: CNPJ de 14 posições cuja ordem (9ª a 12ª) não é 0001. CPF e CNPJ vazio nunca são filial.
+  const ehFilial = (e) => { const c = cnpjClean(e && e.cnpj); return c.length === 14 && c.slice(8, 12) !== '0001' && /[1-9A-Z]/.test(c.slice(8, 12)); };
+  const filialTag = (e) => ehFilial(e) ? `<span class="tag-filial" title="Filial (final ${escapeHtml(cnpjClean(e.cnpj).slice(8, 12))} no CNPJ)">filial</span>` : '';
+  const nomeEmpHtml = (e) => `${escapeHtml(e.nome)}${filialTag(e)}`;
+  function maskCnpj(v) {
+    const d = cnpjClean(v).slice(0,14);
+    let o = d.slice(0,2);
+    if (d.length > 2) o += '.' + d.slice(2,5);
+    if (d.length > 5) o += '.' + d.slice(5,8);
+    if (d.length > 8) o += '/' + d.slice(8,12);
+    if (d.length > 12) o += '-' + d.slice(12);
+    return o;
+  }
+  // Empregador doméstico tem CPF (11 dígitos) no lugar do CNPJ.
+  function cpfValido(v) {
+    if (/[A-Za-z]/.test(String(v||''))) return false;
+    const d = String(v||'').replace(/\D/g,'');
+    if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+    const dv = (len) => { let s = 0; for (let i = 0; i < len; i++) s += +d[i] * (len + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+    return dv(9) === +d[9] && dv(10) === +d[10];
+  }
+  const maskCpf = (v) => { const d = String(v||'').replace(/\D/g,''); return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9,11)}`; };
+  // CNPJ numérico ou alfanumérico (IN RFB 2.229/2024): valor do caractere = código ASCII − 48, pesos 2..9 da direita.
+  // Também aceita CPF válido (empregador doméstico).
+  function cnpjValido(v) {
+    if (cpfValido(v)) return true;
+    const d = cnpjClean(v);
+    if (!/^[0-9A-Z]{12}\d{2}$/.test(d) || /^(.)\1+$/.test(d)) return false;
+    const dv = (len) => { let s = 0, w = 2; for (let i = len-1; i >= 0; i--) { s += (d.charCodeAt(i) - 48) * w; w = w === 9 ? 2 : w + 1; } const r = s % 11; return r < 2 ? 0 : 11 - r; };
+    return dv(12) === +d[12] && dv(13) === +d[13];
+  }
+  const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const DIAS_SEM = ['dom','seg','ter','qua','qui','sex','sáb'];
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  const parseYmd = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s||'').trim()); return m ? new Date(+m[1], +m[2]-1, +m[3]) : null; };
+  const hoje = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const addYears = (d, n) => new Date(d.getFullYear() + n, d.getMonth(), d.getDate());
+  const diffDays = (a, b) => Math.round((a - b) / 864e5);
+  const fmtDM = (d) => `${pad2(d.getDate())}/${pad2(d.getMonth()+1)}`;
+  const fmtDMY = (d) => `${fmtDM(d)}/${d.getFullYear()}`;
+  const fmtDateStr = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
+  const fmtBRL = (v) => { const n = Number(String(v).replace(/\./g,'').replace(',','.')); return Number.isFinite(n) && String(v).trim() !== '' ? n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : v; };
+  const mesKey = (y, m) => `${y}-${pad2(m+1)}`;
+  const mesParts = (key) => { const [y,m] = key.split('-').map(Number); return { y, m: m-1 }; };
+  const mesShift = (key, n) => { const { y, m } = mesParts(key); const d = new Date(y, m + n, 1); return mesKey(d.getFullYear(), d.getMonth()); };
+  const mesNome = (key) => { const { y, m } = mesParts(key); return `${MESES[m]} ${y}`; };
+  const mesDe = (d) => mesKey(d.getFullYear(), d.getMonth());
+  function toYmd(v) {
+    const s = String(v||'').trim();
+    if (parseYmd(s)) return s;
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+    return m ? `${m[3]}-${pad2(m[2])}-${pad2(m[1])}` : s;
+  }
+
+  function pascoa(y) {
+    const a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3);
+    const h=(19*a+b-d-g+15)%30, i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451);
+    const month=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+    return new Date(y, month-1, day);
+  }
+  const feriadosCache = {};
+  function feriados(y) {
+    if (feriadosCache[y]) return feriadosCache[y];
+    const map = new Map();
+    [[1,1,'Confraternização Universal'],[4,21,'Tiradentes'],[5,1,'Dia do Trabalho'],[9,7,'Independência'],[10,12,'Nossa Senhora Aparecida'],[11,2,'Finados'],[11,15,'Proclamação da República'],[11,20,'Consciência Negra'],[12,25,'Natal']]
+      .forEach(([m,d,n]) => map.set(ymd(new Date(y,m-1,d)), n));
+    const p = pascoa(y);
+    map.set(ymd(addDays(p,-48)), 'Carnaval'); map.set(ymd(addDays(p,-47)), 'Carnaval');
+    map.set(ymd(addDays(p,-2)), 'Sexta-feira Santa'); map.set(ymd(addDays(p,60)), 'Corpus Christi');
+    return (feriadosCache[y] = map);
+  }
+  const feriado = (d) => feriados(d.getFullYear()).get(ymd(d)) || '';
+  const diaUtil = (d, contaSabado=false) => { const w = d.getDay(); if (w === 0 || (w === 6 && !contaSabado)) return false; return !feriado(d); };
+
+  const REGRAS = [
+    { v:'antecipa', l:'Dia fixo · antecipa se não for útil' },
+    { v:'prorroga', l:'Dia fixo · prorroga se não for útil' },
+    { v:'fixo',     l:'Dia fixo (corrido)' },
+    { v:'util',     l:'Nº dia útil (seg. a sex.)' },
+    { v:'util_sab', l:'Nº dia útil (conta sábado)' },
+  ];
+  const regraLabel = (v) => REGRAS.find(r => r.v === v)?.l || '';
+  function parseDia(p) {
+    const raw = String(p.dia || '').trim();
+    const m = raw.match(/\d{1,2}/);
+    if (!m) return null;
+    const n = +m[0];
+    if (n < 1 || n > 31) return null;
+    const regra = p.regra || (/[uú]til|\bdu\b/i.test(raw) ? 'util' : 'fixo');
+    return { n, regra };
+  }
+  // Data em que o prazo cai dentro de um mês do calendário.
+  function vencimento(p, mes) {
+    const pd = parseDia(p);
+    if (!pd) return null;
+    const { y, m } = mesParts(mes);
+    if (pd.regra === 'util' || pd.regra === 'util_sab') {
+      let c = 0;
+      for (let d = new Date(y, m, 1); d.getMonth() === m; d = addDays(d, 1)) {
+        if (diaUtil(d, pd.regra === 'util_sab') && ++c === pd.n) return d;
+      }
+      return null;
+    }
+    let d = new Date(y, m, Math.min(pd.n, new Date(y, m+1, 0).getDate()));
+    if (pd.regra === 'antecipa') while (!diaUtil(d)) d = addDays(d, -1);
+    if (pd.regra === 'prorroga') while (!diaUtil(d)) d = addDays(d, 1);
+    return d;
+  }
+  function descreveDia(p) {
+    const pd = parseDia(p);
+    if (!pd) return p.dia || 'sem dia';
+    if (pd.regra === 'util' || pd.regra === 'util_sab') return `${pd.n}º dia útil`;
+    return `dia ${pd.n}`;
+  }
+
+  function descreveRegra(p) {
+    const pd = parseDia(p);
+    if (!pd) return p.dia ? `“${p.dia}”: dia não reconhecido` : 'sem dia definido';
+    return { util:`${pd.n}º dia útil`, util_sab:`${pd.n}º dia útil, contando sábado`, antecipa:`dia ${pd.n}, antecipa se não for útil`, prorroga:`dia ${pd.n}, prorroga se não for útil`, fixo:`dia ${pd.n}` }[pd.regra] || `dia ${pd.n}`;
+  }
+
+  const PRAZOS_SUGERIDOS = [
+    { tarefa:'Pagamento de salários', dia:'5', regra:'util_sab', caminho:'' },
+    { tarefa:'eSocial: fechamento dos periódicos (S-1299)', dia:'15', regra:'antecipa', caminho:'' },
+    { tarefa:'DCTFWeb: transmissão', dia:'15', regra:'antecipa', caminho:'' },
+    { tarefa:'FGTS Digital: pagamento da guia', dia:'20', regra:'antecipa', caminho:'' },
+    { tarefa:'DARF previdenciário: pagamento', dia:'20', regra:'antecipa', caminho:'' },
+  ];
+
+  // ---------- módulo DP: modelo de dados ----------
+  const MES_OPTS = MESES;
+  const DP_SECTIONS = {
+    estabelecimentos: { title:'Estabelecimentos, data-base e sindicatos', addLabel:'Adicionar estabelecimento', fields:[
+      {key:'tipo', label:'Tipo', width:1, type:'select', options:['Matriz','Filial','Obra']},
+      {key:'cnpj', label:'CNPJ', width:1.4, type:'cnpj'},
+      {key:'cidadeUf', label:'Cidade / UF', width:1.4},
+      {key:'dataBase', label:'Data-base', width:1, type:'select', options:MES_OPTS},
+      {key:'codSind', label:'Cód. sind.', width:0.8, list:'dp-sind-codes'},
+      {key:'sindicato', label:'Sindicato / CCT', width:2.4},
+    ]},
+    rubricas: { title:'Rubricas utilizadas', addLabel:'Adicionar rubrica', fields:[
+      {key:'rubrica', label:'Rubrica', width:0.8},
+      {key:'descricao', label:'Descrição', width:1.6},
+      {key:'obs', label:'Observação', width:2},
+    ]},
+    rpa: { title:'RPA / Autônomos', addLabel:'Adicionar RPA', fields:[
+      {key:'tipo', label:'Tipo', width:1},
+      {key:'estab', label:'Estab.', width:1},
+      {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
+      {key:'cpf', label:'CPF', width:1},
+      {key:'valor', label:'Valor', width:1, type:'money'},
+      {key:'iss', label:'ISS', width:0.8},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
+    pensao: { title:'Pensão alimentícia', addLabel:'Adicionar pensão', fields:[
+      {key:'funcionario', label:'Funcionário', width:1.2},
+      {key:'base', label:'Base / ofício', width:1.6},
+      {key:'procedimento', label:'Procedimento', width:2},
+    ]},
+    lembretes: { title:'Lembretes e datas avulsas', addLabel:'Adicionar lembrete', fields:[
+      {key:'data', label:'Data', width:0.9, type:'date'},
+      {key:'texto', label:'Lembrete', width:2.6},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
+    prazos: { title:'Rotinas mensais desta empresa', addLabel:'Adicionar rotina', fields:[
+      {key:'dia', label:'Dia', width:0.5, type:'dia'},
+      {key:'regra', label:'Regra do dia', width:1.6, type:'regra'},
+      {key:'tarefa', label:'Tarefa / rotina', width:2.4},
+      {key:'caminho', label:'Caminho no sistema', width:1.8},
+    ]},
+    historico: { title:'Histórico de alterações', addLabel:'Registrar nota', fields:[
+      {key:'data', label:'Quando', width:0.9, auto:true},
+      {key:'alteracao', label:'O que mudou', width:3},
+      {key:'autor', label:'Por', width:1, auto:true, uid:true},
+    ]},
+    funcionarios: { title:'Funcionários', addLabel:'Adicionar funcionário', fields:[
+      {key:'nome', label:'Nome', width:1.6},
+      {key:'codigo', label:'Cód. Domínio', width:0.8},
+      {key:'cargo', label:'Cargo', width:1.2},
+      {key:'admissao', label:'Admissão', width:1, type:'date'},
+      {key:'status', label:'Situação', width:1, type:'select', options:['Ativo','Férias','Afastado','Desligado']},
+      {key:'aquisitivo', label:'Período aquisitivo em aberto desde', width:1.2, type:'date'},
+      {key:'feriasInicio', label:'Férias (início)', width:1, type:'date'},
+      {key:'feriasFim', label:'Férias (fim)', width:1, type:'date'},
+      {key:'rescisao', label:'Último dia (rescisão)', width:1, type:'date'},
+      {key:'salario', label:'Salário', width:1, type:'money'},
+      {key:'obs', label:'Observação', width:1.6},
+    ]},
+  };
+  const GERAIS_FIELDS = DP_SECTIONS.prazos.fields;
+
+  function normalizeDpRow(row, fields) {
+    if (!row) return null;
+    const out = { id: validId(row.id) ? row.id : uid() };
+    let hasAny = false;
+    fields.forEach(f => { const v = String(row[f.key] ?? '').trim(); out[f.key] = v; if (v && !f.auto) hasAny = true; });
+    return hasAny ? out : null;
+  }
+
+  function mesDeTexto(v) {
+    const t = norm(v).trim();
+    if (!t) return '';
+    const iso = /^(\d{4})-(\d{2})-\d{2}/.exec(t) || /^\d{1,2}\/(\d{1,2})\/\d{2,4}$/.exec(t);
+    if (iso) { const mm = +(iso[2] || iso[1]); if (mm >= 1 && mm <= 12) return MESES[mm - 1]; }
+    const i = MESES.findIndex(m => norm(m).slice(0,3) === t.slice(0,3));
+    return i >= 0 ? MESES[i] : String(v).trim();
+  }
+
+  function normalizeDpEmpresa(e, i=0) {
+    const rows = (key) => Array.isArray(e[key]) ? e[key].map(r => normalizeDpRow(r, DP_SECTIONS[key].fields)).filter(Boolean) : [];
+    const estabelecimentos = rows('estabelecimentos');
+    estabelecimentos.forEach(r => { r.dataBase = mesDeTexto(r.dataBase); });
+    return {
+      id: validId(e.id) ? e.id : uid(),
+      cod: String(e.cod || ''),
+      nome: String(e.nome || 'Sem nome').slice(0,140),
+      cnpj: String(e.cnpj || ''),
+      tributacao: String(e.tributacao || ''),
+      responsavel: String(e.responsavel || '').trim(),
+      reserva: String(e.reserva || '').trim(),
+      situacao: ['Ativa','Sem movimento','Inativa'].includes(e.situacao) ? e.situacao : 'Ativa',
+      uf: String(e.uf || ''),
+      dataBase: mesDeTexto(e.dataBase || ''),
+      contato: String(e.contato || ''),
+      capitalSocial: String(e.capitalSocial || ''),
+      assocPatronal: ['Sim', 'Não'].includes(e.assocPatronal) ? e.assocPatronal : '',
+      codigoDominio: String(e.codigoDominio || ''),
+      adiantamento: String(e.adiantamento || ''),
+      estabelecimentos,
+      fechamento: String(e.fechamento || ''),
+      rubricas: rows('rubricas'),
+      rpa: rows('rpa'),
+      pensao: rows('pensao'),
+      prazos: rows('prazos'),
+      lembretes: rows('lembretes').map(l => { l.data = toYmd(l.data); return l; }),
+      historico: rows('historico'),
+      funcionarios: rows('funcionarios').map(f => { ['admissao','aquisitivo','feriasInicio','feriasFim','rescisao'].forEach(k => { f[k] = toYmd(f[k]); }); return f; }),
+      naoAplica: Array.isArray(e.naoAplica) ? e.naoAplica.filter(x => typeof x === 'string') : [],
+      observacoes: String(e.observacoes || ''),
+      order: Number.isFinite(e.order) ? e.order : i,
+      updatedAt: Number(e.updatedAt) || 0,
+    };
+  }
+  function normalizeGerais(list) {
+    return (Array.isArray(list) ? list : []).map(r => normalizeDpRow(r, GERAIS_FIELDS)).filter(Boolean);
+  }
+
+  let dpStore = makeLocalStore('control-hub:dp', () => []);
+  const dpDbStore = makeDbStore('dp_empresas');
+
+  function makeGeraisLocal() {
+    const KEY = 'control-hub:dp-gerais';
+    return {
+      load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const geraisDb = { async save(itens) { await db.doc('dp_config/prazos_gerais').set({ itens }); } };
+  let geraisStore = makeGeraisLocal();
+  // Equipe do DP: analistas cadastrados na Cartela de clientes, mesmo sem nenhuma empresa ainda.
+  function makeEquipeLocal() {
+    const KEY = 'control-hub:dp-equipe';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(nomes) { try { localStorage.setItem(KEY, JSON.stringify(nomes)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const equipeDb = { async save(nomes) { await db.doc('dp_config/equipe').set({ nomes }); } };
+  let equipeStore = makeEquipeLocal();
+  // Ausências e coberturas (temporárias): o responsável do cadastro não muda, só quem responde hoje.
+  function makeCobLocal() {
+    const KEY = 'control-hub:dp-cobertura';
+    return {
+      load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } },
+      async save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const cobDb = { async save(v) { await db.doc('dp_config/cobertura').set(v); } };
+  let cobStore = makeCobLocal();
+  function makeSindLocal() {
+    const KEY = 'control-hub:dp-sindicatos';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const sindDb = { async save(itens) { await db.doc('dp_config/sindicatos').set({ itens }); } };
+  let sindStore = makeSindLocal();
+  function makeCctLocal() {
+    const KEY = 'control-hub:dp-ccts';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const cctDb = { async save(itens) { await db.doc('dp_config/ccts').set({ itens }); } };
+  let cctStore = makeCctLocal();
+  const normalizeEquipe = (v) => { const out = []; (Array.isArray(v) ? v : []).forEach(n => { const t = String(n || '').trim().slice(0, 80); if (t && !out.some(x => norm(x) === norm(t))) out.push(t); }); return out; };
+
+  // Meus lembretes: no servidor ficam em data/users/<id>/, área que só o próprio usuário lê e grava.
+  function makeMeusLocal() {
+    const KEY = 'control-hub:meus-lembretes';
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } };
+    return {
+      load,
+      async save(l) { localStorage.setItem(KEY, JSON.stringify(load().filter(x => x.id !== l.id).concat(l))); },
+      async del(id) { localStorage.setItem(KEY, JSON.stringify(load().filter(x => x.id !== id))); },
+    };
+  }
+  function makeMeusDb(col) {
+    return {
+      async save(l) { const { id, ...body } = l; await col.doc(id).set(body); },
+      async del(id) { await col.doc(id).delete(); },
+    };
+  }
+  let meusStore = makeMeusLocal();
+
+  // Indicador "Salvando… / Salvo" no topo do módulo e da janela da empresa.
+  let salvando = 0, saveTimer;
+  function setSave(html, cls = '') { $$('.save-state').forEach(el => { el.innerHTML = html; el.className = 'save-state ' + cls; }); }
+  async function trackSave(fn) {
+    salvando++; clearTimeout(saveTimer); setSave('Salvando…');
+    try { await fn(); if (!--salvando) { setSave(`${ic('check', 'ic-sm')} Salvo`, 'ok'); saveTimer = setTimeout(() => setSave(''), 2500); } }
+    catch (e) { salvando = Math.max(0, salvando - 1); setSave('Não salvo', 'err'); throw e; }
+  }
+  async function persist(fn) {
+    try { await trackSave(fn); return true; }
+    catch (e) {
+      if (e?.code === 'invalid_argument') { state.readOnly = true; toast('Você não tem permissão para editar esta lista.'); render(); if (state.activeModule === 'dp') applyDpReadOnly(); }
+      else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido. Exclua registros antigos para continuar.');
+      else toast('Não foi possível salvar. Tente de novo em instantes.');
+      return false;
+    }
+  }
+
+  // ---------- consultas: ferramentas ----------
+  const categories = () => [...new Set(state.tools.map(t => t.category))].sort((a,b) => a.localeCompare(b,'pt-BR'));
+  function matchesToolQuery(t,q) {
+    if (!q) return true;
+    const hay = [t.name,t.description,t.category,t.url,t.notes,...t.tags].join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+  }
+  // "Uso do banco" é fixo do Hub: aparece junto das ferramentas sem ser gravado no banco.
+  const USO_TOOL = { id:'uso-banco', name:'Uso do banco', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Mede quanto do banco de dados do artefato está em uso.', tags:['banco','armazenamento','limite'], moduleKey:'uso', virtual:true, favorite:false, newTab:false, order:9999, uses:0 };
+  const toolsComUso = () => state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
+  function visibleTools() {
+    return toolsComUso()
+      .filter(t => matchesToolQuery(t, state.toolsQuery))
+      .sort((a,b) => a.order-b.order || 0)
+      .sort((a,b) => b.favorite - a.favorite);
+  }
+
+  // ---------- render: shell ----------
+  function render() {
+    renderFerramentas();
+    if (!state.activeModule) renderHome();
+  }
+  // Redesenha o que estiver na tela depois que os dados mudam.
+  function refreshAll() {
+    renderFerramentas();
+    if (state.activeModule === 'dp') renderDpActiveView(); else renderHome();
+  }
+
+  // ---------- render: ferramentas ----------
+  function renderFerramentas() {
+    const list = visibleTools();
+    const container = $('#ferramentas-tools');
+    const ro = state.readOnly;
+    const draggable = !ro && !state.toolsQuery;
+
+    if (!state.toolsLoaded) { container.innerHTML = ''; return; }
+
+    const tiles = list.map(t => {
+      const target = t.newTab || HOSTED ? ' target="_blank" rel="noopener noreferrer"' : '';
+      const stretch = t.moduleKey
+        ? `<button type="button" class="card-stretch" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}" aria-label="Abrir ${escapeHtml(t.name)}" title="${escapeHtml(t.name)}"></button>`
+        : t.url
+        ? `<a class="card-stretch" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}"${target} aria-label="Abrir ${escapeHtml(t.name)}" title="${escapeHtml(t.name)}"></a>`
+        : `<button type="button" class="card-stretch" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Configurar ${escapeHtml(t.name)}" title="${escapeHtml(t.name)} (sem link: clique para configurar)"></button>`;
+      const on = t.moduleKey && t.moduleKey === (state.frameModule || state.activeModule);
+      const fixo = !!t.virtual;
+      return `
+      <div class="card${t.url || t.moduleKey ? '' : ' no-link'}${on ? ' nav-on' : ''}"${fixo ? '' : ` data-id="${escapeHtml(t.id)}"`} style="--accent:${t.color}" ${draggable && !fixo ?'draggable="true"':''}>
+        ${stretch}
+        ${ro || fixo ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="${t.favorite ? 'Tirar dos favoritos' : 'Favoritar'}" aria-pressed="${t.favorite}">${ic('star', 'ic-sm')}</button>`}
+        ${ro || fixo ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar ${escapeHtml(t.name)}">${ic('edit', 'ic-sm')}</button>`}
+        <div class="card-icon">${toolIcon(t)}</div>
+        <div class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
+      </div>`;
+    }).join('');
+
+    const novo = ro ? '' : `<div class="card rail-add"><button type="button" class="card-stretch" data-action="new" aria-label="Nova ferramenta" title="Nova ferramenta"></button><div class="card-icon">${ic('plus', 'ic-lg')}</div><div class="card-title">Nova ferramenta</div></div>`;
+    container.innerHTML = (list.length ? tiles : '<div class="modules-empty">Nenhum módulo cadastrado.</div>') + novo;
+    $('#nav-home').classList.toggle('nav-on', !state.activeModule && !state.frameModule);
+  }
+
+  // Ícones desenhados para os módulos principais. Só valem enquanto a ferramenta ainda usa o emoji original;
+  // se alguém trocar o ícone no cadastro, vale o que a pessoa escolheu.
+  const TOOL_SVG = { 'gestta':['📈','gestta'], 'planilha-dp':['👥','dp'], 'planilha-fiscal':['🧾','fiscal'], 'planilha-contabil':['📒','contabil'], 'portal-cliente':['🧑‍💼','portal'], 'zimbra':['✉️','zimbra'], 'pasta-servidor':['🗄️','pasta'] };
+  // O Zappy usa o logotipo do próprio ZapContábil (favicon do site).
+  const ZAPPY_LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAAAAAAAAPlDu38AAAAJcEhZcwAACxIAAAsSAdLdfvwAAAAHdElNRQfqCRwXLwqHdHyUAAAMeklEQVR42t2aa3Bd1XXHf/s87lsP68qW/LaMYwfwozbtYFwThgyBIRAITfNomnbyoTOdQiZuSodm+oEknXTa8mjKQFIM8ZQmQ5oMk3wgOMkkGA82HkNwAdkG2djGT1mWLF9Z9+o+zj3n7NUP50q+lnSlcyUZ4a6ZNeecffbr/99rr732PkdxlcvpxywWvebhrlfkTWN+sqyfUp7cU3DUAwlLnrn+YCvvb++vWd6YbQDTkVOP2/QlLPQfQMlUy1Ou/r7ty2fFwcrmsIcG4NinGiesw5ptEFOVvkctHGBDT4l8zNiQcPUTps9mNBQLUCzg4oEfURPWc1VawIVHTRTCorMuxZi6Le7pHw2D1x4UhtCqJCXXBe4/9v+HgB3bkuQeMTCAPe1xVUqrP4v68l+Gz/VoQKBcgmIRyqJ8z5+8zilNgd0HG9k8J8vJQhRbBFMLSgN+Ravvq5+1XJ4+Ou9kdeQdtAE524jceSZ/v+3Lw0ozB30pf34I3DLiWsqzTejdYoA/3LwiEzVIucLyJ936Cdh3OMXKeJGSFHG1Yukyh9PHozFTiT2SafSUUxOkq0nuRz2LAs9Q8fai9w3Lly1KEx8hR4PvQiEP4qNtU4x568240y8WCgSlT7VaxZv2l3QuYSC3wallFhN7iCrZfyTJx5MFylpxvmzbbZa7yRL5jPJZjU9qzMjWq164fMonaXiyWvlYo8uJB04BtIe2TA6ZSmXER1Xeu/ic8oVXipba3pjV/bs+Hg9PwOAZCwOhLKo5pfx/tEX+SmnmhAbgTfHdDJcVH18Lr5ZM9Q/Ji7LPDAN+58EmWiIeWd+y07b7TzbyoNLEq+feyP14Op33M1y30hiGT4fpcUM+ZrwWygLKZ4xg/onaHFP+i0b1yM/m6E+z7rJS20Itg135OBFbYyI3G1Llda9m9cH05NOhVoEV8SK4YKNbZ73j9Zj/ZArNoQhIKI2UwTBnoZNXUgkbBwTOI1iPr6YRnkkCqEXAR3mEPxQCrmatJkDOVoGUKh0eZZlCAx+h9b8mAXKuAg6CvaEAViV81JU0BRy3hUX+2EpGk1Xr3Xh5JnovE+jwe62DtX5aFiAMbzaiwI0It+CxBMG81BCwzIWGB/6I6I2gpXanwqbPRJliDk4fgHdfgbNH6vdHlbEGWIrwLYT7gOaRBqi6AkSugaa/4CMlItB3DH79PdixDVynbgIWIHwfuGtCs5NKY7MgnvaDmWkYqNH7N6WgbQX8+eNgxODF74Ev4fwDwRT4GsKdk4Ovs9elIShkQfsQiUOyGcz6zl8GnBzHcz1k9CBaaRpIsig+j0WpuWOJsGNw99/BOzvgSGddq8DnEYwxQKdKgu/C6S7oOwHnT4NbguZ50LoEFl8LTfNCgT9XyPD77LvsatrD3ug+SqrMtd4Kbh/8JBvK17O6pWNsoZaFcN2tcKgz3KpVsYC2UMDDgBeB4/vh6D545Tk4eQA8DxrTsPFPYMMdcO0mSLVMWI2nfd4bPM5v0i/zTOR5fILjq7fsTk6kz7Cl969pL7bQGm8an4SwSzZgIBVbmokpMJRBzp9EdjwH770OpTx4DvSfhd8+Cyc64dwHk1fjFskaQ+yKvF4Bb1bU4M3zhzg5dI4LTrZGaaOulcAIBTwsCcUc/mCGwgddiHF5n3CcYGqU8oFfmMiQDM2e6Jt0c46RA0EN9ESJ/L6VSDmKadTYydcZsFkzBh7AiqCiCZxoM352kHgUTKNyrmkA8UawIpWH8eUsvTxiPsMzhV9QPCZE4mnKZRcyFpG+Ru5uu4WO1Hza4nOmRkB1rEC9BExGQuNczHQ78Vu/SP6XWynnBgMCTIiZEO16DfWJLwVL1ziyk708PPgkr737Hs3d7dzevIF16RV05/spKoeVqxaxIb2S9emVNNiJ2v2oOxKcMQuwYfl64qIxW+dTfv9txClipttxP9iP17WbxPPfwvja07BgFaIFZSgGyfG0+z88dux5Lnb5fDp5O1/f9KdsbltDxsmRcXJo0aTsOPPjaVJ2vHYf6pkCoQiA8AQApObAdZuJtHUQWXtzEK9HE0gsRfGVn5J/4REG/v0hOu9+nGyijWjLWZ5PPc32rr2szV/PY6s/z33LbqbRTgKQtOIsToZbOusa/UkJgKlZAQRBSfs1lyUpIPGlh+ifv4afvPA6/91pkGlK4JrdJMXn2+se4Ks33smCRGt4sNMlYVwCagGfkShY4ay+jQN9Gzl0Jgq9BdqNFXzzhr/l/rXLa7mG+mTKU2Ai4NMhQWTE6V1w4EeHNf97tMDai+fQhRybWnaxOQLKuRdiKy8NoWhQU/h0OeM+YIrgcwWPQ90levKauK3ImHGefSOH0zvIv97awNyGBgollyXqJNdkvwlv/yfM/zI0fSLonS6D3QKxFRBpnxkCRm+X6yYgJAmFks9L+4f4cXeUrnwEw/UYON7N7a0e//KXC+hor/biX4DMQnTXQ6j3/xmV2gqxBaAdSKyC9L3Q/CmILp5lC6hDuvsdXu63+PV5Oyh7ZoCVfb18+a7lo8BXpOWPMdb+AH3g68jFXRjJ/sBrFg4DKgAfWThhADVVAuoLhUOKUlX5tcbMZGmOG8QiEwCItKDa7kD8KFLm0idy5wz4RQL7nWEL0MOHojMcCyxsjXJHW45zTpnDp4ZoTZW554a5rOlI1S5kNaFSS1HNG9ADe1EeqFgClboJ7Lmg7HCNX0knKOKH+p4ej5rcvbaBVXNL9HRYNMSWsWpxgtbGCUCYjdB0E8YKjWRuQMoXoeFjkN4IyTXhwNdPgFihR16DOKdD/1CQiJms60iyriMZvvOx5TCvFTVnE0q7YKXAbgs/+nUSIIpz1qTAq9LU4E7EOYWKLgnfoXrFbAx0OhJiCRSN9m31s/BHYQKq8C7S/SjiF64cAdOVkBbgm2p7MaaetOqKAkUweraivSIsfBCVWBVuaQJ8XzM4kMXzBFAgcqlpkcqBc+U6/E6GuyYVHySX5R/xyZX8Ypg09Q2SHg/0sB+DjGeqnxdj6rupvO6pPxDSLsa5bUhmB9J0C5JYgzIbwEyh5t4F1thzOhG40HeR870Z8j2dlAc+uOylCtBdylx1P/xOUblHKud4gRoIhqqkKTAGuw4kbd4QrRQGDKuhcBWc8Cx2DzSa+1oG/LKVm2okKKCKJyB/AjWcHl0KTRvHJeBiJktfTz8Xj+2k/82n0IVeTBWcFllKMA2NZQi2IdimYBsa2xQihmCbOkg3NLYSLEMwlWAimAoMCQ41lYASgSZ+p2I8qPZdpyi4AQG+IM1HBBNoUsTKgpjw9sZonZFgraBIAMzg6GeUDGULdJ/oof/Qbxh4+2lw+mmb49He7BCxhEgVQEtVQCGVT5ISEFz9OUzXuFap9zk485XDkj176YD08B9GQGD5aZeX7kjw1R/m4LwzBQuoSZA1ZvdWLDgcP3KK3s6fkz34HBE9QMcihxULCkQtPRbIZOD0JNeKWDYsXOux6Gc1HNIPc5fy1j3ytVRdbgHFYpkjBw/T/eaPKR59gZb4IKsWF2lvdoJYYoIRnOq0HPMcQuo/EZrQAgIChoZKHNq3j7NvbMXO/I5rF+ZY1l4ibuuZATxZH6dFQL3ARyzAxtcW/d3nOfrGSxQPb6PDeoel15VoTPi1R3sq7U1WZkYsoE6V0gUG3nmC7Mm3WDK0h/TSARJRGTu/ryTwQKVeAjIIqWl1CFDFk6SHvkNrFIgws8Dr096w4CFYcX45U42r6v+LPoy5Plb7EXYHUzI8Af+BsOcKdejDLKMRtiLsA0b2+2EIOIrwNwjbEco1OzIsV9Z8p6p9wHeBf0PhAahvhyPACkJFDiB8BeE2hE8S/DM0vAmXUsmYmxuy1plKjKakh6lkvE6UEd4CcmM8cRhvHbbM5WVzwEHgV5WRD3ludkmU7K0UG/5FLg9EiaIr54Xr8H77VPoe31M/STe6kfWrstimjA5k8giPIzyBpoCgJo3axguE6i/jIbijCQ07+gCWuqlSbjeB44gBgjP8w+SrW+egfYVpiJFuKmNbMtrB9RP8YfYsVH7lGJfqSv5a1wmHaZIyRkCKerje8a/6U1TdPH6Gl7+jsExtR22tWpvd0aZ4Avh7hF9U9qpggPpc/R2ZLZn025NtCVpjz0l5KhXzq+dgJ7AFg1dHSLxvtuFcAQKitkY0drrJVaYxYv47EbYAB4aXm6sRfCgC2lscnLJhN6dchaCBF4CHUJxCAwrUZ2cbxhUkYMFch0LRdKK2zgEvAt9AcR4I5vu9sw1hevJ//0QbHWYZP4kAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjYtMDktMjhUMjM6NDc6MTArMDA6MDDFCm4hAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDI2LTA5LTI4VDIzOjQ3OjEwKzAwOjAwtFfWnQAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyNi0wOS0yOFQyMzo0NzoxMCswMDowMONC90IAAAAASUVORK5CYII=';
+  const norm2 = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  function toolIcon(t) {
+    if (t.virtual && t.moduleKey === 'uso') return ic('banco');
+    const m = TOOL_SVG[t.id];
+    if (m && t.icon === m[0]) return ic('t-' + m[1]);
+    if (t.id === 'zappy' && t.icon === '💬') return `<img class="brand-img" src="${ZAPPY_LOGO}" alt="" width="26" height="26">`;
+    // "Cardápio" não tem id fixo: vale pelo nome enquanto o ícone é o padrão de ferramenta nova.
+    if (norm2(t.name) === 'cardapio' && ['🔧', '🍽️', '🍴', '📋'].includes(t.icon)) return ic('t-cardapio');
+    return escapeHtml(t.icon);
+  }
+  const findTool = (id) => state.tools.find(t => t.id === id);
+
+  function recordUse(t) { t.uses += 1; t.lastUsed = Date.now(); if (!state.readOnly) persist(() => toolsStore.saveOne(t)); }
+
+  const dlgFerramenta = $('#dlg-ferramenta');
+  const formFerramenta = $('#form-ferramenta');
+  function openFerramentaDialog(tool) {
+    if (state.readOnly) return;
+    formFerramenta.reset();
+    $('#dlg-ferramenta-title').textContent = tool ? 'Editar ferramenta' : 'Nova ferramenta';
+    $('#btn-ferramenta-excluir').hidden = !tool;
+    const t = tool || { icon:'🔧', color:'#3C659B', newTab:true, category:'' };
+    const f = formFerramenta.elements;
+    f.id.value = t.id||''; f.name.value = t.name||''; f.url.value = t.url||''; f.icon.value = t.icon||''; f.description.value = t.description||'';
+    f.category.value = t.category||''; f.color.value = t.color||'#3C659B'; f.tags.value = (t.tags||[]).join(', '); f.notes.value = t.notes||'';
+    f.favorite.checked = !!t.favorite; f.newTab.checked = t.newTab !== false; f.moduleKey.value = t.moduleKey || '';
+    $('#ferramenta-cat-options').innerHTML = categories().map(c => `<option value="${escapeHtml(c)}">`).join('');
+    dlgFerramenta.showModal(); f.name.focus();
+  }
+  formFerramenta.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = formFerramenta.elements;
+    const rawUrl = f.url.value.trim();
+    const url = rawUrl ? safeUrl(rawUrl) : '';
+    if (url === null) { toast('Informe uma URL http(s) válida.'); f.url.focus(); return; }
+    const data = { name:f.name.value.trim(), url, icon:f.icon.value.trim()||'🔧', description:f.description.value.trim(), category:f.category.value.trim()||'Geral', color:f.color.value, tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean), notes:f.notes.value.trim(), favorite:f.favorite.checked, newTab:f.newTab.checked, moduleKey:f.moduleKey.value };
+    let tool = findTool(f.id.value);
+    if (tool) { Object.assign(tool, data); toast('Ferramenta atualizada.'); }
+    else { const order = Math.max(-1, ...state.tools.map(t=>t.order)) + 1; tool = normalizeTool({...data, order}); state.tools.push(tool); toast('Ferramenta adicionada.'); }
+    persist(() => toolsStore.saveOne(tool));
+    dlgFerramenta.close();
+    render();
+  });
+  $('#btn-ferramenta-cancelar').addEventListener('click', () => dlgFerramenta.close());
+  $('#dlg-ferramenta-close-x').addEventListener('click', () => dlgFerramenta.close());
+  $('#btn-ferramenta-excluir').addEventListener('click', async () => {
+    const t = findTool(formFerramenta.elements.id.value);
+    if (!t) return;
+    dlgFerramenta.close();
+    const ok = await ask(`Excluir "${t.name}"?`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
+    if (!ok) return;
+    state.tools = state.tools.filter(x => x.id !== t.id);
+    persist(() => toolsStore.deleteOne(t.id));
+    render();
+    toast('Ferramenta excluída.');
+  });
+
+  function toolClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'module') { e.preventDefault(); openModule(btn.dataset.module); return; }
+    if (btn.dataset.action === 'new') { e.preventDefault(); closeRail(); openFerramentaDialog(null); return; }
+    const t = findTool(btn.dataset.id);
+    if (!t) return;
+    const action = btn.dataset.action;
+    if (action === 'open') recordUse(t);
+    else if (action === 'edit') { e.preventDefault(); closeRail(); openFerramentaDialog(t); }
+    else if (action === 'fav' && !state.readOnly) { e.preventDefault(); t.favorite = !t.favorite; persist(() => toolsStore.saveOne(t)); render(); }
+  }
+  $('#ferramentas-tools').addEventListener('click', toolClick);
+  $('#home-root').addEventListener('click', toolClick);
+
+  function openModule(key) {
+    document.activeElement?.blur();
+    closeRail();
+    if (!FRAMES[key]) closeFrames();
+    if (key === 'dp') openDpModule();
+    else if (key === 'uso') openUsoModule();
+    else if (FRAMES[key]) openFrame(key);
+  }
+
+  function goHome() {
+    closeFrames();
+    state.activeModule = null;
+    syncShell();
+    $$('.module-view').forEach(el => { el.hidden = true; });
+    $('#view-home').hidden = false;
+    document.body.classList.remove('ag-fit');
+    renderFerramentas();
+    renderHome();
+    syncRoute();
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- barra lateral ----------
+  // A barra lateral só existe dentro de um módulo.
+  function syncShell() { document.body.classList.toggle('in-module', !!state.activeModule); if (!state.activeModule) closeRail(); }
+  function closeRail() {
+    $('#side-rail').classList.remove('open', 'hovering');
+    $('#btn-rail').setAttribute('aria-expanded', 'false');
+  }
+  $('#btn-rail').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = $('#side-rail').classList.toggle('open');
+    $('#btn-rail').setAttribute('aria-expanded', String(open));
+  });
+  $('#side-rail').addEventListener('click', (e) => { if (e.target.closest('[data-nav="home"]')) goHome(); });
+  { const lg = $('.brand-ico'); if (lg) document.documentElement.style.setProperty('--rail-logo', `url("${lg.src}")`); }
+  $('#side-rail').addEventListener('mouseenter', () => $('#side-rail').classList.add('hovering'));
+  $('#side-rail').addEventListener('mouseleave', () => $('#side-rail').classList.remove('hovering'));
+  document.addEventListener('click', (e) => {
+    const rail = $('#side-rail');
+    if (rail.classList.contains('open') && !rail.contains(e.target)) closeRail();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#side-rail').classList.contains('open')) closeRail(); });
+
+  // ---------- início: Hoje ----------
+  const cardHtml = (titulo, sub, body, acoes = '') => `<section class="pn-card"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${acoes}</div><div class="pn-card-body">${body}</div></section>`;
+  function toolTile(t) {
+    const inner = `<div class="card-icon" style="--accent:${t.color}">${toolIcon(t)}</div><span>${escapeHtml(t.name)}</span>`;
+    if (t.moduleKey) return `<button type="button" class="qa-tile" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}">${inner}</button>`;
+    if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
+    return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
+  }
+  function renderHome() {
+    const root = $('#home-root');
+    evCacheClear();
+    const t = hoje();
+    const dataLonga = t.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+    const hol = feriado(t);
+
+    const tools = [...toolsComUso()].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
+    const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-dock">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
+
+    // Nome de quem está usando, para a saudação (carrega uma vez).
+    if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
+    const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    root.innerHTML = `<section class="home-hero">
+        <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
+      </section>
+      <section class="home-qa home-dock"><div class="hqa-head"><h2>Acesso rápido</h2></div>${qa}</section>`;
+    applyTheme();
+  }
+
+  // ---------- busca global ----------
+  const srInput = $('#global-search'), srPanel = $('#sr-panel');
+  let srItems = [], srSel = 0;
+  function openLink(url) { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.click(); }
+  function searchAll(q) {
+    const groups = [];
+    const add = (nome, itens) => { if (itens.length) groups.push([nome, itens]); };
+    add('Empresas', state.dpEmpresas.filter(e => matchQ([e.nome, e.cnpj, cnpjClean(e.cnpj), e.cod, e.codigoDominio, e.uf, e.responsavel], q)).sort(byNome).slice(0, 6)
+      .map(e => ({ ico: ic('building'), title: e.nome, sub: [e.cnpj, e.responsavel, e.situacao !== 'Ativa' ? e.situacao : ''].filter(Boolean).join(' · '), run: () => openDpDetail(e) })));
+    add('Funcionários', state.dpEmpresas.flatMap(e => e.funcionarios.map(f => ({ e, f }))).filter(({ f }) => matchQ([f.nome, f.cargo], q)).slice(0, 6)
+      .map(({ e, f }) => ({ ico: ic('user'), title: f.nome || 'Funcionário', sub: `${f.cargo ? f.cargo + ' · ' : ''}${e.nome}`, run: () => openDpDetail(e, { tab: 'funcionarios' }) })));
+    add('Meus lembretes', state.meus.filter(l => matchQ([l.texto, l.obs], q)).slice(0, 5)
+      .map(l => ({ ico: ic('bell'), title: l.texto || 'Lembrete', sub: `${fmtDateStr(l.data)} · ${descreveRep(l)}`, run: () => openMeu({ lembrete: l }) })));
+    add('Ferramentas', state.tools.filter(t => matchesToolQuery(t, q)).slice(0, 5)
+      .map(t => ({ ico: toolIcon(t), title: t.name, sub: t.moduleKey ? 'Módulo' : hostOf(t.url), run: () => { if (t.moduleKey) openModule(t.moduleKey); else if (t.url) { recordUse(t); openLink(t.url); } else openFerramentaDialog(t); } })));
+    return groups;
+  }
+  function renderSearch() {
+    const q = srInput.value.trim();
+    if (!q) { closeSearch(); return; }
+    const groups = q.length < 2 ? [] : searchAll(q);
+    srItems = groups.flatMap(([, itens]) => itens);
+    srSel = Math.min(srSel, Math.max(0, srItems.length - 1));
+    let i = 0;
+    srPanel.innerHTML = q.length < 2 ? '<div class="sr-empty">Digite ao menos 2 letras.</div>'
+      : !srItems.length ? `<div class="sr-empty">Nada encontrado para “${escapeHtml(q)}”.</div>`
+      : groups.map(([nome, itens]) => `<div class="sr-group">${nome}</div>` + itens.map(it => { const n = i++; return `<button type="button" class="sr-item${n === srSel ? ' on' : ''}" role="option" id="sr-${n}" aria-selected="${n === srSel}" data-sr="${n}"><span class="sr-ico">${it.ico}</span><span style="min-width:0"><span class="dp-cell-main" style="display:block">${escapeHtml(it.title)}</span>${it.sub ? `<span class="dp-cell-sub" style="display:block">${escapeHtml(it.sub)}</span>` : ''}</span></button>`; }).join('')).join('');
+    srPanel.hidden = false;
+    srInput.setAttribute('aria-expanded', 'true');
+    if (srItems.length) srInput.setAttribute('aria-activedescendant', `sr-${srSel}`); else srInput.removeAttribute('aria-activedescendant');
+    srPanel.querySelector('.sr-item.on')?.scrollIntoView({ block: 'nearest' });
+  }
+  function closeSearch() { srPanel.hidden = true; srInput.setAttribute('aria-expanded', 'false'); srInput.removeAttribute('aria-activedescendant'); }
+  function runSearch(n) {
+    const it = srItems[n];
+    if (!it) return;
+    srInput.value = ''; closeSearch(); fecharBusca();
+    it.run();
+  }
+  srInput.addEventListener('input', () => { srSel = 0; renderSearch(); });
+  srInput.addEventListener('focus', () => { if (srInput.value.trim()) renderSearch(); });
+  srInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!srItems.length) return;
+      e.preventDefault();
+      srSel = (srSel + (e.key === 'ArrowDown' ? 1 : -1) + srItems.length) % srItems.length;
+      renderSearch();
+    } else if (e.key === 'Enter') { e.preventDefault(); runSearch(srSel); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (srInput.value) { srInput.value = ''; closeSearch(); } else fecharBusca(); }
+  });
+  srPanel.addEventListener('pointerdown', (e) => e.preventDefault());
+  srPanel.addEventListener('click', (e) => { const b = e.target.closest('[data-sr]'); if (b) runSearch(+b.dataset.sr); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const tg = e.target;
+    if (tg.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+    e.preventDefault();
+    abrirBusca();
+  });
+  // Tela inicial: a tecla T alterna o tema (o botão visível saiu de lá; nos módulos segue o item "Tema" da barra lateral).
+  document.addEventListener('keydown', (e) => {
+    if (e.key?.toLowerCase() !== 't' || e.ctrlKey || e.metaKey || e.altKey || e.repeat || state.activeModule) return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return;
+    e.preventDefault();
+    state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs();
+  });
+
+  // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
+  let pendingEmp = null;
+  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
+  function currentRoute() {
+    if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
+    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
+  }
+  function syncRoute() {
+    const r = currentRoute();
+    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
+    savePrefs();
+    try { const h = r ? '#' + r : ''; if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch {}
+  }
+  function applyRoute(r) {
+    const parts = String(r || '').split('/');
+    if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
+    closeFrames();
+    if (parts[0] === 'uso') { openUsoModule(); return; }
+    if (parts[0] !== 'dp') return;
+    if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
+    if (parts[1] === 'ferramentas') state.dpFerr = FERRAMENTAS_DP.some(f => f.id === parts[2]) ? parts[2] : '';
+    openDpModule(DP_VIEWS.includes(parts[1]) ? parts[1] : 'painel');
+  }
+  // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
+  // para usar a conexão com o banco desta página.
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
+  // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
+  function preloadFrame(key) {
+    let f = $(`#${key}-frame`);
+    if (!f) {
+      f = document.createElement('iframe');
+      f.id = `${key}-frame`; f.className = 'portal-frame' + (FRAMES[key].rail ? ' com-rail' : ''); f.title = FRAMES[key].title; f.src = FRAMES[key].src; f.hidden = true;
+      document.body.appendChild(f);
+    }
+    return f;
+  }
+  function openFrame(key) {
+    Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
+    const f = preloadFrame(key);
+    f.hidden = false;
+    document.body.classList.add('portal-open');
+    // Com barra lateral: o módulo fica marcado nela e dá para trocar de módulo sem voltar ao início.
+    state.frameModule = key;
+    document.body.classList.toggle('frame-rail', !!FRAMES[key].rail);
+    closeRail(); renderFerramentas();
+    try { if (location.hash !== '#' + key) history.replaceState(null, '', '#' + key); } catch {}
+    f.focus();
+  }
+  function closeFrame(key) {
+    const f = $(`#${key}-frame`);
+    if (!f || f.hidden) return;
+    f.hidden = true;
+    if (state.frameModule === key) { state.frameModule = null; document.body.classList.remove('frame-rail'); renderFerramentas(); }
+    if (!Object.keys(FRAMES).some(k => { const g = $(`#${k}-frame`); return g && !g.hidden; })) document.body.classList.remove('portal-open');
+    try { if (location.hash === '#' + key) history.replaceState(null, '', location.pathname + location.search); } catch {}
+  }
+  function closeFrames() { Object.keys(FRAMES).forEach(closeFrame); }
+  window.__hubClosePortal = closeFrames;
+  window.__hubFecharModulo = closeFrames;
+
+  function tryPendingEmp() {
+    if (!pendingEmp || !state.dpLoaded) return;
+    const e = findDpEmpresa(pendingEmp);
+    pendingEmp = null;
+    if (e) openDpDetail(e);
+  }
+  window.addEventListener('hashchange', () => applyRoute(location.hash.slice(1)));
+
+  let dragId = null;
+  $('#ferramentas-tools').addEventListener('dragstart', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id) return; dragId = card.dataset.id; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+  $('#ferramentas-tools').addEventListener('dragend', (e) => { e.target.closest('.card')?.classList.remove('dragging'); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); });
+  $('#ferramentas-tools').addEventListener('dragover', (e) => { const card = e.target.closest('.card'); if (!card || !card.dataset.id || !dragId) return; e.preventDefault(); $$('.drag-over').forEach(el => el.classList.remove('drag-over')); if (card.dataset.id !== dragId) card.classList.add('drag-over'); });
+  $('#ferramentas-tools').addEventListener('drop', (e) => {
+    const card = e.target.closest('.card'); if (!card || !card.dataset.id || !dragId || card.dataset.id === dragId) return;
+    e.preventDefault();
+    const ordered = [...state.tools].sort((a,b) => a.order-b.order);
+    const from = ordered.findIndex(t => t.id === dragId); const to = ordered.findIndex(t => t.id === card.dataset.id);
+    const [moved] = ordered.splice(from,1); ordered.splice(to,0,moved);
+    const changed = ordered.filter((t,i) => t.order !== i);
+    ordered.forEach((t,i) => { t.order = i; });
+    dragId = null;
+    persist(() => toolsStore.saveMany(changed));
+    renderFerramentas();
+  });
+
+  // ---------- módulo DP ----------
+  const SEM_RESP = '__sem__';
+  const SIT_PILL = { 'Ativa':'pill-ok', 'Sem movimento':'', 'Inativa':'pill-muted' };
+  const FUNC_PILL = { 'Ativo':'pill-ok', 'Férias':'pill-soon', 'Afastado':'pill-today', 'Desligado':'pill-muted' };
+  const TRIBUTACOES = ['SIMPLES NACIONAL','LUCRO PRESUMIDO','LUCRO REAL','MEI'];
+  const byNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const findDpEmpresa = (id) => state.dpEmpresas.find(e => e.id === id);
+  const ativa = (e) => e.situacao !== 'Inativa';
+  const fmtCnpj = (v) => cnpjClean(v).length === 14 ? maskCnpj(v) : cpfValido(v) ? maskCpf(v) : String(v || '').trim();
+  const wd = (d) => DIAS_SEM[d.getDay()];
+
+  function dpResponsaveis() {
+    const map = new Map();
+    state.dpEquipe.forEach(n => { const k = norm(n); if (!map.has(k)) map.set(k, n); });
+    state.dpEmpresas.forEach(e => { if (e.responsavel) { const k = norm(e.responsavel); if (!map.has(k)) map.set(k, e.responsavel); } });
+    return [...map.values()].sort((a,b) => a.localeCompare(b,'pt-BR'));
+  }
+  const canonResp = (v) => { const t = String(v || '').trim(); return t ? (dpResponsaveis().find(r => norm(r) === norm(t)) || t) : ''; };
+  // Responsável efetivo: quem responde pela empresa em uma data, considerando as ausências cadastradas na Cartela de clientes.
+  const ausAtiva = (a, dia) => a.inicio <= dia && dia <= a.fim;
+  function coberturaDe(e, dia) {
+    dia = dia || ymd(hoje());
+    const t = e.responsavel;
+    if (!t) return { titular: '', efetivo: '', aus: null, coberta: false };
+    const aus = state.dpCob.ausencias.find(a => norm(a.analista) === norm(t) && ausAtiva(a, dia));
+    if (!aus) return { titular: t, efetivo: t, aus: null, coberta: false };
+    const quem = aus.porEmpresa[e.id] || aus.padrao || '';
+    if (!quem || norm(quem) === norm(t)) return { titular: t, efetivo: t, aus, coberta: false };
+    return { titular: t, efetivo: quem, aus, coberta: true };
+  }
+  const respEf = (e, dia) => coberturaDe(e, dia).efetivo;
+  const respDe = (e, carteira, dia) => carteira === SEM_RESP ? !respEf(e, dia) : norm(respEf(e, dia)) === norm(carteira);
+  const naCarteira = (e) => !state.dpCarteira || respDe(e, state.dpCarteira);
+  const empresasCarteira = () => state.dpEmpresas.filter(naCarteira);
+  const carteiraNome = () => state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira;
+
+  // ---------- pessoas: datas calculadas a partir do cadastro ----------
+  function funcStatus(f) {
+    const t = hoje();
+    const fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
+    let status = f.status || 'Ativo';
+    if (res && res < t) status = 'Desligado';
+    else if (fi && ff && fi <= t && t <= ff) status = 'Férias';
+    else if (status === 'Férias' && ff && ff < t) status = 'Ativo';
+    return status;
+  }
+  // Cada data tem uma janela (dias antes/depois de hoje) em que vira alerta no painel.
+  function funcEventos(f) {
+    const out = [];
+    const t = hoje();
+    const adm = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
+    const ev = (d, txt, janela, tipo='') => { if (!res || d <= addDays(res, 10) || tipo === 'resc') out.push({ d, txt, janela, tipo }); };
+    if (adm) { ev(addDays(adm, 44), 'Fim da experiência (45 dias)', [0, 15]); ev(addDays(adm, 89), 'Fim da experiência (90 dias)', [0, 15]); }
+    if (fi) { ev(addDays(fi, -2), `Pagar férias (início ${fmtDM(fi)})`, [-2, 30]); ev(fi, 'Início das férias', null); }
+    if (ff) ev(addDays(ff, 1), 'Retorno de férias', [0, 7]);
+    if (res) { ev(res, 'Último dia (desligamento)', [1, 15], 'resc'); ev(addDays(res, 10), 'Prazo para pagar a rescisão', [-5, 15], 'resc'); }
+    let aq = parseYmd(f.aquisitivo);
+    if (!aq && adm && diffDays(t, adm) < 700) aq = adm;
+    if (aq && !(res && res < t)) {
+      const fimAq = addDays(addYears(aq, 1), -1), limite = addDays(addYears(aq, 2), -1);
+      if (!(fi && fi > fimAq)) ev(limite, 'Fim do período concessivo de férias', [-3650, 90], 'concessivo');
+    }
+    return out.sort((a, b) => a.d - b.d);
+  }
+  function funcAlertas(f) {
+    const t = hoje();
+    return funcEventos(f).filter(ev => ev.janela).map(ev => ({ ...ev, dd: diffDays(ev.d, t) }))
+      .filter(ev => ev.dd >= ev.janela[0] && ev.dd <= ev.janela[1])
+      .map(ev => ({ ...ev, txt: ev.tipo === 'concessivo' && ev.dd < 0 ? 'Férias vencidas: concessivo encerrou' : ev.txt, nivel: ev.dd < 0 ? 'late' : ev.dd === 0 ? 'today' : 'soon' }));
+  }
+  const funcProx = (f) => funcEventos(f).find(ev => ev.d >= hoje()) || null;
+
+  function alertasPessoal(lista = empresasCarteira()) {
+    const out = [];
+    const t = hoje();
+    const meses = [t.getMonth(), (t.getMonth() + 1) % 12];
+    lista.filter(ativa).forEach(e => {
+      e.funcionarios.forEach(f => funcAlertas(f).forEach(a => out.push({ ...a, empresa:e, func:f, tab:'funcionarios' })));
+      const bases = basesEmpresa(e);
+      bases.forEach(b => {
+        const mi = MESES.indexOf(b);
+        const pos = meses.indexOf(mi);
+        if (pos < 0) return;
+        const d = new Date(t.getFullYear() + (pos === 1 && mi === 0 ? 1 : 0), mi, 1);
+        const ss = sindsDaBase(e, b);
+        out.push({ d, txt:`Data-base em ${b}${ss.length ? ' (' + ss.map(s => rotuloSind(s)).join(', ') + ')' : ''}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
+      });
+    });
+    return out.sort((a, b) => a.d - b.d);
+  }
+
+  // ---------- agenda: todas as datas de um período ----------
+  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', sindical:'Sindical (CCT)', geral:'Prazo geral' };
+  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, sindical:3.5, geral:4 };
+  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.hora || '').localeCompare(b.hora || '') || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
+  const dentro = (d, from, to) => !!d && d >= from && d <= to;
+  function mesesEntre(from, to) { const out = []; for (let m = mesDe(from); m <= mesDe(to); m = mesShift(m, 1)) out.push(m); return out; }
+  // Cache por desenho de tela: limpo em renderDpActiveView/renderHome e nas janelas da empresa.
+  const evCache = new Map();
+  const evCacheClear = () => evCache.clear();
+  function eventos(from, to, lista) {
+    const key = !lista ? `c|${+from}|${+to}` : lista.length === 1 ? `e:${lista[0].id}|${+from}|${+to}` : null;
+    if (key && evCache.has(key)) return evCache.get(key).slice();
+    const out = eventosCalc(from, to, lista || empresasCarteira());
+    if (key) evCache.set(key, out);
+    return out.slice();
+  }
+  function eventosCalc(from, to, lista) {
+    const out = [];
+    const ativas = lista.filter(ativa);
+    mesesEntre(from, to).forEach(m => {
+      const { y, m: mi } = mesParts(m);
+      state.dpGerais.forEach(g => {
+        const d = vencimento(g, m);
+        if (!dentro(d, from, to)) return;
+        const emps = ativas.filter(e => !e.naoAplica.includes(g.id));
+        if (emps.length) out.push({ tipo:'geral', d, titulo: g.tarefa || 'Prazo geral', sub: descreveRegra(g) + (g.caminho ? ' · ' + g.caminho : ''), emps });
+      });
+      ativas.forEach(e => {
+        e.prazos.forEach(p => { const d = vencimento(p, m); if (dentro(d, from, to)) out.push({ tipo:'prazo', d, titulo: p.tarefa || 'Rotina', sub: descreveRegra(p) + (p.caminho ? ' · ' + p.caminho : ''), empresa:e, tab:'prazos', edit:'prazo:' + p.id }); });
+        const bases = new Set(basesEmpresa(e));
+        const d1 = new Date(y, mi, 1);
+        if (bases.has(MESES[mi]) && dentro(d1, from, to)) {
+          const ss = sindsDaBase(e, MESES[mi]);
+          const sub = ss.length ? ss.map(s => `${rotuloSind(s)}${s.percentual ? ' · reajuste ' + s.percentual : ''}`).join(' · ') : 'Conferir reajuste e cláusulas da CCT';
+          out.push({ tipo:'database', d: d1, titulo:`Data-base em ${MESES[mi]}${ss.length === 1 ? ' · ' + ss[0].nome : ''}`, sub, empresa:e, tab:'dados', edit:'database:' });
+        }
+      });
+    });
+    // Sindicatos: fim da vigência da CCT e mês da contribuição assistencial (um evento por sindicato, com as empresas dele).
+    state.dpSind.forEach(s => {
+      const emps = ativas.filter(e => empresaSinds(e).includes(s));
+      if (!emps.length) return;
+      const fim = parseYmd(s.vigFim);
+      if (dentro(fim, from, to)) out.push({ tipo:'sindical', d: fim, titulo:`Fim da CCT · ${rotuloSind(s)}`, sub:'Acompanhar a nova convenção', emps, sind: s.id });
+      if (s.contribMes && !cctVigente(s)?.cct.contribs.length) mesesEntre(from, to).forEach(m => { const { y, m: mi } = mesParts(m); const d = new Date(y, mi, 1); if (MESES[mi] === s.contribMes && dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo:`Contribuição assistencial · ${rotuloSind(s)}`, sub:'Conferir desconto previsto na CCT', emps, sind: s.id }); });
+    });
+    out.push(...eventosCct(from, to, ativas));
+    lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
+    ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
+    return out.sort(porData);
+  }
+  // Próxima ocorrência de um prazo mensal a partir de hoje.
+  function proxVenc(p) {
+    const t = hoje();
+    const d = vencimento(p, mesDe(t));
+    return d && d >= t ? d : vencimento(p, mesShift(mesDe(t), 1));
+  }
+  const proxEmpresa = (e) => { const t = hoje(); return eventos(t, addDays(t, 60), [e]).find(ev => ev.tipo !== 'geral') || null; };
+
+  // ---------- meus lembretes: de cada usuário, com repetição ----------
+  const REPS = { nao:'Não repete', diaria:'Todo dia', util:'Todo dia útil', semanal:'Toda semana', mensal:'Todo mês', anual:'Todo ano' };
+  const REP_UN = { diaria:['dia','dias'], semanal:['semana','semanas'], mensal:['mês','meses'], anual:['ano','anos'] };
+  function normalizeMeu(l) {
+    const rep = REPS[l.rep] ? l.rep : 'nao';
+    return {
+      id: validId(l.id) ? l.id : uid(),
+      texto: String(l.texto || '').trim().slice(0, 200),
+      data: toYmd(l.data),
+      hora: /^\d{2}:\d{2}$/.test(l.hora || '') ? l.hora : '',
+      rep,
+      intervalo: Math.min(99, Math.max(1, parseInt(l.intervalo, 10) || 1)),
+      ate: rep === 'nao' ? '' : (parseYmd(toYmd(l.ate)) ? toYmd(l.ate) : ''),
+      empresaId: validId(l.empresaId) ? l.empresaId : '',
+      obs: String(l.obs || '').slice(0, 500),
+      excecoes: Array.isArray(l.excecoes) ? l.excecoes.filter(x => parseYmd(x)).slice(-200) : [],
+      feitos: Array.isArray(l.feitos) ? l.feitos.filter(x => parseYmd(x)).slice(-400) : [],
+      autor: String(l.autor || ''),
+      criadoEm: Number(l.criadoEm) || Date.now(),
+      atualizadoEm: Number(l.atualizadoEm) || 0,
+    };
+  }
+  function descreveRep(l) {
+    if (l.rep === 'nao') return REPS.nao;
+    const ini = parseYmd(l.data);
+    let s;
+    if (l.rep === 'util') s = REPS.util;
+    else if (l.intervalo > 1) s = `A cada ${l.intervalo} ${REP_UN[l.rep][1]}`;
+    else s = REPS[l.rep];
+    if (ini && l.rep === 'semanal') s += ` (${DIAS_SEM[ini.getDay()]})`;
+    if (ini && l.rep === 'mensal') s += ` (dia ${ini.getDate()})`;
+    if (ini && l.rep === 'anual') s += ` (${fmtDM(ini)})`;
+    if (l.ate) s += ` até ${fmtDateStr(l.ate)}`;
+    return s;
+  }
+  // Datas em que o lembrete cai dentro de [from, to]. Mês/ano sem o dia (31, 29/02) usa o último dia do mês.
+  function ocorrencias(l, from, to) {
+    const ini = parseYmd(l.data);
+    if (!ini) return [];
+    const fim = parseYmd(l.ate);
+    const lim = l.rep !== 'nao' && fim && fim < to ? fim : to;
+    const out = [];
+    if (ini > lim || lim < from) return out;
+    const pula = new Set(l.excecoes);
+    const push = (d) => { if (d >= from && d <= lim && d >= ini && !pula.has(ymd(d))) out.push(d); };
+    const n = l.intervalo || 1;
+    if (l.rep === 'diaria' || l.rep === 'semanal') {
+      const step = n * (l.rep === 'semanal' ? 7 : 1);
+      for (let k = Math.max(0, Math.floor(diffDays(from, ini) / step)); ; k++) { const d = addDays(ini, k * step); if (d > lim) break; push(d); }
+    } else if (l.rep === 'util') {
+      for (let d = from > ini ? from : ini; d <= lim; d = addDays(d, 1)) if (diaUtil(d)) push(d);
+    } else if (l.rep === 'mensal' || l.rep === 'anual') {
+      const step = l.rep === 'anual' ? 12 * n : n;
+      const mDiff = (from.getFullYear() - ini.getFullYear()) * 12 + from.getMonth() - ini.getMonth();
+      for (let k = Math.max(0, Math.floor(mDiff / step)); ; k++) {
+        const m = ini.getMonth() + k * step;
+        const d = new Date(ini.getFullYear(), m, Math.min(ini.getDate(), new Date(ini.getFullYear(), m + 1, 0).getDate()));
+        if (d > lim) break;
+        push(d);
+      }
+    } else push(ini);
+    return out;
+  }
+  function meusEventos(from, to) {
+    const out = [];
+    state.meus.forEach(l => ocorrencias(l, from, to).forEach(d => {
+      const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
+      out.push({ tipo:'meu', d, hora: l.hora, feito: l.feitos.includes(ymd(d)), titulo: (l.hora ? l.hora + ' · ' : '') + (l.texto || 'Lembrete'), sub: [l.rep !== 'nao' ? descreveRep(l) : '', l.obs].filter(Boolean).join(' · '), meu: l, empresa: emp });
+    }));
+    return out.sort(porData);
+  }
+  const chkMeu = (ev) => podeCriarMeu() ? `<button type="button" class="chk${ev.feito ? ' on' : ''}" data-meu-feito="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}" aria-pressed="${ev.feito}" aria-label="${ev.feito ? 'Desmarcar como feito' : 'Marcar como feito'}" title="${ev.feito ? 'Feito · clique para desmarcar' : 'Marcar como feito'}">${ic('check', 'ic-sm')}</button>` : '';
+  const meuItem = (ev, pill = true) => `<div class="ml-item${ev.feito ? ' feito' : ''}" role="button" tabindex="0" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">${chkMeu(ev)}${pill ? pillRel(ev.d) : ''}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml([ev.meu.rep !== 'nao' ? descreveRep(ev.meu) : '', ev.empresa?.nome].filter(Boolean).join(' · ')) || '&nbsp;'}</div></div></div>`;
+  const todosEventos = (from, to) => [...eventos(from, to), ...meusEventos(from, to)].sort(porData);
+
+  function pillRel(d, nivel) {
+    const dd = diffDays(d, hoje());
+    if (nivel === 'late' || (nivel == null && dd < 0)) return `<span class="pill ${nivel === 'late' ? 'pill-late' : 'pill-muted'}">${dd === -1 ? 'Ontem' : dd < 0 ? `Há ${-dd} dias` : fmtDM(d)}</span>`;
+    if (dd === 0) return '<span class="pill pill-today">Hoje</span>';
+    if (dd === 1) return '<span class="pill pill-soon">Amanhã</span>';
+    if (dd <= 7) return `<span class="pill pill-soon">Em ${dd} dias</span>`;
+    return `<span class="pill">${fmtDM(d)} ${wd(d)}</span>`;
+  }
+  const empLink = (ev) => ev.meu
+    ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
+    : ev.emps
+    ?`<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
+    : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${nomeEmpHtml(ev.empresa)}${respEf(ev.empresa, ymd(ev.d)) && !state.dpCarteira ? ' · ' + escapeHtml(respEf(ev.empresa, ymd(ev.d))) : ''}</button>`;
+
+  // ---------- cadastro ----------
+  const GAPS = [
+    { v:'cnpj', l:'Sem CNPJ', test: e => !e.cnpj },
+    { v:'cnpjinv', l:'CNPJ/CPF inválido', test: e => !!e.cnpj && !cnpjValido(e.cnpj) },
+    { v:'resp', l:'Sem responsável', test: e => !e.responsavel },
+    { v:'trib', l:'Sem tributação', test: e => !e.tributacao },
+    { v:'database', l:'Sem data-base', test: e => !basesEmpresa(e).length },
+    { v:'sind', l:'Sem sindicato vinculado', test: e => state.dpSind.length > 0 && !empresaSinds(e).length },
+    { v:'fech', l:'Sem procedimento de fechamento', test: e => !e.fechamento },
+  ];
+
+  // ---------- navegação ----------
+  function refreshCarteiraOptions() {
+    const sel = $('#dp-carteira');
+    const resp = dpResponsaveis();
+    const semResp = state.dpEmpresas.some(e => !e.responsavel);
+    const cur = state.dpCarteira;
+    let opts = '<option value="">Equipe toda</option>' + resp.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    if (semResp) opts += `<option value="${SEM_RESP}">Sem responsável</option>`;
+    if (cur && cur !== SEM_RESP && !resp.some(r => norm(r) === norm(cur))) opts += `<option value="${escapeHtml(cur)}">${escapeHtml(cur)}</option>`;
+    sel.innerHTML = opts;
+    sel.value = cur;
+  }
+  // Campo “Responsável” da empresa: lista própria, sempre com todos os analistas (o datalist do navegador só mostrava o que combinava com o texto).
+  (() => {
+    const inp = $('#dp-responsavel'), box = $('#dp-resp-lista'), btn = $('#dp-resp-btn');
+    let digitou = false, ativo = -1, itens = [];
+    const abrir = () => {
+      const q = digitou ? norm(inp.value) : '';
+      const todos = dpResponsaveis();
+      itens = todos.filter(r => !q || norm(r).includes(q));
+      const exato = todos.some(r => norm(r) === norm(inp.value));
+      const extra = digitou && inp.value.trim() && !exato ? [{ novo: inp.value.trim() }] : [];
+      const lista = [...itens.map(r => ({ r })), ...extra];
+      itens = lista;
+      ativo = lista.findIndex(x => x.r && norm(x.r) === norm(inp.value));
+      box.innerHTML = lista.length ? lista.map((x, i) => x.novo
+        ? `<div class="cb-op cb-novo${i === ativo ? ' on' : ''}" role="option" data-i="${i}">Usar “${escapeHtml(x.novo)}” como novo analista</div>`
+        : `<div class="cb-op${i === ativo ? ' on' : ''}${norm(x.r) === norm(inp.value) ? ' sel' : ''}" role="option" data-i="${i}" aria-selected="${norm(x.r) === norm(inp.value)}">${escapeHtml(x.r)}</div>`).join('') : '<div class="cb-vazio">Nenhum analista cadastrado</div>';
+      box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+      const on = box.querySelector('.cb-op.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+    };
+    const fechar = () => { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); digitou = false; };
+    const escolher = (i) => { const x = itens[i]; if (!x) return; inp.value = x.r || x.novo; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); fechar(); };
+    const mover = (d) => { if (box.hidden) { abrir(); return; } const n = itens.length; if (!n) return; ativo = (ativo + d + n) % n; $$('.cb-op', box).forEach((el, i) => el.classList.toggle('on', i === ativo)); box.querySelector('.cb-op.on')?.scrollIntoView({ block: 'nearest' }); };
+    inp.addEventListener('focus', () => { digitou = false; abrir(); });
+    inp.addEventListener('click', () => { if (box.hidden) { digitou = false; abrir(); } });
+    inp.addEventListener('input', () => { digitou = true; abrir(); });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); mover(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mover(-1); }
+      else if (e.key === 'Enter' && !box.hidden && ativo >= 0) { e.preventDefault(); escolher(ativo); }
+      else if (e.key === 'Escape' && !box.hidden) { e.stopPropagation(); e.preventDefault(); fechar(); }
+    });
+    btn.addEventListener('mousedown', (e) => { e.preventDefault(); if (box.hidden) { inp.focus(); digitou = false; abrir(); } else fechar(); });
+    box.addEventListener('mousedown', (e) => { e.preventDefault(); const op = e.target.closest('.cb-op'); if (op) escolher(+op.dataset.i); });
+    inp.addEventListener('blur', () => setTimeout(fechar, 120));
+  })();
+  function setCarteira(v) {
+    state.dpCarteira = v || '';
+    state.prefs.dpCarteira = state.dpCarteira; savePrefs();
+    renderDpActiveView();
+  }
+  $('#dp-carteira').addEventListener('change', (e) => setCarteira(e.target.value));
+
+  function openDpModule(view) {
+    const entrando = state.activeModule !== 'dp';
+    $('#view-home').hidden = true;
+    state.activeModule = 'dp';
+    syncShell();
+    closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-dp'; });
+    applyDpReadOnly();
+    renderFerramentas();
+    if (entrando) state.dpAnimar = DP_VIEWS.includes(view) ? view : state.dpView || 'painel';
+    setDpView(view || state.dpView || 'painel');
+    if (entrando) { window.scrollTo(0, 0); state.dpConvAnim = true; }
+  }
+  function setDpView(view) {
+    if (view === 'sindicatos' && (state.dpView !== 'sindicatos' || $('#view-dp').hidden || $('#dp-view-sindicatos').hidden)) state.dpConvAnim = true;
+    const novo = DP_VIEWS.includes(view) ? view : 'painel';
+    const pnlAntes = $(`#dp-view-${state.dpView}`), visivel = pnlAntes && !pnlAntes.hidden && !$('#view-dp').hidden;
+    const trocou = novo !== state.dpView || !visivel;
+    const dir = DP_VIEWS.indexOf(novo) >= DP_VIEWS.indexOf(state.dpView) ? 1 : -1, deslizar = visivel && novo !== state.dpView;
+    if (trocou) state.dpAnimar = novo;
+    state.dpView = novo;
+    $$('.dp-tab').forEach(t => { const on = t.dataset.dpView === state.dpView; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
+    $$('.dp-view').forEach(v => { v.hidden = v.id !== `dp-view-${state.dpView}`; });
+    renderDpActiveView();
+    syncRoute();
+    requestAnimationFrame(() => dpIndicador(deslizar));
+    if (deslizar && !semMovimento()) { const p = $(`#dp-view-${novo}`); p.style.setProperty('--dir', dir); p.classList.remove('dp-entra'); void p.offsetWidth; p.classList.add('dp-entra'); }
+  }
+  // Animações: só ao entrar numa aba (não a cada atualização do banco) e nunca com "reduzir movimento".
+  const semMovimento = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function dpAnim(v) { if (state.dpAnimar !== v) return false; state.dpAnimar = ''; return !semMovimento(); }
+  // anima o número de 0 até o valor (só números inteiros simples)
+  function contar(els, t0, atraso = 70) {
+    if (!t0) return;
+    els.forEach((el, k) => {
+      const alvo = parseInt(el.textContent, 10); if (!(alvo > 0) || String(alvo) !== el.textContent.trim()) return;
+      const ini = t0 + k * atraso, dur = 850;
+      const passo = (t) => { const x = Math.min(1, Math.max(0, (t - ini) / dur)); el.textContent = Math.round(alvo * (1 - Math.pow(1 - x, 3))); if (x < 1 && el.isConnected) requestAnimationFrame(passo); };
+      passo(performance.now());
+    });
+  }
+  // Liga a animação de entrada num contêiner. Se a tela for redesenhada no meio (dados chegando do banco),
+  // a animação continua de onde estava (--dt negativo), em vez de recomeçar. Devolve o início (ou 0).
+  function marcarAnim(el, novo, cls = 'dp-anim', ms = 1700) {
+    if (!el) return 0;
+    const agora = performance.now();
+    if (novo) {
+      el.__t0 = agora; el.classList.add(cls); el.style.setProperty('--dt', '0ms');
+      clearTimeout(el.__tAnim); el.__tAnim = setTimeout(() => { el.classList.remove(cls); el.__t0 = 0; }, ms);
+    } else if (el.__t0 && el.classList.contains(cls)) el.style.setProperty('--dt', `${-(agora - el.__t0)}ms`);
+    return el.__t0 || 0;
+  }
+  // traço da aba ativa: desliza até a aba clicada
+  function dpIndicador(animar) {
+    const tabs = $('.dp-tabs'), on = $('.dp-tab.active'); if (!tabs || !on || !on.offsetWidth) return;
+    let ind = $('.dp-tab-ind', tabs);
+    if (!ind) { ind = document.createElement('span'); ind.className = 'dp-tab-ind'; ind.setAttribute('aria-hidden', 'true'); tabs.appendChild(ind); tabs.classList.add('com-ind'); animar = false; }
+    ind.classList.toggle('sem-trans', !animar || semMovimento());
+    ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
+  }
+  window.addEventListener('resize', () => { if (state.activeModule === 'dp') dpIndicador(false); });
+  $('.dp-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('.dp-tab');
+    if (!btn) return;
+    // Clicar em Ferramentas estando numa ferramenta volta para a vitrine.
+    if (btn.dataset.dpView === 'ferramentas' && state.dpView === 'ferramentas') state.dpFerr = '';
+    setDpView(btn.dataset.dpView);
+  });
+
+  // Os códigos importados das planilhas entraram em "Código", mas são o código no Domínio: move, com confirmação.
+  let migCodAsked = false;
+  async function migrarCodDominio() {
+    if (migCodAsked || state.readOnly || !state.dpLoaded) return;
+    const alvo = state.dpEmpresas.filter(e => e.cod && !e.codigoDominio);
+    if (!alvo.length) return;
+    migCodAsked = true;
+    const ok = await ask(`${alvo.length} empresa(s) têm o número no campo “Código” e o “Código Domínio” vazio.\nMover esses números para o Código Domínio? O campo “Código” fica vazio nelas.`, [{ label:'Agora não', value:false }, { label:'Mover', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    alvo.forEach(e => { const c = e.cod; e.codigoDominio = c; e.cod = ''; marcaHist(e, `Código ${c} movido para Código Domínio`); });
+    renderDpActiveView();
+    const res = await Promise.all(alvo.map(e => persist(() => dpStore.updateFields(e.id, { cod: e.cod, codigoDominio: e.codigoDominio, historico: e.historico, updatedAt: e.updatedAt }))));
+    if (res.every(Boolean)) toast(`${alvo.length} código(s) movidos para Código Domínio e salvos.`);
+  }
+  function renderDpActiveView() {
+    if (state.activeModule !== 'dp') return;
+    evCacheClear();
+    setTimeout(migrarCodDominio, 600);
+    if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
+    refreshCarteiraOptions();
+    refreshSindDatalist();
+    $('#dp-sync').textContent = db ? 'Sincronizado com a equipe' : 'Salvo só neste navegador';
+    renderBadges();
+    const v = state.dpView;
+    if (v === 'painel') renderDpPainel();
+    else if (v === 'agenda') renderDpAgenda();
+    else if (v === 'empresas') renderDp();
+    else if (v === 'funcionarios') renderDpFuncionarios();
+    else if (v === 'cartela') renderCartela();
+    else if (v === 'sindicatos') renderSindTab();
+    else if (v === 'ferramentas') renderFerramentasDp();
+    if (v !== 'sindicatos' && state.dpConvPainel) fecharPainelCct();
+  }
+  function renderBadges() {
+    requestAnimationFrame(() => dpIndicador(false));
+    const t = hoje();
+    const n = todosEventos(t, t).filter(ev => !ev.feito).length;
+    const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
+    ba.title = `${n} data(s) hoje`;
+    const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
+    const bf = $('#dp-badge-func'); bf.hidden = !nf; bf.textContent = nf;
+    renderCtAlertas();
+    const ns = sindTabBadge(); const bs = $('#sd-badge'); bs.hidden = !ns; bs.textContent = ns; bs.title = `${ns} convenção(ões) ${state.dpCarteira ? 'da carteira ' : ''}vencida(s), vencendo ou pendente(s)`;
+  }
+
+  function applyDpReadOnly() {
+    const ro = state.readOnly;
+    $('#view-dp').classList.toggle('ro', ro);
+    $('#dlg-dp-detail').classList.toggle('ro', ro);
+    $('#dlg-dp-gerais').classList.toggle('ro', ro);
+  }
+
+  function irAgenda({ dia = '', tipo = '', mes } = {}) {
+    state.dpAgDia = dia;
+    state.dpAgTipo = tipo;
+    state.dpAgMes = mes || (dia ? dia.slice(0, 7) : mesDe(hoje()));
+    openDpModule('agenda');
+  }
+  // Delegação: abrir empresa, atalhos do painel, filtros
+  $('#main').addEventListener('click', (e) => {
+    const feito = e.target.closest('[data-meu-feito]');
+    if (feito) { e.stopPropagation(); toggleFeito(feito.dataset.meuFeito, feito.dataset.dia); return; }
+    const meu = e.target.closest('[data-meu]');
+    if (meu) { const l = state.meus.find(x => x.id === meu.dataset.meu); if (l) openMeu({ lembrete: l, dia: meu.dataset.dia }); return; }
+    const meuDia = e.target.closest('[data-meu-dia]');
+    if (meuDia) { e.stopPropagation(); state.dpAgDia = meuDia.dataset.meuDia; renderMeus(); openMeu({ dia: meuDia.dataset.meuDia }); return; }
+    if (e.target.closest('[data-meu-novo]')) { openMeu({ dia: (state.activeModule === 'dp' && state.dpAgDia) || ymd(hoje()), novo: true }); return; }
+    const agEmp = e.target.closest('[data-emp-agenda]');
+    if (agEmp) { const emp = findDpEmpresa(agEmp.dataset.empAgenda); if (emp) { state.dpAgQuery = emp.nome; $('#dp-ag-search').value = emp.nome; irAgenda({}); } return; }
+    const open = e.target.closest('[data-open-emp]');
+    if (open) { const emp = findDpEmpresa(open.dataset.openEmp); if (emp) { openDpDetail(emp, { tab: open.dataset.tab }); editarDoEvento(open.dataset.edit); } return; }
+    const go = e.target.closest('[data-go]');
+    if (go) {
+      const [view, a, b] = go.dataset.go.split(':');
+      if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
+      if (view === 'funcionarios') state.dpFuncFiltro = a || '';
+      if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
+      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
+      else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
+      openDpModule(view);
+      return;
+    }
+    const cart = e.target.closest('[data-carteira]');
+    if (cart) { const v = cart.dataset.carteira; setCarteira(state.dpCarteira === v ? '' : v); return; }
+    const cal = e.target.closest('[data-cal-mes]');
+    if (cal) { state.dpCalMes = cal.dataset.calMes; renderDpPainel(); return; }
+    const dia = e.target.closest('[data-cal-dia]');
+    if (dia) { irAgenda({ dia: dia.dataset.calDia }); return; }
+    if (e.target.closest('[data-open-gerais]')) openGerais();
+    if (e.target.closest('[data-sugeridos]')) addSugeridos();
+  });
+  $('#main').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest('[data-open-emp],[data-open-gerais],[data-meu]');
+    if (row && row === e.target && row.getAttribute('role') === 'button') { e.preventDefault(); row.click(); }
+  });
+
+  const kpiCard = (value, label, cls, go, sub='') => `<button type="button" class="kpi-card clickable ${cls}" data-go="${go}"><div class="kpi-value">${value}</div><div class="kpi-label">${label}</div>${sub ? `<div class="dp-cell-sub">${sub}</div>` : ''}</button>`;
+  function emptyEmpresasHtml() {
+    return `<div class="dp-empty" style="grid-column:1/-1"><strong>Nenhuma empresa cadastrada no DP</strong><span>Cadastre as empresas ou importe um backup na aba Empresas.</span><button type="button" class="btn btn-primary btn-sm" data-go="empresas" data-ro-hide>Ir para Empresas</button></div>`;
+  }
+  const alItem = (a) => `<div class="al-item" role="button" tabindex="0" data-open-emp="${escapeHtml(a.empresa.id)}" data-tab="${a.tab}"><span class="al-dot ${a.nivel === 'soon' ? '' : a.nivel}"></span><div style="min-width:0"><div class="dp-cell-main">${a.func ? escapeHtml(a.func.nome || 'Funcionário') + ' · ' : ''}${escapeHtml(a.txt)}</div><div class="dp-cell-sub">${nomeEmpHtml(a.empresa)}</div></div>${pillRel(a.d, a.nivel === 'late' ? 'late' : undefined)}</div>`;
+  const qItem = (ev) => `<div class="q-item">${pillRel(ev.d)}<div class="q-text"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div>${empLink(ev)}</div></div>`;
+  // ---------- dica dos gráficos (tooltip) ----------
+  // Cada marca leva data-tip: primeira linha em destaque, as demais abaixo. Texto sempre via textContent.
+  const vizTip = document.createElement('div');
+  vizTip.className = 'viz-tip'; vizTip.setAttribute('role', 'tooltip'); vizTip.hidden = true;
+  document.body.append(vizTip);
+  function showTip(el, x, y) {
+    const lines = (el.dataset.tip || '').split('\n');
+    const b = document.createElement('b'); b.textContent = lines[0];
+    vizTip.replaceChildren(b, ...lines.slice(1).map(l => { const s = document.createElement('span'); s.textContent = l; return s; }));
+    vizTip.hidden = false;
+    const r = vizTip.getBoundingClientRect();
+    let left = x + 14, top = y + 16;
+    if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+    if (top + r.height > innerHeight - 8) top = y - r.height - 12;
+    vizTip.style.left = Math.max(8, left) + 'px';
+    vizTip.style.top = Math.max(8, top) + 'px';
+  }
+  const tipOf = (e) => e.target.closest?.('[data-tip]');
+  document.addEventListener('pointermove', (e) => { const el = tipOf(e); if (el && e.pointerType !== 'touch') showTip(el, e.clientX, e.clientY); else vizTip.hidden = true; });
+  document.addEventListener('pointerleave', () => { vizTip.hidden = true; });
+  document.addEventListener('focusin', (e) => { const el = tipOf(e); if (el && el.matches(':focus-visible')) { const r = el.getBoundingClientRect(); showTip(el, r.left + r.width / 2, r.bottom); } else vizTip.hidden = true; });
+  document.addEventListener('scroll', () => { vizTip.hidden = true; }, true);
+  document.addEventListener('click', () => { vizTip.hidden = true; });
+  const tipAttr = (txt) => `data-tip="${escapeHtml(txt)}" aria-label="${escapeHtml(txt.replace(/\n/g, '. '))}"`;
+  // Topo "redondo" do eixo (1, 2, 5, 10, 20, 50…) acima do máximo.
+  function niceMax(v) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, v)))); for (const m of [1, 2, 5, 10]) if (m * p >= v) return m * p; return 10 * p; }
+  const resumoTipos = (evs) => Object.entries(evs.reduce((acc, ev) => { acc[ev.tipo] = (acc[ev.tipo] || 0) + 1; return acc; }, {})).sort((a, b) => TIPO_ORD[a[0]] - TIPO_ORD[b[0]]).map(([tp, n]) => `${n} ${TIPOS[tp].toLowerCase()}`);
+
+  // Ordem fixa das situações = ordem validada da paleta (azul, laranja, verde-água, amarelo).
+  const SIT_FUNC = [['Ativo', 'var(--viz-1)'], ['Férias', 'var(--viz-2)'], ['Desligado', 'var(--viz-3)'], ['Afastado', 'var(--viz-4)']];
+  const GAP_OK = { cnpj:'CNPJ informado', cnpjinv:'CNPJ/CPF válido', sind:'Sindicato vinculado', resp:'Responsável definido', trib:'Tributação definida', database:'Data-base definida', fech:'Procedimento de fechamento' };
+
+  // ---------- painel ----------
+  function renderDpPainel() {
+    const kp = $('#dp-painel-kpis'), grid = $('#dp-painel-grid');
+    if (!state.dpLoaded) { kp.innerHTML = ''; grid.innerHTML = '<div class="dp-empty" style="grid-column:1/-1">Carregando empresas…</div>'; return; }
+    const semEmpresas = !state.dpEmpresas.length;
+    const t = hoje();
+    const hojeEv = todosEventos(t, t).filter(ev => !ev.feito);
+    const nMeusHoje = hojeEv.filter(ev => ev.tipo === 'meu').length;
+    const semana = todosEventos(addDays(t, 1), addDays(t, 7));
+    const lembretes30 = todosEventos(t, addDays(t, 30)).filter(ev => ev.tipo === 'lembrete' || ev.tipo === 'meu');
+    const alertas = alertasPessoal();
+    const urg = alertas.filter(a => a.nivel !== 'soon').length;
+    const emps = empresasCarteira();
+    const nAtivas = emps.filter(ativa).length;
+    const anim = dpAnim('painel');
+    kp.innerHTML = [
+      kpiCard(hojeEv.length, 'Datas hoje', hojeEv.length ? 'is-today' : '', 'agenda:hoje', hojeEv.length ? `${nMeusHoje} minha(s) · ${hojeEv.length - nMeusHoje} da equipe` : `${fmtDM(t)}, ${wd(t)}${feriado(t) ? ' · ' + escapeHtml(feriado(t)) : ''}`),
+      kpiCard(semana.length, 'Próximos 7 dias', '', 'agenda'),
+      kpiCard(lembretes30.length, 'Lembretes em 30 dias', '', 'agenda:tipo:lembrete'),
+      kpiCard(alertas.length, 'Alertas de pessoal', urg ? 'is-late' : '', 'funcionarios:alerta', urg ? `${urg} pedem ação agora` : ''),
+      kpiCard(nAtivas, state.dpCarteira ? 'Empresas na carteira' : 'Empresas ativas', '', 'empresas', emps.length > nAtivas ? `${emps.length - nAtivas} inativa(s)` : ''),
+    ].join('');
+    contar($$('.kpi-value', kp), marcarAnim(kp, anim, 'kp-anim'));
+
+    const card = (titulo, sub, body, extra = '', cls = '') => `<section class="pn-card ${cls}"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${extra}</div><div class="pn-card-body">${body}</div></section>`;
+
+    // Carga de datas por dia (hoje + 30): uma série, clique leva à agenda do dia.
+    const dias = Array.from({ length: 31 }, (_, i) => ({ d: addDays(t, i), evs: [] }));
+    todosEventos(t, addDays(t, 30)).forEach(ev => { const i = diffDays(ev.d, t); if (dias[i]) dias[i].evs.push(ev); });
+    const maxN = Math.max(0, ...dias.map(x => x.evs.length));
+    let cargaBody;
+    if (!maxN) cargaBody = `<div class="empty-mini" style="padding:18px 0">Nenhuma data nos próximos 30 dias${state.dpCarteira ? ' nesta carteira' : ''}.${!state.dpGerais.length ? ' <button type="button" class="pn-link" data-sugeridos data-ro-hide>Usar prazos legais sugeridos</button>' : ''}</div>`;
+    else {
+      const topo = niceMax(maxN * 1.2);
+      const marcouMax = { v: false };
+      const cols = dias.map((x, i) => {
+        const n = x.evs.length, hol = feriado(x.d), fds = x.d.getDay() === 0 || x.d.getDay() === 6;
+        const tip = `${fmtDM(x.d)}, ${wd(x.d)}${i === 0 ? ' · hoje' : ''}${hol ? ' · ' + hol : ''}\n${n ? `${n} data(s): ${resumoTipos(x.evs).join(', ')}` : 'Nenhuma data'}${n ? '\nClique para ver na agenda' : ''}`;
+        const lbl = n && n === maxN && !marcouMax.v ? (marcouMax.v = true, `<span class="v">${n}</span>`) : '';
+        return `<button type="button" class="col${n ? '' : ' zero'}${fds || hol ? ' off' : ''}${i === 0 ? ' today' : ''}" style="--k:${i}" data-dia="${ymd(x.d)}" ${n ? `data-cal-dia="${ymd(x.d)}"` : 'tabindex="-1"'} ${tipAttr(tip)}>${lbl}<span class="bar" style="height:${(n / topo * 100).toFixed(1)}%"></span></button>`;
+      }).join('');
+      const xs = dias.map((x, i) => i % 7 === 0 ? `<span style="left:${((i + .5) / 31 * 100).toFixed(2)}%">${i === 0 ? 'hoje' : fmtDM(x.d)}</span>` : '').join('');
+      cargaBody = `<div class="cols"><div class="cols-y"><span style="top:0">${topo}</span><span style="top:50%">${topo / 2}</span><span style="top:100%">0</span></div><div class="cols-plot"><div class="cols-grid" style="top:0"></div><div class="cols-grid" style="top:50%"></div>${cols}</div><div class="cols-x">${xs}</div></div>`;
+    }
+    const cargaCard = card('Datas por dia', 'hoje e próximos 30 dias · barras claras = fim de semana ou feriado', cargaBody, '<button type="button" class="pn-link" data-go="agenda">Abrir agenda</button>', 'pn-span2 pn-carga');
+
+    // Alertas de pessoal: três blocos de status + os mais urgentes.
+    const nivelN = { late: alertas.filter(a => a.nivel === 'late').length, today: alertas.filter(a => a.nivel === 'today').length, soon: alertas.filter(a => a.nivel === 'soon').length };
+    const alBody = alertas.length
+      ? `<div class="stat3"><button type="button" data-go="funcionarios:alerta"><b>${nivelN.late}</b><small><i style="background:var(--dp-late)"></i>Atrasados</small></button><button type="button" data-go="funcionarios:alerta"><b>${nivelN.today}</b><small><i style="background:var(--dp-today)"></i>Vencem hoje</small></button><button type="button" data-go="funcionarios:alerta"><b>${nivelN.soon}</b><small><i style="background:var(--dp-soon)"></i>Próximos</small></button></div>
+         <div style="padding-top:10px">${alertas.slice(0, 3).map(alItem).join('')}</div>${alertas.length > 3 ? `<div style="padding-top:8px"><button type="button" class="pn-link" data-go="funcionarios">Ver na linha do tempo</button></div>` : ''}`
+      : '<div class="empty-mini" style="padding:10px 0">Sem férias, experiências, rescisões ou datas-base pedindo atenção agora.</div>';
+    const alCard = card('Alertas de pessoal', 'experiência, férias, rescisão e data-base', alBody);
+
+    // Funcionários por situação: barra empilhada + legenda com os números (rótulo visível = alívio de contraste).
+    const sits = emps.filter(ativa).flatMap(e => e.funcionarios.map(funcStatus));
+    const totalF = sits.length;
+    const cont = Object.fromEntries(SIT_FUNC.map(([s]) => [s, sits.filter(x => x === s).length]));
+    const em30 = (txt) => emps.filter(ativa).reduce((n, e) => n + e.funcionarios.reduce((m, f) => m + funcEventos(f).filter(ev => txt.test(ev.txt) && ev.d >= t && ev.d <= addDays(t, 30)).length, 0), 0);
+    const proxPessoal = [['Fins de experiência', em30(/^Fim da experiência/)], ['Inícios de férias', em30(/^Início das férias/)], ['Rescisões a pagar', em30(/^Prazo para pagar a rescisão/)]];
+    const funcBody = totalF
+      ? `<div class="stack">${SIT_FUNC.filter(([s]) => cont[s]).map(([s, c]) => `<button type="button" style="flex:${cont[s]};background:${c}" data-go="funcionarios:${s}" ${tipAttr(`${s}\n${cont[s]} de ${totalF} (${Math.round(cont[s] / totalF * 100)}%)\nClique para ver a lista`)}></button>`).join('')}</div>
+         <div class="stack-legend">${SIT_FUNC.map(([s, c]) => `<button type="button" data-go="funcionarios:${s}"><i style="background:${c}"></i><small>${s}</small><b>${cont[s]}</b></button>`).join('')}</div>
+         <div class="prox30"><div class="dp-cell-sub" style="font-weight:600">Próximos 30 dias</div>${proxPessoal.map(([l, n]) => `<button type="button" class="prox30-i" data-go="funcionarios"><span>${l}</span><b>${n}</b></button>`).join('')}</div>`
+      : '<div class="empty-mini" style="padding:6px 0">Nenhum funcionário cadastrado nas empresas ativas.</div>';
+    const funcCard = card('Funcionários por situação', totalF ? `${totalF} no total` : '', funcBody);
+
+    // Calendário como mapa de calor.
+    const m0 = mesDe(t), m1 = mesShift(m0, 1);
+    const calMes = [m0, m1].includes(state.dpCalMes) ? state.dpCalMes : m0;
+    const calCard = card('Calendário', '', calendarioHtml(calMes), `<div class="dp-chips" style="margin-left:auto">${[m0, m1].map(m => `<button type="button" class="dp-chip${m === calMes ? ' on' : ''}" data-cal-mes="${m}">${MESES[mesParts(m).m]}</button>`).join('')}</div>`, 'pn-cal');
+
+    // Carteiras: barras horizontais (empresas ativas por responsável); a carteira escolhida fica em destaque.
+    const todas = state.dpEmpresas.filter(ativa);
+    const grupos = dpResponsaveis().map(r => [r, r]);
+    if (todas.some(e => !e.responsavel)) grupos.push([SEM_RESP, 'Sem responsável']);
+    const dadosC = grupos.map(([key, nome]) => {
+      const es = todas.filter(e => respDe(e, key));
+      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
+    }).sort((a, b) => b.n - a.n);
+    const maxC = Math.max(1, ...dadosC.map(c => c.n));
+    const cBody = dadosC.length
+      ? `<div class="hbars${state.dpCarteira ? ' has-sel' : ''}">${dadosC.map(c => `<button type="button" class="hbar${norm(state.dpCarteira) === norm(c.key) ? ' on' : ''}" data-carteira="${escapeHtml(c.key)}" ${tipAttr(`${c.nome}\n${c.n} empresa(s) ativa(s) · ${c.nFunc} funcionário(s)\n${c.n7} data(s) própria(s) nos próximos 7 dias\n${norm(state.dpCarteira) === norm(c.key) ? 'Clique para ver a equipe toda' : 'Clique para filtrar por esta carteira'}`)}><span class="hbar-name">${escapeHtml(c.nome)}<small>${c.nFunc} func. · ${c.n7} na semana</small></span><span class="hbar-track"><span class="hbar-fill" style="width:${(c.n / maxC * 100).toFixed(1)}%"></span><span class="hbar-v">${c.n}</span></span></button>`).join('')}</div>`
+      : '<div class="empty-mini">Defina responsáveis nas empresas para separar as carteiras.</div>';
+    const cCard = card('Carteiras', 'empresas ativas por responsável', cBody);
+
+    // Cadastro: um medidor por item essencial (% das empresas com o dado preenchido).
+    const meters = GAPS.map(g => {
+      if (g.v === 'sind' && !state.dpSind.length) return '';
+      const base = g.v === 'cnpjinv' ? emps.filter(e => e.cnpj) : emps;
+      if (!base.length) return '';
+      const faltam = base.filter(g.test).length, ok = base.length - faltam, pct = Math.round(ok / base.length * 100);
+      const cls = pct === 100 ? 'ok' : pct < 60 ? 'warn' : '';
+      return `<button type="button" class="meter ${cls}" ${faltam ? `data-go="empresas:gap:${g.v}"` : ''} ${tipAttr(`${GAP_OK[g.v]}\n${ok} de ${base.length} empresa(s) (${pct}%)${faltam ? `\nFaltam ${faltam}: clique para ver quais` : ''}`)}><div class="meter-top"><span>${GAP_OK[g.v]}</span><b>${pct}%</b></div><div class="meter-track"><div class="meter-fill" style="width:${pct}%"></div></div></button>`;
+    }).join('');
+    const gapCard = card('Cadastro das empresas', 'quanto já está preenchido · clique para ver o que falta', meters ? `<div class="meters grid3">${meters}</div>` : '<div class="empty-mini">Nenhuma empresa nesta carteira.</div>', '', 'pn-wide');
+
+    if (semEmpresas) { grid.innerHTML = `${cargaCard}${calCard}<section class="pn-card pn-wide">${emptyEmpresasHtml()}</section>`; return; }
+    grid.innerHTML = `${cargaCard}${calCard}${alCard}${funcCard}${cCard}${gapCard}`;
+    contar($$('.stat3 b, .stack-legend b, .prox30-i b', grid), marcarAnim(grid, anim, 'pn-anim'), 40);
+    grid.__dia = null;
+  }
+  // Painel: passar o mouse numa barra acende o mesmo dia no calendário (e vice-versa).
+  function ligaDia(k) {
+    const g = $('#dp-painel-grid'); if (g.__dia === k) return;
+    g.__dia = k;
+    $$('.liga', g).forEach(x => x.classList.remove('liga'));
+    g.classList.toggle('pn-liga', !!k && !!$(`.col[data-dia="${k}"]`, g));
+    if (k) $$(`[data-dia="${k}"]`, g).forEach(x => x.classList.add('liga'));
+  }
+  $('#dp-painel-grid').addEventListener('mouseover', (e) => { const el = e.target.closest('[data-dia]'); ligaDia(el ? el.dataset.dia : null); });
+  $('#dp-painel-grid').addEventListener('mouseleave', () => ligaDia(null));
+  function calendarioHtml(mes) {
+    const { y, m } = mesParts(mes);
+    const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+    const porDia = {};
+    todosEventos(first, last).forEach(ev => { const k = ymd(ev.d); (porDia[k] ||= []).push(ev); });
+    const maxN = Math.max(1, ...Object.values(porDia).map(l => l.length));
+    const cells = ['D','S','T','Q','Q','S','S'].map(d => `<div class="cal-wd">${d}</div>`);
+    for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-day blank"></div>');
+    const t = hoje(), tk = ymd(t);
+    for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
+      const k = ymd(d), list = porDia[k] || [];
+      const hol = feriado(d);
+      const nivel = list.length ? Math.max(1, Math.ceil(list.length / maxN * 5)) : 0;
+      const tip = `${fmtDM(d)}, ${wd(d)}${hol ? ' · ' + hol : ''}\n${list.length ? `${list.length} data(s): ${resumoTipos(list).join(', ')}` : 'Nenhuma data'}`;
+      const dayCls = `cal-day${nivel ? ' h' + nivel : hol ? ' hol' : (d.getDay() === 0 || d.getDay() === 6) ? ' off' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}`;
+      cells.push(`<button type="button" class="${dayCls}" style="--k:${d.getDate()}" data-dia="${k}" ${list.length ? `data-cal-dia="${k}"` : 'tabindex="-1"'} ${tipAttr(tip)}><span>${d.getDate()}</span></button>`);
+    }
+    return `<div class="cal">${cells.join('')}</div><div class="cal-legend"><span class="heat-key">menos ${[1,2,3,4,5].map(i => `<i style="background:var(--heat-${i})"></i>`).join('')} mais datas</span><span>Riscado = feriado</span></div>`;
+  }
+
+  // ---------- agenda: calendário do mês + lista de lembretes ----------
+  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base'],['sindical','Sindical (CCT)']];
+  const ehLembrete = (ev) => ev.tipo === 'meu' || ev.tipo === 'lembrete';
+  const evAttrs = (ev, k) => ev.goto ? `data-go="${escapeHtml(ev.goto)}"` : ev.sind ? `data-go="sindicatos:${escapeHtml(ev.sind)}"` : ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
+    : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"${ev.edit ? ` data-edit="${escapeHtml(ev.edit)}"` : ''}`;
+  const podeCriarMeu = () => !state.meusOff && !state.readOnly;
+  // Filtro por analista: datas de empresas do analista; prazos gerais contam só as empresas dele; os meus lembretes sem empresa continuam.
+  function porAnalista(evs) {
+    const a = state.dpAgAnalista;
+    if (!a) return evs;
+    return evs.map(ev => {
+      if (ev.emps) { const dia = ymd(ev.d); const emps = ev.emps.filter(e => respDe(e, a, dia)); return emps.length ? { ...ev, emps } : null; }
+      if (ev.empresa) return respDe(ev.empresa, a, ymd(ev.d)) ? ev : null;
+      return ev;
+    }).filter(Boolean);
+  }
+  function agendaEventos() {
+    const { y, m } = mesParts(state.dpAgMes);
+    return porAnalista(todosEventos(new Date(y, m, 1), new Date(y, m + 1, 0)))
+      .filter(ev => matchQ([ev.titulo, ev.sub, ev.empresa?.nome, ev.empresa?.responsavel, TIPOS[ev.tipo], ev.emps ? 'todas as empresas' : '', ev.meu ? 'só você' : ''], state.dpAgQuery));
+  }
+  $('#dp-ag-prev').addEventListener('click', () => { state.agDesliza = -1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), -1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-next').addEventListener('click', () => { state.agDesliza = 1; state.dpAgMes = mesShift(state.dpAgMes || mesDe(hoje()), 1); state.dpAgDia = ''; renderDpAgenda(); });
+  $('#dp-ag-hoje').addEventListener('click', () => { const mh = mesDe(hoje()); state.agDesliza = mh === state.dpAgMes ? 0 : mh > (state.dpAgMes || mh) ? 1 : -1; state.dpAgMes = mh; state.dpAgDia = ymd(hoje()); renderDpAgenda(); });
+  $('#dp-ag-search').addEventListener('input', (e) => { state.dpAgQuery = e.target.value.trim(); renderDpAgenda(); });
+  $('#dp-ag-tipo-sel').addEventListener('change', (e) => { state.dpAgTipo = e.target.value; renderDpAgenda(); });
+  $('#dp-ag-analista').addEventListener('change', (e) => { state.dpAgAnalista = e.target.value; state.prefs.dpAgAnalista = state.dpAgAnalista; savePrefs(); renderDpAgenda(); });
+  $('#dp-btn-gerais').addEventListener('click', () => openGerais());
+  // Clique num dia (fora dos eventos) seleciona o dia; clicar de novo tira a seleção.
+  $('#dp-ag-cal').addEventListener('click', (e) => {
+    if (e.target.closest('[data-meu],[data-open-emp],[data-open-gerais],[data-meu-dia],[data-go]')) return;
+    const d = e.target.closest('[data-ag-sel]');
+    if (!d) return;
+    e.stopPropagation();
+    state.dpAgDia = state.dpAgDia === d.dataset.agSel ? '' : d.dataset.agSel;
+    renderDpAgenda();
+    if (state.dpAgDia && matchMedia('(max-width:900px)').matches) $('#dp-meus').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('#dp-meus').addEventListener('click', (e) => { if (e.target.closest('[data-ag-limpa]')) { e.stopPropagation(); state.dpAgDia = ''; renderDpAgenda(); } });
+
+  function refreshAnalistas() {
+    const sel = $('#dp-ag-analista');
+    const resp = dpResponsaveis();
+    let opts = '<option value="">Todos os analistas</option>' + resp.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    if (state.dpEmpresas.some(e => !e.responsavel)) opts += `<option value="${SEM_RESP}">Sem responsável</option>`;
+    if (state.dpAgAnalista && state.dpAgAnalista !== SEM_RESP && !resp.some(r => norm(r) === norm(state.dpAgAnalista))) opts += `<option value="${escapeHtml(state.dpAgAnalista)}">${escapeHtml(state.dpAgAnalista)}</option>`;
+    sel.innerHTML = opts;
+    sel.value = state.dpAgAnalista;
+    sel.classList.toggle('on', !!state.dpAgAnalista);
+  }
+
+  function renderDpAgenda() {
+    const t = hoje();
+    if (!state.dpAgMes) state.dpAgMes = state.dpAgDia ? state.dpAgDia.slice(0, 7) : mesDe(t);
+    if (state.dpAgDia && state.dpAgDia.slice(0, 7) !== state.dpAgMes) state.dpAgDia = '';
+    const { y, m } = mesParts(state.dpAgMes);
+    $('#dp-ag-label').textContent = `${MESES[m]} ${y}`;
+    refreshAnalistas();
+    if (!state.dpLoaded) { $('#dp-ag-cal').innerHTML = ''; $('#dp-meus').innerHTML = ''; return; }
+    agFit();
+    const base = agendaEventos();
+    const conta = (v) => base.filter(ev => !v || ev.tipo === v).length;
+    const sel = $('#dp-ag-tipo-sel');
+    sel.innerHTML = AG_FILTROS.map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
+    sel.value = state.dpAgTipo;
+    sel.classList.toggle('on', !!state.dpAgTipo);
+    const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
+    $('#dp-ag-count').textContent = `${vis.length} data(s) em ${MESES[m].toLowerCase()}`;
+    $('#dp-ag-cal').innerHTML = agCalHtml(vis, state.dpAgMes);
+    // Troca de mês: o calendário entra deslizando do lado para onde se andou.
+    const dz = state.agDesliza; state.agDesliza = 0;
+    const agm = $('#dp-ag-cal .agm');
+    if (!marcarAnim($('#dp-ag-cal'), dpAnim('agenda')) && dz && agm && !semMovimento()) { agm.style.setProperty('--dir', dz); agm.classList.add('agm-entra'); const lb = $('#dp-ag-label'); lb.style.setProperty('--dir', dz); lb.classList.remove('agm-entra'); void lb.offsetWidth; lb.classList.add('agm-entra'); }
+    renderAgLista(vis);
+  }
+
+  // No computador o calendário ocupa exatamente a altura que sobra na janela (sem rolar a página);
+  // no celular/tablet volta ao fluxo normal. Cada semana divide a altura igualmente.
+  const agAjusta = () => matchMedia('(min-width:901px)').matches;
+  function agFit() {
+    const g = $('.ag-grid');
+    if (!agAjusta() || $('#dp-view-agenda').hidden) { g.style.height = ''; state.agH = 0; document.body.classList.remove('ag-fit'); return; }
+    document.body.classList.add('ag-fit');
+    const h = Math.max(380, Math.floor(innerHeight - g.getBoundingClientRect().top - 14 + scrollY));
+    g.style.height = h + 'px';
+    state.agH = h;
+  }
+  window.addEventListener('resize', () => { if (state.activeModule === 'dp' && state.dpView === 'agenda') renderDpAgenda(); });
+  function agCalHtml(vis, mes) {
+    const { y, m } = mesParts(mes);
+    const first = new Date(y, m, 1);
+    const semanas = Math.ceil((first.getDay() + new Date(y, m + 1, 0).getDate()) / 7);
+    // altura da linha = (altura total - cabeçalho dos dias - rodapé) / semanas; cada chip ocupa ~21px, o topo do dia ~28px
+    const linhaH = state.agH ? (state.agH - 28 - 34) / semanas : 0;
+    const maxChips = state.agH ? Math.max(0, Math.min(4, Math.floor((linhaH - 32) / 21))) : 4;
+    const porDia = {};
+    vis.forEach(ev => { (porDia[ymd(ev.d)] ||= []).push(ev); });
+    // Lembretes primeiro no dia (são o destaque), depois o resto na ordem da agenda.
+    Object.values(porDia).forEach(l => l.sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b)));
+    const maxDia = Math.max(1, ...Object.values(porDia).map(l => l.length));
+    const cells = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div class="agm-wd">${d}</div>`);
+    for (let i = 0; i < first.getDay(); i++) cells.push('<div class="agm-day blank"></div>');
+    const t = hoje(), tk = ymd(t), pode = podeCriarMeu();
+    for (let d = first; d.getMonth() === m; d = addDays(d, 1)) {
+      const k = ymd(d), list = porDia[k] || [], hol = feriado(d);
+      const nLemb = list.filter(ehLembrete).length;
+      const mostra = list.length > maxChips && maxChips > 0 ? maxChips - 1 : maxChips;
+      const chips = list.slice(0, mostra).map(ev => {
+        const lemb = ehLembrete(ev);
+        const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome : 'só você';
+        return `<button type="button" class="agm-ev agm-${ev.tipo}${lemb ? ' agm-lemb' : ''}${ev.feito ? ' feito' : ''}" ${evAttrs(ev, k)} ${tipAttr(`${ev.titulo}\n${TIPOS[ev.tipo]} · ${quem}${ev.sub ? '\n' + ev.sub : ''}`)}>${lemb ? ic('bell', 'ic-sm') : ''}<span class="agm-t">${escapeHtml(ev.titulo)}</span></button>`;
+      }).join('');
+      const mais = list.length > mostra ? `<button type="button" class="agm-more" data-ag-sel="${k}">${mostra ? `+${list.length - mostra} mais` : `${list.length} data(s)`}</button>` : '';
+      const cls = `agm-day${d.getDay() === 0 || d.getDay() === 6 ? ' off' : ''}${hol ? ' hol' : ''}${k === tk ? ' is-today' : ''}${d < t ? ' past' : ''}${k === state.dpAgDia ? ' sel' : ''}${nLemb ? ' tem-lemb' : ''}`;
+      const add = pode ? `<button type="button" class="agm-add" data-meu-dia="${k}" aria-label="Novo lembrete em ${fmtDMY(d)}" title="Novo lembrete neste dia">${ic('plus', 'ic-sm')}</button>` : '';
+      cells.push(`<div class="${cls}${list.length ? ' quente' : ''}" style="--k:${d.getDate()};--q:${list.length ? Math.round(4 + list.length / maxDia * 14) : 0}" data-ag-sel="${k}"><div class="agm-top"><button type="button" class="agm-num" data-ag-sel="${k}" aria-pressed="${k === state.dpAgDia}" aria-label="${fmtDMY(d)}: ${list.length} data(s)${nLemb ? `, ${nLemb} lembrete(s)` : ''}">${d.getDate()}</button>${hol ? `<span class="agm-hol" title="${escapeHtml(hol)}">${escapeHtml(hol)}</span>` : ''}${add}</div>${list.length ? `<span class="agm-n${nLemb ? ' lemb' : ''}">${list.length}</span>` : ''}<div class="agm-evs">${chips}${mais}</div></div>`);
+    }
+    const legenda = `<div class="agm-foot"><div class="legend"><span><i style="background:var(--lemb-bg);box-shadow:inset 3px 0 0 var(--lemb)"></i>Lembrete (seu ou da empresa)</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-contabil)"></i>Rotina</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink-3)"></i>Prazo geral</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-financeiro)"></i>Pessoal</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-fiscal)"></i>Data-base</span><span><i style="background:var(--surface-2);box-shadow:inset 3px 0 0 var(--sector-pessoal)"></i>Sindical</span></div><span class="dp-cell-sub">Clique num dia para ver tudo dele${pode ? ' · + cria lembrete' : ''}</span></div>`;
+    return `<div class="agm" style="${state.agH ? `grid-template-rows:auto repeat(${semanas},minmax(0,1fr))` : ''}">${cells.join('')}</div>${legenda}`;
+  }
+
+  // Lista ao lado: sem dia escolhido, os lembretes do mês; com dia, tudo daquele dia (lembretes primeiro).
+  function renderAgLista(vis) {
+    const el = $('#dp-meus');
+    const t = hoje();
+    const pode = podeCriarMeu();
+    const novo = pode && state.meusLoaded ? `<button type="button" class="btn btn-sm btn-primary" data-meu-novo>${ic('plus', 'ic-sm')} Novo</button>` : '';
+    const item = (ev) => {
+      if (ev.meu) return meuItem(ev);
+      const k = ymd(ev.d);
+      const quem = ev.emps ? `${ev.emps.length} empresa(s)` : ev.empresa ? ev.empresa.nome + (respEf(ev.empresa, ymd(ev.d)) && !state.dpAgAnalista ? ' · ' + respEf(ev.empresa, ymd(ev.d)) : '') : '';
+      return `<div class="ml-item${ev.d < t ? ' past' : ''}" role="button" tabindex="0" ${evAttrs(ev, k)}>${pillRel(ev.d)}<div style="min-width:0;flex:1"><div class="dp-cell-main" title="${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${escapeHtml(quem) || '&nbsp;'}</div></div></div>`;
+    };
+    let titulo, sub, lista, vazio;
+    if (state.dpAgDia) {
+      const d = parseYmd(state.dpAgDia);
+      lista = vis.filter(ev => ymd(ev.d) === state.dpAgDia).sort((a, b) => (ehLembrete(b) - ehLembrete(a)) || porData(a, b));
+      titulo = `${fmtDM(d)}, ${wd(d)}`;
+      sub = `${feriado(d) ? feriado(d) + ' · ' : ''}${lista.length} data(s) <button type="button" class="pn-link" data-ag-limpa>ver lembretes do mês</button>`;
+      vazio = 'Nada neste dia.';
+    } else {
+      lista = vis.filter(ehLembrete);
+      const futuro = lista.filter(ev => ev.d >= t), passado = lista.filter(ev => ev.d < t);
+      lista = [...futuro, ...passado.reverse()];
+      titulo = 'Lembretes';
+      sub = `${MESES[mesParts(state.dpAgMes).m].toLowerCase()} · ${lista.length}`;
+      vazio = state.meusOff && !lista.length ? escapeHtml(state.meusOff) : 'Nenhum lembrete neste mês. Clique no + de um dia do calendário para criar.';
+    }
+    el.innerHTML = `<div class="pn-card-head"><h3>${titulo}</h3>${novo}</div><div class="ag-lemb-sub dp-cell-sub">${sub}</div><div class="ag-lemb-list" tabindex="0" aria-label="Lista de lembretes">${lista.length ? lista.map(item).join('') : `<div class="empty-mini" style="padding:10px 0">${vazio}</div>`}</div>`;
+  }
+  const renderMeus = () => { if (state.activeModule === 'dp' && state.dpView === 'agenda') renderDpAgenda(); };
+
+  // ---------- meus lembretes: janela ----------
+  const dlgMeu = $('#dlg-meu'), formMeu = $('#form-meu');
+  let meuDia = '', meuAtual = null;
+  function openMeu({ lembrete = null, dia = '' } = {}) {
+    meuDia = dia || lembrete?.data || ymd(hoje());
+    fillMeuForm(lembrete);
+    if (!dlgMeu.open) dlgMeu.showModal();
+    if (!lembrete && podeCriarMeu()) formMeu.elements.texto.focus();
+  }
+  function renderMeuDia() {
+    const d = parseYmd(meuDia);
+    const evs = d ? meusEventos(d, d) : [];
+    $('#meu-dia-wrap').hidden = !evs.length;
+    $('#meu-dia-title').textContent = d ? `Neste dia · ${fmtDMY(d)}, ${wd(d)}${feriado(d) ? ' · ' + feriado(d) : ''}` : '';
+    $('#meu-dia-list').innerHTML = evs.map(ev => `<button type="button" class="ml-day-item${meuAtual?.id === ev.meu.id ? ' on' : ''}" data-meu-edit="${escapeHtml(ev.meu.id)}"><span>${escapeHtml(ev.titulo)}</span><span class="dp-cell-sub">${escapeHtml(ev.meu.rep !== 'nao' ? descreveRep(ev.meu) : '')}</span></button>`).join('')
+      + (podeCriarMeu() && meuAtual ? '<button type="button" class="btn btn-sm" data-meu-new style="align-self:flex-start">' + ic('plus', 'ic-sm') + ' Outro lembrete neste dia</button>' : '');
+  }
+  function fillMeuForm(l) {
+    meuAtual = l;
+    const ro = !podeCriarMeu();
+    const f = formMeu.elements;
+    formMeu.reset();
+    const v = l || { data: meuDia, rep: 'nao', intervalo: 1 };
+    f.id.value = v.id || ''; f.texto.value = v.texto || ''; f.data.value = v.data || meuDia; f.hora.value = v.hora || '';
+    f.rep.value = v.rep || 'nao'; f.intervalo.value = v.intervalo || 1; f.ate.value = v.ate || ''; f.obs.value = v.obs || '';
+    const emps = [...state.dpEmpresas].sort(byNome);
+    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.nome)}${ehFilial(e) ? ' (filial)' : ''}</option>`).join('');
+    f.empresaId.value = emps.some(e => e.id === v.empresaId) ? v.empresaId : '';
+    const titulo = l ? (ro ? 'Lembrete' : 'Editar lembrete') : 'Novo lembrete';
+    $('#dlg-meu-title').textContent = titulo;
+    $('#meu-form-title').textContent = l && l.rep !== 'nao' && !ro ? 'Editar lembrete (vale para todas as repetições)' : titulo;
+    [...f].forEach(el => { if (el.name) el.disabled = ro; });
+    $('#btn-meu-salvar').hidden = ro;
+    $('#btn-meu-excluir').hidden = !l || ro;
+    const d = parseYmd(meuDia);
+    $('#btn-meu-pular').hidden = !l || ro || l.rep === 'nao' || !d || !ocorrencias(l, d, d).length;
+    updateMeuRep();
+    renderMeuDia();
+  }
+  function updateMeuRep() {
+    const f = formMeu.elements, rep = f.rep.value;
+    $('#meu-intervalo-wrap').hidden = rep === 'nao' || rep === 'util';
+    $('#meu-ate-wrap').hidden = rep === 'nao';
+    const n = parseInt(f.intervalo.value, 10) || 1;
+    $('#meu-intervalo-un').textContent = REP_UN[rep] ? REP_UN[rep][n > 1 ? 1 : 0] : '';
+    const l = normalizeMeu({ data: f.data.value, rep, intervalo: f.intervalo.value, ate: f.ate.value, excecoes: meuAtual?.excecoes });
+    if (!parseYmd(l.data)) { $('#meu-resumo').textContent = ''; return; }
+    const t = hoje();
+    const next = ocorrencias(l, t, addDays(t, 800)).slice(0, 3);
+    $('#meu-resumo').textContent = `${descreveRep(l)}.${next.length ? ' Próximas: ' + next.map(d => `${fmtDM(d)} ${wd(d)}`).join(', ') + '.' : ' Nenhuma data de hoje em diante.'}`;
+  }
+  formMeu.addEventListener('input', (e) => { if (['rep','intervalo','data','ate'].includes(e.target.name)) updateMeuRep(); });
+  formMeu.addEventListener('change', (e) => { if (e.target.name === 'rep') updateMeuRep(); });
+
+  async function meusWrite(fn) {
+    try { await trackSave(fn); return true; }
+    catch (e) {
+      toast(e?.code === 'invalid_argument' ? 'Você não tem permissão para salvar lembretes aqui.' : e?.code === 'quota_exceeded' ? 'Limite de armazenamento atingido.' : 'Não foi possível salvar o lembrete. Tente de novo.');
+      return false;
+    }
+  }
+  function setMeuLocal(l) { state.meus = state.meus.filter(x => x.id !== l.id).concat(l); }
+  async function toggleFeito(id, dia) {
+    const l = state.meus.find(x => x.id === id);
+    if (!l || !podeCriarMeu() || !parseYmd(dia)) return;
+    const tem = l.feitos.includes(dia);
+    const novo = normalizeMeu({ ...l, feitos: tem ? l.feitos.filter(x => x !== dia) : [...l.feitos, dia], atualizadoEm: Date.now() });
+    setMeuLocal(novo); refreshAll();
+    if (!(await meusWrite(() => meusStore.save(novo)))) { setMeuLocal(l); refreshAll(); }
+  }
+  function afterMeuChange(dia) { if (dia && state.dpView === 'agenda') { state.dpAgDia = dia; state.dpAgMes = dia.slice(0, 7); } refreshAll(); }
+  formMeu.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!podeCriarMeu()) return;
+    const f = formMeu.elements;
+    if (!f.texto.value.trim()) { toast('Escreva o lembrete.'); f.texto.focus(); return; }
+    if (!parseYmd(f.data.value)) { toast('Informe a data.'); f.data.focus(); return; }
+    if (f.rep.value !== 'nao' && f.ate.value && f.ate.value < f.data.value) { toast('A data de término vem antes do início.'); f.ate.focus(); return; }
+    const antes = meuAtual;
+    const l = normalizeMeu({ ...(antes || {}), texto: f.texto.value, data: f.data.value, hora: f.hora.value, rep: f.rep.value, intervalo: f.intervalo.value, ate: f.ate.value, empresaId: f.empresaId.value, obs: f.obs.value.trim(), autor: antes?.autor || state.meId || '', atualizadoEm: Date.now() });
+    if (!(await meusWrite(() => meusStore.save(l)))) return;
+    setMeuLocal(l);
+    dlgMeu.close();
+    afterMeuChange(l.data);
+    toast(antes ? 'Lembrete atualizado.' : 'Lembrete criado.');
+  });
+  $('#btn-meu-excluir').addEventListener('click', async () => {
+    const l = meuAtual;
+    if (!l || !podeCriarMeu()) return;
+    dlgMeu.close();
+    const ok = await ask(l.rep !== 'nao' ? `Excluir "${l.texto}" e todas as repetições?` : `Excluir "${l.texto}"?`, [{label:'Cancelar',value:false},{label:'Excluir',value:true,kind:'btn-danger'}]);
+    if (!ok) return;
+    if (!(await meusWrite(() => meusStore.del(l.id)))) return;
+    state.meus = state.meus.filter(x => x.id !== l.id);
+    afterMeuChange();
+    toast('Lembrete excluído.', { label:'Desfazer', fn: async () => { if (await meusWrite(() => meusStore.save(l))) { setMeuLocal(l); afterMeuChange(); } } });
+  });
+  $('#btn-meu-pular').addEventListener('click', async () => {
+    const l = meuAtual, dia = meuDia;
+    if (!l || !podeCriarMeu()) return;
+    const novo = normalizeMeu({ ...l, excecoes: [...l.excecoes, dia], atualizadoEm: Date.now() });
+    if (!(await meusWrite(() => meusStore.save(novo)))) return;
+    setMeuLocal(novo);
+    dlgMeu.close();
+    afterMeuChange();
+    toast(`Lembrete tirado de ${fmtDateStr(dia)}.`, { label:'Desfazer', fn: async () => { const back = normalizeMeu({ ...novo, excecoes: novo.excecoes.filter(x => x !== dia) }); if (await meusWrite(() => meusStore.save(back))) { setMeuLocal(back); afterMeuChange(); } } });
+  });
+  dlgMeu.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-meu-edit]');
+    if (ed) { const l = state.meus.find(x => x.id === ed.dataset.meuEdit); if (l) fillMeuForm(l); return; }
+    if (e.target.closest('[data-meu-new]')) { fillMeuForm(null); formMeu.elements.texto.focus(); }
+  });
+  $('#btn-meu-cancelar').addEventListener('click', () => dlgMeu.close());
+  $('#dlg-meu-close').addEventListener('click', () => dlgMeu.close());
+  dlgMeu.addEventListener('close', () => { meuAtual = null; });
+
+  // ---------- empresas ----------
+  const EMP_COLS = 'minmax(0,1.7fr) 120px minmax(0,0.8fr) minmax(0,1.7fr) minmax(0,1.5fr) 84px';
+  function visibleDpEmpresas() {
+    const gap = GAPS.find(g => g.v === state.dpGap);
+    const list = empresasCarteira()
+      .filter(e => (!state.dpTrib || e.tributacao === state.dpTrib) && (!state.dpSit || e.situacao === state.dpSit) && (!gap || gap.test(e)))
+      .filter(e => matchQ([e.nome, e.cnpj, cnpjClean(e.cnpj), e.cod, e.codigoDominio, e.uf, e.responsavel, e.contato], state.dpQuery))
+      .filter(e => !state.dpEmpFaixa || (EMP_FAIXAS.find(f => f.k === state.dpEmpFaixa)?.test(e) ?? true));
+    const s = state.dpSort;
+    if (s === 'resp') return list.sort((a, b) => (a.responsavel || '~').localeCompare(b.responsavel || '~', 'pt-BR') || byNome(a, b));
+    if (s === 'prox') return list.map(e => [e, proxEmpresa(e)]).sort((a, b) => ((a[1] ? a[1].d.getTime() : Infinity) - (b[1] ? b[1].d.getTime() : Infinity)) || byNome(a[0], b[0])).map(x => x[0]);
+    return list.sort(byNome);
+  }
+  // Faixa de filtros rápidos no topo da aba
+  const EMP_FAIXAS = [
+    { k:'ativas', l:'Ativas', cls:'ok', test: e => e.situacao === 'Ativa' },
+    { k:'semresp', l:'Sem responsável', cls:'late', test: e => !e.responsavel },
+    { k:'semdb', l:'Sem data-base', cls:'warn', test: e => !basesEmpresa(e).length },
+    { k:'incompleto', l:'Cadastro incompleto', cls:'warn', test: e => GAPS.some(g => g.test(e)) },
+    { k:'prox7', l:'Com data em 7 dias', cls:'info', test: e => { const p = proxEmpresa(e); return !!p && diffDays(p.d, hoje()) <= 7; } },
+  ];
+  function renderEmpFaixa() {
+    const base = empresasCarteira();
+    $('#dp-emp-faixa').innerHTML = state.dpLoaded && base.length ? EMP_FAIXAS.map(f => { const n = base.filter(f.test).length; return `<button type="button" class="emp-fx ${f.cls}${state.dpEmpFaixa === f.k ? ' on' : ''}${!n ? ' zero' : ''}" data-emp-faixa="${f.k}" aria-pressed="${state.dpEmpFaixa === f.k}"><i></i><span>${f.l}</span><b>${n}</b></button>`; }).join('') : '';
+  }
+  $('#dp-emp-faixa').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-faixa]'); if (b) { state.dpEmpFaixa = state.dpEmpFaixa === b.dataset.empFaixa ? '' : b.dataset.empFaixa; renderDp(); } });
+  $('#dp-emp-sort').addEventListener('change', (e) => { state.dpSort = e.target.value; renderDp(); });
+  $('#dp-filtros-limpar').addEventListener('click', () => { state.dpTrib = ''; state.dpSit = ''; state.dpGap = ''; renderDp(); });
+  function renderEmpHead() {
+    const s = state.dpSort;
+    const sb = (k, l) => `<button type="button" data-sort="${k}" class="${s === k ? 'on' : ''}" aria-pressed="${s === k}">${l}${s === k ? ' ↓' : ''}</button>`;
+    $('#dp-emp-head').innerHTML = `${sb('nome','Empresa')}<span>Tributação</span>${sb('resp','Responsável')}<span>Convenção</span>${sb('prox','Próxima data')}<span>Situação</span>`;
+  }
+  $('#dp-emp-head').addEventListener('click', (e) => { const b = e.target.closest('[data-sort]'); if (b) { state.dpSort = b.dataset.sort; renderDp(); } });
+  function refreshEmpFilters() {
+    const trib = [...new Set([...TRIBUTACOES, ...state.dpEmpresas.map(e => e.tributacao).filter(Boolean)])];
+    $('#dp-filtro-trib').innerHTML = '<option value="">Toda tributação</option>' + trib.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    $('#dp-filtro-trib').value = state.dpTrib;
+    $('#dp-filtro-sit').value = state.dpSit;
+    $('#dp-filtro-gap').innerHTML = '<option value="">Qualquer cadastro</option>' + GAPS.map(g => `<option value="${g.v}">${escapeHtml(g.l)}</option>`).join('');
+    $('#dp-filtro-gap').value = state.dpGap;
+  }
+  const AV_CORES = ['#3C659B','#2F6FB5','#6BAAC9','#C2000C','#550E0B','#4F8CB8'];
+  const corDe = (txt) => { let h = 0; for (const c of norm(txt)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return AV_CORES[h % AV_CORES.length]; };
+  const iniciais = (txt) => String(txt || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  // Convenção que vale para a empresa: “nome curto · data-base” ou o motivo de não ter.
+  function empConvTxt(e) {
+    const ss = empresaSinds(e).filter(x => !ehSemSind(x));
+    const v = empresaCcts(e)[0];
+    const bases = basesEmpresa(e);
+    if (v) return { txt: `${tituloCurto(v.cct)}${v.cct.dataBase || bases[0] ? ' · data-base ' + (v.cct.dataBase || bases[0]).toLowerCase() : ''}`, ok: true };
+    if (ss.length) return { txt: `${rotuloSind(ss[0])} · sem convenção cadastrada`, ok: false };
+    return { txt: bases.length ? `Sem sindicato · data-base ${bases.join(', ').toLowerCase()}` : 'Sem sindicato vinculado', ok: false };
+  }
+  function empCardHtml(e, k = 0) {
+    const falhas = GAPS.filter(g => g.test(e));
+    const pct = Math.round((GAPS.length - falhas.length) / GAPS.length * 100);
+    const inv = e.cnpj && !cnpjValido(e.cnpj);
+    const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
+    const tip = pct < 100 ? `Cadastro ${pct}% completo\nFalta: ${falhas.map(g => g.l.replace(/^Sem /, '').toLowerCase()).join(', ')}` : 'Cadastro completo';
+    const av0 = e.responsavel ? `<span class="avatar" style="--av:${corDe(e.responsavel)}" ${tipAttr(`Responsável: ${e.responsavel}\n${tip}`)}>${escapeHtml(iniciais(e.responsavel))}</span>` : `<span class="avatar" style="--av:var(--ink-3)" ${tipAttr(`Sem responsável\n${tip}`)}>?</span>`;
+    // anel em volta do responsável: quanto do cadastro está preenchido
+    const av = `<span class="emp-anel" style="--p:${pct};--c:${pct === 100 ? 'var(--dp-ok)' : pct < 60 ? 'var(--dp-late)' : 'var(--dp-today)'}">${av0}</span>`;
+    // No cartão: só o sindicato (sem data-base nem convenção) e a tributação.
+    const ss = empresaSinds(e).filter(x => !ehSemSind(x)), cct = empresaCcts(e)[0];
+    const sind = ss.length ? rotuloSind(ss[0]) + (ss.length > 1 ? ` +${ss.length - 1}` : '') : cct ? tituloCurto(cct.cct) : '';
+    return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
+      <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
+      <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem sindicato')}</span></div>
+      ${e.tributacao ? `<div class="emp-tags"><span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span></div>` : ''}
+      <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
+    </div>`;
+  }
+  $('#dp-emp-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-modo]'); if (b) { state.dpEmpModo = b.dataset.empModo; state.prefs.dpEmpModo = state.dpEmpModo; savePrefs(); renderDp(); } });
+  function renderDp() {
+    refreshEmpFilters();
+    renderEmpHead();
+    renderEmpFaixa();
+    $('#dp-emp-sort').value = state.dpSort;
+    { const nf = [state.dpTrib, state.dpSit, state.dpGap].filter(Boolean).length; const bn = $('#dp-filtros-n'); bn.hidden = !nf; bn.textContent = nf; $('#dp-filtros-btn').classList.toggle('filtro-on', !!nf); $('#dp-filtros-limpar').hidden = !nf; }
+    const cards = state.dpEmpModo === 'cards' && state.dpLoaded && state.dpEmpresas.length > 0;
+    $$('[data-emp-modo]').forEach(b => { const on = b.dataset.empModo === state.dpEmpModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    $('#dp-emp-listcard').hidden = cards;
+    $('#dp-emp-cards').hidden = !cards;
+    const list = visibleDpEmpresas();
+    const base = empresasCarteira().length;
+    const filtered = !!(state.dpQuery || state.dpTrib || state.dpSit || state.dpGap || state.dpEmpFaixa);
+    [['#dp-search', state.dpQuery], ['#dp-filtro-trib', state.dpTrib], ['#dp-filtro-sit', state.dpSit], ['#dp-filtro-gap', state.dpGap]].forEach(([sel, v]) => $(sel).classList.toggle('filtro-on', !!v));
+    $('#dp-count').textContent = filtered ? `${list.length} de ${base} empresa(s)` : `${base} empresa(s)`;
+    const container = $('#dp-list');
+    if (!state.dpLoaded) { container.innerHTML = ''; return; }
+    if (!state.dpEmpresas.length) { container.innerHTML = `<div class="dp-empty"><strong>Nenhuma empresa cadastrada</strong><span>Use “Nova empresa” ou importe um backup do DP.</span></div>`; return; }
+    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa encontrada com esses filtros.</div>'; if (cards) { $('#dp-emp-cards').innerHTML = `<div class="list-card" style="grid-column:1/-1;margin:0">${container.innerHTML}</div>`; } return; }
+    const anim = dpAnim('empresas');
+    if (cards) {
+      // Ao filtrar ou reordenar, cada cartão desliza da posição antiga para a nova.
+      const box = $('#dp-emp-cards');
+      const antes = new Map(anim || semMovimento() || list.length > 160 ? [] : $$('.emp-card', box).map(c => [c.dataset.openEmp, c.getBoundingClientRect()]));
+      box.innerHTML = list.map((e, i) => empCardHtml(e, i)).join('');
+      marcarAnim(box, anim);
+      if (antes.size) $$('.emp-card', box).forEach(c => {
+        const a = antes.get(c.dataset.openEmp), d = c.getBoundingClientRect();
+        if (!a) { c.animate([{ opacity: 0, transform: 'scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: 'ease-out' }); return; }
+        const dx = a.left - d.left, dy = a.top - d.top;
+        if (dx || dy) c.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      });
+      return;
+    }
+    marcarAnim(container, anim);
+    container.innerHTML = list.map(e => {
+      const p = proxEmpresa(e);
+      const inv = e.cnpj && !cnpjValido(e.cnpj);
+      const sub = [e.cnpj ? `<span class="dp-mono"${inv ? ' style="color:var(--dp-late)" title="CNPJ/CPF inválido"' : ''}>${escapeHtml(e.cnpj)}</span>` : '', e.cod ? `cód. ${escapeHtml(e.cod)}` : '', e.uf ? escapeHtml(e.uf) : ''].filter(Boolean).join(' · ');
+      return `<div class="dp-row" style="--cols:${EMP_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}">
+        <div><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>
+        <div class="dp-hide-sm dp-cell-sub" style="font-size:12px">${escapeHtml(e.tributacao || '—')}</div>
+        <div class="dp-hide-sm">${escapeHtml(e.responsavel || '—')}${coberturaDe(e).coberta ? `<div class="dp-cell-sub" title="Cobertura por ausência de ${escapeHtml(e.responsavel)}">hoje: ${escapeHtml(coberturaDe(e).efetivo)}</div>` : ''}</div>
+        <div class="dp-hide-sm"><span class="dp-cell-sub emp-conv-l${empConvTxt(e).ok ? '' : ' sem'}">${escapeHtml(empConvTxt(e).txt)}</span></div>
+        <div class="dp-hide-sm" style="min-width:0">${p ? `<div class="dp-prox">${pillRel(p.d)}<span class="dp-cell-sub" title="${escapeHtml(p.titulo)}">${escapeHtml(p.titulo)}</span></div>` : '<span class="dp-cell-sub">—</span>'}</div>
+        <div>${ativa(e) ? '<span class="dp-cell-sub">Ativa</span>' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
+      </div>`;
+    }).join('');
+  }
+  $('#dp-search').addEventListener('input', (e) => { state.dpQuery = e.target.value.trim(); renderDp(); });
+  $('#dp-filtro-trib').addEventListener('change', (e) => { state.dpTrib = e.target.value; renderDp(); });
+  $('#dp-filtro-sit').addEventListener('change', (e) => { state.dpSit = e.target.value; renderDp(); });
+  $('#dp-filtro-gap').addEventListener('change', (e) => { state.dpGap = e.target.value; renderDp(); });
+
+  // ---------- funcionários ----------
+  const FUNC_FILTROS = [['','Todos'],['alerta','Com alerta'],['Ativo','Ativos'],['Férias','Em férias'],['Afastado','Afastados'],['Desligado','Desligados']];
+  const FUNC_COLS = 'minmax(0,1.6fr) minmax(0,1.4fr) 96px 104px minmax(0,1.8fr)';
+  function allFuncionarios() {
+    return empresasCarteira().flatMap(e => e.funcionarios.map(f => ({ f, e, status: funcStatus(f), alertas: funcAlertas(f), prox: funcProx(f) })));
+  }
+  $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); renderDpFuncionarios(); });
+  $('#dp-func-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpFuncFiltro = c.dataset.f; renderDpFuncionarios(); } });
+  // ---------- funcionários: linha do tempo ----------
+  // Janela: 2 semanas para trás e ~3 meses para frente. Cores seguem as situações do Painel (férias = laranja, desligamento = verde-água).
+  const TL_ANTES = 14, TL_DEPOIS = 90;
+  function funcBarras(f) {
+    const out = [];
+    const adm = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
+    const corta = (d) => res && res < d ? res : d;
+    if (adm && !(res && res < adm)) {
+      const e1 = addDays(adm, 44), e2 = addDays(adm, 89);
+      out.push({ cls:'exp', a:adm, b:corta(e1), nome:'Experiência · 1º período', det:`${fmtDMY(adm)} a ${fmtDMY(e1)}` });
+      if (!res || res > e1) out.push({ cls:'exp2', a:addDays(adm, 45), b:corta(e2), nome:'Experiência · prorrogação', det:`${fmtDMY(addDays(adm, 45))} a ${fmtDMY(e2)}` });
+    }
+    if (fi && ff && ff >= fi && !(res && fi > res)) out.push({ cls:'fer', a:fi, b:ff, nome:'Férias', det:`${fmtDMY(fi)} a ${fmtDMY(ff)} (${diffDays(ff, fi) + 1} dias)\nPagar até ${fmtDMY(addDays(fi, -2))}` });
+    if (res) out.push({ cls:'res', a:res, b:addDays(res, 10), nome:'Rescisão', det:`Último dia ${fmtDMY(res)}\nPagar até ${fmtDMY(addDays(res, 10))}` });
+    const conc = funcEventos(f).find(ev => ev.tipo === 'concessivo');
+    if (conc) { const late = conc.d < hoje(); out.push({ mark:true, late, a:conc.d, b:conc.d, nome: late ? 'Férias vencidas' : 'Fim do período concessivo', det: late ? `O concessivo encerrou em ${fmtDMY(conc.d)}` : `Conceder férias até ${fmtDMY(conc.d)}` }); }
+    return out;
+  }
+  function timelineHtml(list) {
+    const t = hoje(), from = addDays(t, -TL_ANTES), to = addDays(t, TL_DEPOIS), span = diffDays(to, from) + 1;
+    const pos = (d) => Math.min(100, Math.max(0, diffDays(d, from) / span * 100));
+    const meses = [];
+    for (let d = new Date(from.getFullYear(), from.getMonth() + 1, 1); d <= to; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) meses.push(d);
+    const grade = meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%"></div>`).join('') + `<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div>`;
+    const head = `<div class="tl-row tl-head"><div class="tl-name" style="cursor:default"><span class="dp-cell-sub" style="font-weight:600">Funcionário</span></div><div class="tl-track"><div class="tl-month" style="left:0;border-left:0">${MESES[from.getMonth()].slice(0, 3)}</div>${meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%">${MESES[d.getMonth()].slice(0, 3)}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</div>`).join('')}<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div></div></div>`;
+    let semDatas = 0;
+    let ri = 0;
+    const rows = list.map(({ f, e, status }) => {
+      const marcas = funcBarras(f).filter(m => m.mark ? (m.late || (m.a >= from && m.a <= to)) : (m.b >= from && m.a <= to));
+      if (!marcas.length) { semDatas++; if (!state.dpFuncTodos) return ''; }
+      const quem = `${f.nome || 'Funcionário'} · ${e.nome}`;
+      const els = marcas.map(m => {
+        const tip = `${m.nome}\n${quem}\n${m.det}\nClique para abrir`;
+        if (m.mark) return `<button type="button" class="tl-mark${m.late ? ' late' : ''}" style="left:${(m.late && m.a < from ? 0.8 : pos(m.a)).toFixed(2)}%" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" ${tipAttr(tip)}></button>`;
+        const l = pos(m.a < from ? from : m.a), r = pos(addDays(m.b > to ? to : m.b, 1));
+        return `<button type="button" class="tl-bar ${m.cls}" style="left:${l.toFixed(2)}%;width:calc(${Math.max(0.6, r - l).toFixed(2)}% - 2px)" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" ${tipAttr(tip)}></button>`;
+      }).join('');
+      return `<div class="tl-row" style="--k:${Math.min(ri++, 24)}"><button type="button" class="tl-name" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios"><span class="dp-cell-main">${escapeHtml(f.nome || 'Funcionário')}</span><span class="dp-cell-sub">${escapeHtml(status)} · ${escapeHtml(e.nome)}</span></button><div class="tl-track">${grade}${els}</div></div>`;
+    }).join('');
+    const legenda = `<div class="legend"><span><i style="background:var(--viz-1)"></i>Experiência</span><span><i style="background:color-mix(in srgb, var(--viz-1) 60%, var(--surface))"></i>Prorrogação</span><span><i style="background:var(--viz-2)"></i>Férias</span><span><i style="background:var(--viz-3)"></i>Rescisão até o pagamento</span><span><i class="dia" style="background:var(--dp-today)"></i>Fim do concessivo</span><span><i class="dia" style="background:var(--dp-late)"></i>Férias vencidas</span><span><i class="line" style="background:var(--ink)"></i>Hoje</span></div>`;
+    const toggle = semDatas ? `<button type="button" class="pn-link" data-func-todos>${state.dpFuncTodos ? 'Esconder quem não tem datas no período' : `Mostrar também ${semDatas} sem datas no período`}</button>` : '';
+    const corpo = rows || `<div class="dp-empty">Ninguém com experiência, férias ou rescisão entre ${fmtDM(from)} e ${fmtDM(to)}.</div>`;
+    return `<div class="tl-card"><div class="tl-inner" data-de="${ymd(from)}" data-span="${span}">${head}${corpo}<div class="tl-regua" aria-hidden="true"><span></span></div></div></div><div class="tl-foot">${legenda}${toggle}</div>`;
+  }
+  $('#dp-func-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-func-modo]'); if (b) { state.dpFuncModo = b.dataset.funcModo; state.prefs.dpFuncModo = state.dpFuncModo; savePrefs(); renderDpFuncionarios(); } });
+  // Régua que acompanha o mouse na linha do tempo, com a data exata.
+  $('#dp-func-tl').addEventListener('mousemove', (e) => {
+    const inner = $('.tl-inner', e.currentTarget), reg = inner && $('.tl-regua', inner), trilho = inner && $('.tl-head .tl-track', inner);
+    if (!reg || !trilho) return;
+    const r = trilho.getBoundingClientRect(), ri = inner.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right) { reg.classList.remove('on'); return; }
+    const d = addDays(parseYmd(inner.dataset.de), Math.floor((e.clientX - r.left) / r.width * +inner.dataset.span));
+    reg.style.left = (e.clientX - ri.left) + 'px';
+    reg.firstChild.textContent = `${fmtDM(d)} · ${wd(d)}`;
+    reg.classList.add('on');
+  });
+  $('#dp-func-tl').addEventListener('mouseleave', (e) => { const reg = $('.tl-regua', e.currentTarget); if (reg) reg.classList.remove('on'); });
+  $('#dp-func-tl').addEventListener('click', (e) => { if (e.target.closest('[data-func-todos]')) { e.stopPropagation(); state.dpFuncTodos = !state.dpFuncTodos; renderDpFuncionarios(); } });
+  function renderDpFuncionarios() {
+    const container = $('#dp-func-list');
+    if (!state.dpLoaded) { container.innerHTML = ''; return; }
+    const all = allFuncionarios().filter(x => matchQ([x.f.nome, x.f.cargo, x.status, x.e.nome, x.f.obs], state.dpFuncQuery));
+    const passa = (x, f) => !f ? true : f === 'alerta' ? x.alertas.length > 0 : x.status === f;
+    $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${all.filter(x => passa(x, v)).length}</span></button>`).join('');
+    const list = all.filter(x => passa(x, state.dpFuncFiltro)).sort((a, b) => (b.alertas.length ? 1 : 0) - (a.alertas.length ? 1 : 0) || (a.prox ? 0 : 1) - (b.prox ? 0 : 1) || (a.prox && b.prox ? a.prox.d - b.prox.d : 0) || (a.f.nome || '').localeCompare(b.f.nome || '', 'pt-BR'));
+    $('#dp-func-count').textContent = `${list.length} funcionário(s)`;
+    if (!all.length) { $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false; container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return; }
+    const tempo = state.dpFuncModo === 'tempo' && list.length > 0;
+    $$('[data-func-modo]').forEach(b => { const on = b.dataset.funcModo === state.dpFuncModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    $('#dp-func-tl').hidden = !tempo;
+    $('#dp-func-listcard').hidden = tempo;
+    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nada neste filtro.</div>'; return; }
+    const anim = dpAnim('funcionarios');
+    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); marcarAnim($('#dp-func-tl'), anim, 'dp-anim', 2400); return; }
+    marcarAnim(container, anim);
+    container.innerHTML = list.map(({ f, e, status, alertas, prox }) => {
+      const a = alertas[0];
+      const ev = a || prox;
+      return `
+      <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
+        <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
+        <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${nomeEmpHtml(e)}</div>
+        <div class="dp-hide-sm dp-mono" style="font-size:12px">${f.admissao ? escapeHtml(fmtDateStr(f.admissao)) : '—'}</div>
+        <div><span class="pill ${FUNC_PILL[status] || ''}">${escapeHtml(status)}</span></div>
+        <div class="dp-hide-sm">${ev ? `<div class="dp-cell-sub" style="font-size:12px;color:var(--ink-2);white-space:normal">${a ? '<span class="al-dot ' + (a.nivel === 'soon' ? '' : a.nivel) + '" style="display:inline-block;margin-right:5px"></span>' : ''}${escapeHtml(ev.txt)} ${pillRel(ev.d, a?.nivel === 'late' ? 'late' : undefined)}</div>` : '<span class="dp-cell-sub">—</span>'}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- arquivos ----------
+  async function offerFile(filename, data, mime) {
+    if (downloads) { try { await downloads.save({ filename, data }); } catch (e) { if (e?.code !== 'declined') toast('Não foi possível gerar o arquivo aqui.'); } return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: mime })); a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  // Separador ';' e BOM para o Excel em português; prefixo contra fórmulas injetadas.
+  function toCsv(rows) {
+    const cell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    return '﻿' + rows.map(r => r.map(cell).join(';')).join('\r\n');
+  }
+  const hojeArq = () => ymd(new Date());
+  $('#dp-btn-csv').addEventListener('click', () => {
+    const rows = [['Código','Empresa','CNPJ','Tributação','Responsável','Cidade/UF','Data-base','Situação','Funcionários ativos','Próxima data','O quê','Contato','Adiantamento']];
+    visibleDpEmpresas().forEach(e => { const p = proxEmpresa(e); rows.push([e.cod, e.nome, e.cnpj, e.tributacao, e.responsavel, e.uf, basesEmpresa(e).join(', '), e.situacao, e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, p ? fmtDMY(p.d) : '', p?.titulo || '', e.contato, e.adiantamento]); });
+    offerFile(`dp-empresas-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  $('#dp-btn-func-csv').addEventListener('click', () => {
+    const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Férias início','Férias fim','Rescisão','Próxima data','O quê']];
+    allFuncionarios().forEach(({ f, e, status, prox }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), status, fmtDateStr(f.feriasInicio), fmtDateStr(f.feriasFim), fmtDateStr(f.rescisao), prox ? fmtDMY(prox.d) : '', prox?.txt || '']));
+    offerFile(`dp-funcionarios-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  $('#dp-btn-export').addEventListener('click', () => {
+    const json = JSON.stringify({ app:'control-hub', kind:'dp_empresas', exportedAt:new Date().toISOString(), empresas: state.dpEmpresas, prazosGerais: state.dpGerais, sindicatos: state.dpSind, convencoes: state.dpCcts, equipe: state.dpEquipe, cobertura: state.dpCob }, null, 2);
+    offerFile(`control-hub-dp-${hojeArq()}.json`, json, 'application/json');
+  });
+  $('#dp-import-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file || state.readOnly) return;
+    let empresas, gerais = [], sinds = [], equipe = [], cob = null, cctsImp = [];
+    try { const json = JSON.parse(await file.text()); empresas = Array.isArray(json) ? json : json.empresas; gerais = Array.isArray(json.prazosGerais) ? json.prazosGerais : []; sinds = Array.isArray(json.sindicatos) ? json.sindicatos : []; cctsImp = Array.isArray(json.convencoes) ? json.convencoes : []; equipe = Array.isArray(json.equipe) ? json.equipe : []; cob = json.cobertura || null; if (!Array.isArray(empresas)) throw new Error(); }
+    catch { toast('Arquivo inválido: use um backup JSON exportado pelo Control Hub.'); return; }
+    const mode = await ask(`Importar ${empresas.length} empresa(s) no módulo DP.\nSubstituir a lista atual ou juntar com ela?`, [{label:'Cancelar',value:null},{label:'Juntar',value:'merge'},{label:'Substituir',value:'replace',kind:'btn-danger'}]);
+    if (!mode) return;
+    const incoming = empresas.map(normalizeDpEmpresa);
+    let removed = [];
+    if (mode === 'replace') { const keep = new Set(incoming.map(x => x.id)); removed = state.dpEmpresas.filter(x => !keep.has(x.id)).map(x => x.id); state.dpEmpresas = incoming; }
+    else { const ids = new Set(state.dpEmpresas.map(x => x.id)); const base = Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1; incoming.forEach((x, i) => { if (ids.has(x.id)) x.id = uid(); x.order = base + i; state.dpEmpresas.push(x); }); }
+    const novosGerais = !state.dpGerais.length && gerais.length ? normalizeGerais(gerais) : null;
+    if (novosGerais) state.dpGerais = novosGerais;
+    // Sindicatos entram pelo código (os que já existem ficam como estão); equipe e ausências só se ainda estiverem vazias.
+    const codsAtuais = new Set(state.dpSind.map(x => x.cod).filter(Boolean));
+    const sindsNovos = normalizeSinds(sinds).filter(x => !x.cod || !codsAtuais.has(x.cod)).map(x => { if (state.dpSind.some(y => y.id === x.id)) x.id = uid(); return x; });
+    if (sindsNovos.length) state.dpSind = [...state.dpSind, ...sindsNovos];
+    const equipeNova = !state.dpEquipe.length && equipe.length ? normalizeEquipe(equipe) : null;
+    if (equipeNova) state.dpEquipe = equipeNova;
+    const cobNova = !state.dpCob.ausencias.length && cob ? normalizeCob(cob) : null;
+    const cctsNovas = normalizeCcts(cctsImp).filter(x => !state.dpCcts.some(y => y.id === x.id));
+    if (cctsNovas.length) state.dpCcts = [...state.dpCcts, ...cctsNovas];
+    if (cobNova) state.dpCob = cobNova;
+    renderDpActiveView();
+    await persist(async () => {
+      await dpStore.saveMany(incoming); for (const id of removed) await dpStore.deleteOne(id);
+      if (novosGerais) await geraisStore.save(novosGerais);
+      if (sindsNovos.length) await sindStore.save(JSON.parse(JSON.stringify(state.dpSind)));
+      if (equipeNova) await equipeStore.save(equipeNova);
+      if (cobNova) await cobStore.save(JSON.parse(JSON.stringify(cobNova)));
+      if (cctsNovas.length) await cctStore.save(JSON.parse(JSON.stringify(state.dpCcts)));
+    });
+    toast(`${incoming.length} empresa(s) importada(s).${[novosGerais && ' Prazos gerais', sindsNovos.length && ` ${sindsNovos.length} sindicato(s)`, equipeNova && ' Equipe', cobNova && ' Ausências'].filter(Boolean).join(',')}${novosGerais || sindsNovos.length || equipeNova || cobNova ? ' também.' : ''}`);
+  });
+
+  // ---------- nomes de quem fez (resolvidos na hora, nunca gravados) ----------
+  async function fillNames(root) {
+    const els = $$('[data-uid]', root).filter(el => el.dataset.uid);
+    if (!els.length || !userNs) return;
+    let ps = {};
+    try { ps = await userNs.profiles([...new Set(els.map(el => el.dataset.uid))]); } catch { return; }
+    els.forEach(el => {
+      const n = ps[el.dataset.uid]?.name || '';
+      el.textContent = n || 'Alguém da equipe';
+    });
+  }
+
+  // ---------- janela da empresa ----------
+  let dpAtual = null, dpDraft = false, dpEdit = null, dpDtab = 'dados';
+  const dlgDetail = $('#dlg-dp-detail');
+  const MAIN_FIELDS = [
+    ['dp-nome','nome','Nome'], ['dp-cod','cod','Código'], ['dp-cnpj','cnpj','CNPJ'], ['dp-codigo-dominio','codigoDominio','Código Domínio'],
+    ['dp-tributacao','tributacao','Tributação'], ['dp-situacao','situacao','Situação'], ['dp-responsavel','responsavel','Responsável'],
+    ['dp-uf','uf','Cidade/UF'], ['dp-data-base','dataBase','Data-base'], ['dp-contato','contato','Contato do cliente'], ['dp-capital','capitalSocial','Capital social'], ['dp-assoc-patronal','assocPatronal','Associada ao sindicato patronal'],
+    ['dp-adiantamento','adiantamento','Adiantamento salarial'], ['dp-fechamento','fechamento','o procedimento de fechamento', true], ['dp-observacoes','observacoes','as observações gerais', true],
+  ];
+  const SEC_NOME = { lembretes:'lembrete', estabelecimentos:'estabelecimento', rubricas:'rubrica', rpa:'RPA', pensao:'pensão', prazos:'prazo', historico:'nota', funcionarios:'funcionário', gerais:'prazo geral' };
+
+  function fillSelect(sel, opts, value, emptyLabel) {
+    const list = [...opts];
+    if (value && !list.includes(value)) list.push(value);
+    sel.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>` + list.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+    sel.value = value || '';
+  }
+  function fillMainFields(onlyUnfocused) {
+    const e = dpAtual;
+    MAIN_FIELDS.forEach(([id, key]) => {
+      const el = $('#' + id);
+      if (onlyUnfocused && document.activeElement === el) return;
+      if (key === 'tributacao') fillSelect(el, TRIBUTACOES, e.tributacao, '—');
+      else if (key === 'dataBase') fillSelect(el, MESES, e.dataBase, '—');
+      else if (key === 'assocPatronal') fillSelect(el, ['Sim', 'Não'], e.assocPatronal, '—');
+      else el.value = e[key] ?? '';
+    });
+    updateCnpjHint();
+  }
+  function updateDetailHeader() {
+    $('#dp-detail-title').innerHTML = dpDraft ? escapeHtml(dpAtual.nome || 'Nova empresa') : nomeEmpHtml(dpAtual);
+    const h = !dpDraft && dpAtual.historico[0];
+    const last = $('#dp-last');
+    last.innerHTML = h ? `Última alteração: ${escapeHtml(h.alteracao || '')} · ${h.autor ? `<span data-uid="${escapeHtml(h.autor)}">Alguém da equipe</span> · ` : ''}${escapeHtml(h.data || '')}` : '';
+    last.title = last.textContent;
+    fillNames(last);
+    const sit = $('#dp-detail-sit');
+    sit.className = `pill ${SIT_PILL[dpAtual.situacao] || ''}`;
+    sit.textContent = dpDraft ? 'Rascunho' : dpAtual.situacao;
+    $('#dp-dtab-n-func').textContent = dpAtual.funcionarios.length ? ` ${dpAtual.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length}` : '';
+    const nPrazos = dpAtual.lembretes.filter(l => { const d = parseYmd(l.data); return d && d >= hoje(); }).length + dpAtual.prazos.length;
+    $('#dp-dtab-n-prazos').textContent = nPrazos ? ` ${nPrazos}` : '';
+    $('#btn-dp-criar').hidden = !dpDraft;
+    $('#btn-dp-excluir').hidden = dpDraft;
+    $('#btn-dp-fechar').textContent = dpDraft ? 'Descartar' : 'Fechar';
+  }
+  function updateCnpjHint() {
+    const v = $('#dp-cnpj').value, hint = $('#dp-cnpj-hint'), c = cnpjClean(v);
+    hint.className = 'field-hint'; hint.textContent = '';
+    if (!c) return;
+    if (cpfValido(v)) { hint.textContent = 'CPF válido (empregador doméstico).'; return; }
+    if (c.length < 14) { hint.textContent = c.length === 11 ? '11 dígitos: CPF inválido, ou continue digitando o CNPJ' : `${c.length}/14 caracteres`; return; }
+    if (!cnpjValido(v)) { hint.className = 'field-hint err'; hint.textContent = 'CNPJ/CPF inválido: confira os dígitos.'; return; }
+    const dup = state.dpEmpresas.find(x => x.id !== dpAtual?.id && cnpjClean(x.cnpj) === c);
+    if (dup) { hint.className = 'field-hint warn'; hint.textContent = `Já cadastrado em “${dup.nome}”.`; }
+  }
+  function setDtab(tab) {
+    dpDtab = tab;
+    $$('.dtab', dlgDetail).forEach(t => { const on = t.dataset.dtab === tab; t.classList.toggle('active', on); t.setAttribute('aria-selected', String(on)); t.tabIndex = on ? 0 : -1; });
+    $$('.dpanel', dlgDetail).forEach(p => { p.hidden = p.dataset.dpanel !== tab; });
+  }
+  $('#dp-dtabs').addEventListener('click', (e) => { const t = e.target.closest('.dtab'); if (t) setDtab(t.dataset.dtab); });
+
+  const addAbertos = new Set();
+  function openDpDetail(empresa, { tab, draft } = {}) {
+    dpAtual = empresa; dpDraft = !!draft; dpEdit = null;
+    addAbertos.clear();
+    fillMainFields(false);
+    $$('[data-field]', dlgDetail).forEach(i => { i.value = ''; });
+    renderDetail();
+    setDtab(tab || 'dados');
+    const ro = state.readOnly;
+    $('#dp-ro-note').hidden = !ro;
+    MAIN_FIELDS.forEach(([id]) => { $('#' + id).disabled = ro; });
+    if (!dlgDetail.open) dlgDetail.showModal();
+    dlgDetail.querySelector('.dlg-body').scrollTop = 0;
+    syncRoute();
+  }
+  function logHist(text) {
+    dpAtual.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: text, autor: state.meId || '' });
+    if (dpAtual.historico.length > 200) dpAtual.historico.length = 200;
+  }
+  function saveEmpresaFields(fields, histText) {
+    if (histText && !dpDraft) { logHist(histText); fields.historico = dpAtual.historico; }
+    dpAtual.updatedAt = Date.now(); fields.updatedAt = dpAtual.updatedAt;
+    if (!dpDraft) { const id = dpAtual.id; persist(() => dpStore.updateFields(id, fields)); }
+    updateDetailHeader();
+    renderDpActiveView();
+  }
+  function commitMainField(elId) {
+    if (!dpAtual || state.readOnly) return;
+    const [, key, label, longo] = MAIN_FIELDS.find(f => f[0] === elId);
+    const el = $('#' + elId);
+    let v = el.value.trim();
+    if (key === 'nome' && !v && !dpDraft) { el.value = dpAtual.nome; toast('O nome da empresa não pode ficar vazio.'); return; }
+    if (key === 'responsavel') { v = canonResp(v); el.value = v; }
+    if (key === 'cnpj') { v = fmtCnpj(v); el.value = v; updateCnpjHint(); }
+    const old = dpAtual[key] ?? '';
+    if (old === v) return;
+    dpAtual[key] = v;
+    saveEmpresaFields({ [key]: v }, longo ? `Alterou ${label}` : `${label}: ${old || '—'} → ${v || '—'}`);
+    renderDetailSec('historico');
+    if (key === 'situacao' || key === 'dataBase') refreshDetailDatas();
+  }
+  MAIN_FIELDS.forEach(([id]) => $('#' + id).addEventListener('change', () => commitMainField(id)));
+  $('#dp-nome').addEventListener('input', () => { if (dpDraft) { dpAtual.nome = $('#dp-nome').value.trim(); updateDetailHeader(); } });
+  $('#dp-cnpj').addEventListener('input', (e) => { const el = e.target; const raw = el.value; if (/^[0-9A-Za-z.\/\-\s]*$/.test(raw)) el.value = maskCnpj(raw); updateCnpjHint(); });
+  dlgDetail.addEventListener('input', (e) => { const el = e.target; if (el.matches('[data-cnpj]') && /^[0-9A-Za-z.\/\-\s]*$/.test(el.value)) el.value = maskCnpj(el.value); });
+
+  // Seções com linhas (estabelecimentos, rubricas, funcionários, prazos…): ver, editar, remover com desfazer.
+  function fieldInput(sec, f, val, scope) {
+    const v = String(val ?? '');
+    const attrs = `data-field="${f.key}" data-sec="${sec}" data-scope="${scope}"`;
+    let ctrl;
+    if (f.type === 'select' || f.type === 'regra') {
+      const opts = f.type === 'regra' ? [['', 'Automática'], ...REGRAS.map(r => [r.v, r.l])]
+        : [['', '—'], ...f.options.map(o => [o, o])];
+      if (v && !opts.some(o => o[0] === v)) opts.push([v, v]);
+      ctrl = `<select ${attrs}>${opts.map(([ov, ol]) => `<option value="${escapeHtml(ov)}"${ov === v ? ' selected' : ''}>${escapeHtml(ol)}</option>`).join('')}</select>`;
+    } else {
+      const type = f.type === 'date' ? 'date' : 'text';
+      const extra = f.type === 'dia' ? ' inputmode="numeric" maxlength="14" placeholder="Ex.: 20"' : f.type === 'money' ? ' inputmode="decimal" placeholder="0,00"' : f.type === 'cnpj' ? ' data-cnpj maxlength="18" placeholder="00.000.000/0000-00"' : '';
+      ctrl = `<input type="${type}" ${attrs} value="${escapeHtml(v)}"${extra}${f.list ? ` list="${f.list}" autocomplete="off"` : ''}>`;
+    }
+    return `<label class="field" style="flex:${f.width} 1 ${Math.round(f.width * 110)}px; min-width:0; font-size:10.5px">${escapeHtml(f.label)}${ctrl}</label>`;
+  }
+  function displayVal(f, v) {
+    if (f.type === 'regra') return escapeHtml(v ? regraLabel(v) || v : 'Automática');
+    if (!v) return '—';
+    if (f.uid) return `<span data-uid="${escapeHtml(v)}">Alguém da equipe</span>`;
+    if (f.type === 'date') return escapeHtml(fmtDateStr(v));
+    if (f.type === 'money') return escapeHtml(fmtBRL(v));
+    if (f.type === 'cnpj') return `<span class="dp-mono"${cnpjValido(v) ? '' : ' style="color:var(--dp-late)" title="CNPJ/CPF inválido"'}>${escapeHtml(v)}</span>`;
+    return escapeHtml(v);
+  }
+  function extraCells(sec, row) {
+    if (sec === 'prazos' || sec === 'gerais') {
+      const d = proxVenc(row);
+      return `<div class="dp-section-cell" style="flex:1.2"><span class="dp-section-cell-label">Próxima</span><span class="dp-section-cell-val"><span class="dp-mono">${d ? `${fmtDM(d)} ${wd(d)}` : 'informe o dia'}</span><br><span style="font-size:11px;color:var(--ink-3)">${escapeHtml(descreveRegra(row))}</span></span></div>`;
+    }
+    if (sec === 'funcionarios') {
+      const st = funcStatus(row); const al = funcAlertas(row)[0]; const ev = al || funcProx(row);
+      const rj = dpAtual && reajusteFunc(dpAtual, row);
+      return (rj ? `<div class="dp-section-cell" style="flex:1.4 1 150px"><span class="dp-section-cell-label">Reajuste pela CCT</span><span class="dp-section-cell-val" title="${escapeHtml(rj.cct.titulo)}">${escapeHtml(rj.txt)}</span></div>` : '') + `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[st] || ''}">${escapeHtml(st)}</span>${ev ? `<span style="display:block;font-size:11.5px;margin-top:3px${al && al.nivel !== 'soon' ? ';color:var(--dp-late)' : ''}">${escapeHtml(ev.txt)} <b>${fmtDM(ev.d)}</b></span>` : ''}</span></div>`;
+    }
+    if (sec === 'estabelecimentos') {
+      const cods = codigosDe(row), ss = estabSinds(row);
+      if (!cods.length) return state.dpSind.length ? '<div class="dp-section-cell" style="flex:1.6"><span class="dp-section-cell-label">Cadastro de sindicatos</span><span class="dp-section-cell-val" style="color:var(--ink-3)">sem código: vincule na aba Sindicatos</span></div>' : '';
+      const falta = cods.filter(c => !sindPorCod(c));
+      return `<div class="dp-section-cell" style="flex:1.6"><span class="dp-section-cell-label">Data-base pela CCT</span><span class="dp-section-cell-val">${ss.map(s => `<b>${escapeHtml(s.dataBase || 'sem data-base')}</b> · ${escapeHtml(rotuloSind(s))}${vigStatus(s).n !== null && vigStatus(s).n < 0 ? ' <span class="pill pill-late">CCT vencida</span>' : ''}`).join('<br>')}${falta.length ? `${ss.length ? '<br>' : ''}<span style="color:var(--dp-late)">código ${escapeHtml(falta.join(', '))} não cadastrado</span>` : ''}</span></div>`;
+    }
+    if (sec === 'lembretes') {
+      const d = parseYmd(row.data);
+      return d ? `<div class="dp-section-cell" style="flex:0 0 auto;align-self:center">${pillRel(d)}</div>` : '';
+    }
+    return '';
+  }
+  function sectionHtml(sec, cfg, items, note = '') {
+    const ro = state.readOnly;
+    const editable = sec !== 'historico';
+    const rows = items.map(row => {
+      if (dpEdit && dpEdit.sec === sec && dpEdit.id === row.id) {
+        return `<div class="dp-section-row editing" data-row="${escapeHtml(row.id)}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, row[f.key], 'edit')).join('')}<div class="dp-row-actions"><button type="button" class="btn btn-sm btn-primary" data-sec-save="${sec}" data-id="${escapeHtml(row.id)}">Salvar</button><button type="button" class="btn btn-sm" data-sec-cancel="${sec}">Cancelar</button></div></div>`;
+      }
+      const pelaCct = sec === 'estabelecimentos' && estabSinds(row).some(x => x.dataBase);
+      const cells = cfg.fields.filter((f, i) => (i === 0 || row[f.key] || f.type === 'regra' || f.uid) && !(pelaCct && f.key === 'dataBase')).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
+      const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
+      return `<div class="dp-section-row">${sec === 'estabelecimentos' ? cells + extraCells(sec, row) : extraCells(sec, row) + cells}${actions}</div>`;
+    }).join('');
+    const addRow = ro ? '' : addAbertos.has(sec)
+      ? `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<div class="dp-row-actions" style="align-self:flex-end"><button type="button" class="btn btn-sm btn-primary" data-sec-add="${sec}">${ic('plus', 'ic-sm')} Adicionar</button><button type="button" class="btn btn-sm" data-sec-fechar="${sec}">Fechar</button></div></div>`
+      : `<div class="dp-add-row"><button type="button" class="btn btn-sm" data-sec-abrir="${sec}">${ic('plus', 'ic-sm')} ${escapeHtml(cfg.addLabel)}</button></div>`;
+    return `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>${note ? `<div class="dp-sec-note">${note}</div>` : ''}<div class="dp-section-rows">${rows || '<div class="empty-mini">Nenhum registro.</div>'}</div>${addRow}`;
+  }
+  const SEC_NOTES = {
+    funcionarios: 'Os alertas usam estas datas: experiência 45+45 dias a partir da admissão; férias pelo período aquisitivo (atualize depois de conceder); pagamento de férias 2 dias antes do início; rescisão até 10 dias após o último dia.',
+    prazos: 'Datas que se repetem todo mês só nesta empresa (ex.: cliente envia as variáveis até o dia 25).',
+    lembretes: 'Datas únicas para não esquecer: combinados com o cliente, admissões previstas, reajustes, prazos de documentos.',
+    historico: 'Alterações feitas por aqui entram automaticamente. Use a nota para registrar combinados com o cliente.',
+  };
+  function captureInputs(root) { const m = {}; $$('[data-field]', root).forEach(i => { m[`${i.dataset.scope}|${i.dataset.sec}|${i.dataset.field}`] = i.value; }); return m; }
+  function restoreInputs(root, m) { $$('[data-field]', root).forEach(i => { const k = `${i.dataset.scope}|${i.dataset.sec}|${i.dataset.field}`; if (k in m) i.value = m[k]; }); }
+  function renderDetailSec(sec) {
+    if (!dpAtual) return;
+    const el = $(`#dp-section-${sec}`);
+    const keep = captureInputs(el);
+    el.innerHTML = sectionHtml(sec, DP_SECTIONS[sec], dpAtual[sec], SEC_NOTES[sec]);
+    if (sec === 'estabelecimentos') atualizaDbHint();
+    restoreInputs(el, keep);
+    fillNames(el);
+  }
+  function renderDetail() {
+    if (!dpAtual) return;
+    Object.keys(DP_SECTIONS).forEach(renderDetailSec);
+    atualizaDbHint();
+    renderDetailProx();
+    renderDetailGerais();
+    updateDetailHeader();
+    $$('[data-ro-hide]', dlgDetail).forEach(el => { if (el.id !== 'btn-dp-excluir') el.hidden = state.readOnly; });
+    if (state.readOnly) $('#btn-dp-excluir').hidden = true;
+  }
+  // Com sindicato vinculado, a data-base vem da CCT: o campo da empresa fica só como referência.
+  function atualizaDbHint() {
+    const h = $('#dp-db-hint'); if (!h || !dpAtual) return;
+    const ss = empresaSinds(dpAtual).filter(x => x.dataBase);
+    h.hidden = !ss.length;
+    const cv = empresaCcts(dpAtual)[0];
+    h.textContent = ss.length ? `Pela CCT: ${[...new Set(ss.map(x => x.dataBase))].join(', ')} (${ss.map(rotuloSind).join(', ')})${cv ? ` · ${cv.cct.titulo}, reajuste ${resumoReajuste(cctEfetiva(cv)) || '—'}` : ''}. Este campo só vale sem sindicato.` : '';
+  }
+  function renderDetailProx() {
+    evCacheClear();
+    const el = $('#dp-emp-prox');
+    const e = dpAtual, t = hoje();
+    if (dpDraft) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Crie a empresa para ver as datas dela.</div>'; return; }
+    if (!ativa(e)) { el.innerHTML = '<div class="dlg-section-title">Próximas datas</div><div class="empty-mini">Empresa inativa: fica fora da agenda e dos alertas. Os lembretes continuam abaixo.</div>'; return; }
+    const evs = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral' && ev.tipo !== 'lembrete').slice(0, 10);
+    const itens = evs.map(ev => `<div class="dp-occ dp-occ-btn" role="button" tabindex="0" ${ev.edit ? `data-edit="${escapeHtml(ev.edit)}"` : ''} title="${state.readOnly ? 'Ver' : 'Editar'}"><div>${pillRel(ev.d)}</div><div style="min-width:0"><div class="dp-cell-main" style="font-weight:500">${escapeHtml(ev.titulo)}</div><div class="dp-cell-sub">${fmtDM(ev.d)} ${wd(ev.d)}${ev.sub ? ' · ' + escapeHtml(ev.sub) : ''}</div></div>${state.readOnly ? '' : `<span class="dp-occ-go">${ic('edit', 'ic-sm')} Editar</span>`}</div>`).join('');
+    el.innerHTML = `<div class="dlg-section-title">Outras datas desta empresa <span class="dp-cell-sub" style="font-weight:500">rotinas, pessoal e data-base nos próximos 45 dias</span></div><div>${itens || '<div class="empty-mini">Nenhuma rotina, evento de pessoal ou data-base nos próximos 45 dias.</div>'}</div>`;
+  }
+  function refreshDetailDatas() { if (dpAtual && dlgDetail.open) { renderDetailProx(); renderDetailGerais(); renderDetailSec('prazos'); updateDetailHeader(); } }
+  function renderDetailGerais() {
+    const el = $('#dp-emp-gerais');
+    const gs = state.dpGerais;
+    const body = gs.length ? `<div class="dp-geral-list">${gs.map(g => `<label class="dp-geral-item"><input type="checkbox" data-aplica="${escapeHtml(g.id)}" ${dpAtual.naoAplica.includes(g.id) ? '' : 'checked'} ${state.readOnly ? 'disabled' : ''}> <span>${escapeHtml(g.tarefa || 'Prazo')}</span><span class="dp-mono">${escapeHtml(descreveRegra(g))}</span></label>`).join('')}</div>`
+      : '<div class="empty-mini">Nenhum prazo geral cadastrado.</div>';
+    el.innerHTML = `<div class="dlg-section-title">Prazos gerais que se aplicam</div><div class="dp-sec-note">Desmarque o que esta empresa não faz (ex.: sem funcionários, sem DARF).</div>${body}<div data-ro-hide${state.readOnly ? ' hidden' : ''}><button type="button" class="btn btn-sm" data-open-gerais-dlg>Editar prazos gerais…</button></div>`;
+  }
+  dlgDetail.addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-aplica]');
+    if (!cb || !dpAtual || state.readOnly) return;
+    const id = cb.dataset.aplica;
+    const g = state.dpGerais.find(x => x.id === id);
+    dpAtual.naoAplica = cb.checked ? dpAtual.naoAplica.filter(x => x !== id) : [...dpAtual.naoAplica, id];
+    saveEmpresaFields({ naoAplica: dpAtual.naoAplica }, `${cb.checked ? 'Passou a aplicar' : 'Deixou de aplicar'} o prazo geral: ${g?.tarefa || ''}`);
+    renderDetailSec('historico'); renderDetailProx(); updateDetailHeader();
+  });
+
+  function collectRow(wrap, sec) { const row = {}; $$(`[data-field][data-sec="${sec}"]`, wrap).forEach(i => { row[i.dataset.field] = i.value; }); return row; }
+  function rowLabel(row) { for (const k of ['nome','tarefa','texto','rubrica','funcionario','cnpj','descricao','alteracao','tipo']) if (row[k]) return row[k]; return ''; }
+  // Adaptador por contexto: a empresa aberta ou a lista de prazos gerais.
+  const secCtx = {
+    emp: { items: (sec) => dpAtual[sec], cfg: (sec) => DP_SECTIONS[sec], save: (sec, txt) => { saveEmpresaFields({ [sec]: dpAtual[sec] }, sec === 'historico' ? null : txt); renderDetailSec(sec); if (sec !== 'historico') renderDetailSec('historico'); if (sec === 'prazos' || sec === 'funcionarios' || sec === 'lembretes') { renderDetailProx(); updateDetailHeader(); } } },
+    gerais: { items: () => state.dpGerais, cfg: () => GERAIS_CFG, save: () => saveGerais() },
+  };
+  function sectionClick(e, ctxName) {
+    const ctx = secCtx[ctxName];
+    const add = e.target.closest('[data-sec-add]');
+    const edit = e.target.closest('[data-sec-edit]');
+    const del = e.target.closest('[data-sec-del]');
+    const save = e.target.closest('[data-sec-save]');
+    const cancel = e.target.closest('[data-sec-cancel]');
+    const abrir = e.target.closest('[data-sec-abrir]'), fechar = e.target.closest('[data-sec-fechar]');
+    if ((abrir || fechar) && !state.readOnly) {
+      const sec = abrir ? abrir.dataset.secAbrir : fechar.dataset.secFechar;
+      if (abrir) addAbertos.add(sec); else addAbertos.delete(sec);
+      ctx === secCtx.gerais ? renderGerais() : renderDetailSec(sec);
+      if (abrir) $(`[data-add-wrap="${sec}"] [data-field]`)?.focus();
+      return true;
+    }
+    if (!(add || edit || del || save || cancel) || state.readOnly) return false;
+    const sec = (add || edit || del || save || cancel).dataset[add ? 'secAdd' : edit ? 'secEdit' : del ? 'secDel' : save ? 'secSave' : 'secCancel'];
+    const cfg = ctx.cfg(sec), items = ctx.items(sec), noun = SEC_NOME[sec] || 'registro';
+    if (add) {
+      const wrap = add.closest('[data-add-wrap]');
+      const raw = collectRow(wrap, sec);
+      if (sec === 'historico') { raw.data = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }); raw.autor = state.meId || ''; }
+      const row = normalizeDpRow(raw, cfg.fields);
+      if (!row) { toast('Preencha ao menos um campo.'); return true; }
+      if (sec === 'estabelecimentos') completaEstab(row);
+      if (sec === 'lembretes' && !parseYmd(row.data)) { toast('Informe a data do lembrete.'); $('[data-field="data"]', wrap)?.focus(); return true; }
+      if (sec === 'historico') items.unshift(row); else items.push(row);
+      $$('[data-field]', wrap).forEach(i => { i.value = ''; });
+      ctx.save(sec, `Adicionou ${noun}: ${rowLabel(row)}`);
+      return true;
+    }
+    if (edit) { dpEdit = { sec, id: edit.dataset.id }; ctx === secCtx.gerais ? renderGerais() : renderDetailSec(sec); $(`[data-row="${CSS.escape(edit.dataset.id)}"] [data-field]`)?.focus(); return true; }
+    if (cancel) { dpEdit = null; ctx === secCtx.gerais ? renderGerais() : renderDetailSec(sec); return true; }
+    if (save) {
+      const i = items.findIndex(r => r.id === save.dataset.id);
+      if (i < 0) { dpEdit = null; return true; }
+      const wrap = save.closest('[data-row]');
+      const merged = { ...items[i], ...collectRow(wrap, sec) };
+      const row = normalizeDpRow(merged, cfg.fields);
+      if (!row) { toast('Preencha ao menos um campo.'); return true; }
+      if (sec === 'estabelecimentos') completaEstab(row);
+      items[i] = row;
+      dpEdit = null;
+      ctx.save(sec, `Editou ${noun}: ${rowLabel(row)}`);
+      return true;
+    }
+    if (del) {
+      const i = items.findIndex(r => r.id === del.dataset.id);
+      if (i < 0) return true;
+      const [row] = items.splice(i, 1);
+      if (dpEdit?.id === row.id) dpEdit = null;
+      ctx.save(sec, `Removeu ${noun}: ${rowLabel(row)}`);
+      const alvo = ctxName === 'emp' ? dpAtual : null;
+      toast(`Removido: ${rowLabel(row) || noun}.`, { label:'Desfazer', fn: () => {
+        if (ctxName === 'emp' && dpAtual !== alvo && dpAtual?.id !== alvo?.id) { toast('Abra a empresa novamente para desfazer.'); return; }
+        const list = ctx.items(sec);
+        if (list.some(r => r.id === row.id)) return;
+        list.splice(Math.min(i, list.length), 0, row);
+        ctx.save(sec, `Desfez a remoção de ${noun}: ${rowLabel(row)}`);
+      } });
+      return true;
+    }
+    return false;
+  }
+  // Abre a linha configurada em modo de edição (rotina, lembrete, funcionário) ou leva ao campo (data-base).
+  function editarDoEvento(edit) {
+    if (!edit || !dpAtual) return;
+    const [tipo, id] = edit.split(':');
+    const alvo = { prazo:['prazos','prazos'], lembrete:['prazos','lembretes'], pessoal:['funcionarios','funcionarios'] }[tipo];
+    if (tipo === 'database') { setDtab('dados'); const el = $('#dp-data-base'); el.scrollIntoView({ block:'center' }); if (!el.disabled) el.focus(); return; }
+    if (!alvo) return;
+    setDtab(alvo[0]);
+    if (state.readOnly) return;
+    addAbertos.delete(alvo[1]);
+    dpEdit = { sec: alvo[1], id };
+    renderDetailSec(alvo[1]);
+    const row = $(`[data-row="${CSS.escape(id)}"]`, dlgDetail);
+    if (row) { row.scrollIntoView({ block:'center', behavior:'smooth' }); row.querySelector('[data-field]')?.focus(); }
+  }
+  dlgDetail.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.dp-occ-btn')) { e.preventDefault(); e.target.click(); } });
+  dlgDetail.addEventListener('click', (e) => {
+    const occ = e.target.closest('[data-edit]');
+    if (occ) { editarDoEvento(occ.dataset.edit); return; }
+    if (e.target.closest('[data-open-gerais-dlg]')) { openGerais(); return; }
+    sectionClick(e, 'emp');
+  });
+  dlgDetail.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target.matches('input[data-field]')) return;
+    e.preventDefault();
+    const scope = e.target.dataset.scope;
+    (scope === 'add' ? e.target.closest('[data-add-wrap]')?.querySelector('[data-sec-add]') : e.target.closest('[data-row]')?.querySelector('[data-sec-save]'))?.click();
+  });
+
+  function flushFocus() { const a = document.activeElement; if (a && dlgDetail.contains(a)) a.blur(); }
+  $('#dlg-dp-detail-close').addEventListener('click', () => { flushFocus(); dlgDetail.close(); });
+  $('#btn-dp-fechar').addEventListener('click', () => { flushFocus(); dlgDetail.close(); });
+  dlgDetail.addEventListener('cancel', () => flushFocus());
+  dlgDetail.addEventListener('close', () => { dpAtual = null; dpDraft = false; dpEdit = null; syncRoute(); });
+
+  $('#dp-btn-nova').addEventListener('click', () => {
+    if (state.readOnly) return;
+    const order = Math.max(-1, ...state.dpEmpresas.map(e => e.order)) + 1;
+    const empresa = normalizeDpEmpresa({ order, responsavel: state.dpCarteira && state.dpCarteira !== SEM_RESP ? state.dpCarteira : '' });
+    empresa.nome = '';
+    openDpDetail(empresa, { draft:true });
+    $('#dp-nome').focus();
+  });
+  $('#btn-dp-criar').addEventListener('click', async () => {
+    if (!dpAtual || !dpDraft) return;
+    flushFocus();
+    MAIN_FIELDS.forEach(([id, key]) => { if (key !== 'nome') dpAtual[key] = $('#' + id).value.trim(); });
+    dpAtual.nome = $('#dp-nome').value.trim();
+    if (!dpAtual.nome) { toast('Informe a razão social ou o nome da empresa.'); setDtab('dados'); $('#dp-nome').focus(); return; }
+    dpAtual.responsavel = canonResp(dpAtual.responsavel);
+    dpAtual.cnpj = fmtCnpj(dpAtual.cnpj);
+    const dup = dpAtual.cnpj && state.dpEmpresas.find(x => cnpjClean(x.cnpj) === cnpjClean(dpAtual.cnpj));
+    if (dup) { const ok = await ask(`Já existe uma empresa com este CNPJ: “${dup.nome}”.\nCriar mesmo assim?`, [{label:'Voltar',value:false},{label:'Criar mesmo assim',value:true}]); if (!ok) return; }
+    dpDraft = false;
+    logHist('Empresa cadastrada');
+    dpAtual.updatedAt = Date.now();
+    state.dpEmpresas.push(dpAtual);
+    const emp = dpAtual;
+    persist(() => dpStore.saveOne(emp));
+    renderDetail();
+    renderDpActiveView();
+    toast('Empresa criada.');
+  });
+  $('#btn-dp-excluir').addEventListener('click', async () => {
+    if (!dpAtual || state.readOnly) return;
+    const emp = dpAtual;
+    const ok = await ask(`Excluir "${emp.nome}" do módulo DP?\nIsso remove funcionários, prazos, rubricas e o histórico desta empresa. Não dá para desfazer.`, [{label:'Cancelar',value:false},{label:'Excluir empresa',value:true,kind:'btn-danger'}]);
+    if (!ok) return;
+    state.dpEmpresas = state.dpEmpresas.filter(e => e.id !== emp.id);
+    persist(() => dpStore.deleteOne(emp.id));
+    dlgDetail.close();
+    renderDpActiveView();
+    toast('Empresa excluída.');
+  });
+
+  // Chegou versão nova do servidor (outra pessoa editou): atualiza a janela sem perder o que está sendo digitado.
+  function refreshOpenDetail() {
+    if (!dpAtual || dpDraft || !dlgDetail.open) return;
+    const fresh = findDpEmpresa(dpAtual.id);
+    if (!fresh) { dlgDetail.close(); toast('Esta empresa foi excluída por outra pessoa.'); return; }
+    if (fresh === dpAtual) return;
+    dpAtual = fresh;
+    fillMainFields(true);
+    renderDetail();
+  }
+
+  // ---------- prazos gerais ----------
+  const GERAIS_CFG = { title:'Prazos gerais', addLabel:'Adicionar prazo geral', fields: GERAIS_FIELDS };
+  const dlgGerais = $('#dlg-dp-gerais');
+  function renderGerais() {
+    const el = $('#dp-section-gerais');
+    const keep = captureInputs(el);
+    el.innerHTML = sectionHtml('gerais', GERAIS_CFG, state.dpGerais, 'A coluna “Próxima” mostra a próxima ocorrência a partir de hoje. Feriados municipais não entram no cálculo.');
+    restoreInputs(el, keep);
+    $('#btn-dp-sugeridos').hidden = state.readOnly;
+  }
+  function openGerais() {
+    dpEditPrev = dpEdit; dpEdit = null;
+    addAbertos.delete('gerais');
+    renderGerais();
+    dlgGerais.classList.toggle('ro', state.readOnly);
+    dlgGerais.showModal();
+  }
+  let dpEditPrev = null;
+  function saveGerais() {
+    const itens = state.dpGerais.map(r => ({ ...r }));
+    persist(() => geraisStore.save(itens));
+    renderGerais();
+    renderDpActiveView();
+    refreshDetailDatas();
+  }
+  async function addSugeridos() {
+    if (state.readOnly) return;
+    const tem = new Set(state.dpGerais.map(g => norm(g.tarefa)));
+    const novos = PRAZOS_SUGERIDOS.filter(p => !tem.has(norm(p.tarefa))).map(p => normalizeDpRow(p, GERAIS_FIELDS));
+    if (!novos.length) { toast('Os prazos sugeridos já estão cadastrados.'); return; }
+    state.dpGerais.push(...novos);
+    saveGerais();
+    toast(`${novos.length} prazo(s) adicionados. Confira as regras de cada um.`);
+  }
+  dlgGerais.addEventListener('click', (e) => { sectionClick(e, 'gerais'); });
+  dlgGerais.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !e.target.matches('input[data-field]')) return;
+    e.preventDefault();
+    (e.target.dataset.scope === 'add' ? e.target.closest('[data-add-wrap]')?.querySelector('[data-sec-add]') : e.target.closest('[data-row]')?.querySelector('[data-sec-save]'))?.click();
+  });
+  $('#btn-dp-sugeridos').addEventListener('click', () => addSugeridos());
+  $('#btn-dp-gerais-fechar').addEventListener('click', () => dlgGerais.close());
+  $('#dlg-dp-gerais-close').addEventListener('click', () => dlgGerais.close());
+  dlgGerais.addEventListener('close', () => { dpEdit = dpEditPrev; dpEditPrev = null; });
+
+  // ---------- navegação / busca global / tema ----------
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-theme-toggle]')) { state.prefs.theme = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(); savePrefs(); } });
+  // Busca global em janela central
+  const cmdk = $('#cmdk');
+  function abrirBusca() { cmdk.hidden = false; document.body.classList.add('cmdk-on'); setTimeout(() => srInput.focus(), 0); if (srInput.value.trim()) renderSearch(); }
+  function fecharBusca() { cmdk.hidden = true; document.body.classList.remove('cmdk-on'); closeSearch(); }
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-cmdk]')) { e.preventDefault(); closeRail(); abrirBusca(); } });
+  cmdk.addEventListener('pointerdown', (e) => { if (e.target === cmdk) fecharBusca(); });
+  document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); cmdk.hidden ? abrirBusca() : fecharBusca(); } });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTheme());
+
+  // Menus "Mais": fecham ao clicar fora ou num item.
+  document.addEventListener('click', (e) => {
+    $$('details.menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.menu-item:not(label)')) d.open = false; });
+  });
+  $('#dp-import-input').addEventListener('change', () => { $$('details.menu[open]').forEach(d => { d.open = false; }); });
+
+  // Abas: ligação aba/painel para leitores de tela e setas do teclado.
+  $$('.dp-tab').forEach(t => { const v = t.dataset.dpView, pnl = $('#dp-view-' + v); t.id = 'dp-tab-' + v; t.setAttribute('aria-controls', pnl.id); pnl.setAttribute('role', 'tabpanel'); pnl.setAttribute('aria-labelledby', t.id); });
+  $$('.dtab').forEach(t => { const v = t.dataset.dtab, pnl = $(`[data-dpanel="${v}"]`); t.setAttribute('role', 'tab'); t.id = 'dtab-' + v; pnl.id = 'dpanel-' + v; t.setAttribute('aria-controls', pnl.id); pnl.setAttribute('role', 'tabpanel'); pnl.setAttribute('aria-labelledby', t.id); });
+  document.addEventListener('keydown', (e) => {
+    const tab = e.target.closest?.('[role="tab"]');
+    if (!tab || !['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    const tabs = $$('[role="tab"]', tab.closest('[role="tablist"]'));
+    const i = tabs.indexOf(tab);
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault();
+    tabs[n].focus();
+    tabs[n].click();
+  });
+
+  // ---------- sindicatos: cadastro das CCTs, data-base, reajuste e empresas vinculadas ----------
+  // O vínculo é pelo código do sindicato informado no estabelecimento (campo "Cód. sind.", ou o número no início do texto do sindicato).
+  // Todas as convenções ficam numa pasta só da rede; cada sindicato guarda, no máximo, o arquivo (ou subpasta\arquivo) dentro dela.
+  const PASTA_CCT = 'U:\\Pessoal\\Arquivos Compartilhados\\CONVENÇOES COLETIVA';
+  function caminhoCct(s) {
+    const t = String(s.cct || '').trim();
+    if (!t) return PASTA_CCT;
+    if (/^https?:\/\//i.test(t) || /^[a-z]:\\/i.test(t)) return t;
+    const m = /CONVEN[ÇC][ÕO]ES? COLETIVAS?[\\/](.*)$/i.exec(t);
+    if (!m && /^\.\.[\\/]/.test(t)) return 'U:\\Pessoal\\Arquivos Compartilhados\\' + t.replace(/^(\.\.[\\/])+/, '').replace(/\//g, '\\');
+    const rel = (m ? m[1] : t).replace(/\//g, '\\');
+    return rel ? PASTA_CCT + '\\' + rel : PASTA_CCT;
+  }
+  const arquivoCct = (s) => { const c = caminhoCct(s); return c === PASTA_CCT ? '' : c.slice(c.lastIndexOf('\\') + 1); };
+  const MEDIADOR_URL = 'https://www3.mte.gov.br/sistemas/mediador/ConsultarInstColetivo';
+  const JANELA_REAJUSTE = 150; // dias após o início da data-base em que o reajuste ainda é cobrado como pendente
+  const ehCaminho = (t) => /\\|\.pdf\s*$|^https?:/i.test(String(t || ''));
+  function codigosDe(r) {
+    let cods = String(r.codSind || '').match(/\d{3,}/g) || [];
+    if (!cods.length) { const m = /^\s*(\d{3,})\s*[-–—]/.exec(r.sindicato || ''); if (m) cods = [m[1]]; }
+    return [...new Set(cods)];
+  }
+  let sindIdx = null, sindIdxDe = null;
+  function sindPorCod(cod) {
+    if (sindIdxDe !== state.dpSind) { sindIdx = new Map(state.dpSind.filter(s => s.cod).map(s => [s.cod, s])); sindIdxDe = state.dpSind; }
+    return sindIdx.get(cod) || null;
+  }
+  const estabSinds = (r) => codigosDe(r).map(sindPorCod).filter(Boolean);
+  const empresaSinds = (e) => [...new Set(e.estabelecimentos.flatMap(estabSinds))];
+  // Data-base efetiva: a do sindicato vinculado manda; sem vínculo, vale a informada no estabelecimento ou na empresa.
+  function basesEmpresa(e) {
+    const out = new Set(); let porSind = false;
+    e.estabelecimentos.forEach(r => {
+      const ss = estabSinds(r).filter(s => s.dataBase);
+      if (ss.length) { porSind = true; ss.forEach(s => out.add(s.dataBase)); }
+      else if (r.dataBase) out.add(mesDeTexto(r.dataBase));
+    });
+    if (!porSind && e.dataBase) out.add(mesDeTexto(e.dataBase));
+    return [...out].filter(b => MESES.includes(b)).sort((a, b) => MESES.indexOf(a) - MESES.indexOf(b));
+  }
+  // Estabelecimento com código de sindicato cadastrado e sem nome: preenche o nome a partir do cadastro.
+  function completaEstab(r) { const ss = estabSinds(r); if (ss.length && (!r.sindicato || ehCaminho(r.sindicato))) r.sindicato = ss.map(rotuloSind).join(' e '); }
+  // Nome curto: o apelido do Domínio quando houver.
+  function rotuloSind(s) { return s.apelido || s.nome; }
+  // "SEM SINDICATO" do Domínio: escolha explícita de que a empresa não tem sindicato (não conta como pendência).
+  const ehSemSind = (s) => norm(s.nome || '').trim() === 'sem sindicato' || (!!s.cnpj && !/[1-9]/.test(s.cnpj));
+  // Cadastro do Domínio que precisa de ajuste lá (nome genérico, CNPJ vazio ou fictício).
+  function problemaDominio(s) {
+    if (ehSemSind(s)) return '';
+    const n = norm(s.nome).trim();
+    if (n === 'importacao esocial') return 'sem nome (veio da importação do eSocial)';
+    if (/exemplo/.test(n)) return 'cadastro de exemplo';
+    if (n === 'sindicato') return 'nome genérico';
+    const d = String(s.cnpj || '').replace(/\D/g, '');
+    if (s.origem === 'dominio' && !d) return 'sem CNPJ';
+    if (d && (/^(\d)\1+$/.test(d.slice(0, 8)) || (d.length === 14 && !cnpjValido(d)))) return 'CNPJ fictício ou inválido';
+    return '';
+  }
+  const sindsDaBase = (e, mes) => empresaSinds(e).filter(s => s.dataBase === mes);
+  function normalizeSind(x) {
+    if (!x || typeof x !== 'object') return null;
+    const nome = String(x.nome || '').normalize('NFC').trim().slice(0, 160), cod = String(x.cod || '').replace(/\D/g, '').slice(0, 12);
+    if (!nome && !cod) return null;
+    const mes = (v) => { const m = mesDeTexto(v || ''); return MESES.includes(m) ? m : ''; };
+    const txt = (v, n) => String(v || '').trim().slice(0, n);
+    const ciclos = {};
+    if (x.ciclos && typeof x.ciclos === 'object') Object.entries(x.ciclos).forEach(([ano, c]) => {
+      if (!/^\d{4}$/.test(ano) || !c || typeof c !== 'object') return;
+      const aplicado = {};
+      if (c.aplicado && typeof c.aplicado === 'object') Object.entries(c.aplicado).forEach(([id, d]) => { if (validId(id) || typeof id === 'string') aplicado[id] = toYmd(d) || ymd(hoje()); });
+      ciclos[ano] = { aplicado, semReajuste: !!c.semReajuste };
+    });
+    return {
+      id: validId(x.id) ? x.id : uid(), cod, nome: nome || `Sindicato ${cod}`, apelido: txt(String(x.apelido || '').normalize('NFC'), 60), origem: x.origem === 'dominio' ? 'dominio' : '', dominioEm: toYmd(x.dominioEm), dataBase: mes(x.dataBase),
+      vigIni: toYmd(x.vigIni), vigFim: toYmd(x.vigFim), cct: txt(x.cct, 400), uf: txt(x.uf, 40), obs: String(x.obs || '').slice(0, 800),
+      percentual: txt(x.percentual, 30), piso: txt(x.piso, 30), registro: txt(x.registro, 40), cnpj: txt(x.cnpj, 20), contato: txt(x.contato, 200), contribMes: mes(x.contribMes),
+      ciclos, cctId: String(x.cctId || '').slice(0, 80),
+      hist: (Array.isArray(x.hist) ? x.hist : []).filter(h => h && h.texto).map(h => ({ em: String(h.em || ''), texto: String(h.texto).slice(0, 300), autor: String(h.autor || '') })).slice(0, 60),
+    };
+  }
+  const normalizeSinds = (v) => (Array.isArray(v) ? v : []).map(normalizeSind).filter(Boolean);
+  const histSind = (s, texto) => { s.hist.unshift({ em: new Date().toISOString(), texto, autor: state.meId || '' }); s.hist = s.hist.slice(0, 60); };
+  async function salvarSinds(itens) {
+    state.dpSind = normalizeSinds(itens);
+    renderDpActiveView();
+    return persist(() => sindStore.save(JSON.parse(JSON.stringify(state.dpSind))));
+  }
+  function vigStatus(s) {
+    if (ehSemSind(s)) return { cls:'pill-muted', txt:'não se aplica', n: null };
+    const f = parseYmd(s.vigFim);
+    if (!f) return { cls:'', txt:'sem vigência', n: null };
+    const d = diffDays(f, hoje());
+    if (d < 0) return { cls:'pill-late', txt:`vencida há ${-d} dia(s)`, n: d };
+    if (d <= 60) return { cls:'pill-today', txt: d === 0 ? 'vence hoje' : `vence em ${d} dia(s)`, n: d };
+    return { cls:'pill-ok', txt:'vigente', n: d };
+  }
+  const mesQuente = (m) => { const t = hoje().getMonth(), i = MESES.indexOf(m); return i === t ? 'agora' : i === (t + 1) % 12 ? 'prox' : ''; };
+  // Ciclo de reajuste: a data-base mais recente que já começou (ex.: data-base novembro, hoje set/2026 → ciclo nov/2025).
+  function cicloDe(s, ref = hoje()) {
+    const mi = MESES.indexOf(s.dataBase);
+    if (mi < 0) return null;
+    const ano = ref.getMonth() >= mi ? ref.getFullYear() : ref.getFullYear() - 1;
+    const inicio = new Date(ano, mi, 1), dias = diffDays(ref, inicio);
+    return { ano: String(ano), inicio, dias, cobrando: dias <= JANELA_REAJUSTE };
+  }
+  const sindEmps = (s, lista = state.dpEmpresas) => lista.filter(e => empresaSinds(e).includes(s));
+  function reajusteStatus(s, emps = sindEmps(s, state.dpEmpresas.filter(ativa))) {
+    const c = cicloDe(s);
+    if (!c) return null;
+    const reg = s.ciclos[c.ano] || { aplicado: {}, semReajuste: false };
+    const feitas = emps.filter(e => reg.aplicado[e.id]);
+    const pend = reg.semReajuste ? [] : emps.filter(e => !reg.aplicado[e.id]);
+    const rascunho = s.cctId && state.dpCcts.find(x => x.id === s.cctId)?.status === 'rascunho';
+    return { ...c, reg, total: emps.length, feitas: feitas.length, pend, rascunho, pendente: c.cobrando && !reg.semReajuste && !rascunho && pend.length > 0 };
+  }
+  const nfEmp = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+
+  const SIND_FILTROS = [['', 'Todos'], ['pend', 'Reajuste pendente'], ['venc', 'CCT vencida ou vencendo'], ['semdb', 'Sem data-base'], ['semvig', 'Sem vigência'], ['vazio', 'Sem empresas']];
+  function sindFiltra(s, emps) {
+    const f = state.dpSindFiltro;
+    if (f === 'pend') return !!reajusteStatus(s, emps)?.pendente;
+    if (f === 'venc') { const v = vigStatus(s); return v.n !== null && v.n <= 60; }
+    if (f === 'semdb') return !s.dataBase;
+    if (f === 'semvig') return !s.vigFim;
+    if (f === 'vazio') return !emps.length;
+    return true;
+  }
+  function refreshSindDatalist() {
+    const dl = $('#dp-sind-codes');
+    if (dl) dl.innerHTML = state.dpSind.filter(s => s.cod).map(s => `<option value="${escapeHtml(s.cod)}">${escapeHtml(rotuloSind(s))}${s.apelido && s.apelido !== s.nome ? ' · ' + escapeHtml(s.nome) : ''}${s.dataBase ? ' · data-base ' + escapeHtml(s.dataBase) : ''}</option>`).join('');
+  }
+
+  function renderSindicatos() {
+    const ro = state.readOnly;
+    const emps = empresasCarteira().filter(ativa);
+    const q = state.dpSindQuery;
+    refreshSindDatalist();
+    $('#sd-search').classList.toggle('filtro-on', !!q);
+    $('#sd-ordem').value = state.dpSindOrdem;
+    $('#sd-ordem').classList.toggle('filtro-on', state.dpSindOrdem !== 'data');
+    // faixa de meses
+    const porMes = MESES.map(m => emps.filter(e => basesEmpresa(e).includes(m)));
+    const maxM = Math.max(1, ...porMes.map(l => l.length));
+    const mAtual = hoje().getMonth();
+    $('#sd-meses').innerHTML = MESES.map((m, i) => {
+      const n = porMes[i].length, on = state.dpSindMes === m, q2 = mesQuente(m);
+      return `<button type="button" class="sd-mes${on ? ' on' : ''}${q2 ? ' ' + q2 : ''}" data-sd-mes="${m}" aria-pressed="${on}" ${tipAttr(`${m}: ${n} empresa(s) com data-base${n ? '\n' + porMes[i].slice(0, 12).map(e => e.nome).join('\n') + (n > 12 ? `\n… e mais ${n - 12}` : '') : ''}`)}>
+        <span class="sd-mes-bar"><i style="height:${Math.round(n / maxM * 100)}%"></i></span><b>${n}</b><span>${m.slice(0, 3)}</span>${i === mAtual ? '<small>agora</small>' : ''}</button>`;
+    }).join('');
+    // números do topo
+    const vincDe = (s) => emps.filter(e => empresaSinds(e).includes(s));
+    const semSind = emps.filter(e => !empresaSinds(e).length);
+    const pendentes = state.dpSind.map(s => reajusteStatus(s, vincDe(s))).filter(r => r && r.pendente);
+    const nPend = pendentes.reduce((n, r) => n + r.pend.length, 0);
+    const vencendo = state.dpSind.filter(s => { const v = vigStatus(s); return v.n !== null && v.n <= 60 && vincDe(s).length > 0; });
+    const cobertas = emps.length ? Math.round((emps.length - semSind.length) / emps.length * 100) : 0;
+    $('#sd-kpis').innerHTML = [
+      ['', state.dpSind.length, 'sindicatos cadastrados', state.dpSind.some(x => x.origem === 'dominio') ? `${state.dpSind.filter(x => vincDe(x).length).length} com empresas vinculadas` : ''],
+      [!emps.length ? '' : cobertas === 100 ? 'ok' : cobertas < 60 ? 'warn' : '', emps.length ? `${cobertas}%` : '—', 'das empresas ativas com sindicato', !emps.length ? 'nenhuma empresa ativa' : semSind.length ? `${semSind.length} sem vínculo` : 'todas vinculadas'],
+      [nPend ? 'warn' : 'ok', nPend, 'reajustes pendentes', nPend ? `em ${pendentes.length} sindicato(s)` : 'nada pendente', 'pend'],
+      [vencendo.length ? 'late' : 'ok', vencendo.length, 'CCTs vencidas ou vencendo', 'em até 60 dias', 'venc'],
+    ].map(([cls, v, l, sub, f]) => `<${f ? `button type="button" data-sd-filtro="${f}"` : 'div'} class="sd-kpi ${cls}${f && state.dpSindFiltro === f ? ' on' : ''}"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</${f ? 'button' : 'div'}>`).join('');
+    // avisos
+    const codsSoltos = codigosNaoCadastrados();
+    const av = [];
+    const mesAgora = MESES[mAtual], mesProx = MESES[(mAtual + 1) % 12];
+    const nAgora = porMes[mAtual].length, nProx = porMes[(mAtual + 1) % 12].length;
+    if (nAgora) av.push(`<button type="button" class="ct-al warn" data-sd-mes="${mesAgora}"><span class="al-dot today"></span>${nAgora} empresa(s) com data-base em ${mesAgora} (este mês): conferir a nova CCT e aplicar o reajuste.</button>`);
+    if (nProx) av.push(`<button type="button" class="ct-al" data-sd-mes="${mesProx}"><span class="al-dot soon"></span>${nProx} empresa(s) com data-base em ${mesProx} (próximo mês).</button>`);
+    state.dpSind.forEach(s => { const r = reajusteStatus(s, vincDe(s)); if (r && r.pendente) av.push(`<button type="button" class="ct-al warn" data-sd-abrir="${escapeHtml(s.id)}"><span class="al-dot today"></span>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano} de ${escapeHtml(rotuloSind(s))}: falta aplicar em ${r.pend.length} de ${r.total} empresa(s).</button>`); });
+    vencendo.filter(s => !s.cctId).forEach(s => { const v = vigStatus(s); av.push(`<button type="button" class="ct-al ${v.n < 0 ? 'late' : 'warn'}" data-sd-edit="${escapeHtml(s.id)}"><span class="al-dot ${v.n < 0 ? 'late' : 'today'}"></span>CCT ${escapeHtml(rotuloSind(s))}: ${v.txt}. Quando a nova convenção sair, use “Nova CCT” no cadastro.</button>`); });
+    cctAlertas().forEach(a => av.push(`<button type="button" class="ct-al ${a.nivel}" data-cct-abrir="${escapeHtml(a.id)}"><span class="al-dot ${a.nivel === 'late' ? 'late' : 'today'}"></span>${escapeHtml(a.txt)}</button>`));
+    if (!ro && nDuplicados()) av.push(`<button type="button" class="ct-al warn" data-cv-acao="dedup"><span class="al-dot today"></span>${nDuplicados()} código(s) com cadastro duplicado. Clique para unificar.</button>`);
+    if (codsSoltos.length && !ro) av.push(`<button type="button" class="ct-al" id="sd-detectar-al"><span class="al-dot soon"></span>${codsSoltos.length} código(s) de sindicato informados nas empresas ${state.dpSind.some(x => x.origem === 'dominio') ? 'não existem na lista do Domínio' : 'ainda não estão cadastrados'}. Clique para ${state.dpSind.some(x => x.origem === 'dominio') ? 'ver' : 'cadastrar'}.</button>`);
+    $('#sd-alertas').innerHTML = av.join(''); $('#sd-alertas').hidden = !av.length;
+    const sum = [`${state.dpSind.length} sindicato(s)`, emps.length ? `${cobertas}% das empresas com sindicato` : '', nPend ? `${nPend} reajuste(s) pendente(s)` : '', vencendo.length ? `${vencendo.length} CCT(s) vencida(s) ou vencendo` : ''].filter(Boolean);
+    $('#sd-sum').textContent = sum.join(' · ');
+    const avN = $('#sd-av-n'); avN.hidden = !av.length; avN.textContent = `${av.length} aviso(s)`;
+    $('#sd-detectar').hidden = ro || !codsSoltos.length || state.dpSind.some(x => x.origem === 'dominio');
+    $('#sd-detectar').textContent = `Detectar nas empresas (${codsSoltos.length})`;
+    $('#sd-dedup').hidden = ro || !nDuplicados();
+    $('#sd-filtros').innerHTML = SIND_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpSindFiltro === v ? ' on' : ''}" data-sd-filtro="${v}" aria-pressed="${state.dpSindFiltro === v}">${l}</button>`).join('');
+
+    // tabela de sindicatos
+    const emUso = (s) => vincDe(s).length > 0 || s.origem !== 'dominio' || (!s.cctId && !!(s.dataBase || s.vigFim || s.cct || s.percentual));
+    const temDominio = state.dpSind.some(x => x.origem === 'dominio');
+    const nUso = state.dpSind.filter(emUso).length;
+    const revisar = sindRevisar(emps);
+    $$('#sd-visao [data-sd-visao]').forEach(b => { const v = b.dataset.sdVisao, on = v === state.dpSindVisao; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.querySelector('small').textContent = v === 'uso' ? nUso : v === 'todos' ? state.dpSind.length : v === 'ccts' ? state.dpCcts.length : revisar.length; });
+    $('#sd-visao').hidden = false;
+    $('#sd-dom-info').textContent = temDominio ? `Lista do Domínio de ${fmtYmdBR(state.dpSind.filter(x => x.dominioEm).map(x => x.dominioEm).sort().pop() || '') || '—'}` : '';
+    const revisando = state.dpSindVisao === 'revisar';
+    const nasCcts = state.dpSindVisao === 'ccts';
+    $('#sd-rev-wrap').hidden = !revisando; $('#sd-lista-wrap').hidden = revisando || nasCcts; $('#sd-cct-wrap').hidden = !nasCcts;
+    if (revisando) renderSindRevisar(revisar);
+    let lista = state.dpSind.filter(s => (state.dpSindVisao !== 'uso' || !temDominio || emUso(s))).filter(s => { const vs = vincDe(s); return matchQ([s.cod, s.nome, s.apelido, s.uf, s.obs, s.cct, s.dataBase, s.registro, s.cnpj, String(s.cnpj || '').replace(/\D/g, ''), ...vs.map(e => e.nome)], q) && sindFiltra(s, vs); });
+    if (state.dpSindMes) lista = lista.filter(s => s.dataBase === state.dpSindMes);
+    const distMes = (s) => s.dataBase ? (MESES.indexOf(s.dataBase) + 12 - mAtual) % 12 : 99;
+    const ord = { data: (a, b) => distMes(a) - distMes(b), nome: () => 0, cod: (a, b) => (a.cod || '~').localeCompare(b.cod || '~', 'pt-BR', { numeric: true }), emps: (a, b) => vincDe(b).length - vincDe(a).length, vig: (a, b) => (a.vigFim || '9999').localeCompare(b.vigFim || '9999') }[state.dpSindOrdem] || (() => 0);
+    lista.sort((a, b) => ord(a, b) || a.nome.localeCompare(b.nome, 'pt-BR'));
+    const filtrado = !!(q || state.dpSindMes || state.dpSindFiltro);
+    $('#sd-count').textContent = revisando ? `${revisar.length} ponto(s) para revisar` : `${filtrado || lista.length !== state.dpSind.length ? lista.length + ' de ' : ''}${state.dpSind.length} sindicato(s)${state.dpSindMes ? ' · data-base em ' + state.dpSindMes : ''}`;
+    const reajHtml = (s, vs) => {
+      const r = reajusteStatus(s, vs);
+      if (!r) return '<span class="dp-cell-sub">—</span>';
+      if (r.reg.semReajuste) return `<span class="dp-cell-sub">${r.ano}: sem reajuste</span>`;
+      if (!r.total) return `<span class="dp-cell-sub">${r.ano}: sem empresas</span>`;
+      const pct = Math.round(r.feitas / r.total * 100);
+      return `<div class="sd-reaj ${r.pendente ? 'pend' : pct === 100 ? 'ok' : ''}" title="Reajuste da data-base ${s.dataBase.toLowerCase()}/${r.ano}"><span>${r.feitas}/${r.total} ${r.pendente ? 'aplicados' : pct === 100 ? 'aplicados' : ''}</span><i><b style="width:${pct}%"></b></i><small>${s.dataBase.slice(0, 3).toLowerCase()}/${r.ano}${s.percentual ? ' · ' + escapeHtml(s.percentual) : ''}</small></div>`;
+    };
+    const rows = lista.map(s => {
+      const vs = vincDe(s).sort(byNome), v = vigStatus(s), aberto = state.dpSindAberto.has(s.id), qm = mesQuente(s.dataBase);
+      const nf = vs.reduce((n, e) => n + nfEmp(e), 0);
+      let det = '';
+      if (aberto) {
+        const r = reajusteStatus(s, vs);
+        const chk = (e) => r && !r.reg.semReajuste ? `<label class="sd-chk" title="Reajuste de ${s.dataBase.toLowerCase()}/${r.ano} aplicado na folha"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `aplicado ${fmtYmdDM(r.reg.aplicado[e.id])}` : 'reajuste pendente'}</label>` : '';
+        const infos = [s.percentual && `<span><b>Reajuste</b> ${escapeHtml(s.percentual)}</span>`, s.piso && `<span><b>Piso</b> ${escapeHtml(fmtBRL(s.piso))}</span>`, s.contribMes && !cctVigente(s) && `<span><b>Contribuição</b> ${escapeHtml(s.contribMes)}</span>`, s.registro && `<span><b>Registro MTE</b> ${escapeHtml(s.registro)}</span>`, s.cnpj && `<span><b>CNPJ</b> ${escapeHtml(s.cnpj)}</span>`, s.contato && `<span><b>Contato</b> ${escapeHtml(s.contato)}</span>`].filter(Boolean).join('');
+        // Clicar no nome abre este painel: tudo do sindicato num lugar só (dados, convenção, reajuste e empresas).
+        const cvA = s.cctId && state.dpCcts.find(x => x.id === s.cctId), arq = (cvA && cvA.arquivo) || s.cct || '';
+        const copia = ehSemSind(s) ? '' : /^https?:\/\//i.test(arq) ? `<a href="${escapeHtml(arq)}" target="_blank" rel="noopener" class="sd-link">${ic('link', 'ic-sm')} Abrir CCT</a>`
+          : arq ? `<button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ ...s, cct: arq }))}" title="${escapeHtml(caminhoCct({ ...s, cct: arq }))}">${ic('link', 'ic-sm')} Copiar caminho da CCT</button>`
+          : `<button type="button" class="sd-copy muted" data-sd-copy="${escapeHtml(PASTA_CCT)}" title="Sem arquivo informado: copia a pasta das convenções">${ic('link', 'ic-sm')} Copiar pasta das CCTs</button>`;
+        det = `<tr class="sd-det"><td colspan="8">
+          <div class="sd-det-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(s.id)}">${ic('edit', 'ic-sm')} Editar dados do sindicato</button><button type="button" class="btn btn-sm" data-sd-vinc-dlg="${escapeHtml(s.id)}">${ic('plus', 'ic-sm')} Vincular empresas…</button>`}<span class="spacer"></span>${copia}</div>
+          ${cctResumoHtml(s)}
+          ${infos ? `<div class="sd-infos">${infos}</div>` : ''}
+          ${r && vs.length ? `<div class="sd-det-h"><b>Reajuste ${escapeHtml(s.dataBase.toLowerCase())}/${r.ano}</b> <span class="dp-cell-sub">${r.reg.semReajuste ? 'marcado como sem reajuste neste ciclo' : `${r.feitas} de ${r.total} aplicado(s)`}</span>${ro ? '' : `<span class="spacer"></span>${r.reg.semReajuste ? '' : `<button type="button" class="linkish" data-sd-apl-todas="${escapeHtml(s.id)}">marcar todas como aplicadas</button>`}<button type="button" class="linkish" data-sd-semreaj="${escapeHtml(s.id)}">${r.reg.semReajuste ? 'desfazer “sem reajuste”' : 'não haverá reajuste neste ciclo'}</button>`}</div>` : ''}
+          <div class="sd-emps">${vs.length ? vs.map(e => `<div class="sd-emp-row"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</span>${chk(e)}${ro ? '' : `<button type="button" class="icon-btn" data-sd-desv="${escapeHtml(s.id)}|${escapeHtml(e.id)}" aria-label="Desvincular ${escapeHtml(e.nome)}" title="Desvincular">${ic('x', 'ic-sm')}</button>`}</div>`).join('') : '<span class="dp-cell-sub">Nenhuma empresa ativa vinculada' + (state.dpCarteira ? ' nesta carteira' : '') + '.</span>'}</div>
+          ${s.obs ? `<p class="sd-obs">${escapeHtml(s.obs)}</p>` : ''}</td></tr>`;
+      }
+      return `<tr class="${aberto ? 'aberto' : ''}${state.dpSindSel.has(s.id) ? ' sel' : ''}" data-sd-row="${escapeHtml(s.id)}">
+        ${ro ? '' : `<td class="sd-selc"><input type="checkbox" data-sd-sel="${escapeHtml(s.id)}" aria-label="Selecionar ${escapeHtml(rotuloSind(s))}"${state.dpSindSel.has(s.id) ? ' checked' : ''}></td>`}
+        <td class="dp-mono">${escapeHtml(s.cod || '—')}</td>
+        <td><button type="button" class="ct-emp" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${aberto ? 'Fechar' : 'Abrir'} o sindicato"><div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(s))}${ehSemSind(s) ? ' <span class="pill pill-muted">escolha “sem sindicato”</span>' : ''}${problemaDominio(s) ? ` <span class="pill pill-today" title="Ajustar no Domínio">${escapeHtml(problemaDominio(s))}</span>` : ''}</div></button><div class="dp-cell-sub" style="white-space:normal">${[s.apelido && s.apelido !== s.nome ? s.nome : '', s.cnpj, s.uf, s.percentual && 'reajuste ' + s.percentual].filter(Boolean).map(escapeHtml).join(' · ')}</div></td>
+        <td>${s.dataBase ? `<span class="sd-db ${qm}">${ic('calendar', 'ic-sm')} ${escapeHtml(s.dataBase)}</span>` : ehSemSind(s) ? '<span class="dp-cell-sub">não se aplica</span>' : vs.length ? '<span class="pill pill-late">sem data-base</span>' : '<span class="dp-cell-sub">—</span>'}</td>
+        <td>${s.vigIni || s.vigFim ? `<div style="font-size:12px">${s.vigIni ? fmtYmdBR(s.vigIni) : '?'} a ${s.vigFim ? fmtYmdBR(s.vigFim) : '?'}</div>` : ''}${v.n === null && !vs.length && !ehSemSind(s) ? '<span class="dp-cell-sub">—</span>' : `<span class="pill ${v.cls}">${v.txt}</span>`}</td>
+        <td>${reajHtml(s, vs)}</td>
+        <td class="num"><button type="button" class="sd-n" data-sd-toggle="${escapeHtml(s.id)}" aria-expanded="${aberto}" title="${vs.length} empresa(s) · ${nf} funcionário(s)">${vs.length} ${ic(aberto ? 'left' : 'right', 'ic-sm')}</button><div class="dp-cell-sub">${nf} func.</div></td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>`}</td>
+      </tr>${det}`;
+    }).join('');
+    const vazio = state.dpSind.length ? 'Nenhum sindicato com esses filtros.'
+      : `<strong>Nenhum sindicato cadastrado</strong><span>Cadastre os sindicatos para controlar data-base, CCT e reajuste num lugar só.</span>${ro ? '' : `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">${codsSoltos.length ? `<button type="button" class="btn btn-primary" id="sd-detectar-vazio">Detectar ${codsSoltos.length} nas empresas</button>` : ''}<button type="button" class="btn" id="sd-novo-vazio">${ic('plus', 'ic-sm')} Cadastrar sindicato</button></span>`}`;
+    $('#sd-table').innerHTML = `<colgroup>${ro ? '' : '<col style="width:36px">'}<col style="width:84px"><col><col style="width:120px"><col style="width:170px"><col style="width:150px"><col style="width:84px"><col style="width:${ro ? 8 : 40}px"></colgroup>
+      <thead><tr>${ro ? '' : `<th class="sd-selc"><input type="checkbox" data-sd-sel-todos aria-label="Selecionar todos os sindicatos listados"${lista.length && lista.every(x => state.dpSindSel.has(x.id)) ? ' checked' : ''}></th>`}<th>Código</th><th>Sindicato / CCT</th><th>Data-base</th><th>Vigência da CCT</th><th>Reajuste</th><th class="num">Empresas</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="8"><div class="dp-empty">${vazio}</div></td></tr>`}</tbody>`;
+    // barra de seleção: excluir vários de uma vez
+    [...state.dpSindSel].forEach(id => { if (!state.dpSind.some(x => x.id === id)) state.dpSindSel.delete(id); });
+    const semEmp = lista.filter(x => !vincDe(x).length), nSel = state.dpSindSel.size;
+    const bar = $('#sd-selbar');
+    bar.hidden = ro || !state.dpSind.length || (!nSel && !semEmp.length);
+    bar.innerHTML = nSel ? `<b>${nSel} selecionado(s)</b><button type="button" class="btn btn-sm btn-danger" data-sd-del-sel>${ic('trash', 'ic-sm')} Excluir selecionados</button><button type="button" class="linkish" data-sd-sel-limpar>Limpar seleção</button>` : `<span class="dp-cell-sub">Para limpar a lista:</span><button type="button" class="linkish" data-sd-sel-vazios>Selecionar os ${semEmp.length} sindicato(s) sem empresas${filtrado ? ' desta lista' : ''}</button>`;
+
+    // empresas sem sindicato
+    const semLista = semSind.filter(e => matchQ([e.nome, e.cod, e.cnpj, e.responsavel, ...e.estabelecimentos.map(r => r.codSind + ' ' + r.sindicato)], q))
+      .filter(e => !state.dpSindMes || basesEmpresa(e).includes(state.dpSindMes)).sort(byNome);
+    $('#sd-sem-n').textContent = semSind.length ? `${semSind.length}` : '';
+    $('#sd-sem-wrap').hidden = !semSind.length;
+    const optsSind = `<option value="">Escolha o sindicato…</option>` + state.dpSind.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml((s.cod ? s.cod + ' · ' : '') + rotuloSind(s))}</option>`).join('');
+    $('#sd-sem').innerHTML = semLista.map(e => {
+      const inf = e.estabelecimentos.map(r => [codigosDe(r).join(' e '), ehCaminho(r.sindicato) ? '' : r.sindicato].filter(Boolean).join(' · ')).filter(Boolean).join(' | ');
+      const caminho0 = e.estabelecimentos.map(r => r.sindicato).find(ehCaminho), caminho = caminho0 && caminhoCct({ cct: caminho0 });
+      const cods = [...new Set(e.estabelecimentos.flatMap(codigosDe))].filter(c => !sindPorCod(c));
+      const b = basesEmpresa(e);
+      return `<tr class="${state.dpSemSel.has(e.id) ? 'sel' : ''}" data-sd-sem-row="${escapeHtml(e.id)}"><td class="sd-selc">${ro ? '' : `<input type="checkbox" data-sd-sem-sel="${escapeHtml(e.id)}" aria-label="Selecionar ${escapeHtml(e.nome)}"${state.dpSemSel.has(e.id) ? ' checked' : ''}>`}</td><td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main" style="white-space:normal">${nomeEmpHtml(e)}</div></button>${e.responsavel ? `<div class="dp-cell-sub">${escapeHtml(e.responsavel)}</div>` : ''}</td>
+        <td>${inf ? `<span class="dp-cell-sub" style="white-space:normal">${escapeHtml(inf)}</span>` : caminho ? '' : '<span class="dp-cell-sub">nada informado</span>'}${caminho ? `<div><button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminho)}" title="${escapeHtml(caminho)}">${ic('link', 'ic-sm')} CCT informada (copiar caminho)</button></div>` : ''}${cods.length && !ro ? `<div><button type="button" class="linkish" data-sd-novo-cod="${escapeHtml(cods[0])}">Cadastrar o código ${escapeHtml(cods[0])}</button></div>` : ''}</td>
+        <td>${b.length ? escapeHtml(b.join(', ')) : '<span class="dp-cell-sub">—</span>'}</td>
+        <td>${ro ? '' : state.dpSind.length ? `<div class="sd-vinc"><select data-sd-emp-sel="${escapeHtml(e.id)}" aria-label="Sindicato de ${escapeHtml(e.nome)}">${optsSind}</select><button type="button" class="btn btn-sm" data-sd-emp-vinc="${escapeHtml(e.id)}">Vincular</button></div>` : '<span class="dp-cell-sub">cadastre um sindicato primeiro</span>'}</td></tr>`;
+    }).join('') || '<tr><td colspan="5"><div class="dp-empty">Nenhuma empresa sem sindicato com esses filtros.</div></td></tr>';
+    state.dpSemIds = semLista.map(e => e.id); atualizaSemBar();
+    if (nasCcts) renderCcts();
+    const focar = state.dpSindFoco; state.dpSindFoco = '';
+    if (focar) { const tr = $(`[data-sd-row="${CSS.escape(focar)}"]`); if (tr) tr.scrollIntoView({ block:'center' }); }
+  }
+  function sindAlertasN() {
+    if (!state.dpSind.length && !state.dpCcts.length) return 0;
+    const emps = state.dpEmpresas.filter(ativa);
+    return state.dpSind.filter(s => { const r = reajusteStatus(s, emps.filter(e => empresaSinds(e).includes(s))); const v = vigStatus(s); return (r && r.pendente) || (v.n !== null && v.n < 0); }).length + cctAlertas().filter(a => a.nivel === 'late').length;
+  }
+
+  // Pontos para revisar: cadastros ruins no Domínio, sindicatos em uso sem dados e códigos das empresas que não existem no cadastro.
+  function sindRevisar(emps) {
+    const out = [];
+    const usados = new Map();
+    emps.forEach(e => empresaSinds(e).forEach(s => usados.set(s, (usados.get(s) || 0) + 1)));
+    state.dpSind.forEach(s => {
+      const p = problemaDominio(s);
+      if (p) out.push({ onde: 'Domínio', s, txt: p, n: usados.get(s) || 0 });
+      if (usados.get(s) && !ehSemSind(s)) {
+        if (!s.dataBase) out.push({ onde: 'Plataforma', s, txt: 'em uso sem data-base', n: usados.get(s) });
+        const v = vigStatus(s);
+        if (v.n === null) out.push({ onde: 'Plataforma', s, txt: 'em uso sem vigência da CCT', n: usados.get(s) });
+        else if (v.n < 0) out.push({ onde: 'Plataforma', s, txt: `CCT ${v.txt}`, n: usados.get(s) });
+      }
+    });
+    codigosNaoCadastrados().forEach(c => out.push({ onde: state.dpSind.some(x => x.origem === 'dominio') ? 'Domínio' : 'Plataforma', cod: c.cod, txt: state.dpSind.some(x => x.origem === 'dominio') ? `código ${c.cod} usado nas empresas não existe no Domínio` : `código ${c.cod} usado nas empresas ainda não cadastrado`, n: c.n }));
+    // um sindicato com vários problemas aparece numa linha só
+    const mapa = new Map();
+    out.forEach(r => { if (!r.s) { mapa.set(Symbol(), r); return; } const k = r.s.id + '|' + r.onde; if (mapa.has(k)) mapa.get(k).txt += ' · ' + r.txt; else mapa.set(k, { ...r }); });
+    return [...mapa.values()].sort((a, b) => (a.onde === b.onde ? 0 : a.onde === 'Plataforma' ? -1 : 1) || b.n - a.n);
+  }
+  function renderSindRevisar(itens) {
+    const ro = state.readOnly;
+    $('#sd-rev-table').classList.toggle('sem-sel', ro);
+    [...state.dpSindSel].forEach(id => { if (!state.dpSind.some(x => x.id === id)) state.dpSindSel.delete(id); });
+    const ids = [...new Set(itens.filter(r => r.s && !r.n).map(r => r.s.id))], nSel = state.dpSindSel.size;
+    $('#sd-rev').innerHTML = itens.length ? itens.map(r => `<tr data-sd-rrow="${r.s ? escapeHtml(r.s.id) : ''}"${r.s && !r.n ? ' data-sd-rvazio' : ''} class="${r.s && state.dpSindSel.has(r.s.id) ? 'sel' : ''}">
+      <td class="sd-selc">${ro || !r.s ? '' : `<input type="checkbox" data-sd-sel="${escapeHtml(r.s.id)}" aria-label="Selecionar ${escapeHtml(rotuloSind(r.s))}"${state.dpSindSel.has(r.s.id) ? ' checked' : ''}>`}</td>
+      <td><span class="pill ${r.onde === 'Domínio' ? 'pill-soon' : 'pill-today'}">${r.onde === 'Domínio' ? 'Ajustar no Domínio' : 'Completar aqui'}</span></td>
+      <td class="dp-mono">${escapeHtml(r.s ? r.s.cod : r.cod)}</td>
+      <td>${r.s ? `<div class="dp-cell-main" style="white-space:normal">${escapeHtml(rotuloSind(r.s))}</div>${r.s.cnpj ? `<div class="dp-cell-sub">${escapeHtml(r.s.cnpj)}</div>` : ''}` : '<span class="dp-cell-sub">—</span>'}</td>
+      <td>${escapeHtml(r.txt)}</td>
+      <td class="num">${r.n || '—'}</td>
+      <td class="ct-acoes">${ro ? '' : r.s ? `<button type="button" class="btn btn-sm" data-sd-edit="${escapeHtml(r.s.id)}">Editar</button><button type="button" class="icon-btn sd-del" data-sd-del="${escapeHtml(r.s.id)}" aria-label="Excluir ${escapeHtml(rotuloSind(r.s))}" title="Excluir sindicato">${ic('x', 'ic-sm')}</button>` : `<button type="button" class="btn btn-sm" data-sd-novo-cod="${escapeHtml(r.cod)}">Cadastrar</button>`}</td></tr>`).join('')
+      : '<tr><td colspan="7"><div class="dp-empty">Nada para revisar.</div></td></tr>';
+    const todos = $('#sd-rev-todos'); todos.checked = !!ids.length && ids.every(id => state.dpSindSel.has(id)); todos.disabled = !ids.length;
+    const bar = $('#sd-rev-selbar');
+    bar.hidden = ro || !ids.length;
+    bar.innerHTML = nSel ? `<b>${nSel} selecionado(s)</b><button type="button" class="btn btn-sm btn-danger" data-sd-del-sel>${ic('trash', 'ic-sm')} Excluir selecionados</button><button type="button" class="linkish" data-sd-sel-limpar>Limpar seleção</button>` : `<span class="dp-cell-sub">Cadastros sem empresas podem ser excluídos:</span><button type="button" class="linkish" data-sd-rev-sel-todos>Selecionar os ${ids.length} sem empresas</button>`;
+  }
+
+  // ----- importar a lista de sindicatos do Domínio (relatório "Cadastro de Sindicatos dos Empregados") -----
+  const URL_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const URL_PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const scriptsExt = {};
+  function carregarScriptExt(src, msgErro) {
+    if (!scriptsExt[src]) scriptsExt[src] = new Promise((ok, falha) => {
+      const el = document.createElement('script'); el.src = src; el.async = true; el.charset = 'utf-8';
+      el.onload = () => ok(); el.onerror = () => { delete scriptsExt[src]; el.remove(); falha(new Error(msgErro || 'Não foi possível carregar o leitor de PDF. Verifique a conexão.')); };
+      document.head.appendChild(el);
+    });
+    return scriptsExt[src];
+  }
+  const limpaApelido = (t) => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return /^[\s.,;:-]*$/.test(x) ? '' : x; };
+  const limpaCnpj = (t) => { const x = String(t || '').trim(); return /\d/.test(x) ? x.replace(/\s+/g, '') : ''; };
+  // Lê o PDF separando as colunas pela posição (código | nome | apelido | CNPJ) e agrupando por linha.
+  async function lerPdfDominio(file) {
+    await carregarScriptExt(URL_PDFJS);
+    await carregarScriptExt(URL_PDFJS_WORKER);
+    const lib = window.pdfjsLib;
+    lib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER;
+    const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+    const linhas = []; let texto = '';
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const pg = await pdf.getPage(n);
+      const H = pg.view[3], W = pg.view[2];
+      const itens = (await pg.getTextContent()).items.filter(it => it.str && it.str.trim()).map(it => ({ x: it.transform[4] * 595.27 / W, y: H - it.transform[5], s: it.str }));
+      texto += itens.map(i => i.s).join(' ') + '\n';
+      itens.sort((a, b) => a.y - b.y || a.x - b.x);
+      let cur = null;
+      itens.forEach(it => { if (!cur || Math.abs(it.y - cur.y) > 3) { cur = { y: it.y, itens: [] }; linhas.push(cur); } cur.itens.push(it); });
+    }
+    const col = (l, a, b) => l.itens.filter(i => i.x >= a && i.x < b).sort((p, q) => p.x - q.x).map(i => i.s).join(' ').normalize('NFC').replace(/\s+/g, ' ').trim();
+    const regs = linhas.map(l => ({ cod: col(l, 0, 48), nome: col(l, 48, 288), apelido: col(l, 288, 438), cnpj: col(l, 438, 9999) }))
+      .filter(r => /^\d{1,9}$/.test(r.cod) && r.nome)
+      .map(r => ({ cod: r.cod, nome: r.nome, apelido: limpaApelido(r.apelido), cnpj: limpaCnpj(r.cnpj) }));
+    return { regs, emissao: (/(\d{2}\/\d{2}\/\d{4})/.exec(texto) || [])[1] || '', total: +((/Total de sindicatos[^\d]*(\d+)/i.exec(texto) || [])[1] || 0) };
+  }
+  // Reserva: texto colado do relatório (uma linha "código nome", seguida de apelido e CNPJ).
+  function lerTextoDominio(txt) {
+    const regs = []; let cur = null;
+    String(txt || '').normalize('NFC').split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(l => {
+      const m = /^(\d{1,9})\s+(.+)$/.exec(l);
+      if (m && !/^\d{2}[./]/.test(l)) { cur = { cod: m[1], nome: m[2].trim(), apelido: '', cnpj: '' }; regs.push(cur); return; }
+      if (!cur) return;
+      if (/^\s*[\d.\s]*\/?[\d\s-]*$/.test(l) && /\d{2}\.\d{3}/.test(l)) { cur.cnpj = limpaCnpj(l); cur = null; return; }
+      if (!/^(Sistema licenciado|Total de sindicatos|CADASTRO DE SINDICATOS|Nome|Sindicato|Apelido|CNPJ|Horas|Emiss|P[áa]gina)/i.test(l) && !cur.apelido) cur.apelido = limpaApelido(l);
+    });
+    return { regs, emissao: (/(\d{2}\/\d{2}\/\d{4})/.exec(txt) || [])[1] || '', total: +((/Total de sindicatos[^\d]*(\d+)/i.exec(txt) || [])[1] || 0) };
+  }
+  const dlgImp = $('#dlg-sind-import');
+  let impDados = null;
+  function abrirImportDominio() {
+    if (state.readOnly) return;
+    impDados = null;
+    $('#si-arquivo').value = ''; $('#si-texto').value = '';
+    $('#si-prev').innerHTML = ''; $('#si-status').textContent = '';
+    $('#si-ok').disabled = true;
+    if (!dlgImp.open) dlgImp.showModal();
+  }
+  function prepararImport(lido) {
+    const porCod = new Map(); lido.regs.forEach(r => porCod.set(r.cod, r));
+    const regs = [...porCod.values()];
+    const novos = [], mud = [], iguais = [];
+    regs.forEach(r => {
+      const s = state.dpSind.find(x => x.cod === r.cod);
+      if (!s) { novos.push(r); return; }
+      const dif = ['nome', 'apelido', 'cnpj'].filter(k => (s[k] || '') !== (r[k] || ''));
+      (dif.length ? mud : iguais).push({ r, s, dif });
+    });
+    const fora = state.dpSind.filter(x => x.cod && !porCod.has(x.cod));
+    impDados = { regs, novos, mud, iguais, fora, emissao: lido.emissao };
+    const aviso = lido.total && lido.total !== regs.length ? `<p class="sd-renov" style="background:var(--dp-today-bg);color:var(--ink)">O relatório diz ${lido.total} sindicatos, mas foram lidos ${regs.length}. Confira a lista abaixo antes de importar.</p>` : '';
+    const lin = (r, extra = '') => `<tr><td class="dp-mono">${escapeHtml(r.cod)}</td><td>${escapeHtml(r.nome)}</td><td>${escapeHtml(r.apelido || '—')}</td><td class="dp-mono">${escapeHtml(r.cnpj || '—')}</td>${extra}</tr>`;
+    const tab = (titulo, corpo, n, aberto) => n ? `<details class="si-grupo"${aberto ? ' open' : ''}><summary><b>${titulo}</b> <span class="dp-tab-badge">${n}</span></summary><div class="si-tab"><table class="ct-table"><thead><tr><th>Código</th><th>Nome</th><th>Apelido</th><th>CNPJ</th>${titulo.startsWith('Atualizados') ? '<th>O que muda</th>' : ''}</tr></thead><tbody>${corpo}</tbody></table></div></details>` : '';
+    const ROT = { nome: 'nome', apelido: 'apelido', cnpj: 'CNPJ' };
+    $('#si-prev').innerHTML = `${aviso}<div class="si-resumo"><span><b>${regs.length}</b> lidos${impDados.emissao ? ` (relatório de ${escapeHtml(impDados.emissao)})` : ''}</span><span><b>${novos.length}</b> novos</span><span><b>${mud.length}</b> atualizados</span><span><b>${iguais.length}</b> iguais</span>${fora.length ? `<span><b>${fora.length}</b> só no Control Hub</span>` : ''}</div>
+      ${tab('Novos', novos.map(r => lin(r)).join(''), novos.length, true)}
+      ${tab('Atualizados', mud.map(({ r, s, dif }) => lin(r, `<td>${dif.map(k => `${ROT[k]}: <s>${escapeHtml(s[k] || '—')}</s>`).join('<br>')}</td>`)).join(''), mud.length, true)}
+      ${tab('Iguais', iguais.map(({ r }) => lin(r)).join(''), iguais.length, false)}
+      ${fora.length ? `<details class="si-grupo"><summary><b>Só no Control Hub (não estão no relatório)</b> <span class="dp-tab-badge">${fora.length}</span></summary><p class="dp-sec-note">Ficam como estão. Confira se o código está certo nas empresas.</p><div class="si-tab"><table class="ct-table"><tbody>${fora.map(x => `<tr><td class="dp-mono">${escapeHtml(x.cod)}</td><td>${escapeHtml(rotuloSind(x))}</td></tr>`).join('')}</tbody></table></div></details>` : ''}
+      <p class="dp-sec-note" style="margin:0">Data-base, vigência, arquivo da CCT, reajuste e histórico dos sindicatos já cadastrados são mantidos.</p>`;
+    $('#si-ok').disabled = !(novos.length || mud.length || iguais.length);
+    $('#si-ok').textContent = novos.length || mud.length ? `Importar ${novos.length + mud.length} mudança(s)` : 'Marcar como conferidos';
+  }
+  $('#si-arquivo').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    $('#si-status').textContent = 'Lendo o PDF…'; $('#si-ok').disabled = true;
+    try {
+      const lido = await lerPdfDominio(f);
+      if (!lido.regs.length) throw new Error('Nenhum sindicato encontrado. Use o relatório “Cadastro de Sindicatos dos Empregados” do Domínio.');
+      $('#si-status').textContent = '';
+      prepararImport(lido);
+    } catch (err) { $('#si-status').textContent = (err && err.message) || 'Não foi possível ler o arquivo.'; }
+  });
+  $('#si-texto-ler').addEventListener('click', () => {
+    const lido = lerTextoDominio($('#si-texto').value);
+    if (!lido.regs.length) { $('#si-status').textContent = 'Não encontrei sindicatos no texto colado.'; return; }
+    $('#si-status').textContent = '';
+    prepararImport(lido);
+  });
+  $('#si-ok').addEventListener('click', async () => {
+    const d = impDados; if (!d) return;
+    const em = (() => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(d.emissao || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : ymd(hoje()); })();
+    const quando = fmtYmdBR(em);
+    const itens = state.dpSind.map(x => ({ ...x }));
+    d.mud.forEach(({ r, s, dif }) => { const x = itens.find(y => y.id === s.id); ['nome', 'apelido', 'cnpj'].forEach(k => { x[k] = r[k]; }); x.origem = 'dominio'; x.dominioEm = em; x.hist = [...x.hist]; histSind(x, `Atualizado pela lista do Domínio de ${quando} (${dif.join(', ')})`); });
+    d.iguais.forEach(({ s }) => { const x = itens.find(y => y.id === s.id); x.origem = 'dominio'; x.dominioEm = em; });
+    d.novos.forEach(r => { const x = normalizeSind({ ...r, origem: 'dominio', dominioEm: em }); if (x) { histSind(x, `Cadastrado pela lista do Domínio de ${quando}`); itens.push(x); } });
+    dlgImp.close();
+    state.dpSindVisao = 'uso';
+    if (await salvarSinds(itens)) { await sincronizaSindsComCcts(); renderDpActiveView(); toast(`Lista do Domínio importada: ${d.novos.length} novo(s), ${d.mud.length} atualizado(s).`); }
+  });
+  $('#si-cancelar').addEventListener('click', () => dlgImp.close());
+  $('#dlg-sind-import-close').addEventListener('click', () => dlgImp.close());
+
+  // Códigos informados nos estabelecimentos que ainda não viraram sindicato cadastrado, com nome/CCT/data-base sugeridos.
+  function codigosNaoCadastrados() {
+    const g = new Map();
+    state.dpEmpresas.forEach(e => e.estabelecimentos.forEach(r => codigosDe(r).forEach(c => {
+      if (sindPorCod(c)) return;
+      if (!g.has(c)) g.set(c, { cod: c, nomes: new Map(), bases: new Map(), ccts: new Map(), emps: new Set() });
+      const x = g.get(c); x.emps.add(e.id);
+      const txt = String(r.sindicato || '').trim();
+      const add = (m, k) => { if (k) m.set(k, (m.get(k) || 0) + 1); };
+      if (ehCaminho(txt)) add(x.ccts, txt);
+      else if (codigosDe({ codSind: r.codSind }).length <= 1) add(x.nomes, txt.replace(/^\s*\d{3,}\s*[-–—]\s*/, ''));
+      add(x.bases, mesDeTexto(r.dataBase) || mesDeTexto(e.dataBase));
+    })));
+    const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    return [...g.values()].map(x => ({ cod: x.cod, nome: top(x.nomes), dataBase: MESES.includes(top(x.bases)) ? top(x.bases) : '', cct: top(x.ccts), n: x.emps.size })).sort((a, b) => b.n - a.n);
+  }
+
+  // Vincula: grava o código no estabelecimento (sem código → Matriz; nenhum estabelecimento → cria a Matriz).
+  function aplicaVinculo(e, s) {
+    const semCod = e.estabelecimentos.filter(r => !codigosDe(r).length);
+    let r = semCod.find(x => x.tipo === 'Matriz') || semCod[0];
+    if (r) { r.codSind = s.cod; if (!r.sindicato) r.sindicato = rotuloSind(s); }
+    else if (!e.estabelecimentos.length) e.estabelecimentos.push({ id: uid(), tipo: 'Matriz', cnpj: e.cnpj, cidadeUf: e.uf, dataBase: '', codSind: s.cod, sindicato: rotuloSind(s) });
+    else { r = e.estabelecimentos.find(x => x.tipo === 'Matriz') || e.estabelecimentos[0]; r.codSind = [codigosDe(r).join(' e '), s.cod].filter(Boolean).join(' e '); }
+  }
+  function tiraVinculo(e, s) {
+    e.estabelecimentos.forEach(r => {
+      if (!codigosDe(r).includes(s.cod)) return;
+      r.codSind = (String(r.codSind || '').match(/\d{3,}/g) || []).filter(c => c !== s.cod).join(' e ');
+      r.sindicato = String(r.sindicato || '').replace(new RegExp('^\\s*' + s.cod + '\\s*[-–—]\\s*'), '');
+    });
+  }
+  function marcaHist(e, texto) {
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: texto, autor: state.meId || '' });
+    if (e.historico.length > 200) e.historico.length = 200;
+    e.updatedAt = Date.now();
+  }
+  async function vincularSind(empId, sindId) {
+    const e = findDpEmpresa(empId), s = state.dpSind.find(x => x.id === sindId);
+    if (!e || !s || state.readOnly) return;
+    if (!s.cod) { toast('Informe o código deste sindicato antes de vincular empresas.'); abrirSind(s.id); return; }
+    aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${rotuloSind(s)}`);
+    renderDpActiveView();
+    if (await persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }))) toast(`${e.nome} vinculada a ${rotuloSind(s)}.`);
+  }
+  async function desvincularSind(empId, sindId) {
+    const e = findDpEmpresa(empId), s = state.dpSind.find(x => x.id === sindId);
+    if (!e || !s || state.readOnly) return;
+    tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${rotuloSind(s)}`);
+    renderDpActiveView();
+    persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }));
+  }
+  // Reajuste aplicado: registrado no sindicato (por ciclo) e no histórico da empresa.
+  async function marcarReajuste(sindId, empIds, aplicado) {
+    const s = state.dpSind.find(x => x.id === sindId);
+    if (!s || state.readOnly) return;
+    const c = cicloDe(s); if (!c) return;
+    const reg = s.ciclos[c.ano] = s.ciclos[c.ano] || { aplicado: {}, semReajuste: false };
+    const hoje_ = ymd(hoje()), mudadas = [];
+    empIds.forEach(id => { if (aplicado && !reg.aplicado[id]) { reg.aplicado[id] = hoje_; mudadas.push(id); } else if (!aplicado && reg.aplicado[id]) { delete reg.aplicado[id]; mudadas.push(id); } });
+    if (!mudadas.length) return;
+    const ref = `${s.dataBase.toLowerCase()}/${c.ano}`;
+    histSind(s, `${aplicado ? 'Reajuste aplicado' : 'Reajuste desmarcado'} (${ref}) em ${mudadas.length} empresa(s)`);
+    const emps = mudadas.map(findDpEmpresa).filter(Boolean);
+    emps.forEach(e => marcaHist(e, `${aplicado ? 'Reajuste da CCT aplicado' : 'Reajuste da CCT desmarcado'}: ${rotuloSind(s)} (${ref}${s.percentual ? ', ' + s.percentual : ''})`));
+    renderDpActiveView();
+    await persist(async () => {
+      await sindStore.save(JSON.parse(JSON.stringify(state.dpSind)));
+      for (const e of emps) await dpStore.updateFields(e.id, { historico: e.historico, updatedAt: e.updatedAt });
+    });
+  }
+
+  // ----- janela do sindicato -----
+  const dlgSind = $('#dlg-sind'), formSind = $('#form-sind');
+  let sindEditId = null;
+  // ----- cadastro do sindicato: identificação aqui; data-base, vigência, reajuste e piso vêm da convenção ligada pelo CNPJ -----
+  let sindOrig = '';
+  const sindSnap = () => JSON.stringify([...new FormData(formSind)]);
+  const sindForm = () => state.dpSind.find(x => x.id === sindEditId) || null;
+  function sindCctBox() {
+    const f = formSind.elements, v = cctVigente({ cnpj: f.cnpj.value });
+    const box = $('#sind-cct-box');
+    $('#sind-manual').hidden = !!v;
+    if (!v) {
+      const temCnpj = cnpjDig(f.cnpj.value).length >= 8;
+      box.innerHTML = `<div class="sind-cct vazio"><p>Nenhuma convenção ligada a este sindicato.${temCnpj ? '' : ' A ligação é pelo CNPJ: informe-o acima.'}</p><button type="button" class="btn btn-sm btn-primary" data-sind-cct-nova>${ic('plus', 'ic-sm')} Cadastrar a convenção</button></div>`;
+      return;
+    }
+    const c = v.cct, ef = cctEfetiva(v), pisos = ef.pisos.val;
+    const contribs = [c, ...v.aditivos].flatMap(x => x.contribs);
+    const linhas = [
+      ['Vigência', c.vigIni || c.vigFim ? `${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}` : '—'],
+      ['Data-base', c.dataBase || '—'],
+      ['Reajuste', resumoReajuste(ef) || '—'],
+      ['Piso', pisos.length ? `${pisos[0].valor}${pisos.length > 1 ? ` (+${pisos.length - 1} função(ões))` : ''}` : '—'],
+      ['Registro MTE', c.registro || '—'],
+      ['Contribuições', contribs.length ? contribs.map(k => k.nome + (k.vencimento ? ` (${fmtYmdBR(k.vencimento)})` : '')).join(' · ') : 'nenhuma cadastrada'],
+    ];
+    box.innerHTML = `<div class="sind-cct"><div class="sind-cct-h"><span class="pill ${CCT_STATUS_PILL[c.status] || ''}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><b>${escapeHtml(c.titulo)}</b>${v.aditivos.length ? `<span class="dp-cell-sub">+ ${v.aditivos.length} aditivo(s)</span>` : ''}</div>
+      <dl class="sind-cct-dl">${linhas.map(([k, x]) => `<dt>${k}</dt><dd>${escapeHtml(x)}</dd>`).join('')}</dl>
+      <div class="sind-cct-acoes"><button type="button" class="btn btn-sm" data-sind-cct-abrir="${escapeHtml(c.id)}">Abrir convenção</button><button type="button" class="btn btn-sm" data-sind-cct-nova>${ic('plus', 'ic-sm')} Nova CCT (renovação)</button><span class="spacer"></span><button type="button" class="sd-copy" data-sind-copiar="${escapeHtml(caminhoCct({ cct: c.arquivo }))}">${ic('link', 'ic-sm')} ${c.arquivo ? 'Copiar caminho da CCT' : 'Copiar pasta das CCTs'}</button></div>
+      <p class="field-hint" style="margin:0">Estes dados vêm da convenção. Para mudar, abra a convenção.</p></div>`;
+  }
+  function sindCnpjMsg() {
+    const f = formSind.elements, d = cnpjDig(f.cnpj.value), el = $('#sind-cnpj-msg');
+    let msg = '', erro = false;
+    if (d) {
+      if (!cnpjValido(f.cnpj.value)) { msg = 'CNPJ inválido: confira os dígitos.'; erro = true; }
+      else {
+        const outros = state.dpSind.filter(x => x.id !== sindEditId && cnpjDig(x.cnpj) === d);
+        if (outros.length) msg = `Mesmo CNPJ de ${outros.slice(0, 3).map(x => (x.cod ? x.cod + ' · ' : '') + rotuloSind(x)).join(', ')}${outros.length > 3 ? '…' : ''}: a convenção vale para todos.`;
+      }
+    }
+    el.hidden = !msg; el.textContent = msg; el.classList.toggle('erro', erro);
+  }
+  function sindEmpsLink() {
+    const s = sindForm(), b = $('#sind-emps-link');
+    b.hidden = $('#sind-emps-sep').hidden = !s;
+    if (!s) return;
+    const n = state.dpEmpresas.filter(e => ativa(e) && empresaSinds(e).includes(s)).length;
+    b.textContent = n ? `${n} empresa(s) vinculada(s): ver e vincular` : 'Nenhuma empresa vinculada: vincular';
+  }
+  const histLi = (x) => `<li><span class="dp-mono">${x.em ? escapeHtml(new Date(x.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })) : ''}</span> ${escapeHtml(x.texto)}${x.autor ? ` · <span data-uid="${escapeHtml(x.autor)}">Alguém da equipe</span>` : ''}</li>`;
+  function abrirSind(id, pre = {}) {
+    if (state.readOnly) return;
+    const s = id ? state.dpSind.find(x => x.id === id) : null;
+    sindEditId = s ? s.id : null;
+    const v = s || pre, f = formSind.elements;
+    $('#dlg-sind-title').textContent = s ? rotuloSind(s) : 'Novo sindicato';
+    const sub = [s && s.cod && `Código ${s.cod}`, s && s.apelido && s.apelido !== s.nome ? s.nome : ''].filter(Boolean).join(' · ');
+    $('#dlg-sind-sub').hidden = !sub; $('#dlg-sind-sub').textContent = sub;
+    ['cod', 'nome', 'uf', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato'].forEach(k => { f[k].value = v[k] || ''; });
+    fillSelect(f.dataBase, MESES, v.dataBase || '', '—'); f.dataBase.value = v.dataBase || '';
+    fillSelect(f.contribMes, MESES, v.contribMes || '', '—'); f.contribMes.value = v.contribMes || '';
+    $('#sind-manual-d').open = ['dataBase', 'vigIni', 'vigFim', 'percentual', 'piso', 'registro', 'cct', 'contribMes'].some(k => v[k]);
+    $('#btn-sind-excluir').hidden = !s;
+    sindCctBox(); sindCnpjMsg(); sindEmpsLink();
+    const h = s ? s.hist : [], resto = h.slice(3);
+    $('#sind-hist').hidden = !h.length;
+    $('#sind-hist-list').innerHTML = h.slice(0, 3).map(histLi).join('');
+    $('#sind-hist-mais').hidden = !resto.length; $('#sind-hist-mais').open = false;
+    $('#sind-hist-mais summary').textContent = `Ver tudo (${h.length})`;
+    $('#sind-hist-resto').innerHTML = resto.map(histLi).join('');
+    fillNames($('#sind-hist'));
+    $('#sind-mediador').href = MEDIADOR_URL;
+    sindOrig = sindSnap();
+    if (!dlgSind.open) dlgSind.showModal();
+    formSind.scrollTop = 0;
+    (s ? f.nome : f.cod).focus();
+  }
+  // Grava o formulário; devolve o sindicato salvo (ou o atual, se nada mudou) ou null se algo impediu.
+  async function salvarFormSind() {
+    const f = formSind.elements;
+    const antigo = sindForm();
+    const dados = { id: sindEditId || uid() };
+    ['cod', 'nome', 'uf', 'dataBase', 'vigIni', 'vigFim', 'cct', 'obs', 'percentual', 'piso', 'registro', 'cnpj', 'contato', 'contribMes'].forEach(k => { dados[k] = f[k].value; });
+    const novo = normalizeSind({ ...(antigo || {}), ...dados, ciclos: antigo?.ciclos, hist: antigo?.hist });
+    if (!novo || !novo.nome.trim()) { toast('Informe pelo menos o nome do sindicato.'); f.nome.focus(); return null; }
+    if (f.cnpj.value.trim() && f.cnpj.value.trim() !== (antigo?.cnpj || '') && !cnpjValido(f.cnpj.value)) { toast('CNPJ do sindicato inválido: confira os dígitos.'); f.cnpj.focus(); return null; }
+    if (novo.vigIni && novo.vigFim && novo.vigFim < novo.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return null; }
+    const dup = novo.cod && state.dpSind.find(x => x.id !== novo.id && x.cod === novo.cod);
+    if (dup) { toast(`O código ${novo.cod} já é de “${dup.nome}”.`); return null; }
+    const ROT = { cod:'código', nome:'nome', dataBase:'data-base', vigIni:'início da vigência', vigFim:'fim da vigência', cct:'convenção', percentual:'reajuste', piso:'piso', registro:'registro MTE', contribMes:'mês da contribuição', uf:'UF', cnpj:'CNPJ', contato:'contato', obs:'observações' };
+    if (antigo) {
+      const mud = Object.keys(ROT).filter(k => (antigo[k] || '') !== (novo[k] || ''));
+      if (!mud.length) return antigo;
+      const fmt = (k, v) => !v ? '—' : k.startsWith('vig') ? fmtYmdBR(v) : k === 'obs' || k === 'cct' ? '(alterado)' : v;
+      histSind(novo, mud.map(k => k === 'obs' || k === 'cct' ? `${ROT[k]} alterado` : `${ROT[k]}: ${fmt(k, antigo[k])} → ${fmt(k, novo[k])}`).join('; '));
+    } else histSind(novo, 'Sindicato cadastrado');
+    const itens = antigo ? state.dpSind.map(x => x.id === novo.id ? novo : x) : [...state.dpSind, novo];
+    if (!(await salvarSinds(itens))) return null;
+    sindEditId = novo.id; sindOrig = sindSnap();
+    toast(antigo ? 'Sindicato atualizado.' : 'Sindicato cadastrado.');
+    return state.dpSind.find(x => x.id === novo.id) || novo;
+  }
+  formSind.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (await salvarFormSind()) dlgSind.close();
+  });
+  // Nova convenção a partir do sindicato: renovação da vigente (mesmas partes, vigência seguinte) ou a primeira, com os dados preenchidos à mão.
+  function preNovaCct(s) {
+    const v = cctVigente(s);
+    if (v) {
+      const c = v.cct, ini = c.vigFim ? addDays(parseYmd(c.vigFim), 1) : null;
+      const anos = ini ? `${ini.getFullYear()}/${ini.getFullYear() + 1}` : '';
+      const titulo = !anos ? c.titulo : /20\d\d\s*\/\s*20\d\d/.test(c.titulo) ? c.titulo.replace(/20\d\d\s*\/\s*20\d\d/, anos) : `${c.titulo} ${anos}`;
+      return { titulo, status: 'rascunho', dataBase: c.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: ini ? ymd(addDays(addYears(ini, 1), -1)) : '', partes: c.partes,
+        contribs: c.contribs.map(k => ({ ...k, vencimento: '' })), reajuste: { itens: [], tabela: [], base: c.reajuste.base } };
+    }
+    const mi = MESES.indexOf(s.dataBase), t = hoje();
+    const ini = s.vigIni ? parseYmd(s.vigIni) : mi >= 0 ? new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1) : null;
+    const y = (ini || t).getFullYear();
+    return { titulo: `${rotuloSind(s)} ${y}/${y + 1}`, status: 'rascunho', dataBase: s.dataBase, vigIni: ini ? ymd(ini) : '', vigFim: s.vigFim || (ini ? ymd(addDays(addYears(ini, 1), -1)) : ''),
+      registro: s.registro, arquivo: s.cct, partes: [{ cnpj: s.cnpj, nome: s.nome, papel: 'laboral' }],
+      reajuste: { itens: s.percentual ? [{ rotulo: 'Geral', pct: s.percentual }] : [], tabela: [], base: '' }, pisos: s.piso ? [{ nome: 'Piso salarial', valor: s.piso }] : [] };
+  }
+  // Antes de sair para a convenção, grava o que foi mudado aqui (senão a convenção nova não se liga a um CNPJ que só está no formulário).
+  async function sindSalvoParaCct() {
+    const s = sindSnap() !== sindOrig || !sindForm() ? await salvarFormSind() : sindForm();
+    if (!s) return null;
+    dlgSind.close();
+    return s;
+  }
+  formSind.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-sind-cct-nova]')) {
+      if (cnpjDig(formSind.elements.cnpj.value).length < 8) { toast('Informe o CNPJ do sindicato: é por ele que a convenção se liga.'); formSind.elements.cnpj.focus(); return; }
+      const s = await sindSalvoParaCct(); if (s) abrirCct(null, preNovaCct(s));
+      return;
+    }
+    const ab = t.closest('[data-sind-cct-abrir]');
+    if (ab) { const id = ab.dataset.sindCctAbrir; if (await sindSalvoParaCct()) abrirCct(id); return; }
+    const cp = t.closest('[data-sind-copiar]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.sindCopiar); toast('Caminho copiado.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(cp.dataset.sindCopiar); } return; }
+    if (t.closest('#sind-emps-link')) { const s = sindForm(); if (s) abrirVincular(s.id); return; }
+  });
+  formSind.elements.cnpj.addEventListener('input', () => {
+    const f = formSind.elements.cnpj;
+    if (/^[\d.\/\s-]*$/.test(f.value) && cnpjDig(f.value).length <= 14) f.value = maskCnpj(f.value);
+    sindCnpjMsg(); sindCctBox();
+  });
+  $('#sind-mediador').addEventListener('click', () => { const c = formSind.elements.cnpj.value.trim(); if (c) navigator.clipboard?.writeText(c).then(() => toast('CNPJ copiado: cole na busca do Mediador.'), () => {}); });
+  $('#btn-sind-excluir').addEventListener('click', async () => {
+    const s = state.dpSind.find(x => x.id === sindEditId);
+    if (!s) return;
+    const n = state.dpEmpresas.filter(e => empresaSinds(e).includes(s)).length;
+    const ok = await ask(`Excluir ${rotuloSind(s)}?${n ? `\n${n} empresa(s) continuam com o código ${s.cod} no estabelecimento, mas ficam sem o cadastro (data-base volta à informada na empresa).` : ''}`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    dlgSind.close();
+    if (await salvarSinds(state.dpSind.filter(x => x.id !== s.id))) toast('Sindicato excluído.');
+  });
+  // Exclusão direta da tabela (uma ou várias).
+  // ----- vincular várias empresas (sem sindicato) a um sindicato de uma vez -----
+  function atualizaSemBar() {
+    const bar = $('#sd-sem-bar'); if (!bar) return;
+    state.dpSemSel.forEach(id => { if (!state.dpSemIds.includes(id)) state.dpSemSel.delete(id); });
+    const n = state.dpSemSel.size, ro = state.readOnly;
+    bar.hidden = ro || !state.dpSemIds.length || !state.dpSind.length;
+    const opts = '<option value="">Escolha o sindicato…</option>' + state.dpSind.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(x => `<option value="${escapeHtml(x.id)}"${x.id === state.dpSemSind ? ' selected' : ''}>${escapeHtml((x.cod ? x.cod + ' · ' : '') + rotuloSind(x))}</option>`).join('');
+    bar.innerHTML = `<b>${n} selecionada(s)</b><select id="sd-sem-sind" aria-label="Sindicato para vincular">${opts}</select><button type="button" class="btn btn-sm btn-primary" data-sd-sem-vinc${n && state.dpSemSind ? '' : ' disabled'}>Vincular ${n || ''} selecionada(s)</button>${n ? '<button type="button" class="linkish" data-sd-sem-limpar>Limpar seleção</button>' : '<button type="button" class="linkish" data-sd-sem-todas>Selecionar todas as listadas</button>'}`;
+    const todos = $('#sd-sem-todos'); if (todos) todos.checked = !!state.dpSemIds.length && state.dpSemIds.every(id => state.dpSemSel.has(id));
+    $$('[data-sd-sem-row]').forEach(r => r.classList.toggle('sel', state.dpSemSel.has(r.dataset.sdSemRow)));
+  }
+  async function vincularLote(empIds, sindId) {
+    const s = state.dpSind.find(x => x.id === sindId);
+    if (!s || state.readOnly || !empIds.length) return;
+    if (!s.cod) { toast('Informe o código deste sindicato antes de vincular empresas.'); abrirSind(s.id); return; }
+    const emps = empIds.map(findDpEmpresa).filter(Boolean);
+    emps.forEach(e => { aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${rotuloSind(s)}`); });
+    empIds.forEach(id => state.dpSemSel.delete(id));
+    renderDpActiveView();
+    const res = await Promise.all(emps.map(e => persist(() => dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }))));
+    if (res.every(Boolean)) toast(`${emps.length} empresa(s) vinculada(s) a ${rotuloSind(s)}.`);
+  }
+  async function excluirSinds(ids) {
+    const alvo = state.dpSind.filter(x => ids.includes(x.id));
+    if (!alvo.length || state.readOnly) return;
+    const comEmp = alvo.filter(x => state.dpEmpresas.some(e => empresaSinds(e).includes(x)));
+    const nomes = alvo.slice(0, 5).map(x => `• ${x.cod ? x.cod + ' ' : ''}${rotuloSind(x)}`).join('\n') + (alvo.length > 5 ? `\n• e mais ${alvo.length - 5}` : '');
+    const ok = await ask(`Excluir ${alvo.length === 1 ? 'este sindicato' : `${alvo.length} sindicatos`}?\n${nomes}${comEmp.length ? `\n\nAtenção: ${comEmp.length} ${comEmp.length === 1 ? 'tem' : 'têm'} empresas vinculadas. Elas continuam com o código no estabelecimento, mas ficam sem o cadastro.` : ''}\n\nSe a lista do Domínio for importada de novo, os sindicatos voltam.`, [{ label:'Cancelar', value:false }, { label:alvo.length === 1 ? 'Excluir' : `Excluir ${alvo.length}`, kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    alvo.forEach(x => state.dpSindSel.delete(x.id));
+    if (await salvarSinds(state.dpSind.filter(x => !ids.includes(x.id)))) toast(alvo.length === 1 ? 'Sindicato excluído.' : `${alvo.length} sindicatos excluídos.`);
+  }
+  // ----- duplicados: sindicatos com o mesmo código e convenções repetidas -----
+  const campos = (x) => ['cnpj', 'dataBase', 'vigIni', 'vigFim', 'cct', 'uf', 'obs', 'percentual', 'piso', 'registro', 'contato', 'contribMes', 'apelido', 'cctId'].filter(k => x[k]).length + (x.origem === 'dominio' ? 3 : 0) + Object.keys(x.ciclos || {}).length;
+  function duplicadosSinds() {
+    const g = new Map();
+    state.dpSind.forEach(x => { if (!x.cod) return; if (!g.has(x.cod)) g.set(x.cod, []); g.get(x.cod).push(x); });
+    return [...g.values()].filter(l => l.length > 1);
+  }
+  const chaveCct = (c) => `${norm(c.titulo)}|${c.tipo}|${c.vigIni}|${c.vigFim}`;
+  function duplicadosCcts() {
+    const g = new Map();
+    state.dpCcts.forEach(c => { const k = chaveCct(c); if (!g.has(k)) g.set(k, []); g.get(k).push(c); });
+    return [...g.values()].filter(l => l.length > 1);
+  }
+  const nDuplicados = () => duplicadosSinds().length + duplicadosCcts().length;
+  async function unificarDuplicados() {
+    const ds = duplicadosSinds(), dc = duplicadosCcts();
+    if (!ds.length && !dc.length) { await ask(`Não há cadastros duplicados.\nNenhum código de sindicato aparece em dois cadastros e não há convenções repetidas (mesmo título, tipo e vigência).\n\nSe você viu o mesmo código em duas linhas em “Revisar cadastro”, era o mesmo sindicato com mais de um problema; agora esses problemas ficam juntos numa linha só.`, [{ label:'Ok', kind:'btn-primary', value:true }]); return; }
+    const extraS = ds.reduce((n, l) => n + l.length - 1, 0), extraC = dc.reduce((n, l) => n + l.length - 1, 0);
+    const lista = [...ds.slice(0, 6).map(l => `• código ${l[0].cod}: ${l.length} cadastros → 1 (${rotuloSind(l[0])})`), ...dc.slice(0, 4).map(l => `• convenção “${l[0].titulo}”: ${l.length} → 1`)].join('\n');
+    const ok = await ask(`Unificar cadastros duplicados?\n${extraS ? `${extraS} sindicato(s) repetido(s) em ${ds.length} código(s)` : ''}${extraS && extraC ? '\n' : ''}${extraC ? `${extraC} convenção(ões) repetida(s)` : ''}\n\n${lista}${ds.length + dc.length > 10 ? '\n• …' : ''}\n\nFica o cadastro mais completo; o que faltar nele é preenchido com os dados dos outros, e reajustes já marcados e histórico são somados.`, [{ label:'Cancelar', value:false }, { label:'Unificar', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    // convenções: mantém a de melhor situação/mais recente e redireciona referências
+    const troca = new Map(), fora = new Set();
+    dc.forEach(l => {
+      const ord = l.slice().sort((a, b) => (CCT_RANK[b.status] - CCT_RANK[a.status]) || ((b.atualizadoEm || 0) - (a.atualizadoEm || 0)) || (b.arquivo ? 1 : 0) - (a.arquivo ? 1 : 0));
+      const k = ord[0];
+      ord.slice(1).forEach(o => { troca.set(o.id, k.id); fora.add(o.id); ['registro', 'arquivo', 'obs', 'dataBase'].forEach(f => { if (!k[f] && o[f]) k[f] = o[f]; }); if (!k.partes.length) k.partes = o.partes; });
+    });
+    const cctsNovas = state.dpCcts.filter(c => !fora.has(c.id)).map(c => ({ ...c, mae: troca.get(c.mae) || c.mae, substitui: troca.get(c.substitui) || c.substitui, substituidaPor: troca.get(c.substituidaPor) || c.substituidaPor }));
+    // sindicatos: junta no cadastro mais completo
+    const sai = new Set();
+    const sindsNovos = state.dpSind.map(x => ({ ...x, hist: [...x.hist], ciclos: JSON.parse(JSON.stringify(x.ciclos || {})) }));
+    ds.forEach(l => {
+      const mesmos = l.map(a => sindsNovos.find(y => y.id === a.id));
+      mesmos.sort((a, b) => campos(b) - campos(a) || state.dpEmpresas.filter(e => empresaSinds(e).includes(b)).length - state.dpEmpresas.filter(e => empresaSinds(e).includes(a)).length);
+      const k = mesmos[0];
+      mesmos.slice(1).forEach(o => {
+        ['cnpj', 'dataBase', 'vigIni', 'vigFim', 'cct', 'uf', 'percentual', 'piso', 'registro', 'contato', 'contribMes', 'apelido', 'dominioEm'].forEach(f => { if (!k[f] && o[f]) k[f] = o[f]; });
+        if (o.obs && !k.obs.includes(o.obs)) k.obs = (k.obs ? k.obs + '\n' : '') + o.obs;
+        if (!k.cctId && o.cctId) k.cctId = o.cctId;
+        if (o.origem === 'dominio') k.origem = 'dominio';
+        Object.entries(o.ciclos || {}).forEach(([ano, c]) => { const a = k.ciclos[ano] = k.ciclos[ano] || { aplicado: {}, semReajuste: false }; Object.assign(a.aplicado, c.aplicado); a.semReajuste = a.semReajuste || c.semReajuste; });
+        k.hist = [...k.hist, ...o.hist].sort((a, b) => String(b.em).localeCompare(String(a.em))).slice(0, 60);
+        sai.add(o.id);
+      });
+      histSind(k, `Unificado com ${mesmos.length - 1} cadastro(s) de mesmo código`);
+    });
+    const sindsFinal = sindsNovos.filter(x => !sai.has(x.id)).map(x => ({ ...x, cctId: troca.get(x.cctId) || x.cctId }));
+    state.dpSindSel.clear();
+    const okC = dc.length ? await salvarCcts(cctsNovas, true) : true;
+    const okS = await salvarSinds(sindsFinal);
+    if (okC && okS) toast(`Unificado: ${extraS} sindicato(s) e ${extraC} convenção(ões) duplicados removidos.`);
+  }
+  $('#btn-sind-cancelar').addEventListener('click', () => dlgSind.close());
+  $('#dlg-sind-close').addEventListener('click', () => dlgSind.close());
+
+  // ----- vincular várias empresas de uma vez -----
+  const dlgSv = $('#dlg-sind-vinc');
+  dlgSv.addEventListener('close', () => { if (dlgSind.open) sindEmpsLink(); });
+  let svSind = null;
+  function abrirVincular(sindId) {
+    const s = state.dpSind.find(x => x.id === sindId);
+    if (!s || state.readOnly) return;
+    if (!s.cod) { toast('Informe o código deste sindicato antes de vincular empresas.'); abrirSind(s.id); return; }
+    svSind = s;
+    $('#sv-title').textContent = `Empresas de ${rotuloSind(s)}`;
+    $('#sv-busca').value = '';
+    const outros = (e) => empresaSinds(e).filter(x => x !== s).map(x => x.nome).join(', ');
+    $('#sv-list').innerHTML = state.dpEmpresas.filter(ativa).sort(byNome).map(e => `<label class="sv-item" data-busca="${escapeHtml(norm([e.nome, e.cod, e.cnpj, e.responsavel].join(' ')))}"><input type="checkbox" value="${escapeHtml(e.id)}"${empresaSinds(e).includes(s) ? ' checked' : ''}><span><b>${nomeEmpHtml(e)}</b><small>${escapeHtml([e.responsavel, outros(e) && 'já em: ' + outros(e)].filter(Boolean).join(' · '))}</small></span></label>`).join('');
+    svConta();
+    if (!dlgSv.open) dlgSv.showModal();
+    $('#sv-busca').focus();
+  }
+  const svConta = () => { $('#sv-n').textContent = `${$$('#sv-list input:checked').length} marcada(s)`; };
+  $('#sv-busca').addEventListener('input', (e) => { const q = norm(e.target.value).trim(); $$('#sv-list .sv-item').forEach(l => { l.hidden = q && !q.split(/\s+/).every(w => l.dataset.busca.includes(w)); }); });
+  $('#sv-list').addEventListener('change', svConta);
+  $('#sv-ok').addEventListener('click', async () => {
+    const s = svSind; if (!s) return;
+    const marcadas = new Set($$('#sv-list input:checked').map(i => i.value));
+    const add = [], rem = [];
+    state.dpEmpresas.filter(ativa).forEach(e => { const tem = empresaSinds(e).includes(s); if (marcadas.has(e.id) && !tem) add.push(e); else if (!marcadas.has(e.id) && tem) rem.push(e); });
+    dlgSv.close();
+    if (!add.length && !rem.length) return;
+    add.forEach(e => { aplicaVinculo(e, s); marcaHist(e, `Sindicato vinculado: ${s.cod} · ${rotuloSind(s)}`); });
+    rem.forEach(e => { tiraVinculo(e, s); marcaHist(e, `Sindicato desvinculado: ${s.cod} · ${rotuloSind(s)}`); });
+    histSind(s, [add.length && `vinculou ${add.length} empresa(s)`, rem.length && `desvinculou ${rem.length}`].filter(Boolean).join(' e '));
+    renderDpActiveView();
+    const ok = await persist(async () => { for (const e of [...add, ...rem]) await dpStore.updateFields(e.id, { estabelecimentos: e.estabelecimentos, historico: e.historico, updatedAt: e.updatedAt }); await sindStore.save(JSON.parse(JSON.stringify(state.dpSind))); });
+    if (ok) toast([add.length && `${add.length} vinculada(s)`, rem.length && `${rem.length} desvinculada(s)`].filter(Boolean).join(' · '));
+  });
+  $('#sv-cancelar').addEventListener('click', () => dlgSv.close());
+  $('#dlg-sind-vinc-close').addEventListener('click', () => dlgSv.close());
+
+  // ----- detectar nas empresas -----
+  const dlgDet = $('#dlg-sind-det');
+  function abrirDetectar() {
+    const cands = codigosNaoCadastrados();
+    if (!cands.length) { toast('Todos os códigos informados nas empresas já estão cadastrados.'); return; }
+    $('#sind-det-list').innerHTML = cands.map((c, i) => `<div class="sd-det-row" data-i="${i}">
+      <input type="checkbox" checked aria-label="Cadastrar ${escapeHtml(c.cod)}">
+      <span class="dp-mono">${escapeHtml(c.cod)}</span>
+      <input data-k="nome" value="${escapeHtml(c.nome)}" placeholder="Nome do sindicato" aria-label="Nome do sindicato ${escapeHtml(c.cod)}">
+      <select data-k="dataBase" aria-label="Data-base">${['', ...MESES].map(m => `<option value="${m}"${m === c.dataBase ? ' selected' : ''}>${m || '—'}</option>`).join('')}</select>
+      <span class="dp-cell-sub">${c.n} empresa(s)</span>
+    </div>`).join('');
+    dlgDet._cands = cands;
+    if (!dlgDet.open) dlgDet.showModal();
+  }
+  $('#btn-sind-det-ok').addEventListener('click', async () => {
+    const cands = dlgDet._cands || [];
+    const novos = $$('#sind-det-list .sd-det-row').filter(row => row.querySelector('input[type=checkbox]').checked).map(row => {
+      const c = cands[+row.dataset.i];
+      const s = normalizeSind({ cod: c.cod, nome: row.querySelector('[data-k=nome]').value.trim() || `Sindicato ${c.cod}`, dataBase: row.querySelector('[data-k=dataBase]').value, cct: c.cct });
+      if (s) histSind(s, 'Cadastrado a partir das empresas (Detectar)');
+      return s;
+    }).filter(Boolean);
+    dlgDet.close();
+    if (!novos.length) return;
+    if (await salvarSinds([...state.dpSind, ...novos])) toast(`${novos.length} sindicato(s) cadastrado(s). Confira data-base e vigência de cada um.`);
+  });
+  $('#btn-sind-det-cancelar').addEventListener('click', () => dlgDet.close());
+  $('#dlg-sind-det-close').addEventListener('click', () => dlgDet.close());
+
+  // ----- eventos da aba -----
+  const sdView = $('#dp-view-sindicatos');
+  $('#sd-search').addEventListener('input', (e) => { state.dpSindQuery = e.target.value.trim(); renderSindicatos(); });
+  $('#sd-ordem').addEventListener('change', (e) => { state.dpSindOrdem = e.target.value; renderSindicatos(); });
+  $('#sd-novo').addEventListener('click', () => abrirSind(null));
+  $('#sd-pasta').addEventListener('click', async () => { try { await navigator.clipboard.writeText(PASTA_CCT); toast('Pasta das CCTs copiada.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(PASTA_CCT); } });
+  $('#sd-detectar').addEventListener('click', abrirDetectar);
+  $('#sd-importar').addEventListener('click', abrirImportDominio);
+  $('#sd-visao').addEventListener('click', (e) => { const b = e.target.closest('[data-sd-visao]'); if (b) { state.dpSindVisao = b.dataset.sdVisao; renderSindicatos(); } });
+  $('#sd-csv').addEventListener('click', () => {
+    const rows = [['Código','Sindicato / CCT','Apelido','UF','CNPJ','Data-base','Vigência início','Vigência fim','Situação da CCT','Reajuste','Piso','Registro MTE','Mês da contribuição','Convenção (arquivo)','Contato','Ciclo de reajuste','Reajuste aplicado','Empresas vinculadas','Funcionários ativos']];
+    const ativas = state.dpEmpresas.filter(ativa);
+    state.dpSind.forEach(s => { const vs = ativas.filter(e => empresaSinds(e).includes(s)), r = reajusteStatus(s, vs); rows.push([s.cod, s.nome, s.apelido, s.uf, s.cnpj, s.dataBase, fmtDateStr(s.vigIni), fmtDateStr(s.vigFim), vigStatus(s).txt, s.percentual, s.piso, s.registro, s.contribMes, s.cct ? caminhoCct(s) : '', s.contato, r ? `${s.dataBase.toLowerCase()}/${r.ano}` : '', r ? (r.reg.semReajuste ? 'sem reajuste' : `${r.feitas} de ${r.total}`) : '', vs.map(e => e.nome).join(', '), vs.reduce((n, e) => n + nfEmp(e), 0)]); });
+    offerFile(`dp-sindicatos-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  $('#sd-csv-emp').addEventListener('click', () => {
+    const rows = [['Empresa','Código','CNPJ','Responsável','Sindicato','Cód. sindicato','Data-base','Reajuste','Ciclo','Reajuste aplicado em','Situação da CCT']];
+    state.dpEmpresas.filter(ativa).sort(byNome).forEach(e => {
+      const ss = empresaSinds(e);
+      if (!ss.length) { rows.push([e.nome, e.cod, e.cnpj, e.responsavel, '(sem sindicato)', '', basesEmpresa(e).join(', '), '', '', '', '']); return; }
+      ss.forEach(s => { const c = cicloDe(s); const ap = c && s.ciclos[c.ano]?.aplicado[e.id]; rows.push([e.nome, e.cod, e.cnpj, e.responsavel, rotuloSind(s), s.cod, s.dataBase, s.percentual, c ? `${s.dataBase.toLowerCase()}/${c.ano}` : '', ap ? fmtYmdBR(ap) : (c && s.ciclos[c.ano]?.semReajuste ? 'sem reajuste' : 'pendente'), vigStatus(s).txt]); });
+    });
+    offerFile(`dp-empresas-sindicatos-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  sdView.addEventListener('click', async (e) => {
+    const t = e.target;
+    const mes = t.closest('[data-sd-mes]');
+    if (mes) { state.dpSindMes = state.dpSindMes === mes.dataset.sdMes ? '' : mes.dataset.sdMes; renderSindicatos(); return; }
+    const fl = t.closest('[data-sd-filtro]');
+    if (fl) { const v = fl.dataset.sdFiltro; state.dpSindFiltro = state.dpSindFiltro === v && v ? '' : v; renderSindicatos(); return; }
+    if (t.closest('#sd-detectar-al') || t.closest('#sd-detectar-vazio')) { abrirDetectar(); return; }
+    if (t.closest('#sd-novo-vazio')) { abrirSind(null); return; }
+    const ab = t.closest('[data-sd-abrir]');
+    if (ab) { state.dpSindAberto.add(ab.dataset.sdAbrir); state.dpSindFoco = ab.dataset.sdAbrir; renderSindicatos(); return; }
+    const ed = t.closest('[data-sd-edit]');
+    if (ed) { if (!state.readOnly) abrirSind(ed.dataset.sdEdit); return; }
+    const tg = t.closest('[data-sd-toggle]');
+    if (tg) { const id = tg.dataset.sdToggle; state.dpSindAberto.has(id) ? state.dpSindAberto.delete(id) : state.dpSindAberto.add(id); renderSindicatos(); return; }
+    const revAll = t.closest('#sd-rev-todos, [data-sd-rev-sel-todos]');
+    if (revAll) { const marcar = revAll.id === 'sd-rev-todos' ? revAll.checked : true; $$('[data-sd-rvazio]', sdView).map(r => r.dataset.sdRrow).forEach(id => marcar ? state.dpSindSel.add(id) : state.dpSindSel.delete(id)); renderSindicatos(); return; }
+    const semO = t.closest('[data-sd-sem-sel]');
+    if (semO) { semO.checked ? state.dpSemSel.add(semO.dataset.sdSemSel) : state.dpSemSel.delete(semO.dataset.sdSemSel); atualizaSemBar(); return; }
+    if (t.closest('#sd-sem-todos, [data-sd-sem-todas]')) { const marcar = t.id === 'sd-sem-todos' ? t.checked : true; state.dpSemIds.forEach(id => marcar ? state.dpSemSel.add(id) : state.dpSemSel.delete(id)); $$('[data-sd-sem-sel]').forEach(c => { c.checked = state.dpSemSel.has(c.dataset.sdSemSel); }); atualizaSemBar(); return; }
+    if (t.closest('[data-sd-sem-limpar]')) { state.dpSemSel.clear(); $$('[data-sd-sem-sel]').forEach(c => { c.checked = false; }); atualizaSemBar(); return; }
+    if (t.closest('[data-sd-sem-vinc]')) { vincularLote([...state.dpSemSel], state.dpSemSind); return; }
+    const selT = t.closest('[data-sd-sel-todos]');
+    if (selT) { const ids = $$('[data-sd-row]', sdView).map(r => r.dataset.sdRow); ids.forEach(id => selT.checked ? state.dpSindSel.add(id) : state.dpSindSel.delete(id)); renderSindicatos(); return; }
+    const selO = t.closest('[data-sd-sel]');
+    if (selO) { selO.checked ? state.dpSindSel.add(selO.dataset.sdSel) : state.dpSindSel.delete(selO.dataset.sdSel); renderSindicatos(); return; }
+    if (t.closest('[data-sd-sel-limpar]')) { state.dpSindSel.clear(); renderSindicatos(); return; }
+    if (t.closest('[data-sd-sel-vazios]')) { $$('[data-sd-row]', sdView).map(r => r.dataset.sdRow).forEach(id => { const x = state.dpSind.find(y => y.id === id); if (x && !state.dpEmpresas.some(e => empresaSinds(e).includes(x))) state.dpSindSel.add(id); }); renderSindicatos(); return; }
+    const delO = t.closest('[data-sd-del]');
+    if (delO) { excluirSinds([delO.dataset.sdDel]); return; }
+    if (t.closest('[data-sd-del-sel]')) { excluirSinds([...state.dpSindSel]); return; }
+    const cp = t.closest('[data-sd-copy]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.sdCopy); toast('Caminho da CCT copiado.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(cp.dataset.sdCopy); } return; }
+    const dv = t.closest('[data-sd-desv]');
+    if (dv) { const [sid, eid] = dv.dataset.sdDesv.split('|'); desvincularSind(eid, sid); return; }
+    const vd = t.closest('[data-sd-vinc-dlg]');
+    if (vd) { abrirVincular(vd.dataset.sdVincDlg); return; }
+    const at = t.closest('[data-sd-apl-todas]');
+    if (at) { const s = state.dpSind.find(x => x.id === at.dataset.sdAplTodas); if (s) marcarReajuste(s.id, sindEmps(s, state.dpEmpresas.filter(ativa)).map(x => x.id), true); return; }
+    const sr = t.closest('[data-sd-semreaj]');
+    if (sr) { const s = state.dpSind.find(x => x.id === sr.dataset.sdSemreaj); const c = s && cicloDe(s); if (!c) return; const reg = s.ciclos[c.ano] = s.ciclos[c.ano] || { aplicado: {}, semReajuste: false }; reg.semReajuste = !reg.semReajuste; histSind(s, reg.semReajuste ? `Ciclo ${s.dataBase.toLowerCase()}/${c.ano} marcado como sem reajuste` : `Ciclo ${s.dataBase.toLowerCase()}/${c.ano}: reajuste volta a ser cobrado`); salvarSinds(state.dpSind); return; }
+    const ev = t.closest('[data-sd-emp-vinc]');
+    if (ev) { const sel = $(`[data-sd-emp-sel="${CSS.escape(ev.dataset.sdEmpVinc)}"]`, sdView); if (!sel.value) { toast('Escolha o sindicato.'); return; } vincularSind(ev.dataset.sdEmpVinc, sel.value); return; }
+    const nc = t.closest('[data-sd-novo-cod]');
+    if (nc) { const c = codigosNaoCadastrados().find(x => x.cod === nc.dataset.sdNovoCod) || { cod: nc.dataset.sdNovoCod }; abrirSind(null, c); }
+  });
+  sdView.addEventListener('change', (e) => {
+    if (e.target.id === 'sd-sem-sind') { state.dpSemSind = e.target.value; atualizaSemBar(); return; }
+    const ap = e.target.closest('[data-sd-apl]');
+    if (ap) { const [sid, eid] = ap.dataset.sdApl.split('|'); marcarReajuste(sid, [eid], ap.checked); }
+  });
+
+
+  // Convenções lidas em 30/09/2026 a partir dos PDFs enviados (carga inicial; conferir e completar na plataforma).
+  const CCTS_ANALISADAS = [
+    { id:'cct-seanmes-2026', titulo:'SEANMES x SINDAMARES 2026/2027', tipo:'cct', status:'rascunho', registro:'MR057609/2026 (solicitação)', vigIni:'2026-08-01', vigFim:'2027-07-31', dataBase:'Agosto',
+      partes:[{ cnpj:'31.698.780/0001-19', nome:'SEANMES (empregados de agências de navegação e operadores portuários ES)', papel:'laboral' }, { cnpj:'36.049.682/0001-74', nome:'SINDAMARES (agências de navegação marítima ES)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Salário de agosto/2025; admitidos após 01/08/2025 recebem proporcional aos meses até 31/07/2026. Pode compensar antecipações.', tabela:[] },
+      pisos:[{ nome:'Piso salarial (salário mínimo + 20%)', valor:'1.945,20' }], beneficios:[],
+      contribs:[{ nome:'Contribuição de custeio sindical', quem:'empresa', competencias:'mensal', vencimento:'', regra:'R$ 20,00 por empregado por mês, depósito na conta do sindicato', oposicao:'', calc:{ tipo:'porEmpregado', valor:'20,00' } },
+        { nome:'Desconto do empregado (cláusula anterior à 34ª)', quem:'empregado', competencias:'09/2026', vencimento:'', regra:'Descontar na folha de setembro/2026 e repassar até o 5º dia do mês seguinte', oposicao:'', calc:{ tipo:'' } }],
+      prazos:[], obs:'Extrato do Mediador com aviso "Instrumento coletivo ainda não transmitido, passível de alteração". Aguardar o registro antes de aplicar.' },
+    { id:'cct-sindimetal-2025', titulo:'SINDFER x SINDIMETAL-ES 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'27.067.586/0001-68', nome:'SINDIFER', papel:'patronal' }, { cnpj:'30.978.340/0001-52', nome:'SINDIMETAL-ES', papel:'laboral' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }, { rotulo:'Micro e pequenas empresas', pct:'4,5%' }], base:'Salários vigentes em 31/10/2025; compensa reajustes de 01/11/2024 a 31/10/2025.', tabela:[] },
+      pisos:[], beneficios:[{ nome:'Cartão alimentação (grandes complexos industriais)', valor:'1.100,00' }, { nome:'Cartão alimentação/cesta (fora dos complexos, exceto ME/EPP)', valor:'420,00' }],
+      contribs:[], prazos:[], obs:'PDF do próprio sindicato, sem número do Mediador. Piso e contribuições não localizados nas páginas lidas.' },
+    { id:'cct-sintpicc-2026', titulo:'SINTPICC/RJ x SINDUSCON Norte Fluminense 2026/2027', tipo:'cct', status:'registrada', registro:'RJ001823/2026', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'31.504.483/0001-95', nome:'SINTPICC/RJ', papel:'laboral' }, { cnpj:'30.405.401/0001-92', nome:'Sind. da Indústria da Construção Civil do Norte Fluminense', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Sobre os salários vigentes em 01/05/2025.', tabela:[] },
+      pisos:[{ nome:'On-shore · Servente', valor:'1.946,73' }, { nome:'On-shore · ½ Oficial / Vigia / Aux. escritório', valor:'2.006,14' }, { nome:'On-shore · Apontador, Ferramenteiro', valor:'2.368,34' }, { nome:'On-shore · Escriturário, Armador, Carpinteiro, Pedreiro, Pintor, Eletricista e demais', valor:'2.775,79' }, { nome:'On-shore · Montador de torre, Operador de grua', valor:'3.036,10' }, { nome:'On-shore · Encarregado de categoria', valor:'4.501,80' }, { nome:'On-shore · Técnicos em geral', valor:'5.200,71' }, { nome:'On-shore · Encarregado de obras', valor:'5.509,12' }, { nome:'On-shore · Mestre de obras', valor:'5.636,45' },
+        { nome:'Off-shore · Servente', valor:'2.142,91' }, { nome:'Off-shore · ½ Oficial / Vigia / Aux. escritório', valor:'2.477,22' }, { nome:'Off-shore · Escriturário, Ferramenteiro', valor:'2.832,40' }, { nome:'Off-shore · Armador, Carpinteiro, Pedreiro e demais', valor:'3.062,30' }, { nome:'Off-shore · Almoxarife, Eletricista, Marceneiro…', valor:'3.114,17' }, { nome:'Off-shore · Pintor', valor:'3.254,87' }, { nome:'Off-shore · Encarregado', valor:'5.360,83' }, { nome:'Off-shore · Técnico em geral', valor:'5.516,60' }, { nome:'Off-shore · Mestre de obras', valor:'6.131,97' }],
+      beneficios:[],
+      contribs:[{ nome:'Taxa de custeio dos empregados', quem:'empregado', competencias:'mensal', vencimento:'', regra:'1% do salário nominal todo mês, recolher até o dia 10; base limitada ao dobro do maior piso', oposicao:'30 dias a partir da assinatura (novas contratações: 30 dias da admissão), por escrito na sede do sindicato em Macaé', calc:{ tipo:'' } }],
+      prazos:[{ data:'2026-09-08', desc:'Retroativo mai–jul/2026 (6%): 1ª parcela até o 5º dia útil de setembro' }, { data:'2026-10-07', desc:'Retroativo mai–jul/2026 (6%): 2ª parcela até o 5º dia útil de outubro' }, { data:'2026-10-05', desc:'Retroativo de demitidos antes da assinatura: parcela única' }],
+      obs:'' },
+    { id:'cct-sintrabares-2025', titulo:'SINTRABARES 2025/2026 (bares e restaurantes)', tipo:'cct', status:'substituida', registro:'ES000042/2025', vigIni:'2025-01-01', vigFim:'2026-12-31', dataBase:'Janeiro', substituidaPor:'cct-sintrabares-2026',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'19.937.306/0001-05', nome:'SINTRABARES', papel:'laboral' }, { cnpj:'36.404.374/0001-10', nome:'Sind. dos Restaurantes, Bares e Similares ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'7%' }], base:'Salários de dezembro/2024.', tabela:[] },
+      pisos:[{ nome:'Piso salarial único', valor:'1.590,00' }], beneficios:[], contribs:[], prazos:[], obs:'Substituída pela CCT 2026/2027 (ES000650/2025).' },
+    { id:'cct-sintrabares-2026', titulo:'SINTRABARES 2026/2027 (bares e restaurantes)', tipo:'cct', status:'registrada', registro:'ES000650/2025', vigIni:'2026-01-01', vigFim:'2027-12-31', dataBase:'Janeiro', substitui:'cct-sintrabares-2025',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'19.937.306/0001-05', nome:'SINTRABARES', papel:'laboral' }, { cnpj:'36.404.374/0001-10', nome:'Sind. dos Restaurantes, Bares e Similares ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'7,5%' }], base:'INPC 2025 + ganho real (PIB), sobre os salários de dezembro/2025.', tabela:[] },
+      pisos:[{ nome:'Piso admissional único', valor:'1.705,00' }], beneficios:[],
+      contribs:[{ nome:'Desconto assistencial (1 dia de salário)', quem:'empregado', competencias:'01/2026', vencimento:'2026-02-05', regra:'1 dia de salário de todos os empregados na folha de janeiro/2026, guia no SINDIFACIL/SINTRAHOTEIS-ES', oposicao:'', calc:{ tipo:'' } },
+        { nome:'Mensalidade sindical (associados)', quem:'empregado', competencias:'mensal', vencimento:'', regra:'2% do salário base dos associados, repassar até o 5º dia do mês seguinte', oposicao:'', calc:{ tipo:'' } },
+        { nome:'Taxa de homologação', quem:'empresa', competencias:'', vencimento:'', regra:'R$ 100,00 por homologação', oposicao:'', calc:{ tipo:'' } }],
+      prazos:[], obs:'Vigência de 2 anos com reajuste definido só para janeiro/2026: a data-base de janeiro/2027 depende de aditivo.' },
+    { id:'cct-sintrahoteis-2026', titulo:'SINTRAHOTEIS / SINTRANORTE 2026/2027 (hotéis)', tipo:'cct', status:'registrada', registro:'ES000009/2026', vigIni:'2026-01-01', vigFim:'2027-12-31', dataBase:'Janeiro',
+      partes:[{ cnpj:'36.009.868/0001-08', nome:'FETTHEES (federação)', papel:'federacao' }, { cnpj:'36.364.883/0001-66', nome:'SINTRAHOTEIS', papel:'laboral' }, { cnpj:'26.248.568/0001-10', nome:'SINTRANORTE', papel:'laboral' }, { cnpj:'30.963.136/0001-68', nome:'Sind. de Hotéis e Meios de Hospedagem ES', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Acima do piso admissional', pct:'8%' }], base:'Salário de dezembro/2025; admitidos após 01/01/2026: proporcional (1/12 por mês).', tabela:[] },
+      pisos:[{ nome:'Camareiras 4 ou 5 estrelas', valor:'2.181,44' }, { nome:'Outros trabalhadores 4 ou 5 estrelas', valor:'2.190,51' }, { nome:'Camareiras demais meios de hospedagem', valor:'1.818,26' }, { nome:'Outros trabalhadores demais meios de hospedagem', valor:'1.825,82' }],
+      beneficios:[], contribs:[], prazos:[], obs:'Contribuições não conferidas (PDF em imagem). Vigência de 2 anos: a data-base de janeiro/2027 depende de aditivo.' },
+    { id:'cct-construcao-es-2025', titulo:'Construção Civil ES 2025/2027 (SINDUSCON-ES)', tipo:'cct', status:'registrada', registro:'ES000255/2025', vigIni:'2025-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'28.164.473/0001-43', nome:'SINDUSCON-ES', papel:'patronal' }, { cnpj:'28.164.291/0001-72', nome:'Sind. Trab. Ind. Construção Civil, Pavimentação e Terraplenagem', papel:'laboral' }, { cnpj:'36.022.382/0001-00', nome:'SINTRACON-ES', papel:'laboral' }, { cnpj:'27.466.507/0001-91', nome:'Sind. Trab. Construção Civil do Norte do Estado', papel:'laboral' }, { cnpj:'27.368.273/0001-40', nome:'Sind. Trab. Ind. Construção Civil Sul ES', papel:'laboral' }, { cnpj:'07.857.013/0001-20', nome:'FETRACONMAG-ES (federação)', papel:'federacao' }],
+      reajuste:{ itens:[{ rotulo:'Auxiliar de obras, mensageiro, aux. escritório, vigia', pct:'10%' }, { rotulo:'Demais salários', pct:'8%' }], base:'01/05/2025 sobre salários de novembro/2024; acima de R$ 4.987,04: aumento mínimo de R$ 369,41. Em 01/05/2026: renegociação só das cláusulas econômicas.', tabela:[] },
+      pisos:[], beneficios:[], contribs:[], prazos:[], obs:'Tabelas de salário por função nos Anexos II e III.' },
+    { id:'cct-construcao-es-2026-oficio', titulo:'Construção Civil ES · valores de maio/2026 (Of. Circ. 004/2026)', tipo:'oficio', status:'acordada', registro:'', mae:'cct-construcao-es-2025', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'28.164.473/0001-43', nome:'SINDUSCON-ES', papel:'patronal' }, { cnpj:'28.164.291/0001-72', nome:'Sind. Trab. Ind. Construção Civil, Pavimentação e Terraplenagem', papel:'laboral' }, { cnpj:'36.022.382/0001-00', nome:'SINTRACON-ES', papel:'laboral' }, { cnpj:'27.466.507/0001-91', nome:'Sind. Trab. Construção Civil do Norte do Estado', papel:'laboral' }, { cnpj:'27.368.273/0001-40', nome:'Sind. Trab. Ind. Construção Civil Sul ES', papel:'laboral' }],
+      reajuste:{ itens:[], base:'Salários referenciais a partir de 01/05/2026 (tabela abaixo). Montagem industrial segue a tabela de 01/05/2025.', tabela:[] },
+      pisos:[{ nome:'Auxiliar de obras / Mensageiro / Aux. escritório / Vigia (R$ 8,19/h)', valor:'1.800,81' }, { nome:'Ajudante prático (R$ 9,13/h)', valor:'2.007,96' }, { nome:'Oficial (R$ 10,83/h)', valor:'2.382,25' }, { nome:'Oficial pleno (R$ 12,75/h)', valor:'2.805,97' }, { nome:'Oficial polivalente (R$ 14,06/h)', valor:'3.093,16' }, { nome:'Encarregado (R$ 15,07/h)', valor:'3.314,43' }],
+      beneficios:[{ nome:'Diferença da alimentação pronta (por dia)', valor:'35,60' }, { nome:'Cartão alimentação', valor:'1.300,00' }, { nome:'Diferença da cesta alimentação', valor:'850,00' }, { nome:'Cesta natalina', valor:'220,00' }, { nome:'Café da manhã (por dia, se não fornecido)', valor:'8,00' }],
+      contribs:[], prazos:[], obs:'Ofício do sindicato patronal de 27/05/2026: aplicar desde já. Ainda pendentes: alimentação complementar de alojados (cl. 22ª) e compensação dos dias de greve. O termo aditivo será registrado depois.' },
+    { id:'cct-saoluis-2025', titulo:'Fecomércio-MA x Comerciários de São Luís 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'06.052.757/0001-05', nome:'Fecomércio-MA', papel:'patronal' }, { cnpj:'06.302.632/0001-96', nome:'Sind. dos Empregados no Comércio de São Luís', papel:'laboral' }],
+      reajuste:{ itens:[{ rotulo:'Salários acima do piso', pct:'6%' }], base:'Salário de novembro/2024 já reajustado; compensa aumentos de nov/2024 a out/2025.', tabela:[] },
+      pisos:[{ nome:'Piso salarial normativo', valor:'1.787,30' }], beneficios:[{ nome:'Quebra de caixa (sobre o salário-base)', valor:'17%' }],
+      contribs:[], prazos:[], obs:'Nenhum salário abaixo do mínimo + 10%. Datas exatas da vigência não localizadas: conferir no PDF.' },
+    { id:'cct-brusque-2025', titulo:'Comércio de Brusque 2025/2026', tipo:'cct', status:'assinada', registro:'', vigIni:'2025-11-01', vigFim:'2026-10-31', dataBase:'Novembro',
+      partes:[{ cnpj:'82.991.837/0001-04', nome:'Sind. dos Empregados no Comércio de Brusque', papel:'laboral' }, { cnpj:'82.991.738/0001-22', nome:'Sind. do Comércio Varejista e Atacadista de Brusque', papel:'patronal' }],
+      reajuste:{ itens:[], base:'Cláusula de reajuste não conferida (PDF em imagem).', tabela:[] },
+      pisos:[{ nome:'Salário normativo', valor:'2.100,00' }, { nome:'1º emprego (6 primeiros meses)', valor:'1.762,00' }, { nome:'REPIS (com certidão de adesão)', valor:'2.000,00' }, { nome:'REPIS · 1º emprego', valor:'1.693,00' }], beneficios:[],
+      contribs:[{ nome:'Taxa negocial patronal', quem:'empresa', competencias:'', vencimento:'2026-03-31', regra:'Tabela por número de empregados, por CNPJ (filiais: no máximo 2x a do CNPJ com mais funcionários)', oposicao:'', calc:{ tipo:'faixaEmpregados', tabela:'0-3 = 156,00\n4-6 = 280,00\n7-11 = 447,00\n12-18 = 695,00\n19-30 = 894,00\n31-40 = 1.094,00\n41-50 = 1.217,00\n51-60 = 1.409,00\n61-80 = 1.864,00\n81-100 = 2.092,00\n101-130 = 2.263,00\n131-999999 = 2.466,00' } }],
+      prazos:[], obs:'' },
+    { id:'cct-secbhr-2026', titulo:'SECBHR x Fecomércio-MG 2026/2027 (comércio de BH)', tipo:'cct', status:'assinada', registro:'', vigIni:'2026-03-01', vigFim:'2027-02-28', dataBase:'Março',
+      partes:[{ cnpj:'17.220.179/0001-95', nome:'SECBHR (comerciários de BH e região)', papel:'laboral' }, { cnpj:'17.271.982/0001-59', nome:'Fecomércio-MG', papel:'patronal' }],
+      reajuste:{ itens:[], base:'Proporcional ao mês de admissão; salários acima de R$ 10.089,38: índice até esse valor e livre negociação acima. Já compensados aumentos de 01/03/2025 a 28/02/2026.',
+        tabela:[['2025-03','6,00%'],['2025-04','5,50%'],['2025-05','5,00%'],['2025-06','4,50%'],['2025-07','4,00%'],['2025-08','3,50%'],['2025-09','3,00%'],['2025-10','2,50%'],['2025-11','2,00%'],['2025-12','1,50%'],['2026-01','1,00%'],['2026-02','0,50%']].map(([mes, pct]) => ({ mes, pct })) },
+      pisos:[{ nome:'Office-boy, copeiro, faxineiro, servente, empacotador, entregador, vigia e demais', valor:'1.850,00' }, { nome:'Vendedores / balconistas', valor:'1.900,00' }, { nome:'REPIS (ME/EPP com certificado de adesão)', valor:'1.780,00' }], beneficios:[],
+      contribs:[{ nome:'Contribuição assistencial dos empregados', quem:'empregado', competencias:'08/2026, 11/2026', vencimento:'', regra:'R$ 60,00 por parcela, descontada em agosto e novembro/2026, boleto até o dia 15 do mês seguinte', oposicao:'15 dias a partir do 1º desconto, pessoalmente ou por escrito no sindicato', calc:{ tipo:'' } },
+        { nome:'Contribuição assistencial das empresas 2026', quem:'empresa', competencias:'', vencimento:'', regra:'Valor anual por enquadramento tributário (à vista ou 12x) + R$ 13,00 por empregado, teto R$ 15.000,00', oposicao:'', calc:{ tipo:'tributacao', tabela:'', adicional:'13,00', teto:'15.000,00' } },
+        { nome:'Taxa de adesão ao REPIS', quem:'empresa', competencias:'', vencimento:'', regra:'R$ 15,58 (só para quem aderir ao REPIS)', oposicao:'', calc:{ tipo:'fixo', valor:'15,58' } }],
+      prazos:[], obs:'A tabela da contribuição patronal por enquadramento não foi transcrita: preencha em Contribuições.' },
+    { id:'cct-itajai-2026', titulo:'Comércio Atacadista de Itajaí 2026/2027', tipo:'cct', status:'assinada', registro:'', vigIni:'2026-08-01', vigFim:'2027-07-31', dataBase:'Agosto',
+      partes:[{ cnpj:'84.307.370/0001-66', nome:'Sind. dos Empregados no Comércio de Itajaí', papel:'laboral' }, { cnpj:'05.021.016/0001-02', nome:'Sind. do Comércio Atacadista de Itajaí (SINCADI)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'6%' }], base:'Salários de julho/2025, parcela única; compensa antecipações de 01/08/2025 a 31/07/2026. Diferenças do retroativo na folha seguinte à assinatura.', tabela:[] },
+      pisos:[{ nome:'Na admissão (experiência)', valor:'2.155,00' }, { nome:'Após o contrato de experiência', valor:'2.380,00' }], beneficios:[],
+      contribs:[{ nome:'Contribuição negocial laboral', quem:'empregado', competencias:'11/2026, 07/2027', vencimento:'', regra:'3% da remuneração, limitado a R$ 80,00 por empregado a cada desconto; guia até o dia 10 do mês seguinte', oposicao:'04 a 13/11/2026 (novembro) e 07 a 16/07/2027 (julho), carta de próprio punho no sindicato', calc:{ tipo:'' } },
+        { nome:'Taxa negocial patronal', quem:'empresa', competencias:'', vencimento:'2026-08-31', regra:'Tabela por capital social, parcela única', oposicao:'', calc:{ tipo:'faixaCapital', tabela:'0-50000 = 240,00\n50000,01-100000 = 480,00\n100000,01-250000 = 600,00\n250000,01-500000 = 720,00\n500000,01-1000000 = 840,00\n1000000,01-5000000 = 1.260,00\n5000000,01-10000000 = 2.520,00\n10000000,01-50000000 = 5.040,00\n50000000,01-100000000 = 7.560,00\n100000000,01-999999999999 = 10.080,00' } }],
+      prazos:[], obs:'' },
+    { id:'cct-engenheiros-2026', titulo:'Engenheiros ES x SINAENCO 2026/2027', tipo:'cct', status:'registrada', registro:'ES000475/2026', vigIni:'2026-05-01', vigFim:'2027-04-30', dataBase:'Maio',
+      partes:[{ cnpj:'30.962.575/0001-56', nome:'Sind. dos Engenheiros no Estado do ES', papel:'laboral' }, { cnpj:'59.940.957/0001-60', nome:'SINAENCO (arquitetura e engenharia consultiva)', papel:'patronal' }],
+      reajuste:{ itens:[{ rotulo:'Geral', pct:'4,11%' }], base:'Salários de 30/04/2026, praticado a partir da assinatura; se não alcançar o piso, aplica-se o piso.', tabela:[] },
+      pisos:[{ nome:'Agrimensores, agrônomos, engenheiros, geógrafos, geólogos e meteorologistas (Lei 4.950-A/66)', valor:'12.139,13' }], beneficios:[],
+      contribs:[{ nome:'Contribuição assistencial patronal 2026', quem:'empresa', competencias:'', vencimento:'2026-09-15', regra:'R$ 250,00; associadas ao SINAENCO-ES em dia: R$ 125,00', oposicao:'', calc:{ tipo:'fixo', valor:'250,00', valorAssociada:'125,00' } }],
+      prazos:[{ data:'2026-08-31', desc:'Retroativo mai–jul/2026 (reajuste e piso) até a folha de agosto/2026' }], obs:'Rescisões complementares: diferença paga em 60 dias da assinatura.' },
+  ];
+  // ---------- convenções coletivas (CCT, aditivos e ofícios) ligadas aos sindicatos pelo CNPJ das partes ----------
+  const CCT_TIPOS = { cct:'CCT', aditivo:'Termo aditivo', oficio:'Ofício / circular' };
+  const CCT_STATUS = { registrada:'Registrada no Mediador', assinada:'Assinada (sem nº do Mediador)', acordada:'Acordada (sem aditivo registrado)', rascunho:'Registro no MTE não verificado', substituida:'Substituída' };
+  const CCT_STATUS_PILL = { registrada:'pill-ok', assinada:'', acordada:'pill-today', rascunho:'pill-late', substituida:'pill-muted' };
+  const CCT_RANK = { registrada:4, assinada:3, acordada:2, rascunho:1, substituida:0 };
+  const CALC_TIPOS = { '':'Não calcular', fixo:'Valor fixo', porEmpregado:'Valor por empregado (mensal)', faixaEmpregados:'Tabela por nº de empregados', faixaCapital:'Tabela por capital social', tributacao:'Tabela por enquadramento tributário' };
+  const cnpjDig = (c) => String(c || '').replace(/\D/g, '');
+  const numBR = (v) => { const t = String(v || '').replace(/[^\d,.-]/g, ''); if (!t) return NaN; return Number(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t); };
+  const brl = (n) => Number.isFinite(n) ? n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) : '—';
+  function normalizeCct(x) {
+    if (!x || typeof x !== 'object') return null;
+    const txt = (v, n) => String(v ?? '').normalize('NFC').trim().slice(0, n);
+    const titulo = txt(x.titulo, 160);
+    if (!titulo) return null;
+    const lista = (v, f) => (Array.isArray(v) ? v : []).map(f).filter(Boolean);
+    const par = (a, b, n1, n2) => (r) => { const p = txt(r && r[a], n1); return p ? { [a]: p, [b]: txt(r[b], n2) } : null; };
+    const mes = (v) => { const m = mesDeTexto(v || ''); return MESES.includes(m) ? m : ''; };
+    const r = x.reajuste && typeof x.reajuste === 'object' ? x.reajuste : {};
+    return {
+      id: String(x.id || '').match(/^[\w-]{1,80}$/) ? x.id : uid(), titulo,
+      tipo: CCT_TIPOS[x.tipo] ? x.tipo : 'cct', status: CCT_STATUS[x.status] ? x.status : 'assinada',
+      registro: txt(x.registro, 60), vigIni: toYmd(x.vigIni), vigFim: toYmd(x.vigFim), dataBase: mes(x.dataBase),
+      mae: txt(x.mae, 80), substitui: txt(x.substitui, 80), substituidaPor: txt(x.substituidaPor, 80), arquivo: txt(x.arquivo, 400),
+      partes: lista(x.partes, p => p && cnpjDig(p.cnpj).length >= 8 ? { cnpj: txt(p.cnpj, 20), nome: txt(p.nome, 160), papel: ['laboral', 'patronal', 'federacao'].includes(p.papel) ? p.papel : 'laboral' } : null),
+      reajuste: { itens: lista(r.itens, par('rotulo', 'pct', 120, 20)), base: txt(r.base, 600), tabela: lista(r.tabela, t => t && /^\d{4}-\d{2}$/.test(t.mes) ? { mes: t.mes, pct: txt(t.pct, 20) } : null) },
+      pisos: lista(x.pisos, par('nome', 'valor', 200, 30)), beneficios: lista(x.beneficios, par('nome', 'valor', 200, 30)),
+      contribs: lista(x.contribs, c => c && txt(c.nome, 120) ? { nome: txt(c.nome, 120), quem: c.quem === 'empresa' ? 'empresa' : 'empregado', competencias: txt(c.competencias, 120), vencimento: toYmd(c.vencimento), regra: txt(c.regra, 400), oposicao: txt(c.oposicao, 300),
+        calc: { tipo: CALC_TIPOS[c.calc?.tipo] !== undefined ? c.calc.tipo : '', valor: txt(c.calc?.valor, 30), valorAssociada: txt(c.calc?.valorAssociada, 30), tabela: txt(c.calc?.tabela, 2000), adicional: txt(c.calc?.adicional, 30), teto: txt(c.calc?.teto, 30) } } : null),
+      prazos: lista(x.prazos, p => p && toYmd(p.data) && txt(p.desc, 300) ? { data: toYmd(p.data), desc: txt(p.desc, 300) } : null),
+      obs: txt(x.obs, 1500), atualizadoEm: Number(x.atualizadoEm) || 0,
+    };
+  }
+  const normalizeCcts = (v) => (Array.isArray(v) ? v : []).map(normalizeCct).filter(Boolean);
+  async function salvarCcts(itens, silencioso) {
+    state.dpCcts = normalizeCcts(itens);
+    const ok = await persist(() => cctStore.save(JSON.parse(JSON.stringify(state.dpCcts))));
+    await sincronizaSindsComCcts();
+    if (!silencioso) renderDpActiveView();
+    return ok;
+  }
+
+  // Sindicato ↔ CCT: pelo CNPJ das partes (o cadastro do Domínio traz o CNPJ de cada código).
+  let cctIdx = null, cctIdxDe = null, cctIdxSind = null;
+  function cctsDoSind(s) {
+    if (cctIdxDe !== state.dpCcts || cctIdxSind !== state.dpSind) {
+      cctIdx = new Map();
+      state.dpCcts.forEach(c => c.partes.forEach(p => { const d = cnpjDig(p.cnpj); if (!cctIdx.has(d)) cctIdx.set(d, []); cctIdx.get(d).push(c); }));
+      cctIdxDe = state.dpCcts; cctIdxSind = state.dpSind;
+    }
+    const d = cnpjDig(s && s.cnpj);
+    return d && /[1-9]/.test(d) ? (cctIdx.get(d) || []) : [];
+  }
+  const sindsDaCct = (c) => { const ds = new Set(c.partes.map(p => cnpjDig(p.cnpj))); return state.dpSind.filter(s => ds.has(cnpjDig(s.cnpj))); };
+  const cctPorId = (id) => state.dpCcts.find(c => c.id === id);
+  // CCT vigente de um sindicato numa data: a que cobre a data, com o melhor status; sem nenhuma cobrindo, a mais recente.
+  function cctVigente(s, dia = ymd(hoje())) {
+    const todas = cctsDoSind(s).filter(c => c.tipo === 'cct' && c.status !== 'substituida');
+    if (!todas.length) return null;
+    const cobre = todas.filter(c => c.vigIni && c.vigFim && c.vigIni <= dia && dia <= c.vigFim);
+    const ord = (a, b) => (CCT_RANK[b.status] - CCT_RANK[a.status]) || b.vigIni.localeCompare(a.vigIni);
+    const cct = (cobre.length ? cobre.sort(ord) : todas.sort((a, b) => b.vigIni.localeCompare(a.vigIni)))[0];
+    const aditivos = state.dpCcts.filter(a => a.mae === cct.id && a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni));
+    return { cct, aditivos };
+  }
+  // Valores em vigor: o aditivo/ofício mais recente já iniciado prevalece campo a campo sobre a CCT-mãe.
+  function cctEfetiva(v, dia = ymd(hoje())) {
+    const camadas = [v.cct, ...v.aditivos.filter(a => !a.vigIni || a.vigIni <= dia)];
+    const ult = (f) => { for (let i = camadas.length - 1; i >= 0; i--) { const x = f(camadas[i]); if (x && x.length) return { val: x, de: camadas[i] }; } return { val: [], de: v.cct }; };
+    const r = { reajusteItens: ult(c => c.reajuste.itens), tabela: ult(c => c.reajuste.tabela), pisos: ult(c => c.pisos), beneficios: ult(c => c.beneficios) };
+    // Aditivo/ofício já em vigor que traz tabela de salários em vez de percentual: o percentual da CCT-mãe não vale mais.
+    const ad = camadas.length > 1 ? camadas[camadas.length - 1] : null;
+    if (ad && !ad.reajuste.itens.length && !ad.reajuste.tabela.length && ad.pisos.length) { r.reajusteItens = { val: [{ rotulo: 'Salários referenciais', pct: `tabela de ${ad.vigIni.slice(0, 4)}` }], de: ad }; r.tabela = { val: [], de: ad }; }
+    return r;
+  }
+  const empresaCcts = (e) => { const out = []; empresaSinds(e).forEach(s => { const v = cctVigente(s); if (v && !out.some(o => o.cct === v.cct)) out.push(v); }); return out; };
+  const empsDaCct = (c, lista = state.dpEmpresas.filter(ativa)) => { const ss = new Set(sindsDaCct(c)); return lista.filter(e => empresaSinds(e).some(s => ss.has(s))); };
+  const resumoReajuste = (ef) => ef.tabela.val.length ? `tabela por admissão (até ${ef.tabela.val[0].pct})` : ef.reajusteItens.val.map(i => ef.reajusteItens.val.length > 1 ? `${i.rotulo}: ${i.pct}` : i.pct).join(' · ');
+
+  // Os campos de data-base, vigência, registro, reajuste e piso do sindicato passam a vir da CCT vigente.
+  async function sincronizaSindsComCcts() {
+    let mudou = false;
+    const itens = state.dpSind.map(s => {
+      const v = cctVigente(s);
+      if (!v) return s;
+      const ef = cctEfetiva(v);
+      const pct = ef.tabela.val.length ? 'tabela por admissão' : ef.reajusteItens.val.map(i => i.pct).join(' / ');
+      const novo = { dataBase: v.cct.dataBase || s.dataBase, vigIni: v.cct.vigIni, vigFim: v.cct.vigFim, registro: v.cct.registro || s.registro, percentual: pct.slice(0, 30), piso: (ef.pisos.val[0]?.valor || s.piso || '').slice(0, 30), cctId: v.cct.id };
+      if (Object.keys(novo).every(k => (s[k] || '') === (novo[k] || ''))) return s;
+      mudou = true;
+      const x = { ...s, ...novo, hist: [...s.hist] };
+      histSind(x, `Dados atualizados pela ${CCT_TIPOS[v.cct.tipo]} “${v.cct.titulo}”`);
+      return x;
+    });
+    if (mudou) { state.dpSind = normalizeSinds(itens); await persist(() => sindStore.save(JSON.parse(JSON.stringify(state.dpSind)))); }
+  }
+
+  // Estimativa da contribuição patronal por empresa, com os dados do cadastro (funcionários, tributação, capital social).
+  function faixaDe(tabela, n) {
+    for (const l of String(tabela || '').split(/\n+/)) {
+      const m = /^\s*([\d.,]+)\s*-\s*([\d.,]+)\s*=\s*(.+)$/.exec(l);
+      if (m && n >= numBR(m[1]) && n <= numBR(m[2])) return numBR(m[3]);
+    }
+    return NaN;
+  }
+  function estimaContrib(c, e) {
+    const k = c.calc || {}, nf = nfEmp(e);
+    if (k.tipo === 'fixo') { const v = e.assocPatronal === 'Sim' && k.valorAssociada ? numBR(k.valorAssociada) : numBR(k.valor); return { v, det: e.assocPatronal === 'Sim' && k.valorAssociada ? 'associada' : 'valor fixo' }; }
+    if (k.tipo === 'porEmpregado') return { v: numBR(k.valor) * nf, det: `${nf} func. × ${k.valor}/mês` };
+    if (k.tipo === 'faixaEmpregados') return { v: faixaDe(k.tabela, nf), det: `${nf} funcionário(s) cadastrado(s)` };
+    if (k.tipo === 'faixaCapital') { const cap = numBR(e.capitalSocial); return Number.isFinite(cap) ? { v: faixaDe(k.tabela, cap), det: `capital ${brl(cap)}` } : { v: NaN, det: 'informe o capital social da empresa' }; }
+    if (k.tipo === 'tributacao') {
+      const linha = String(k.tabela || '').split(/\n+/).map(l => /^\s*(.+?)\s*=\s*(.+)$/.exec(l)).find(m => m && norm(m[1]) === norm(e.tributacao));
+      if (!linha) return { v: NaN, det: e.tributacao ? `preencha a tabela para ${e.tributacao}` : 'informe a tributação da empresa' };
+      let v = numBR(linha[2]) + (numBR(k.adicional) || 0) * nf;
+      if (Number.isFinite(numBR(k.teto))) v = Math.min(v, numBR(k.teto));
+      return { v, det: `${e.tributacao} + ${nf} func.` };
+    }
+    return null;
+  }
+  // Reajuste que cabe a um funcionário pela CCT vigente da empresa (tabela por mês de admissão ou percentual).
+  function reajusteFunc(e, f) {
+    const v = empresaCcts(e)[0];
+    if (!v) return null;
+    const ef = cctEfetiva(v), adm = String(f.admissao || '');
+    const tab = ef.tabela.val;
+    if (tab.length) {
+      if (!adm) return { txt: `tabela por admissão (${tab[0].pct} a ${tab[tab.length - 1].pct})`, cct: v.cct };
+      const m = adm.slice(0, 7);
+      const r = m <= tab[0].mes ? tab[0] : tab.find(t => t.mes === m);
+      return { txt: r ? `${r.pct} (admissão ${m.slice(5)}/${m.slice(0, 4)})` : 'admitido após a data-base: sem reajuste neste ciclo', cct: v.cct };
+    }
+    if (!ef.reajusteItens.val.length) return null;
+    const s = empresaSinds(e).find(x => x.cctId === v.cct.id) || empresaSinds(e)[0];
+    const ci = s && cicloDe(s), prop = ci && adm && parseYmd(adm) > addYears(ci.inicio, -1);
+    return { txt: resumoReajuste(ef) + (prop ? ' · admitido depois da data-base anterior: conferir proporcionalidade' : ''), cct: v.cct };
+  }
+
+  // Agenda: descontos e recolhimentos das contribuições, prazos de retroativo (um evento por CCT, com as empresas dela).
+  function eventosCct(from, to, ativas) {
+    const out = [];
+    state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
+      const emps = empsDaCct(c, ativas);
+      if (!emps.length) return;
+      const tag = c.status === 'rascunho' ? ' (registro no MTE não verificado)' : '';
+      const ev = (d, titulo, sub) => { if (dentro(d, from, to)) out.push({ tipo:'sindical', d, titulo: titulo + tag, sub, emps, goto: `sindicatos:cct:${c.id}` }); };
+      c.contribs.forEach(k => {
+        (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); ev(new Date(y, m - 1, 1), `${k.quem === 'empresa' ? 'Contribuição da empresa' : 'Descontar na folha'}: ${k.nome}`, `${c.titulo}${k.regra ? ' · ' + k.regra : ''}`); });
+        if (k.vencimento) ev(parseYmd(k.vencimento), `${k.quem === 'empresa' ? 'Pagar' : 'Recolher'}: ${k.nome}`, `${c.titulo}${k.regra ? ' · ' + k.regra : ''}`);
+      });
+      c.prazos.forEach(p => ev(parseYmd(p.data), p.desc, c.titulo));
+    });
+    return out;
+  }
+  // Avisos das convenções: registro não verificado, ofício sem aditivo, vencendo sem sucessora e 2º ano de CCT bienal sem aditivo.
+  function cctAlertas() {
+    const out = [], t = ymd(hoje()), ativas = state.dpEmpresas.filter(ativa);
+    state.dpCcts.filter(c => c.status !== 'substituida').forEach(c => {
+      const n = empsDaCct(c, ativas).length;
+      if (!n) return;
+      if (c.status === 'rascunho') out.push({ nivel:'late', id:c.id, txt:`${c.titulo}: registro no MTE não verificado. Não aplicar antes de confirmar o registro no Mediador. ${n} empresa(s).` });
+      if (c.tipo !== 'cct' && c.status === 'acordada') out.push({ nivel:'warn', id:c.id, txt:`${c.titulo}: valores acordados por ${CCT_TIPOS[c.tipo].toLowerCase()}, termo aditivo ainda não registrado.` });
+      if (c.tipo === 'cct' && c.vigFim) {
+        const dias = diffDays(parseYmd(c.vigFim), hoje());
+        const suc = state.dpCcts.some(o => o !== c && o.tipo === 'cct' && o.vigIni > c.vigFim && o.partes.some(p => c.partes.some(q => cnpjDig(q.cnpj) === cnpjDig(p.cnpj))));
+        if (dias <= 60 && !suc) out.push({ nivel: dias < 0 ? 'late' : 'warn', id:c.id, txt:`${c.titulo}: ${dias < 0 ? `vencida há ${-dias} dia(s)` : `vence em ${dias} dia(s)`} e a nova convenção ainda não foi cadastrada. ${n} empresa(s).` });
+        const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+        if (ini && fim && diffDays(fim, ini) > 400) {
+          const base2 = ymd(addYears(ini, 1));
+          const temAd = state.dpCcts.some(a => a.mae === c.id && a.vigIni >= base2);
+          if (t >= base2 && t <= c.vigFim && !temAd) out.push({ nivel:'warn', id:c.id, txt:`${c.titulo}: vigência de 2 anos e a data-base de ${fmtYmdBR(base2)} já passou sem aditivo ou ofício cadastrado com os novos valores.` });
+        }
+      }
+    });
+    return out;
+  }
+
+  // ----- tela: lista das convenções -----
+  function renderCcts() {
+    const ro = state.readOnly, q = state.dpSindQuery, t = ymd(hoje());
+    const faltam = CCTS_ANALISADAS.filter(x => !cctPorId(x.id)).length;
+    $('#cct-carregar').hidden = ro || !faltam;
+    $('#cct-carregar').textContent = `Carregar ${faltam} convenção(ões) analisada(s)`;
+    $('#cct-novo').hidden = ro;
+    const semDominio = !state.dpSind.some(s => s.cnpj);
+    $('#cct-aviso').hidden = !state.dpCcts.length || !semDominio;
+    const lista = state.dpCcts.filter(c => matchQ([c.titulo, c.registro, c.obs, ...c.partes.map(p => p.nome + ' ' + p.cnpj + ' ' + cnpjDig(p.cnpj)), ...sindsDaCct(c).map(s => s.cod + ' ' + rotuloSind(s))], q))
+      .sort((a, b) => (a.status === 'substituida') - (b.status === 'substituida') || (a.mae ? 1 : 0) - (b.mae ? 1 : 0) || a.titulo.localeCompare(b.titulo, 'pt-BR'));
+    $('#sd-count').textContent = `${state.dpCcts.length} convenção(ões)`;
+    const ativas = state.dpEmpresas.filter(ativa);
+    $('#cct-table').innerHTML = `<colgroup><col><col style="width:24%"><col style="width:150px"><col style="width:150px"><col style="width:140px"><col style="width:84px"></colgroup>
+      <thead><tr><th>Convenção</th><th>Partes (código no Domínio)</th><th>Vigência</th><th>Reajuste · piso</th><th>Situação</th><th class="num">Empresas</th></tr></thead><tbody>` +
+      (lista.map(c => {
+        const ss = sindsDaCct(c), n = empsDaCct(c, ativas).length;
+        const partes = c.partes.map(p => { const s = ss.find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<div class="cct-parte"><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b>${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `<span class="dp-cell-sub" title="${escapeHtml(p.cnpj)}">${escapeHtml(p.nome)} · fora do Domínio</span>`}</div>`; }).join('');
+        const cobre = c.vigIni <= t && t <= c.vigFim;
+        const reaj = c.reajuste.tabela.length ? `tabela por admissão` : c.reajuste.itens.map(i => i.pct).join(' / ');
+        return `<tr class="${c.status === 'substituida' ? 'inativa' : ''}">
+          <td><button type="button" class="ct-emp" data-cct-abrir="${escapeHtml(c.id)}"><div class="dp-cell-main" style="white-space:normal">${c.mae ? '↳ ' : ''}${escapeHtml(c.titulo)}</div></button><div class="dp-cell-sub">${escapeHtml(CCT_TIPOS[c.tipo])}${c.registro ? ' · ' + escapeHtml(c.registro) : ''}</div></td>
+          <td>${partes || '<span class="dp-cell-sub">—</span>'}</td>
+          <td><div style="font-size:12px">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</div><div class="dp-cell-sub">data-base ${escapeHtml(c.dataBase || '—')}${cobre ? ' · em vigor' : ''}</div></td>
+          <td><div style="font-size:12.5px;font-weight:600">${escapeHtml(reaj || '—')}</div><div class="dp-cell-sub">${c.pisos.length ? `piso ${escapeHtml(c.pisos[0].valor)}${c.pisos.length > 1 ? ` (+${c.pisos.length - 1})` : ''}` : 'sem piso cadastrado'}</div></td>
+          <td><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span></td>
+          <td class="num">${n}</td></tr>`;
+      }).join('') || `<tr><td colspan="6"><div class="dp-empty">${state.dpCcts.length ? 'Nenhuma convenção com essa busca.' : '<strong>Nenhuma convenção cadastrada</strong><span>Carregue as convenções já analisadas ou cadastre uma nova.</span>'}</div></td></tr>`) + '</tbody>';
+    const abrir = state.dpCctAbrir; state.dpCctAbrir = '';
+    if (abrir && cctPorId(abrir)) abrirCct(abrir);
+  }
+  // Resumo da CCT vigente dentro do sindicato aberto.
+  function cctResumoHtml(s) {
+    const v = cctVigente(s);
+    if (!v) return state.dpCcts.length && s.cnpj ? '' : '';
+    const ef = cctEfetiva(v), c = v.cct;
+    const pis = ef.pisos.val.slice(0, 4).map(p => `<li>${escapeHtml(p.nome)}: <b>${escapeHtml(p.valor)}</b></li>`).join('') + (ef.pisos.val.length > 4 ? `<li class="dp-cell-sub">+${ef.pisos.val.length - 4} na convenção</li>` : '');
+    const contr = c.contribs.map(k => `<li>${escapeHtml(k.nome)}${k.competencias ? ` · <b>${escapeHtml(k.competencias)}</b>` : ''}${k.vencimento ? ` · até <b>${fmtYmdBR(k.vencimento)}</b>` : ''}</li>`).join('');
+    const prz = [...c.prazos, ...v.aditivos.flatMap(a => a.prazos)].filter(p => p.data >= ymd(addDays(hoje(), -30))).map(p => `<li><b>${fmtYmdBR(p.data)}</b> ${escapeHtml(p.desc)}</li>`).join('');
+    return `<div class="cct-resumo">
+      <div class="cct-resumo-h"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><button type="button" class="linkish" data-cct-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button>${v.aditivos.map(a => ` <button type="button" class="linkish" data-cct-abrir="${escapeHtml(a.id)}">+ ${escapeHtml(CCT_TIPOS[a.tipo].toLowerCase())} ${a.vigIni ? a.vigIni.slice(0, 4) : ''}</button>`).join('')}</div>
+      <div class="cct-cols">
+        <div><b>Reajuste</b><p>${escapeHtml(resumoReajuste(ef) || '—')}${ef.reajusteItens.de !== c || ef.tabela.de !== c ? ' <span class="dp-cell-sub">(pelo aditivo)</span>' : ''}</p>${pis ? `<b>Pisos</b><ul>${pis}</ul>` : ''}</div>
+        <div>${contr ? `<b>Contribuições</b><ul>${contr}</ul>` : ''}${prz ? `<b>Prazos</b><ul>${prz}</ul>` : ''}${!contr && !prz ? '<p class="dp-cell-sub">Sem contribuições ou prazos cadastrados.</p>' : ''}</div>
+      </div></div>`;
+  }
+
+  // ----- janela da convenção -----
+  const dlgCct = $('#dlg-cct'), formCct = $('#form-cct');
+  let cctEditId = null;
+  const linhasPar = (arr, a, b) => arr.map(x => `${x[a]} = ${x[b]}`).join('\n');
+  const leLinhasPar = (txt, a, b) => String(txt || '').split(/\n+/).map(l => { const i = l.lastIndexOf('='); return i > 0 ? { [a]: l.slice(0, i).trim(), [b]: l.slice(i + 1).trim() } : null; }).filter(x => x && x[a]);
+  // ---------- editor em linhas (reajuste, tabelas, pisos, benefícios, prazos, partes) ----------
+  // Cada editor fica ligado a um textarea escondido no formato de texto antigo, que continua sendo o que se lê e se grava.
+  const numTxt = (v) => /^[\s\d.,]+$/.test(v) && /\d/.test(v);
+  const numPt = (v) => { const t = String(v).replace(/\s/g, ''); return /^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t) || t.includes(',') ? Number(t.replace(/\./g, '').replace(',', '.')) : Number(t); };
+  const fmtPct = (v) => { v = String(v || '').trim().replace(/%$/, '').trim(); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : v; };
+  const fmtVal = (v) => { v = String(v || '').trim().replace(/^R\$\s*/i, ''); if (!numTxt(v)) return v; const n = numPt(v); return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; };
+  const SEM_LIM = 999999999;
+  const LIN = {
+    reajItens: { cab: ['Aplica-se a', 'Reajuste'], cols: [{ t:'txt', ph:'Ex.: Geral', dl:'dl-reaj' }, { t:'pct', w:'110px' }], add:'Percentual', fmt:'par' },
+    reajTabela: { cab: ['Admitidos em', 'Reajuste'], cols: [{ t:'month', w:'minmax(0,1fr)' }, { t:'pct', w:'110px' }], add:'Mês', fmt:'mes' },
+    pisos: { cab: ['Função', 'Piso'], cols: [{ t:'txt', ph:'Ex.: Ajudante' }, { t:'brl', w:'130px' }], add:'Piso', fmt:'par' },
+    beneficios: { cab: ['Benefício', 'Valor ou regra'], cols: [{ t:'txt', ph:'Ex.: Cartão alimentação' }, { t:'valTxt', w:'150px', ph:'1.300,00' }], add:'Benefício', fmt:'par' },
+    prazos: { cab: ['Data', 'O que fazer'], cols: [{ t:'date', w:'160px' }, { t:'txt', ph:'Ex.: Retroativo 1ª parcela' }], add:'Prazo', fmt:'data' },
+    partes: { cab: ['CNPJ', 'Entidade', 'Lado'], cols: [{ t:'cnpj', w:'175px' }, { t:'txt', ph:'Nome do sindicato ou federação' }, { t:'sel', w:'120px', op:[['laboral', 'Laboral'], ['patronal', 'Patronal'], ['federacao', 'Federação']] }], add:'Parte', fmt:'pipe' },
+    faixaEmpregados: { cab: ['De (func.)', 'Até', 'Valor'], cols: [{ t:'int', ph:'0' }, { t:'int', ph:'sem limite' }, { t:'brl', w:'160px' }], add:'Faixa', fmt:'faixa' },
+    faixaCapital: { cab: ['Capital de', 'Até', 'Valor'], cols: [{ t:'brl', ph:'0,00' }, { t:'brl', ph:'sem limite' }, { t:'brl', w:'130px' }], add:'Faixa', fmt:'faixa' },
+    tributacao: { cab: ['Tributação', 'Valor'], cols: [{ t:'txt', dl:'dl-trib', ph:'SIMPLES NACIONAL' }, { t:'brl', w:'140px' }], add:'Linha', fmt:'par' },
+  };
+  const linLer = (fmt, txt) => String(txt || '').split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+    if (fmt === 'pipe') { const p = l.split('|').map(s => s.trim()), lado = (p[2] || '').toLowerCase(); return [p[0] || '', p[1] || '', lado.startsWith('pat') ? 'patronal' : lado.startsWith('fed') ? 'federacao' : 'laboral']; }
+    if (fmt === 'faixa') { const m = /^\s*([\d.,]+)\s*-\s*([\d.,]+)\s*=\s*(.+)$/.exec(l); return m ? [m[1], numPt(m[2]) >= SEM_LIM ? '' : m[2], m[3].trim()] : null; }
+    const i = l.lastIndexOf('=');
+    if (i <= 0) return fmt === 'par' ? [l, ''] : null;
+    let a = l.slice(0, i).trim(); const b = l.slice(i + 1).trim();
+    if (fmt === 'mes') { const m = /^(\d{1,2})\/(\d{4})$/.exec(a); a = m ? `${m[2]}-${pad2(+m[1])}` : ''; }
+    if (fmt === 'data') { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(a); a = m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+    return [a, b];
+  }).filter(Boolean);
+  const linGravar = (fmt, rows) => rows.filter(r => r.some((v, i) => String(v).trim() && !(fmt === 'pipe' && i === 2))).map(r => {
+    if (fmt === 'pipe') return `${r[0]} | ${r[1]} | ${r[2]}`;
+    if (fmt === 'faixa') return `${r[0] || '0'}-${r[1] || SEM_LIM} = ${r[2]}`;
+    if (fmt === 'mes') return r[0] && r[1] ? `${r[0].slice(5)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    if (fmt === 'data') return r[0] ? `${r[0].slice(8)}/${r[0].slice(5, 7)}/${r[0].slice(0, 4)} = ${r[1]}` : '';
+    return r[0] ? `${r[0]} = ${r[1]}` : '';
+  }).filter(Boolean).join('\n');
+  const linOut = (t, v) => {
+    v = String(v || '').trim();
+    if (t === 'pct') { const f = fmtPct(v); return f && numTxt(f) ? f + '%' : f; }
+    if (t === 'brl' || t === 'valTxt') return fmtVal(v);
+    if (t === 'int') return v.replace(/\D/g, '');
+    return v;
+  };
+  function linCell(c, v) {
+    const ph = c.ph ? ` placeholder="${escapeHtml(c.ph)}"` : '';
+    if (c.t === 'sel') return `<select data-lc="sel" aria-label="Lado">${c.op.map(([k, l]) => `<option value="${k}"${v === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+    if (c.t === 'month' || c.t === 'date') return `<input type="${c.t}" data-lc="${c.t}" value="${escapeHtml(v)}">`;
+    if (c.t === 'pct') return `<span class="lin-af"><input data-lc="pct" inputmode="decimal" value="${escapeHtml(fmtPct(v))}"${ph || ' placeholder="0"'}><i>%</i></span>`;
+    if (c.t === 'brl') return `<span class="lin-af pre"><i>R$</i><input data-lc="brl" inputmode="decimal" value="${escapeHtml(String(v).replace(/^R\$\s*/i, ''))}"${ph || ' placeholder="0,00"'}></span>`;
+    if (c.t === 'int') return `<input data-lc="int" inputmode="numeric" value="${escapeHtml(v)}"${ph}>`;
+    if (c.t === 'cnpj') return `<input data-lc="cnpj" value="${escapeHtml(v)}" placeholder="00.000.000/0000-00" class="${v && !cnpjValido(v) ? 'lin-bad' : ''}">`;
+    return `<input data-lc="${c.t}" value="${escapeHtml(v)}"${ph}${c.dl ? ` list="${c.dl}"` : ''}>`;
+  }
+  const linRowHtml = (spec, r, ro) => `<div class="lin-row">${spec.cols.map((c, i) => linCell(c, r[i] ?? '')).join('')}${ro ? '' : `<button type="button" class="lin-del" data-lin-del aria-label="Remover linha" title="Remover linha">${ic('x', 'ic-sm')}</button>`}</div>`;
+  function linMontar(ta, chave, linhas = null) {
+    let ed = ta.nextElementSibling;
+    if (!ed || !ed.classList.contains('lin-ed')) { ed = document.createElement('div'); ed.className = 'lin-ed'; ta.after(ed); }
+    ta.classList.add('lin-src'); ta.dataset.linAtual = chave || '';
+    const spec = LIN[chave];
+    ed.hidden = !spec; ed.dataset.lin = chave || '';
+    if (!spec) { ed.innerHTML = ''; return; }
+    const ro = state.readOnly, rows = linhas || linLer(spec.fmt, ta.value);
+    if (!rows.length && !ro) rows.push(spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''));
+    ed.style.setProperty('--lin-cols', spec.cols.map(c => !c.w ? 'minmax(84px,1fr)' : /px$/.test(c.w) ? `minmax(0,${c.w})` : c.w).join(' ') + (ro ? '' : ' 26px'));
+    ed.innerHTML = `<div class="lin-cab">${spec.cab.map(c => `<span>${c}</span>`).join('')}</div><div class="lin-rows">${rows.length ? rows.map(r => linRowHtml(spec, r, ro)).join('') : '<span class="dp-cell-sub">—</span>'}</div>${ro ? '' : `<div class="lin-pe"><button type="button" class="linkish" data-lin-add>+ ${spec.add}</button>${chave === 'reajTabela' ? '<button type="button" class="linkish" data-lin-meses title="Cria uma linha para cada um dos 12 meses anteriores ao início da vigência">Preencher os 12 meses</button>' : ''}</div>`}`;
+  }
+  function linSync(ed) {
+    const ta = ed.previousElementSibling, spec = LIN[ed.dataset.lin];
+    if (!spec || !ta) return;
+    ta.value = linGravar(spec.fmt, $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))));
+  }
+  const CALC_CAMPOS = { '': [], fixo: ['valor', 'valorAssociada'], porEmpregado: ['valor'], faixaEmpregados: ['tabela'], faixaCapital: ['tabela'], tributacao: ['tabela', 'adicional', 'teto'] };
+  function calcCampos(fs) {
+    const tipo = fs.querySelector('[data-k="calc.tipo"]').value, vis = CALC_CAMPOS[tipo] || [];
+    $$('[data-calc-campo]', fs).forEach(el => { el.hidden = !vis.includes(el.dataset.calcCampo); });
+    const ta = fs.querySelector('[data-k="calc.tabela"]'), chave = vis.includes('tabela') ? tipo : '';
+    if (ta.dataset.linAtual !== chave) linMontar(ta, chave);
+  }
+  function linMontarTodos(root) {
+    $('#dl-trib').innerHTML = [...new Set([...TRIBUTACOES, ...state.dpEmpresas.map(e => e.tributacao).filter(Boolean)])].map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $$('textarea[data-lin]', root).forEach(ta => linMontar(ta, ta.dataset.lin));
+    (root.matches?.('.cct-contrib') ? [root] : $$('.cct-contrib', root)).forEach(fs => { delete fs.querySelector('[data-k="calc.tabela"]').dataset.linAtual; calcCampos(fs); });
+  }
+  // Tabela proporcional: uma linha por mês de admissão nos 12 meses anteriores à vigência (mantém o que já foi digitado).
+  function linMeses(ed) {
+    const f = formCct.elements;
+    let base = parseYmd(f.vigIni.value);
+    if (!base) { const mi = MESES.indexOf(f.dataBase.value); if (mi < 0) { toast('Informe primeiro o início da vigência ou a data-base.'); return; } const t = hoje(); base = new Date(t.getMonth() >= mi ? t.getFullYear() : t.getFullYear() - 1, mi, 1); }
+    const atuais = $$('.lin-row', ed).map(row => $$('[data-lc]', row).map(el => linOut(el.dataset.lc, el.value))).filter(r => r[0]);
+    const de = new Map(atuais.map(r => [r[0], r[1]]));
+    const meses = Array.from({ length: 12 }, (_, i) => { const d = new Date(base.getFullYear(), base.getMonth() - 12 + i, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; });
+    const rows = [...meses.map(k => [k, de.get(k) || '']), ...atuais.filter(r => !meses.includes(r[0]))];
+    linMontar(ed.previousElementSibling, 'reajTabela', rows);
+    linSync(ed);
+    const vazio = $$('[data-lc="pct"]', ed).find(i => !i.value); if (vazio) vazio.focus();
+  }
+  formCct.addEventListener('input', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc]'); if (!el) return;
+    if (el.dataset.lc === 'cnpj') { if (/^[\d.\/\s-]*$/.test(el.value)) el.value = maskCnpj(el.value); el.classList.toggle('lin-bad', cnpjDig(el.value).length >= 14 && !cnpjValido(el.value)); }
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('change', (e) => {
+    if (e.target.matches('[data-k="calc.tipo"]')) { calcCampos(e.target.closest('.cct-contrib')); return; }
+    const el = e.target.closest('.lin-ed [data-lc]'); if (el) linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('focusout', (e) => {
+    const el = e.target.closest('.lin-ed [data-lc="pct"], .lin-ed [data-lc="brl"], .lin-ed [data-lc="valTxt"]'); if (!el) return;
+    el.value = el.dataset.lc === 'pct' ? fmtPct(el.value) : fmtVal(el.value);
+    linSync(el.closest('.lin-ed'));
+  });
+  formCct.addEventListener('click', (e) => {
+    const t = e.target, ed = t.closest('.lin-ed'); if (!ed || state.readOnly) return;
+    const spec = LIN[ed.dataset.lin]; if (!spec) return;
+    if (t.closest('[data-lin-add]')) {
+      const rows = $('.lin-rows', ed); if (!$('.lin-row', rows)) rows.innerHTML = '';
+      rows.insertAdjacentHTML('beforeend', linRowHtml(spec, spec.cols.map(c => c.t === 'sel' ? c.op[0][0] : ''), false));
+      $('.lin-row:last-child [data-lc]', rows).focus();
+      return;
+    }
+    const del = t.closest('[data-lin-del]');
+    if (del) {
+      const row = del.closest('.lin-row');
+      if ($$('.lin-row', ed).length > 1) row.remove(); else $$('[data-lc]', row).forEach(el => { if (el.tagName !== 'SELECT') el.value = ''; });
+      linSync(ed);
+      return;
+    }
+    if (t.closest('[data-lin-meses]')) linMeses(ed);
+  });
+  // Enter numa linha: vai para a mesma coluna da linha de baixo (cria uma se for a última), sem enviar o formulário.
+  formCct.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey) return;
+    const el = e.target.closest('.lin-ed input[data-lc]'); if (!el) return;
+    e.preventDefault();
+    const row = el.closest('.lin-row'), ed = row.closest('.lin-ed'), col = $$('[data-lc]', row).indexOf(el);
+    if (!row.nextElementSibling) $('[data-lin-add]', ed)?.click();
+    const prox = row.nextElementSibling; if (prox) $$('[data-lc]', prox)[col]?.focus();
+  });
+  function contribRowHtml(k = { nome:'', quem:'empregado', competencias:'', vencimento:'', regra:'', oposicao:'', calc:{ tipo:'' } }) {
+    const c = k.calc || {};
+    return `<fieldset class="cct-contrib">
+      <div class="form-row"><label class="field">Contribuição<input data-k="nome" value="${escapeHtml(k.nome)}" maxlength="120"></label>
+        <label class="field" style="max-width:140px">Quem paga<select data-k="quem"><option value="empregado"${k.quem !== 'empresa' ? ' selected' : ''}>Empregado (desconto)</option><option value="empresa"${k.quem === 'empresa' ? ' selected' : ''}>Empresa</option></select></label>
+        <label class="field" style="max-width:170px">Competências<input data-k="competencias" value="${escapeHtml(k.competencias)}" placeholder="08/2026, 11/2026 ou mensal"></label>
+        <label class="field" style="max-width:150px">Vencimento<input data-k="vencimento" type="date" value="${escapeHtml(k.vencimento)}"></label></div>
+      <div class="form-row"><label class="field">Regra (base, teto, forma de recolhimento)<input data-k="regra" value="${escapeHtml(k.regra)}" maxlength="400"></label>
+        <label class="field">Oposição<input data-k="oposicao" value="${escapeHtml(k.oposicao)}" maxlength="300"></label></div>
+      <div class="form-row"><label class="field" style="max-width:230px">Estimar valor por empresa<select data-k="calc.tipo">${Object.entries(CALC_TIPOS).map(([v, l]) => `<option value="${v}"${(c.tipo || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valor">Valor<input data-k="calc.valor" value="${escapeHtml(c.valor || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="valorAssociada">Se associada<input data-k="calc.valorAssociada" value="${escapeHtml(c.valorAssociada || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="adicional">+ por empregado<input data-k="calc.adicional" value="${escapeHtml(c.adicional || '')}" inputmode="decimal"></label>
+        <label class="field" style="max-width:110px" data-calc-campo="teto">Teto<input data-k="calc.teto" value="${escapeHtml(c.teto || '')}" inputmode="decimal"></label></div>
+      <div class="field" data-calc-campo="tabela">Tabela<textarea data-k="calc.tabela">${escapeHtml(c.tabela || '')}</textarea></div>
+      <button type="button" class="linkish" data-cct-contrib-del>Remover esta contribuição</button></fieldset>`;
+  }
+  function abrirCct(id, pre = null) {
+    const c = id ? cctPorId(id) : null;
+    cctEditId = c ? c.id : null;
+    const x = c || normalizeCct({ tipo:'cct', status:'assinada', ...(pre || {}), titulo: pre?.titulo || 'Nova convenção' });
+    const f = formCct.elements, ro = state.readOnly;
+    $('#dlg-cct-title').textContent = c ? c.titulo : 'Nova convenção';
+    f.titulo.value = c ? c.titulo : (pre?.titulo || '');
+    f.tipo.value = x.tipo; f.status.value = x.status; f.registro.value = x.registro;
+    f.vigIni.value = x.vigIni; f.vigFim.value = x.vigFim;
+    fillSelect(f.dataBase, MESES, x.dataBase, '—'); f.dataBase.value = x.dataBase;
+    const outras = state.dpCcts.filter(o => o.id !== x.id && o.tipo === 'cct');
+    f.mae.innerHTML = '<option value="">—</option>' + outras.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.titulo)}</option>`).join(''); f.mae.value = x.mae;
+    f.substitui.innerHTML = '<option value="">—</option>' + outras.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.titulo)}</option>`).join(''); f.substitui.value = x.substitui;
+    f.arquivo.value = x.arquivo;
+    f.partes.value = x.partes.map(p => `${p.cnpj} | ${p.nome} | ${p.papel}`).join('\n');
+    f.reajItens.value = linhasPar(x.reajuste.itens, 'rotulo', 'pct');
+    f.reajTabela.value = x.reajuste.tabela.map(t => `${t.mes.slice(5)}/${t.mes.slice(0, 4)} = ${t.pct}`).join('\n');
+    f.reajBase.value = x.reajuste.base;
+    f.pisos.value = linhasPar(x.pisos, 'nome', 'valor');
+    f.beneficios.value = linhasPar(x.beneficios, 'nome', 'valor');
+    f.prazos.value = x.prazos.map(p => `${fmtYmdBR(p.data)} = ${p.desc}`).join('\n');
+    f.obs.value = x.obs;
+    $('#cct-contribs').innerHTML = x.contribs.map(contribRowHtml).join('');
+    linMontarTodos(formCct);
+    renderCctEmpresas(x);
+    const secN = { arq: (x.arquivo ? 1 : 0) + (x.mae ? 1 : 0) + (x.substitui ? 1 : 0), reaj: x.reajuste.itens.length + x.reajuste.tabela.length + (x.reajuste.base ? 1 : 0), piso: x.pisos.length + x.beneficios.length, contrib: x.contribs.length, prazos: x.prazos.length + (x.obs ? 1 : 0), emps: empsDaCct(x).length };
+    const secTxt = { arq: '', reaj: '', piso: `${x.pisos.length} piso(s) · ${x.beneficios.length} benefício(s)`, contrib: `${x.contribs.length}`, prazos: `${x.prazos.length} prazo(s)`, emps: `${secN.emps} empresa(s)` };
+    $$('.cct-sec', formCct).forEach(d => { const k = d.dataset.sec; d.open = !c ? k === 'reaj' || k === 'piso' : k === 'reaj' || k === 'contrib' || (k === 'arq' && !!x.mae); $('.cct-sec-n', d).textContent = secN[k] ? (secTxt[k] || '') : 'vazio'; d.classList.toggle('vazio', !secN[k]); });
+    $('#btn-cct-excluir').hidden = !c || ro;
+    $('#btn-cct-salvar').hidden = ro;
+    $('#cct-add-contrib').hidden = ro;
+    $$('input,select,textarea', formCct).forEach(el => { el.disabled = ro; });
+    if (!dlgCct.open) dlgCct.showModal();
+  }
+  function renderCctEmpresas(c) {
+    const emps = empsDaCct(c).sort(byNome);
+    const ss = sindsDaCct(c);
+    const semCod = c.partes.filter(p => !ss.some(s => cnpjDig(s.cnpj) === cnpjDig(p.cnpj)));
+    const pat = c.contribs.filter(k => k.quem === 'empresa' && k.calc?.tipo);
+    $('#cct-emps').innerHTML = `<p class="dp-sec-note" style="margin:0">Ligada aos códigos ${ss.length ? ss.map(s => `<b>${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}`).join(', ') : '<i>nenhum</i> (importe a lista do Domínio na aba Sindicatos)'}${semCod.length ? ` · fora do Domínio: ${semCod.map(p => escapeHtml(p.nome)).join(', ')}` : ''}.</p>` +
+      (emps.length ? `<table class="ct-table cct-emp-tab"><thead><tr><th>Empresa</th><th class="num">Func.</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${emps.map(e => `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button></td><td class="num">${nfEmp(e)}</td>${pat.map(k => { const r = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(r?.det || '')}">${r && Number.isFinite(r.v) ? brl(r.v) : `<span class="dp-cell-sub">${escapeHtml(r?.det || '—')}</span>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note" style="margin:0">Valores estimados com o cadastro da empresa (funcionários cadastrados, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub" style="margin:0">Nenhuma empresa ativa vinculada aos sindicatos desta convenção.</p>');
+  }
+  function lerFormCct() {
+    const f = formCct.elements;
+    const contribs = $$('#cct-contribs .cct-contrib').map(fs => {
+      const g = (k) => fs.querySelector(`[data-k="${k}"]`).value;
+      return { nome: g('nome'), quem: g('quem'), competencias: g('competencias'), vencimento: g('vencimento'), regra: g('regra'), oposicao: g('oposicao'), calc: { tipo: g('calc.tipo'), valor: g('calc.valor'), valorAssociada: g('calc.valorAssociada'), adicional: g('calc.adicional'), teto: g('calc.teto'), tabela: g('calc.tabela') } };
+    });
+    const antigo = cctPorId(cctEditId);
+    return normalizeCct({
+      id: cctEditId || uid(), titulo: f.titulo.value, tipo: f.tipo.value, status: f.status.value, registro: f.registro.value, vigIni: f.vigIni.value, vigFim: f.vigFim.value, dataBase: f.dataBase.value,
+      mae: f.mae.value, substitui: f.substitui.value, substituidaPor: antigo?.substituidaPor || '', arquivo: f.arquivo.value,
+      partes: f.partes.value.split(/\n+/).map(l => { const [cnpj, nome, papel] = l.split('|').map(s => (s || '').trim()); return { cnpj, nome, papel: (papel || '').toLowerCase().startsWith('pat') ? 'patronal' : (papel || '').toLowerCase().startsWith('fed') ? 'federacao' : 'laboral' }; }),
+      reajuste: { itens: leLinhasPar(f.reajItens.value, 'rotulo', 'pct'), base: f.reajBase.value, tabela: f.reajTabela.value.split(/\n+/).map(l => { const m = /^\s*(\d{1,2})\/(\d{4})\s*=\s*(.+)$/.exec(l); return m ? { mes: `${m[2]}-${pad2(+m[1])}`, pct: m[3].trim() } : null; }).filter(Boolean) },
+      pisos: leLinhasPar(f.pisos.value, 'nome', 'valor'), beneficios: leLinhasPar(f.beneficios.value, 'nome', 'valor'),
+      prazos: f.prazos.value.split(/\n+/).map(l => { const m = /^\s*(\d{2})\/(\d{2})\/(\d{4})\s*=\s*(.+)$/.exec(l); return m ? { data: `${m[3]}-${m[2]}-${m[1]}`, desc: m[4].trim() } : null; }).filter(Boolean),
+      contribs, obs: f.obs.value, atualizadoEm: Date.now(),
+    });
+  }
+  formCct.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (state.readOnly) return;
+    const c = lerFormCct();
+    if (!c) { toast('Informe o título da convenção.'); return; }
+    if (c.vigIni && c.vigFim && c.vigFim < c.vigIni) { toast('O fim da vigência não pode ser antes do início.'); return; }
+    let itens = cctEditId ? state.dpCcts.map(x => x.id === c.id ? c : x) : [...state.dpCcts, c];
+    // "Substitui": a anterior passa a substituída e aponta para esta.
+    if (c.substitui) itens = itens.map(x => x.id === c.substitui ? { ...x, status: 'substituida', substituidaPor: c.id } : x);
+    dlgCct.close();
+    if (await salvarCcts(itens)) toast('Convenção salva.');
+  });
+  $('#btn-cct-excluir').addEventListener('click', async () => {
+    const c = cctPorId(cctEditId); if (!c) return;
+    const ok = await ask(`Excluir “${c.titulo}”?\nOs sindicatos continuam com a data-base e a vigência atuais; lembretes e estimativas desta convenção saem da agenda.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    dlgCct.close();
+    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
+  });
+  $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); linMontarTodos($('#cct-contribs .cct-contrib:last-child')); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
+  $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
+  $('#btn-cct-cancelar').addEventListener('click', () => dlgCct.close());
+  $('#dlg-cct-close').addEventListener('click', () => dlgCct.close());
+  $('#cct-copiar-arquivo').addEventListener('click', async () => { const c = caminhoCct({ cct: formCct.elements.arquivo.value }); try { await navigator.clipboard.writeText(c); toast('Caminho copiado.'); } catch { toast(c); } });
+  $('#cct-novo').addEventListener('click', () => abrirCct(null));
+  $('#cct-carregar').addEventListener('click', async () => {
+    const novos = CCTS_ANALISADAS.filter(x => !cctPorId(x.id)).map(normalizeCct).filter(Boolean);
+    if (!novos.length) return;
+    const ok = await ask(`Carregar ${novos.length} convenção(ões) lidas dos PDFs enviados?\nElas ficam ligadas aos sindicatos pelo CNPJ e passam a definir data-base, vigência, reajuste e piso deles. Confira cada uma depois.${!state.dpSind.some(s => s.cnpj) ? '\n\nAtenção: importe antes a lista de sindicatos do Domínio, senão elas não se ligam a nenhum código.' : ''}`, [{ label:'Cancelar', value:false }, { label:'Carregar', kind:'btn-primary', value:true }]);
+    if (!ok) return;
+    if (await salvarCcts([...state.dpCcts, ...novos])) toast(`${novos.length} convenção(ões) carregada(s).`);
+  });
+  $('#dp-view-sindicatos').addEventListener('click', (e) => { const a = e.target.closest('[data-cct-abrir]'); if (a) { e.stopPropagation(); abrirCct(a.dataset.cctAbrir); } }, true);
+
+  // ---------- Convenções: tela principal da aba (controle das CCTs da carteira do analista) ----------
+  const CV_SITS = [
+    { k:'vencida', l:'Vencidas', l1:'Vencida', d:'sem nova CCT cadastrada', ic:'alert' },
+    { k:'vencendo', l:'Vencendo', l1:'Vencendo', d:'terminam em até 60 dias', ic:'clock' },
+    { k:'pendente', l:'Pendentes', l1:'Pendente', d:'registro, aditivo ou reajuste', ic:'hourglass' },
+    { k:'sem', l:'Sem CCT', l1:'Sem CCT', d:'', ic:'help' },
+    { k:'emdia', l:'Em dia', l1:'Em dia', d:'vigentes e sem pendência', ic:'shield' },
+  ];
+  const temSucessora = (c) => state.dpCcts.some(o => o !== c && o.tipo === 'cct' && o.status !== 'substituida' && o.vigIni > c.vigFim && o.partes.some(p => c.partes.some(q => cnpjDig(q.cnpj) === cnpjDig(p.cnpj))));
+  const quandoTxt = (ymdS) => { const d = parseYmd(ymdS); if (!d) return '—'; const n = diffDays(d, hoje()); return `${fmtDM(d)}${n === 0 ? ' · hoje' : n > 0 ? ` · em ${n} dia(s)` : ` · há ${-n} dia(s)`}`; };
+  // Todas as ações pendentes de uma convenção para as empresas da carteira, da mais urgente para a menos.
+  function acoesCct(c, emps) {
+    const out = [], t = ymd(hoje());
+    const aditivos = state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida');
+    if (c.status === 'rascunho') out.push({ nivel:'late', sit:'pendente', txt:'Confirmar o registro no MTE (ainda não verificado)' });
+    if (c.tipo === 'cct' && c.vigFim && !temSucessora(c)) {
+      const n = diffDays(parseYmd(c.vigFim), hoje());
+      const prox = c.vigFim ? `${+c.vigFim.slice(0, 4)}/${+c.vigFim.slice(0, 4) + 1}` : '';
+      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`Cadastrar a CCT ${prox}: venceu em ${fmtYmdBR(c.vigFim)}` });
+      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`Cadastrar a CCT ${prox}: vence ${quandoTxt(c.vigFim)}` });
+    }
+    aditivos.filter(a => a.status === 'acordada' || a.status === 'rascunho').forEach(a => out.push({ nivel:'warn', sit:'pendente', txt:`Aguardar termo aditivo registrado (${CCT_TIPOS[a.tipo].toLowerCase()} de ${a.vigIni ? fmtYmdBR(a.vigIni) : '—'})` }));
+    const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+    if (ini && fim && diffDays(fim, ini) > 400) {
+      const base2 = ymd(addYears(ini, 1));
+      if (t >= base2 && t <= c.vigFim && !aditivos.some(a => a.vigIni >= base2)) out.push({ nivel:'warn', sit:'pendente', txt:`Cadastrar o aditivo da data-base de ${fmtYmdBR(base2)}` });
+    }
+    // Reajuste da data-base ainda não aplicado nas empresas da carteira.
+    let pend = 0, tot = 0;
+    sindsDaCct(c).forEach(s => { const es = emps.filter(e => empresaSinds(e).includes(s)); if (!es.length) return; const r = reajusteStatus(s, es); if (r && r.cobrando && !r.reg.semReajuste && !r.rascunho) { tot += r.total; pend += r.pend.length; } });
+    if (pend) out.push({ nivel:'warn', sit:'pendente', txt:`Aplicar o reajuste: falta em ${pend} de ${tot} empresa(s)` });
+    // Próximos compromissos (45 dias): contribuições, vencimentos e prazos, da CCT e dos aditivos.
+    const lim = ymd(addDays(hoje(), 45)), camadas = [c, ...aditivos];
+    const prox = [];
+    camadas.forEach(x => {
+      x.contribs.forEach(k => {
+        if (k.vencimento && k.vencimento >= t && k.vencimento <= lim) prox.push({ d:k.vencimento, txt:`${k.quem === 'empresa' ? 'Pagar' : 'Recolher'} ${k.nome.toLowerCase()} até ${fmtYmdBR(k.vencimento)}` });
+        (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); const d = ymd(new Date(y, m - 1, 1)); const fimMes = ymd(new Date(y, m, 0)); if (fimMes >= t && d <= lim) prox.push({ d, txt:`${k.quem === 'empresa' ? 'Contribuição' : 'Descontar'} ${k.nome.toLowerCase()} na folha de ${pad2(m)}/${y}` }); });
+      });
+      x.prazos.forEach(p => { if (p.data >= t && p.data <= lim) prox.push({ d:p.data, txt:`${p.desc} (${fmtYmdBR(p.data)})` }); });
+    });
+    prox.sort((a, b) => a.d.localeCompare(b.d)).forEach(p => out.push({ nivel:'info', sit:null, txt:p.txt }));
+    return out;
+  }
+  function situacaoCct(acoes) {
+    for (const k of ['vencida', 'vencendo', 'pendente']) if (acoes.some(a => a.sit === k)) return k;
+    return 'emdia';
+  }
+  // Convenções que atingem as empresas da carteira (+ empresas sem convenção).
+  function convencoesDaCarteira() {
+    const emps = empresasCarteira().filter(ativa);
+    const mapa = new Map(), sem = [];
+    emps.forEach(e => {
+      const vs = empresaCcts(e);
+      if (!vs.length) { const ss = empresaSinds(e).filter(s => !ehSemSind(s)); if (!empresaSinds(e).some(ehSemSind)) sem.push({ e, ss }); return; }
+      vs.forEach(v => { if (!mapa.has(v.cct)) mapa.set(v.cct, []); mapa.get(v.cct).push(e); });
+    });
+    const linhas = [...mapa.entries()].map(([c, es]) => { const acoes = acoesCct(c, es); return { c, emps: es, acoes, sit: situacaoCct(acoes) }; });
+    return { linhas, sem, emps };
+  }
+  const tituloCurto = (c) => c.titulo.replace(/\s*\((.*?)\)\s*$/, '');
+  function barraVig(c) {
+    const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
+    if (!ini || !fim) return '<span class="dp-cell-sub">vigência não informada</span>';
+    const tot = Math.max(1, diffDays(fim, ini)), pos = Math.min(100, Math.max(0, diffDays(hoje(), ini) / tot * 100));
+    return `<div class="cv-vig"><div class="cv-vig-bar"><i style="width:${pos}%"></i><b style="left:${pos}%"></b></div><div class="cv-vig-txt"><span>${fmtDM(ini)}/${String(ini.getFullYear()).slice(2)}</span><span>${fmtDM(fim)}/${String(fim.getFullYear()).slice(2)}</span></div></div>`;
+  }
+  function renderConvencoes() {
+    const ro = state.readOnly, q = state.dpConvQuery;
+    // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
+    if (!state.prefs.convAuto && userNs && state.meId) {
+      state.prefs.convAuto = true; savePrefs();
+      if (!state.dpCarteira) userNs.profiles([state.meId]).then(ps => {
+        const n = norm(ps?.[state.meId]?.name || ''); if (!n) return;
+        const r = dpResponsaveis().find(x => norm(x) === n) || dpResponsaveis().find(x => norm(x).split(' ')[0] === n.split(' ')[0]);
+        if (r) setCarteira(r);
+      }).catch(() => {});
+    }
+    const main = $('#cv-main'), anim = state.dpConvAnim;
+    state.dpConvAnim = false;
+    const { linhas, sem, emps } = convencoesDaCarteira();
+    const cont = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
+    const contE = { vencida: 0, vencendo: 0, pendente: 0, emdia: 0, sem: sem.length };
+    linhas.forEach(l => { cont[l.sit]++; contE[l.sit] += l.emps.length; });
+    const totE = Object.values(contE).reduce((a, b) => a + b, 0);
+    const f = state.dpConvSit;
+    // Estado vazio que ensina o próximo passo.
+    const semDominio = !state.dpSind.some(s => s.origem === 'dominio'), semCcts = !state.dpCcts.length;
+    $('#cv-vazio').innerHTML = semDominio || semCcts ? `<div class="cv-passos">${semDominio ? `<div><b>1.</b> Importe a lista de sindicatos do Domínio para ligar as empresas aos sindicatos. ${ro ? '' : '<button type="button" class="btn btn-sm btn-primary" data-cv-acao="importar">Importar do Domínio</button>'}</div>` : ''}${semCcts ? `<div><b>${semDominio ? '2' : '1'}.</b> Cadastre as convenções. ${ro ? '' : `<button type="button" class="btn btn-sm${semDominio ? '' : ' btn-primary'}" data-cv-acao="carregar">Carregar as ${CCTS_ANALISADAS.length} convenções analisadas</button>`}</div>` : ''}</div>` : '';
+    $('#cv-hero').innerHTML = linhas.length || sem.length ? cvHeroHtml(linhas, sem, emps, contE, totE) : '';
+    $('#cv-sits').innerHTML = linhas.length || sem.length ? `<div class="cv-sit-row">${CV_SITS.map((s, i) => `<button type="button" class="cv-sit s-${s.k}${f === s.k ? ' on' : ''}${!cont[s.k] ? ' zero' : ''}" style="--i:${i}" data-cv-sit="${s.k}" aria-pressed="${f === s.k}" title="${escapeHtml(s.k === 'sem' ? `${cont.sem} empresa(s) sem convenção cadastrada` : `${contE[s.k]} empresa(s)${s.d ? ' · ' + s.d : ''}`)}"><i class="cv-sit-dot"></i><span class="cv-sit-l">${s.l}</span><b data-cv-n="${cont[s.k]}">${cont[s.k]}</b></button>`).join('')}</div>` : '';
+    const filt = (l) => matchQ([l.c.titulo, l.c.registro, ...l.c.partes.map(p => `${p.nome} ${p.cnpj} ${cnpjDig(p.cnpj)}`), ...sindsDaCct(l.c).map(s => `${s.cod} ${rotuloSind(s)}`), ...l.emps.map(e => `${e.nome} ${e.cod} ${e.cnpj}`)], q);
+    const vis = linhas.filter(l => (!f || f === l.sit) && filt(l));
+    const semVis = (!f || f === 'sem') ? sem.filter(x => matchQ([x.e.nome, x.e.cod, x.e.cnpj, ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`)], q)) : [];
+    $('#cv-count').textContent = !f && !q && state.dpConvModo !== 'tempo' ? `${linhas.length} convenção(ões) · ${sem.length} empresa(s) sem CCT` : `${vis.length} convenção(ões)${semVis.length ? ` · ${semVis.length} sem CCT` : ''}`;
+    $$('#cv-modo [data-cv-modo]').forEach(b => { const on = b.dataset.cvModo === state.dpConvModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    $('#cv-search').classList.toggle('filtro-on', !!q);
+    const modo = state.dpConvModo;
+    $('#cv-cards').hidden = modo !== 'cards'; $('#cv-tempo').hidden = modo !== 'tempo';
+    // Cartões e lista só aparecem com uma situação escolhida (ou busca); a linha do tempo é sempre a visão geral.
+    if (modo === 'tempo') renderConvTempo(vis);
+    else if (!f && !q && linhas.length + sem.length) $('#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
+    else renderConvCards(vis, semVis);
+    if (anim) cvAnimar(main);
+    cvTkIniciar();
+    const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
+    if (abrir && cctPorId(abrir)) abrirPainelCct(abrir);
+    else if (state.dpConvPainel) renderPainelCct();
+  }
+  // Passar o mouse numa situação (chip ou pedaço do anel) acende o pedaço correspondente.
+  $('#cv-main').addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-cv-sit]'), k = el ? el.dataset.cvSit : '';
+    const dn = $('.cv-donut', e.currentTarget); if (!dn || dn.__hl === k) return;
+    dn.__hl = k; dn.classList.toggle('tem-hl', !!k);
+    $$('.seg', dn).forEach(c => c.classList.toggle('hl', c.dataset.cvSit === k));
+  });
+  // Entrada animada (só ao chegar na aba ou trocar de visão, não a cada clique).
+  let cvAnimT = 0;
+  function cvAnimar(root) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    root.classList.remove('cv-anim'); void root.offsetWidth; root.classList.add('cv-anim');
+    clearTimeout(cvAnimT); cvAnimT = setTimeout(() => root.classList.remove('cv-anim'), 1600);
+    $$('[data-cv-n]', root).forEach(el => {
+      const alvo = +el.dataset.cvN || 0, suf = el.dataset.cvSuf || '', t0 = performance.now();
+      if (!alvo) return;
+      const passo = (t) => { const k = Math.min(1, (t - t0) / 800), e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(alvo * e) + suf; if (k < 1) requestAnimationFrame(passo); };
+      el.textContent = '0' + suf; requestAnimationFrame(passo);
+    });
+  }
+  // ----- peças visuais -----
+  const CV_COR = { vencida:'var(--dp-late)', vencendo:'var(--cv-soon)', pendente:'var(--cv-pend)', sem:'var(--cv-sem)', emdia:'var(--dp-ok)' };
+  function cvAv(txt, cls = '') {
+    const t = String(txt || '?');
+    const ws = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(w => w && !/^(DE|DA|DO|DOS|DAS|E|X|EM|NO|NA|LTDA|ME|EPP|SA|S)$/i.test(w));
+    const ini = (ws.length > 1 ? ws[0][0] + ws[1][0] : (ws[0] || t).slice(0, 2)).toUpperCase();
+    let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) % 997;
+    h = [210, 200, 220, 355, 215, 195][h % 6];
+    return `<span class="cv-av ${cls}" style="--h:${h}" title="${escapeHtml(t)}">${escapeHtml(ini)}</span>`;
+  }
+  function cvAnel(pct, centro, cls = '', size = 64) {
+    return `<span class="cv-ring-w ${cls}" style="--sz:${size}px"><svg class="cv-ring" viewBox="0 0 36 36" aria-hidden="true"><circle class="bg" cx="18" cy="18" r="15.9" pathLength="100"/>${pct == null ? '' : `<circle class="fg" cx="18" cy="18" r="15.9" pathLength="100" style="stroke-dasharray:${Math.max(0.01, pct).toFixed(1)} 100"/>`}</svg><span class="cv-ring-c">${centro}</span></span>`;
+  }
+  const pctVig = (c) => { const a = parseYmd(c.vigIni), b = parseYmd(c.vigFim); return a && b ? Math.min(100, Math.max(0, diffDays(hoje(), a) / Math.max(1, diffDays(b, a)) * 100)) : null; };
+  function diasCentro(c) {
+    const b = parseYmd(c.vigFim); if (!b) return '<b>?</b>';
+    const n = diffDays(b, hoje());
+    if (n < 0) return `<b>${-n}</b><small>dias<br>vencida</small>`;
+    if (n > 120) return `<b>${Math.round(n / 30.4)}</b><small>meses</small>`;
+    return `<b>${n}</b><small>dia${n === 1 ? '' : 's'}</small>`;
+  }
+  function partesRot(c) {
+    const ss = sindsDaCct(c);
+    const rot = (p) => { const s = ss.find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return s ? rotuloSind(s) : p.nome.replace(/\s*\(.*$/, ''); };
+    return { lab: c.partes.filter(p => p.papel !== 'patronal').map(rot), pat: c.partes.filter(p => p.papel === 'patronal').map(rot) };
+  }
+  const efDe = (c) => cctEfetiva({ cct: c, aditivos: state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni)) });
+  function reajCurto(ef) {
+    if (ef.tabela.val.length) return { v: `até ${ef.tabela.val[0].pct}`, n: 'tabela por admissão' };
+    const it = ef.reajusteItens.val; if (!it.length) return { v: '—', n: 'sem reajuste cadastrado' };
+    return { v: it[0].pct, n: it.length > 1 ? `${it[0].rotulo.toLowerCase()} · +${it.length - 1} faixa(s)` : it[0].rotulo.toLowerCase() === 'geral' ? 'geral' : it[0].rotulo.toLowerCase() };
+  }
+  const moeda = (v) => v ? (/^[\d.]+,\d{2}$/.test(v) ? `R$ ${v}` : v) : '—';
+  // Eventos datados de uma convenção numa janela (radar e cabeçalho).
+  function eventosConv(l, dias = 90) {
+    const c = l.c, t = hoje(), tS = ymd(t), lim = ymd(addDays(t, dias)), out = [];
+    const add = (d, tipo, txt, nivel) => { if (d > lim) return; if (d < tS) return; out.push({ d, tipo, txt, nivel, id: c.id, nome: tituloCurto(c), sit: l.sit }); };
+    if (c.vigFim && !temSucessora(c)) add(c.vigFim, 'fim', 'Fim da vigência', diffDays(parseYmd(c.vigFim), t) <= 30 ? 'late' : 'warn');
+    const mi = MESES.indexOf(c.dataBase);
+    if (mi >= 0) { let d = new Date(t.getFullYear(), mi, 1); if (ymd(d) < tS) d = new Date(t.getFullYear() + 1, mi, 1); add(ymd(d), 'base', `Data-base (${c.dataBase.toLowerCase()})`, 'base'); }
+    [c, ...state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida')].forEach(x => {
+      x.contribs.forEach(k => {
+        if (k.vencimento) add(k.vencimento, 'contrib', `${k.quem === 'empresa' ? 'Pagar' : 'Recolher'} ${k.nome.toLowerCase()}`, 'info');
+        (k.competencias.match(/\d{1,2}\/\d{4}/g) || []).forEach(mm => { const [m, y] = mm.split('/').map(Number); const ini = ymd(new Date(y, m - 1, 1)), fim = ymd(new Date(y, m, 0)); if (fim >= tS) add(ini < tS ? tS : ini, 'contrib', `${k.quem === 'empresa' ? 'Contribuição' : 'Desconto'}: ${k.nome.toLowerCase()} (folha ${pad2(m)}/${y})`, 'info'); });
+      });
+      x.prazos.forEach(p => add(p.data, 'prazo', p.desc, 'info'));
+    });
+    return out;
+  }
+  function cvHeroHtml(linhas, sem, emps, contE, totE) {
+    const ordem = ['vencida', 'vencendo', 'pendente', 'sem', 'emdia'];
+    let acc = 0;
+    const segs = totE ? ordem.filter(k => contE[k]).map(k => { const len = contE[k] / totE * 100; const s = `<circle class="seg${state.dpConvSit === k ? ' on' : ''}" data-cv-sit="${k}" cx="21" cy="21" r="15.9" pathLength="100" style="stroke:${CV_COR[k]};stroke-dasharray:${Math.max(0, len - 0.8).toFixed(2)} ${(100 - len + 0.8).toFixed(2)};stroke-dashoffset:${(-acc).toFixed(2)}"><title>${CV_SITS.find(x => x.k === k).l}: ${contE[k]} empresa(s)</title></circle>`; acc += len; return s; }).join('') : '';
+    const saude = totE ? Math.round(contE.emdia / totE * 100) : 0;
+    const atencao = linhas.filter(l => l.sit !== 'emdia').length;
+    const semN = new Set(sem.map(x => x.e.id)).size;
+    const cart = state.dpCarteira ? `Carteira de ${escapeHtml(carteiraNome())}` : 'Equipe toda';
+    const bases = linhas.flatMap(l => eventosConv(l, 366).filter(e => e.tipo === 'base')).sort((a, b) => a.d.localeCompare(b.d));
+    const pb = bases[0];
+    // Próximos passos: o que é urgente primeiro, depois por data.
+    const rank = { late: 0, warn: 1 };
+    const passos = linhas.flatMap(l => l.acoes.filter(a => a.nivel !== 'info').map(a => ({ a, l }))).sort((x, y) => rank[x.a.nivel] - rank[y.a.nivel] || x.l.c.vigFim.localeCompare(y.l.c.vigFim));
+    const itens = passos.map(({ a, l }, i) => `<li style="--i:${i + 2}"><button type="button" class="cv-step n-${a.nivel}" data-cv-abrir="${escapeHtml(l.c.id)}"><i></i><span><b>${escapeHtml(a.txt)}</b><small>${escapeHtml(tituloCurto(l.c))}</small></span>${ic('right', 'ic-sm')}</button></li>`);
+    if (sem.length) itens.push(`<li style="--i:6"><button type="button" class="cv-step n-sem" data-cv-sit="sem"><i></i><span><b>${sem.length} empresa(s) sem convenção</b><small>${escapeHtml([...new Set(sem.map(x => x.e.nome))].slice(0, 2).join(', '))}${new Set(sem.map(x => x.e.nome)).size > 2 ? '…' : ''}</small></span>${ic('right', 'ic-sm')}</button></li>`);
+    // Carrossel: todas as pendências e pontos de atenção, um por vez.
+    const slides = [];
+    passos.forEach(({ a, l }) => slides.push({ n: a.nivel, tag: { late:'Urgente', warn:'Atenção' }[a.nivel], txt: a.txt, sub: `${tituloCurto(l.c)} · ${l.emps.length} empresa(s)`, abrir: l.c.id }));
+    const grupos = new Map();
+    sem.forEach(x => { const k = x.ss.length ? x.ss.map(rotuloSind).join(', ') : ''; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(x.e); });
+    [...grupos.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([k, es]) => slides.push({ n: 'sem', tag: 'Sem CCT', txt: k ? `Cadastrar a CCT de ${k}` : 'Informar o sindicato no cadastro da empresa', sub: `${es.length} empresa(s): ${es.slice(0, 3).map(e => e.nome).join(', ')}${es.length > 3 ? '…' : ''}`, sit: 'sem' }));
+    linhas.flatMap(l => eventosConv(l, 30).filter(e => e.tipo !== 'fim' && e.tipo !== 'base')).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 8).forEach(e => slides.push({ n: 'info', tag: 'Em breve', txt: e.txt, sub: `${fmtYmdBR(e.d)} · ${quandoTxt(e.d).split(' · ')[1] || ''} · ${e.nome}`, abrir: e.id }));
+    if (pb) slides.push({ n: 'base', tag: 'Data-base', txt: `Próxima data-base: ${fmtYmdBR(pb.d)}`, sub: `${pb.nome} · ${quandoTxt(pb.d).split(' · ')[1] || ''}`, abrir: pb.id });
+    const slideHtml = slides.map((x, i) => `<button type="button" class="cv-tk n-${x.n}${i === 0 ? ' on' : ''}" data-cv-tk="${i}" ${x.abrir ? `data-cv-abrir="${escapeHtml(x.abrir)}"` : `data-cv-sit="${x.sit}"`} ${i ? 'tabindex="-1" aria-hidden="true"' : ''}><span class="cv-tk-tag">${escapeHtml(x.tag)}</span><b>${escapeHtml(x.txt)}</b><small>${escapeHtml(x.sub)}</small></button>`).join('');
+    const tickHtml = slides.length ? `<div class="cv-tick" role="region" aria-label="Pendências e pontos de atenção" aria-live="off">
+        <div class="cv-tick-stage">${slideHtml}</div>
+        <i class="cv-tick-bar"><i></i></i></div>` : '';
+    return `<section class="cv-hero" style="--i:0">
+      <div class="cv-hero-g">
+        <div class="cv-donut-w"><svg class="cv-donut${state.dpConvSit ? ' tem-f' : ''}" viewBox="0 0 42 42" aria-label="Empresas por situação (clique numa parte para filtrar)"><circle class="bg" cx="21" cy="21" r="15.9"/>${segs}</svg>
+          <div class="cv-donut-c"><b data-cv-n="${saude}" data-cv-suf="%">${saude}%</b><small>em dia</small></div></div>
+        <div class="cv-hero-tx">
+          <span class="cv-eyebrow">${cart}${state.dpCarteira ? ' · <button type="button" class="linkish" data-cv-equipe>ver equipe toda</button>' : ''}</span>
+          <h2>${atencao ? `<em data-cv-n="${atencao}">${atencao}</em> ${atencao === 1 ? 'convenção pede' : 'convenções pedem'} sua atenção` : semN ? `<em data-cv-n="${semN}">${semN}</em> ${semN === 1 ? 'empresa está' : 'empresas estão'} sem convenção` : `Tudo em dia ${ic('check')}`}</h2>
+          <p>${emps.length} empresa(s) ativa(s) · ${linhas.length} convenção(ões) em uso${sem.length ? ` · <b class="t-sem">${sem.length} sem CCT</b>` : ''}</p>
+          ${tickHtml}
+          <div class="cv-legend">${ordem.filter(k => contE[k]).map(k => `<span><i style="background:${CV_COR[k]}"></i>${CV_SITS.find(x => x.k === k).l} <b>${contE[k]}</b></span>`).join('')}</div>
+        </div>
+      </div>
+      <div class="cv-hero-steps"><h3>Próximos passos</h3>${itens.length ? `<ol class="cv-steps-l">${itens.join('')}</ol>` : `<div class="cv-zen">${ic('check')}<span>Nenhuma ação pendente. Bom trabalho!</span></div>`}</div>
+    </section>`;
+  }
+  // Carrossel de pendências: avança sozinho, pausa com o mouse/foco, setas e pausa manual.
+  let cvTkPausa = false;
+  function cvTkIr(root, dir, abs) {
+    const sl = $$('.cv-tk', root); if (sl.length < 2) return;
+    const at = sl.findIndex(x => x.classList.contains('on'));
+    const prox = abs != null ? abs : (at + dir + sl.length) % sl.length;
+    sl.forEach((x, i) => { x.classList.toggle('on', i === prox); x.classList.toggle('sai', i === at && i !== prox); x.tabIndex = i === prox ? 0 : -1; x.setAttribute('aria-hidden', String(i !== prox)); });
+    const bar = $('.cv-tick-bar i', root); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = '';
+  }
+  // A barra de progresso é o relógio: ao terminar cada volta (animationiteration) o carrossel avança; pausar a barra pausa tudo.
+  function cvTkIniciar() {
+    const lst = $('#cv-hero .cv-steps-l');
+    if (lst) {
+      // Mede pelo layout (não pelo scrollHeight, que conta o deslocamento das animações de entrada): o esmaecido só aparece se o conteúdo passa da caixa.
+      const marca = () => {
+        const ult = lst.lastElementChild, conteudo = ult ? ult.offsetTop + ult.offsetHeight : 0, cab = lst.clientHeight;
+        const passa = conteudo - cab > 2;
+        lst.classList.toggle('rola', passa);
+        lst.classList.toggle('fim', !passa || lst.scrollTop + cab >= conteudo - 2);
+        lst.classList.toggle('topo', passa && lst.scrollTop > 2);
+      };
+      marca(); lst.addEventListener('scroll', marca, { passive: true }); requestAnimationFrame(marca); setTimeout(marca, 1700);
+      if (window.ResizeObserver) new ResizeObserver(marca).observe(lst);
+    }
+    const root = $('#cv-hero .cv-tick'); if (!root) return;
+    root.classList.toggle('pausado', cvTkPausa);
+    if ($$('.cv-tk', root).length < 2) { root.classList.add('uno'); return; }
+    $('.cv-tick-bar i', root).addEventListener('animationiteration', () => { if (!document.hidden && root.isConnected) cvTkIr(root, 1); });
+  }
+  const CV_GRUPOS = [['vencida', 'Vencidas', 'alert'], ['vencendo', 'Vencendo', 'clock'], ['pendente', 'Pendentes', 'hourglass'], ['sem', 'Sem convenção', 'help'], ['emdia', 'Em dia', 'shield']];
+  function renderConvCards(vis, semVis) {
+    let i = 2;
+    const card = (l) => {
+      const c = l.c, ef = efDe(c), pr = partesRot(c), rj = reajCurto(ef), a = l.acoes[0];
+      const empsAv = l.emps.slice(0, 5).map(e => cvAv(e.nome, 'sm')).join('') + (l.emps.length > 5 ? `<span class="cv-av sm mais">+${l.emps.length - 5}</span>` : '');
+      const mi = MESES.indexOf(c.dataBase);
+      return `<article class="cv-card s-${l.sit}${state.dpConvPainel === c.id ? ' sel' : ''}" style="--i:${i++}" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0" role="button" aria-label="${escapeHtml(c.titulo)}">
+        <header><span class="cv-chip s-${l.sit}">${ic(CV_SITS.find(x => x.k === l.sit).ic, 'ic-sm')} ${CV_SITS.find(x => x.k === l.sit).l1}</span>${c.status === 'rascunho' ? '<span class="cv-tag">registro no MTE não verificado</span>' : ''}<span class="spacer"></span><span class="cv-reg">${escapeHtml(c.registro ? c.registro.split(' ')[0] : CCT_TIPOS[c.tipo])}</span></header>
+        <div class="cv-card-id">${cvAnel(pctVig(c), diasCentro(c), 's-' + l.sit)}<div><h3>${escapeHtml(tituloCurto(c))}</h3>
+          <div class="cv-duo">${pr.lab.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}${pr.pat.length ? `<em>×</em>${pr.pat.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}` : ''}</div>
+          <div class="cv-vigtxt">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} → ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</div></div></div>
+        <dl class="cv-stats"><div><dt>Reajuste</dt><dd>${escapeHtml(rj.v)}</dd><small>${escapeHtml(rj.n)}</small></div><div><dt>Piso</dt><dd>${escapeHtml(moeda(ef.pisos.val[0]?.valor))}</dd><small>${ef.pisos.val.length > 1 ? `+${ef.pisos.val.length - 1} faixa(s)` : ef.pisos.val.length ? escapeHtml(ef.pisos.val[0].nome) : 'não cadastrado'}</small></div><div><dt>Data-base</dt><dd>${mi >= 0 ? MESES[mi].slice(0, 3).toLowerCase() : '—'}</dd><small>${mi >= 0 ? 'todo ano' : ''}</small></div></dl>
+        <div class="cv-card-emps"><span class="cv-stack">${empsAv}</span><span>${l.emps.length} empresa${l.emps.length === 1 ? '' : 's'}</span></div>
+        <footer class="cv-cta n-${a ? a.nivel : 'ok'}">${a ? `${ic('right', 'ic-sm')}<span>${escapeHtml(a.txt)}</span>${l.acoes.length > 1 ? `<em>+${l.acoes.length - 1}</em>` : ''}` : `${ic('check', 'ic-sm')}<span>Tudo em dia</span>`}</footer>
+      </article>`;
+    };
+    const semOrd = semVis.slice().sort((a, b) => byNome(a.e, b.e));
+    const semCard = semVis.length ? `<article class="cv-card cv-card-sem s-sem" style="--i:${i++}" data-cv-vincular tabindex="0" role="button" aria-label="Vincular empresas a sindicatos" title="Clique para vincular estas empresas a sindicatos"><header><span class="cv-chip s-sem">${ic('help', 'ic-sm')} Sem convenção</span><span class="spacer"></span><span class="cv-reg">${semVis.length} empresa(s)</span></header>
+        <ul class="cv-sem-l">${semOrd.map(x => `<li>${cvAv(x.e.nome, 'sm')}<div><b>${nomeEmpHtml(x.e)}</b><small>${x.ss.length ? `Cadastrar a CCT de ${escapeHtml(x.ss.map(rotuloSind).join(', '))}` : 'Informar o código do sindicato no estabelecimento'}</small></div></li>`).join('')}</ul>
+        <footer class="cv-cta n-sem">${ic('right', 'ic-sm')}<span>Vincular empresas a sindicatos</span></footer></article>` : '';
+    const html = CV_GRUPOS.map(([k, rot, icn]) => {
+      if (k === 'sem') return semCard ? `<section class="cv-sec s-sem"><h3>${ic(icn, 'ic-sm')} ${rot} <span>${semVis.length}</span></h3><div class="cv-grid">${semCard}</div></section>` : '';
+      const ls = vis.filter(l => l.sit === k).sort((a, b) => a.c.vigFim.localeCompare(b.c.vigFim));
+      return ls.length ? `<section class="cv-sec s-${k}"><h3>${ic(icn, 'ic-sm')} ${rot} <span>${ls.length}</span></h3><div class="cv-grid">${ls.map(card).join('')}</div></section>` : '';
+    }).join('');
+    $('#cv-cards').innerHTML = html || `<div class="cv-zen big">${ic('search')}<span>${state.dpConvSit || state.dpConvQuery ? 'Nada com esse filtro.' : 'Nenhuma convenção nesta carteira ainda.'}</span></div>`;
+  }
+  // Linha do tempo: 24 meses (11 para trás, 12 para frente), uma barra por convenção, hoje marcado e data-bases como pontos.
+  function renderConvTempo(vis) {
+    const t = hoje(), ini = new Date(t.getFullYear(), t.getMonth() - 11, 1), fim = new Date(t.getFullYear(), t.getMonth() + 13, 0);
+    const tot = diffDays(fim, ini), x = (d) => Math.min(100, Math.max(0, diffDays(d, ini) / tot * 100));
+    const meses = Array.from({ length: 24 }, (_, i) => new Date(ini.getFullYear(), ini.getMonth() + i, 1));
+    const cols = meses.map((m, i) => `<i class="${i % 2 ? 'z' : ''}${m.getMonth() === 0 ? ' ano' : ''}" style="left:${x(m)}%;width:${x(new Date(m.getFullYear(), m.getMonth() + 1, 1)) - x(m)}%"></i>`).join('');
+    const anos = [...new Set(meses.map(m => m.getFullYear()))].map(y => { const a = x(new Date(Math.max(+ini, +new Date(y, 0, 1)))), b = x(new Date(Math.min(+fim, +new Date(y, 11, 31)))); return `<span class="cv-tl-ano" style="left:${a}%;width:${b - a}%">${y}</span>`; }).join('');
+    const ordem = { vencida: 0, vencendo: 1, pendente: 2, emdia: 3 };
+    const rows = vis.slice().sort((a, b) => ordem[a.sit] - ordem[b.sit] || a.c.vigFim.localeCompare(b.c.vigFim)).map((l, i) => {
+      const c = l.c, a = parseYmd(c.vigIni), b = parseYmd(c.vigFim);
+      const n = b ? diffDays(b, t) : null;
+      const rot = n == null ? '' : n < 0 ? `venceu há ${-n}d` : n > 120 ? `${Math.round(n / 30.4)} meses` : `${n} dias`;
+      const bar = a && b ? `<i class="cv-tl-bar s-${l.sit}${x(a) <= 0 ? ' cortada' : ''}" style="left:${x(a)}%;width:${Math.max(0.6, x(b) - x(a))}%;--i:${i}" title="${escapeHtml(`${c.titulo}\n${fmtYmdBR(c.vigIni)} a ${fmtYmdBR(c.vigFim)}`)}"><i class="done" style="width:${pctVig(c)}%"></i><span>${escapeHtml(rot)}</span></i>` : '';
+      const mi = MESES.indexOf(c.dataBase);
+      const dots = mi < 0 ? '' : [ini.getFullYear(), ini.getFullYear() + 1, ini.getFullYear() + 2].map(y => new Date(y, mi, 1)).filter(d => d >= ini && d <= fim).map(d => `<b class="cv-tl-db" style="left:${x(d)}%" title="Data-base ${fmtDMY(d)}"></b>`).join('');
+      const ads = state.dpCcts.filter(o => o.mae === c.id && o.vigIni).map(o => `<b class="cv-tl-ad" style="left:${x(parseYmd(o.vigIni))}%" title="${escapeHtml(o.titulo)}"></b>`).join('');
+      return `<div class="cv-tl-row${state.dpConvPainel === c.id ? ' sel' : ''}" data-cv-abrir="${escapeHtml(c.id)}" tabindex="0" role="button"><span class="cv-tl-nome"><i class="cv-dot s-${l.sit}"></i><span>${escapeHtml(tituloCurto(c))}<small>${l.emps.length} empresa(s) · ${escapeHtml(reajCurto(efDe(c)).v)}</small></span></span><span class="cv-tl-track">${bar}${dots}${ads}</span></div>`;
+    }).join('');
+    $('#cv-tempo').innerHTML = `<div class="list-card cv-tl">
+      <div class="cv-tl-row cv-tl-h"><span class="cv-tl-nome">Convenção</span><span class="cv-tl-track">${anos}${meses.map((m, i) => `<em class="${m.getMonth() === 0 && i > 0 ? '' : 'm'}" style="left:${x(m) + (x(new Date(m.getFullYear(), m.getMonth() + 1, 1)) - x(m)) / 2}%">${MESES[m.getMonth()].slice(0, 1)}</em>`).join('')}</span></div>
+      <div class="cv-tl-body"><div class="cv-tl-cols">${cols}</div>${rows || '<div class="dp-empty">Nada com esse filtro.</div>'}<i class="cv-tl-hoje" style="left:calc(var(--nome) + (100% - var(--nome)) * ${x(t) / 100})"><span>hoje</span></i></div>
+      <div class="cv-tl-leg"><span><i class="s-emdia"></i>em dia</span><span><i class="s-vencendo"></i>vencendo</span><span><i class="s-pendente"></i>pendente</span><span><i class="s-vencida"></i>vencida</span><span><b class="cv-tl-db"></b>data-base</span><span><b class="cv-tl-ad"></b>aditivo/ofício</span><span><i class="hoje"></i>hoje</span></div></div>`;
+  }
+  // Ciclo de vida da convenção: início, data-bases, aditivos, hoje e fim numa régua.
+  function cicloHtml(c, aditivos) {
+    const a = parseYmd(c.vigIni), b = parseYmd(c.vigFim);
+    if (!a || !b) return '';
+    const tot = Math.max(1, diffDays(b, a)), x = (d) => Math.min(100, Math.max(0, diffDays(d, a) / tot * 100));
+    const nos = [{ d: a, l: 'Início', k: 'ini' }];
+    if (tot > 400) nos.push({ d: addYears(a, 1), l: '2ª data-base', k: 'db' });
+    aditivos.filter(o => o.vigIni).forEach(o => nos.push({ d: parseYmd(o.vigIni), l: CCT_TIPOS[o.tipo].split(' ')[0], k: 'ad' + (o.status === 'acordada' || o.status === 'rascunho' ? ' pend' : '') }));
+    nos.push({ d: b, l: 'Fim', k: 'fim' });
+    const h = x(hoje());
+    return `<div class="cv-ciclo"><div class="cv-ciclo-track"><i style="width:${h}%"></i></div>
+      ${nos.sort((p, q) => p.d - q.d).map((n, i) => `<span class="cv-ciclo-n k-${n.k} ${i % 2 ? 'dn' : 'up'}${n.d <= hoje() ? ' ok' : ''}" style="left:${x(n.d)}%"><b></b><em>${escapeHtml(n.l)}<small>${fmtDM(n.d)}/${String(n.d.getFullYear()).slice(2)}</small></em></span>`).join('')}
+      ${h > 0 && h < 100 ? `<span class="cv-ciclo-hoje" style="left:${h}%"><em>hoje</em></span>` : ''}</div>`;
+  }
+
+  // ----- painel lateral da convenção -----
+  function abrirPainelCct(id) { state.dpConvPainel = id; state.dpConvPainelAba = state.dpConvPainelAba || 'resumo'; renderPainelCct(); $('#cv-painel').focus(); }
+  function fecharPainelCct() { state.dpConvPainel = ''; $('#cv-painel').hidden = true; document.body.classList.remove('cv-painel-on'); $$('.cv-row.sel,.cv-card.sel,.cv-tl-row.sel').forEach(r => r.classList.remove('sel')); }
+  function renderPainelCct() {
+    const c = cctPorId(state.dpConvPainel), pn = $('#cv-painel');
+    if (!c) { fecharPainelCct(); return; }
+    pn.hidden = false; document.body.classList.add('cv-painel-on');
+    $$('.cv-row,.cv-card,.cv-tl-row').forEach(r => r.classList.toggle('sel', r.dataset.cvAbrir === c.id));
+    const ro = state.readOnly, aba = state.dpConvPainelAba;
+    const empsCart = empsDaCct(c, empresasCarteira().filter(ativa));
+    const empsVig = empsCart.filter(e => empresaCcts(e).some(v => v.cct === c));
+    const acoes = acoesCct(c, empsVig.length ? empsVig : empsCart);
+    const sit = situacaoCct(acoes);
+    const aditivos = state.dpCcts.filter(a => a.mae === c.id);
+    const v = { cct: c, aditivos: aditivos.filter(a => a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni)) };
+    const ef = cctEfetiva(v);
+    const abas = [['resumo', 'Resumo'], ['empresas', `Empresas (${empsCart.length})`], ['contrib', 'Contribuições e prazos'], ['docs', 'Documento']];
+    let corpo = '';
+    if (aba === 'resumo') {
+      const partes = c.partes.map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b class="dp-mono">${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `${escapeHtml(p.nome)} <span class="dp-cell-sub">fora do Domínio</span>`}</li>`; }).join('');
+      corpo = `${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
+        <h4>Ciclo de vida</h4>${cicloHtml(c, v.aditivos)}
+        <div class="cv-kv"><span>Vigência</span><div>${barraVig(c)}<div class="dp-cell-sub">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></div>
+          <span>Situação</span><div><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status])}</span>${c.registro ? ` <span class="dp-mono">${escapeHtml(c.registro)}</span>` : ''}</div>
+          <span>Reajuste</span><div><b>${escapeHtml(resumoReajuste(ef) || '—')}</b>${ef.reajusteItens.de !== c ? ` <span class="dp-cell-sub">(pelo ${escapeHtml(CCT_TIPOS[ef.reajusteItens.de.tipo].toLowerCase())})</span>` : ''}${c.reajuste.base ? `<div class="dp-cell-sub" style="white-space:normal">${escapeHtml((ef.reajusteItens.de.reajuste.base || c.reajuste.base))}</div>` : ''}${ef.tabela.val.length ? `<table class="cv-mini"><tbody>${ef.tabela.val.map(r => `<tr><td>admitidos em ${r.mes.slice(5)}/${r.mes.slice(0, 4)}</td><td class="num">${escapeHtml(r.pct)}</td></tr>`).join('')}</tbody></table>` : ''}</div>
+          <span>Partes</span><div><ul class="cv-partes">${partes}</ul></div></div>
+        ${ef.pisos.val.length ? `<h4>Pisos${ef.pisos.de !== c ? ' <small>(pelo ' + escapeHtml(CCT_TIPOS[ef.pisos.de.tipo].toLowerCase()) + ')</small>' : ''}</h4><table class="cv-mini"><tbody>${ef.pisos.val.map(p => `<tr><td>${escapeHtml(p.nome)}</td><td class="num">${escapeHtml(p.valor)}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${ef.beneficios.val.length ? `<h4>Benefícios</h4><table class="cv-mini"><tbody>${ef.beneficios.val.map(p => `<tr><td>${escapeHtml(p.nome)}</td><td class="num">${escapeHtml(p.valor)}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${aditivos.length ? `<h4>Aditivos e ofícios</h4><ul class="cv-lista">${aditivos.map(a => `<li><span class="pill ${CCT_STATUS_PILL[a.status]}">${escapeHtml(CCT_STATUS[a.status].split(' (')[0])}</span> <button type="button" class="linkish" data-cv-abrir="${escapeHtml(a.id)}">${escapeHtml(a.titulo)}</button></li>`).join('')}</ul>` : ''}`;
+    } else if (aba === 'empresas') {
+      const pat = [c, ...v.aditivos].flatMap(x => x.contribs).filter(k => k.quem === 'empresa' && k.calc?.tipo);
+      corpo = empsCart.length ? `<table class="ct-table cv-emps"><thead><tr><th>Empresa</th><th>Reajuste aplicado</th>${pat.map(k => `<th class="num" title="${escapeHtml(k.regra)}">${escapeHtml(k.nome)}</th>`).join('')}</tr></thead><tbody>${empsCart.sort(byNome).map(e => {
+        const s = empresaSinds(e).find(x => sindsDaCct(c).includes(x));
+        const r = s && reajusteStatus(s, [e]);
+        const chk = !r ? '<span class="dp-cell-sub">—</span>' : r.reg.semReajuste ? '<span class="dp-cell-sub">sem reajuste</span>' : `<label class="sd-chk"><input type="checkbox" data-sd-apl="${escapeHtml(s.id)}|${escapeHtml(e.id)}"${r.reg.aplicado[e.id] ? ' checked' : ''}${ro || r.rascunho ? ' disabled' : ''}> ${r.reg.aplicado[e.id] ? `em ${fmtYmdDM(r.reg.aplicado[e.id])}` : `${s.dataBase.slice(0, 3).toLowerCase()}/${r.ano}`}</label>`;
+        return `<tr><td><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><div class="dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')} · ${nfEmp(e)} func.</div></td><td>${chk}</td>${pat.map(k => { const x = estimaContrib(k, e); return `<td class="num" title="${escapeHtml(x?.det || '')}">${x && Number.isFinite(x.v) ? brl(x.v) : `<span class="dp-cell-sub">${escapeHtml(x?.det || '—')}</span>`}</td>`; }).join('')}</tr>`;
+      }).join('')}</tbody></table>${pat.length ? '<p class="dp-sec-note">Estimativas pelo cadastro da empresa (funcionários, tributação, capital social, associada). Confira antes de pagar.</p>' : ''}` : '<p class="dp-cell-sub">Nenhuma empresa desta carteira nesta convenção.</p>';
+    } else if (aba === 'contrib') {
+      const ks = [c, ...v.aditivos].flatMap(x => x.contribs), pz = [c, ...v.aditivos].flatMap(x => x.prazos).sort((a, b) => a.data.localeCompare(b.data));
+      corpo = (ks.length ? ks.map(k => `<div class="cv-contrib"><div><span class="pill ${k.quem === 'empresa' ? '' : 'pill-soon'}">${k.quem === 'empresa' ? 'Empresa paga' : 'Desconto do empregado'}</span> <b>${escapeHtml(k.nome)}</b></div>
+          ${k.competencias ? `<div><span class="dp-cell-sub">Quando:</span> ${escapeHtml(k.competencias)}</div>` : ''}${k.vencimento ? `<div><span class="dp-cell-sub">Vencimento:</span> ${escapeHtml(quandoTxt(k.vencimento))}</div>` : ''}
+          ${k.regra ? `<div>${escapeHtml(k.regra)}</div>` : ''}${k.oposicao ? `<div><span class="dp-cell-sub">Oposição:</span> ${escapeHtml(k.oposicao)}</div>` : ''}</div>`).join('') : '<p class="dp-cell-sub">Nenhuma contribuição cadastrada.</p>')
+        + (pz.length ? `<h4>Prazos</h4><ul class="cv-lista">${pz.map(p => `<li class="${p.data < ymd(hoje()) ? 'passado' : ''}"><b>${escapeHtml(quandoTxt(p.data))}</b> · ${escapeHtml(p.desc)}</li>`).join('')}</ul>` : '');
+    } else {
+      const sub = c.substitui && cctPorId(c.substitui), por = c.substituidaPor && cctPorId(c.substituidaPor);
+      corpo = `<div class="cv-kv"><span>Tipo</span><div>${escapeHtml(CCT_TIPOS[c.tipo])}</div>
+          <span>Registro</span><div>${c.registro ? `<span class="dp-mono">${escapeHtml(c.registro)}</span>` : '<span class="dp-cell-sub">sem número do Mediador</span>'} · <a href="${MEDIADOR_URL}" target="_blank" rel="noopener">consultar no Mediador</a></div>
+          <span>Arquivo</span><div><button type="button" class="sd-copy" data-sd-copy="${escapeHtml(caminhoCct({ cct: c.arquivo }))}">${ic('link', 'ic-sm')} ${c.arquivo ? 'copiar caminho do PDF' : 'copiar pasta das CCTs'}</button>${c.arquivo ? `<div class="dp-cell-sub">${escapeHtml(c.arquivo)}</div>` : ''}</div>
+          ${sub ? `<span>Substitui</span><div><button type="button" class="linkish" data-cv-abrir="${escapeHtml(sub.id)}">${escapeHtml(sub.titulo)}</button></div>` : ''}${por ? `<span>Substituída por</span><div><button type="button" class="linkish" data-cv-abrir="${escapeHtml(por.id)}">${escapeHtml(por.titulo)}</button></div>` : ''}
+          ${c.obs ? `<span>Observações</span><div style="white-space:pre-line">${escapeHtml(c.obs)}</div>` : ''}
+          ${c.atualizadoEm ? `<span>Atualizada</span><div>${new Date(c.atualizadoEm).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' })}</div>` : ''}</div>`;
+    }
+    const pr = partesRot(c), rj = reajCurto(ef), nDias = c.vigFim ? diffDays(parseYmd(c.vigFim), hoje()) : null;
+    const sitI = CV_SITS.find(x => x.k === sit);
+    pn.innerHTML = `<div class="cv-pn-hero s-${sit}">
+        <div class="cv-pn-top"><span class="cv-chip s-${sit}">${ic(sitI.ic, 'ic-sm')} ${sitI.l1}</span><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><span class="spacer"></span>
+          ${ro ? '' : `<button type="button" class="btn btn-sm" data-cv-editar="${escapeHtml(c.id)}">${ic('edit', 'ic-sm')} Editar</button>`}<button type="button" class="icon-btn" data-cv-fechar aria-label="Fechar">${ic('x')}</button></div>
+        <div class="cv-pn-id">${cvAnel(pctVig(c), diasCentro(c), 's-' + sit, 78)}<div style="min-width:0"><h3>${escapeHtml(c.titulo)}</h3>
+          <div class="cv-duo">${pr.lab.slice(0, 2).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}${pr.lab.length > 2 ? `<span class="dp-cell-sub">+${pr.lab.length - 2}</span>` : ''}${pr.pat.length ? `<em>×</em>${pr.pat.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}` : ''}</div></div></div>
+        <div class="cv-pn-kpis"><div><b>${nDias == null ? '—' : nDias < 0 ? 'vencida' : nDias}</b><span>${nDias == null || nDias < 0 ? 'vigência' : 'dias restantes'}</span></div><div><b>${empsCart.length}</b><span>empresa(s)</span></div><div><b>${escapeHtml(rj.v)}</b><span>reajuste</span></div><div><b>${escapeHtml(moeda(ef.pisos.val[0]?.valor))}</b><span>piso</span></div></div>
+      </div>
+      <div class="cv-pn-tabs" role="tablist">${abas.map(([k, l]) => `<button type="button" role="tab" data-cv-aba="${k}" class="${aba === k ? 'on' : ''}" aria-selected="${aba === k}">${escapeHtml(l)}</button>`).join('')}</div>
+      <div class="cv-pn-body">${corpo}</div>`;
+  }
+  function csvConvencoes() {
+    const rows = [['Empresa','Responsável','Convenção','Situação','Vigência início','Vigência fim','Data-base','Reajuste','Piso','Próxima ação']];
+    const { linhas, sem } = convencoesDaCarteira();
+    const rotS = { vencida:'Vencida', vencendo:'Vencendo', pendente:'Pendente', emdia:'Em dia' };
+    linhas.forEach(l => { const ef = cctEfetiva({ cct: l.c, aditivos: state.dpCcts.filter(a => a.mae === l.c.id && a.status !== 'substituida') }); l.emps.forEach(e => rows.push([e.nome, e.responsavel, l.c.titulo, rotS[l.sit], fmtDateStr(l.c.vigIni), fmtDateStr(l.c.vigFim), l.c.dataBase, resumoReajuste(ef), ef.pisos.val[0]?.valor || '', l.acoes[0]?.txt || 'Tudo em dia'])); });
+    sem.forEach(x => rows.push([x.e.nome, x.e.responsavel, '', 'Sem CCT', '', '', '', '', '', x.ss.length ? `Cadastrar a CCT de ${x.ss.map(rotuloSind).join(', ')}` : 'Informar o sindicato']));
+    offerFile(`dp-convencoes-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  }
+  function renderSindTab() {
+    const cad = !!state.dpConvCad;
+    $('#cv-main').hidden = cad; $('#cv-cad').hidden = !cad;
+    if (cad) { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); }
+    else renderConvencoes();
+  }
+  function sindTabBadge() {
+    const { linhas, sem } = convencoesDaCarteira();
+    return linhas.filter(l => l.sit !== 'emdia').length + (sem.length ? 1 : 0);
+  }
+
+  // ----- eventos -----
+  // ----- consulta (somente leitura): sindicatos e convenções vinculados a cada empresa -----
+  const dlgConsulta = $('#dlg-consulta');
+  function renderConsulta() {
+    const q = $('#cq-busca').value.trim();
+    const ativas = state.dpEmpresas.filter(ativa);
+    const ordem = { vencida: 3, vencendo: 1, emdia: 0 };
+    const cctsBase = state.dpCcts.filter(c => !c.mae && c.status !== 'substituida').sort((a, b) => {
+      const sa = vigStatus({ vigFim: a.vigFim }).n, sb = vigStatus({ vigFim: b.vigFim }).n;
+      return ((sa !== null && sa < 0) - (sb !== null && sb < 0)) || a.titulo.localeCompare(b.titulo, 'pt-BR');
+    });
+    let n = 0;
+    const html = cctsBase.map(c => {
+      const ss = sindsDaCct(c), emps = empsDaCct(c, ativas).sort(byNome);
+      const ads = state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni));
+      if (!matchQ([c.titulo, c.registro, c.dataBase, ...c.partes.map(p => `${p.nome} ${p.cnpj}`), ...ss.map(x => `${x.cod} ${rotuloSind(x)}`), ...emps.map(e => `${e.nome} ${e.cnpj}`)], q)) return '';
+      n++;
+      const ef = cctEfetiva({ cct: c, aditivos: ads }), rj = resumoReajuste(ef), vg = vigStatus({ vigFim: c.vigFim });
+      const piso = ef.pisos.val[0];
+      const papel = (p) => p.papel === 'patronal' ? 'patronal' : p.papel === 'federacao' ? 'federação' : 'laboral';
+      const partes = c.partes.map(p => { const x = ss.find(y => cnpjDig(y.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${x ? `<b>${escapeHtml(x.cod)}</b> <button type="button" class="cq-link" data-cq-sind="${escapeHtml(x.id)}" title="Abrir no cadastro">${escapeHtml(rotuloSind(x))}</button>` : escapeHtml(p.nome.replace(/\s*\(.*$/, ''))}<span class="dp-cell-sub"> ${papel(p)}${x ? '' : ' · fora do Domínio'}</span></li>`; }).join('');
+      return `<section class="cq-cct"><header><div class="cq-t"><h3><button type="button" class="cq-link" data-cq-cct="${escapeHtml(c.id)}" title="Abrir no cadastro">${escapeHtml(c.titulo)}</button></h3><div class="cq-tags"><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.vigFim ? `<span class="pill ${vg.cls}">${vg.txt}</span>` : ''}${c.registro ? `<span class="dp-mono cq-reg">${escapeHtml(c.registro)}</span>` : ''}</div></div>
+        <dl class="cq-kv"><div><dt>Vigência</dt><dd>${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'}</dd></div><div><dt>Data-base</dt><dd>${escapeHtml(c.dataBase || '—')}</dd></div><div><dt>Reajuste</dt><dd>${escapeHtml(rj || '—')}</dd></div><div><dt>Piso</dt><dd>${piso ? escapeHtml(moeda(piso.valor)) : '—'}${ef.pisos.val.length > 1 ? ` <small>+${ef.pisos.val.length - 1}</small>` : ''}</dd></div></dl></header>
+        <div class="cq-cols"><div><h4>Sindicatos</h4><ul class="cq-partes">${partes || '<li class="dp-cell-sub">—</li>'}</ul>${ads.length ? `<h4>Aditivos e ofícios</h4><ul class="cq-partes">${ads.map(a => `<li>${escapeHtml(a.titulo)}<span class="dp-cell-sub"> ${escapeHtml(CCT_STATUS[a.status].split(' (')[0])}</span></li>`).join('')}</ul>` : ''}</div>
+        <div><h4>Empresas vinculadas <span class="cq-n">${emps.length}</span></h4>${emps.length ? `<ul class="cq-emps">${emps.map(e => `<li><button type="button" class="cq-link" data-cq-emp="${escapeHtml(e.id)}" title="Abrir cadastro da empresa">${nomeEmpHtml(e)}</button>${respEf(e) ? `<small>${escapeHtml(respEf(e))}</small>` : ''}</li>`).join('')}</ul>` : '<p class="dp-cell-sub">Nenhuma empresa ativa vinculada.</p>'}</div></div></section>`;
+    }).join('');
+    $('#cq-lista').innerHTML = html || '<div class="cq-vazio">Nenhuma convenção encontrada.</div>';
+    $('#cq-count').textContent = `${n} convenção(ões)`;
+  }
+  $('#cq-busca').addEventListener('input', renderConsulta);
+  // Clicar num nome leva ao cadastro correspondente.
+  $('#cq-lista').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-cq-cct]'), sd = e.target.closest('[data-cq-sind]'), em = e.target.closest('[data-cq-emp]');
+    if (!c && !sd && !em) return;
+    dlgConsulta.close();
+    if (em) { const emp = findDpEmpresa(em.dataset.cqEmp); if (emp) openDpDetail(emp, {}); return; }
+    state.dpConvCad = true;
+    if (c) { state.dpSindVisao = 'ccts'; state.dpCctAbrir = c.dataset.cqCct; }
+    else { state.dpSindVisao = 'todos'; state.dpSindFiltro = ''; state.dpSindMes = ''; state.dpSindQuery = ''; $('#sd-search').value = ''; state.dpSindAberto.add(sd.dataset.cqSind); state.dpSindFoco = sd.dataset.cqSind; }
+    state.dpConvAnim = true; renderSindTab();
+  });
+  $('#dlg-consulta-close').addEventListener('click', () => dlgConsulta.close());
+  // Painel lateral: fecha ao clicar fora (ou Esc), sem atrapalhar janelas abertas nem a troca de convenção.
+  document.addEventListener('pointerdown', (e) => {
+    if (!state.dpConvPainel || $('#cv-painel').hidden) return;
+    const t = e.target;
+    if (t.closest('#cv-painel, dialog, [data-cv-abrir], #toast, .toast')) return;
+    fecharPainelCct();
+  }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.dpConvPainel && !document.querySelector('dialog[open]')) fecharPainelCct(); });
+  $('#cv-search').addEventListener('input', (e) => { state.dpConvQuery = e.target.value.trim(); renderConvencoes(); });
+  $('#cv-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-cv-modo]'); if (b && b.dataset.cvModo !== state.dpConvModo) { state.dpConvModo = b.dataset.cvModo; state.prefs.convModo = state.dpConvModo; savePrefs(); state.dpConvAnim = true; renderConvencoes(); } });
+  $('#sd-resumo').open = !!state.prefs.cadResumo; $('#sd-resumo').addEventListener('toggle', () => { state.prefs.cadResumo = $('#sd-resumo').open; savePrefs(); });
+  $('#cv-cad-voltar').addEventListener('click', () => { state.dpConvCad = false; state.dpConvAnim = true; renderSindTab(); });
+  const cvMain = $('#dp-view-sindicatos');
+  cvMain.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-cv-vincular]')) {
+      state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindFiltro = ''; state.dpSindMes = ''; state.dpSindQuery = ''; $('#sd-search').value = '';
+      state.dpConvAnim = true; renderSindTab();
+      const alvo = $('#sd-sem-wrap'); if (alvo && !alvo.hidden) { alvo.scrollIntoView({ block: 'start' }); alvo.classList.add('piscar'); setTimeout(() => alvo.classList.remove('piscar'), 1600); }
+      return;
+    }
+    if (t.closest('[data-cv-consultar]')) { $('#cq-busca').value = ''; renderConsulta(); if (!dlgConsulta.open) dlgConsulta.showModal(); $('#cq-busca').focus(); return; }
+    const cad = t.closest('[data-cv-cad]');
+    if (cad) { t.closest('details') && (t.closest('details').open = false); state.dpConvCad = true; state.dpSindVisao = cad.dataset.cvCad; renderSindTab(); return; }
+    const ac = t.closest('[data-cv-acao]');
+    if (ac) {
+      const d = t.closest('details'); if (d) d.open = false;
+      const k = ac.dataset.cvAcao;
+      if (k === 'importar') abrirImportDominio();
+      else if (k === 'carregar') $('#cct-carregar').click();
+      else if (k === 'nova') abrirCct(null);
+      else if (k === 'dedup') unificarDuplicados();
+      else if (k === 'pasta') { try { await navigator.clipboard.writeText(PASTA_CCT); toast('Pasta das CCTs copiada.\nCole no Explorador de Arquivos (Ctrl+V).'); } catch { toast(PASTA_CCT); } }
+      else if (k === 'csv') csvConvencoes();
+      return;
+    }
+    if (t.closest('[data-cv-equipe]')) { setCarteira(''); return; }
+
+    const sit = t.closest('[data-cv-sit]');
+    if (sit) { state.dpConvSit = state.dpConvSit === sit.dataset.cvSit ? '' : sit.dataset.cvSit; renderConvencoes(); return; }
+    const ed = t.closest('[data-cv-editar]');
+    if (ed) { abrirCct(ed.dataset.cvEditar); return; }
+    if (t.closest('[data-cv-fechar]')) { fecharPainelCct(); return; }
+    const aba = t.closest('[data-cv-aba]');
+    if (aba) { state.dpConvPainelAba = aba.dataset.cvAba; renderPainelCct(); return; }
+    if (t.closest('[data-open-emp],[data-sd-copy],a,label,input')) return;
+    const ab = t.closest('[data-cv-abrir]');
+    if (ab) { if (state.dpConvPainel !== ab.dataset.cvAbrir) state.dpConvPainelAba = 'resumo'; abrirPainelCct(ab.dataset.cvAbrir); }
+  });
+  cvMain.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-cv-vincular]')) { e.preventDefault(); e.target.click(); return; }
+    if (e.key === 'Escape' && state.dpConvPainel) { fecharPainelCct(); return; }
+    const ab = e.target.closest('[data-cv-abrir]');
+    if (ab && e.target === ab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ab.click(); }
+  });
+
+
+
+  // ---------- cartela de clientes: a gestora distribui as empresas entre os analistas ----------
+  const MOTIVOS_AUS = ['Férias', 'Afastamento', 'Licença', 'Outro'];
+  const COR_MOTIVO = { 'Férias':'var(--viz-1)', 'Afastamento':'var(--viz-2)', 'Licença':'var(--viz-3)', 'Outro':'var(--viz-4)' };
+
+  function normalizeAus(a) {
+    if (!a || typeof a !== 'object') return null;
+    const inicio = toYmd(a.inicio), fim = toYmd(a.fim), analista = String(a.analista || '').trim();
+    if (!analista || !parseYmd(inicio) || !parseYmd(fim) || fim < inicio) return null;
+    const porEmpresa = {};
+    if (a.porEmpresa && typeof a.porEmpresa === 'object') Object.entries(a.porEmpresa).forEach(([id, n]) => { const t = String(n || '').trim(); if (t) porEmpresa[id] = t.slice(0, 80); });
+    return { id: validId(a.id) ? a.id : uid(), analista: analista.slice(0, 80), motivo: MOTIVOS_AUS.includes(a.motivo) ? a.motivo : 'Outro', inicio, fim, padrao: String(a.padrao || '').trim().slice(0, 80), porEmpresa, obs: String(a.obs || '').slice(0, 200), criadoEm: Number(a.criadoEm) || 0, autor: String(a.autor || '') };
+  }
+  function normalizeCob(v) {
+    v = v && typeof v === 'object' ? v : {};
+    return {
+      ausencias: (Array.isArray(v.ausencias) ? v.ausencias : []).map(normalizeAus).filter(Boolean),
+      log: (Array.isArray(v.log) ? v.log : []).filter(x => x && typeof x.texto === 'string').map(x => ({ id: String(x.id || uid()), em: String(x.em || ''), texto: x.texto.slice(0, 400), autor: String(x.autor || '') })).slice(0, 300),
+    };
+  }
+  async function salvarCob(mut, logTxt) {
+    if (state.readOnly) return false;
+    mut(state.dpCob);
+    if (logTxt) state.dpCob.log.unshift({ id: uid(), em: new Date().toISOString(), texto: logTxt, autor: state.meId || '' });
+    state.dpCob.log = state.dpCob.log.slice(0, 300);
+    renderDpActiveView();
+    const snap = JSON.parse(JSON.stringify(state.dpCob));
+    return persist(() => cobStore.save(snap));
+  }
+
+  const ctResp = (e) => state.dpCtSim && Object.prototype.hasOwnProperty.call(state.dpCtSim, e.id) ? state.dpCtSim[e.id] : e.responsavel;
+  const ctBase = () => state.dpEmpresas.filter(e => state.dpCtTodas || ativa(e));
+  function ctNaCarteira(e) {
+    const c = state.dpCarteira;
+    if (!c) return true;
+    const r = ctResp(e);
+    if (c === SEM_RESP) return !r;
+    return norm(r) === norm(c) || norm(respEf(e)) === norm(c);
+  }
+  function ctLinhas() {
+    const q = state.dpCtQuery;
+    const lista = ctBase().filter(ctNaCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, ctResp(e)], q));
+    const nf = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+    const k = state.dpCtSort;
+    const vazio = '￿';
+    const cmp = k === 'resp' ? (a, b) => (ctResp(a) || vazio).localeCompare(ctResp(b) || vazio, 'pt-BR') || byNome(a, b)
+      : k === 'func' ? (a, b) => nf(b) - nf(a) || byNome(a, b)
+      : k === 'trib' ? (a, b) => (a.tributacao || vazio).localeCompare(b.tributacao || vazio, 'pt-BR') || byNome(a, b)
+      : byNome;
+    return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
+  }
+  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
+  const fmtYmdBR = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
+  const fmtYmdDM = (s) => { const d = parseYmd(s); return d ? fmtDM(d) : s; };
+
+  // Avisos: ausência próxima ou em curso sem cobertura, substituto também ausente e substituto com carga bem acima da média.
+  function ctAlertas() {
+    const out = [];
+    if (!state.dpCob.ausencias.length) return out;
+    const t = ymd(hoje()), em7 = ymd(addDays(hoje(), 7));
+    const ativasDe = (nome) => state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(nome));
+    const nAnalistas = dpResponsaveis().length;
+    const media = nAnalistas ? state.dpEmpresas.filter(e => ativa(e) && e.responsavel).length / nAnalistas : 0;
+    state.dpCob.ausencias.filter(a => a.fim >= t && a.inicio <= em7).forEach(a => {
+      const emps = ativasDe(a.analista);
+      const quemDe = (e) => { const q = a.porEmpresa[e.id] || a.padrao; return q && norm(q) !== norm(a.analista) ? q : ''; };
+      const sem = emps.filter(e => !quemDe(e));
+      const quando = a.inicio <= t ? 'está ausente' : `se ausenta em ${fmtYmdDM(a.inicio)}`;
+      if (sem.length) out.push({ nivel:'late', ausId:a.id, txt:`${a.analista} ${quando} e ${sem.length} de ${emps.length} empresa(s) estão sem cobertura.` });
+      const quem = [...new Set(emps.map(quemDe).filter(Boolean))];
+      quem.forEach(q => {
+        const b = state.dpCob.ausencias.find(x => x.id !== a.id && norm(x.analista) === norm(q) && x.inicio <= a.fim && x.fim >= a.inicio);
+        if (b) out.push({ nivel:'warn', ausId:a.id, txt:`${q} cobre ${a.analista}, mas também estará ausente de ${fmtYmdDM(b.inicio)} a ${fmtYmdDM(b.fim)}.` });
+        if (nAnalistas >= 3) {
+          const total = ativasDe(q).length + emps.filter(e => norm(quemDe(e)) === norm(q)).length;
+          if (total > media * 1.5) out.push({ nivel:'warn', ausId:a.id, txt:`${q} ficará com ${total} empresas durante a ausência de ${a.analista} (média da equipe: ${Math.round(media)}).` });
+        }
+      });
+    });
+    return out;
+  }
+  function renderCtAlertas() {
+    const box = $('#ct-alertas'), al = ctAlertas();
+    box.hidden = !al.length;
+    box.innerHTML = al.map(a => `<button type="button" class="ct-al ${a.nivel}" data-ct-aus="${escapeHtml(a.ausId)}"><span class="al-dot ${a.nivel}"></span>${escapeHtml(a.txt)}</button>`).join('');
+    const b = $('#ct-badge'); b.hidden = !al.length; b.textContent = al.length; b.title = `${al.length} aviso(s) de cobertura`;
+  }
+
+  function renderCartela() {
+    const modo = state.dpCtModo, ro = state.readOnly;
+    $$('#ct-modo [data-ct-modo]').forEach(b => { const on = b.dataset.ctModo === modo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    ['cartela', 'aus', 'mov'].forEach(m => { $('#ct-pane-' + m).hidden = m !== modo; });
+    $('#ct-sit').hidden = modo !== 'cartela';
+    $('#ct-search').hidden = modo === 'aus';
+    $('#ct-sim-btn').hidden = modo !== 'cartela' || ro;
+    $('#ct-sim-btn').classList.toggle('on', !!state.dpCtSim);
+    $('#ct-sim-btn').setAttribute('aria-pressed', String(!!state.dpCtSim));
+    $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
+    renderCtAlertas();
+    renderCtSim();
+    if (modo === 'aus') renderCtAus(); else if (modo === 'mov') renderCtMov(); else renderCtCartela();
+  }
+  function ctMudancas() {
+    if (!state.dpCtSim) return [];
+    return Object.entries(state.dpCtSim).filter(([id, novo]) => { const e = findDpEmpresa(id); return e && e.responsavel !== novo; });
+  }
+  function renderCtSim() {
+    const box = $('#ct-sim'), on = !!state.dpCtSim && state.dpCtModo === 'cartela';
+    box.hidden = !on;
+    if (!on) return;
+    const n = ctMudancas().length;
+    box.innerHTML = `<div><b>Modo simulação</b> · ${n ? `${n} empresa(s) com mudança` : 'mexa nas cartelas à vontade'} · nada foi salvo ainda.</div><span class="spacer"></span><button type="button" class="btn btn-sm btn-primary" id="ct-sim-aplicar"${n ? '' : ' disabled'}>Aplicar ${n || ''} mudança(s)</button><button type="button" class="btn btn-sm" id="ct-sim-descartar">Descartar</button>`;
+  }
+
+  function renderCtCartela() {
+    const ro = state.readOnly, sim = !!state.dpCtSim;
+    const base = ctBase();
+    const t = ymd(hoje());
+    const grupos = dpResponsaveis().map(r => ({ key: r, nome: r, es: base.filter(e => norm(ctResp(e)) === norm(r)), orig: base.filter(e => norm(e.responsavel) === norm(r)) }));
+    const semResp = base.filter(e => !ctResp(e));
+    if (semResp.length) grupos.push({ key: SEM_RESP, nome: 'Sem responsável', es: semResp, orig: base.filter(e => !e.responsavel), sem: true });
+    const maxN = Math.max(1, ...grupos.map(g => g.es.length));
+    const sel = norm(state.dpCarteira);
+    const item = (g) => {
+      const on = sel === norm(g.key);
+      const aus = g.sem ? null : state.dpCob.ausencias.find(a => norm(a.analista) === norm(g.nome) && ausAtiva(a, t));
+      const proxAus = g.sem || aus ? null : state.dpCob.ausencias.filter(a => norm(a.analista) === norm(g.nome) && a.inicio > t).sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+      const cobrindo = g.sem ? 0 : base.filter(e => ativa(e) && norm(e.responsavel) !== norm(g.nome) && norm(respEf(e)) === norm(g.nome)).length;
+      const temEmpresa = state.dpEmpresas.some(e => norm(ctResp(e)) === norm(g.nome));
+      const rem = !ro && !g.sem;
+      const tr = !ro && !g.sem && temEmpresa;
+      const av = g.sem ? '<span class="avatar" style="--av:var(--dp-late)">?</span>' : `<span class="avatar" style="--av:${corDe(g.nome)}">${escapeHtml(iniciais(g.nome))}</span>`;
+      const delta = sim ? g.es.length - g.orig.length : 0;
+      const tags = [aus ? `<span class="ct-tag late">${escapeHtml(aus.motivo)} até ${fmtYmdDM(aus.fim)}</span>` : '', proxAus ? `<span class="ct-tag soon">${escapeHtml(proxAus.motivo)} em ${fmtYmdDM(proxAus.inicio)}</span>` : '', cobrindo ? `<span class="ct-tag">cobrindo ${cobrindo}</span>` : ''].join('');
+      return `<div class="ct-an${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-ct-an="${escapeHtml(g.key)}" ${ro ? '' : 'data-ct-drop'}>
+        ${av}<div style="min-width:0"><div class="ct-an-nome">${escapeHtml(g.nome)}</div><div class="ct-an-sub">${g.es.length} empresa(s) · ${nfAtivos(g.es)} func.</div></div>
+        <span class="ct-an-n">${g.es.length}${delta ? `<small class="ct-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
+        ${tags ? `<div class="ct-an-tags">${tags}</div>` : ''}
+        <div class="ct-an-bar"><i style="width:${Math.round(g.es.length / maxN * 100)}%"></i></div>
+        ${tr ? `<button type="button" class="icon-btn ct-an-tr" data-ct-transf="${escapeHtml(g.nome)}" aria-label="Transferir a cartela de ${escapeHtml(g.nome)}" title="Transferir toda a cartela…">${ic('right', 'ic-sm')}</button>` : ''}
+        ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Excluir ${escapeHtml(g.nome)}" title="Excluir analista">${ic('trash', 'ic-sm')}</button>` : ''}
+      </div>`;
+    };
+    const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
+        <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfAtivos(base)} func.</div></div>
+        <span class="ct-an-n">${base.length}</span></div>`;
+    // Guarda o tamanho das barras e os contadores para animar a mudança (ao mover empresas).
+    const ctAntes = new Map($$('#ct-side .ct-an[data-ct-an]').map(a => [a.dataset.ctAn, { w: a.querySelector('.ct-an-bar i')?.style.width || '', n: parseInt(a.querySelector('.ct-an-n')?.textContent, 10) }]));
+    $('#ct-side').innerHTML = `<div class="ct-side-h">Analistas</div>${tot}${grupos.map(item).join('')}
+      ${ro ? '' : `<form class="ct-add" id="ct-add"><input id="ct-add-nome" placeholder="Nome do novo analista" maxlength="80" aria-label="Nome do novo analista"><button type="submit" class="btn btn-sm">${ic('plus', 'ic-sm')} Adicionar</button></form>`}`;
+    if (!semMovimento()) $$('#ct-side .ct-an[data-ct-an]').forEach(a => {
+      const v = ctAntes.get(a.dataset.ctAn); if (!v) return;
+      const i = a.querySelector('.ct-an-bar i'), n = parseInt(a.querySelector('.ct-an-n')?.textContent, 10);
+      if (i && v.w && v.w !== i.style.width) i.animate([{ width: v.w }, { width: i.style.width }], { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (n !== v.n && !isNaN(v.n)) { const el = a.querySelector('.ct-an-n'); el.classList.remove('ct-pula'); void el.offsetWidth; el.classList.add('ct-pula'); }
+    });
+
+    $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+
+    const linhas = ctLinhas();
+    const vis = new Set(linhas.map(l => l.e.id));
+    state.dpCtSel.forEach(id => { if (!vis.has(id)) state.dpCtSel.delete(id); });
+    $('#ct-count').textContent = `${linhas.length} empresa(s)${state.dpCarteira ? ' · ' + carteiraNome() : ''}`;
+    const nomes = dpResponsaveis();
+    const opts = (atual, excluir) => `<option value="">— sem responsável —</option>` + nomes.filter(n => !excluir || norm(n) !== norm(excluir)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    const optsRes = (atual, titular) => `<option value="">—</option>` + nomes.filter(n => norm(n) !== norm(titular)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    const th = (k, l, cls = '') => `<th${cls ? ` class="${cls}"` : ''}><button type="button" data-ct-sort="${k}" class="${state.dpCtSort === k ? 'on' : ''}" aria-pressed="${state.dpCtSort === k}">${l}${state.dpCtSort === k ? ' ↓' : ''}</button></th>`;
+    const todasSel = linhas.length > 0 && linhas.every(l => state.dpCtSel.has(l.e.id));
+    const cols = `<colgroup>${ro ? '' : '<col style="width:34px">'}<col style="width:22%"><col style="width:14%"><col style="width:12%"><col style="width:62px"><col style="width:16%"><col style="width:14%"><col></colgroup>`;
+    const head = `${cols}<thead><tr>${ro ? '' : `<th class="chk-col"><input type="checkbox" id="ct-all" aria-label="Selecionar todas"${todasSel ? ' checked' : ''}></th>`}${th('nome', 'Empresa')}<th>CNPJ / CPF</th>${th('trib', 'Tributação')}${th('func', 'Func.', 'num')}${th('resp', 'Responsável')}<th title="Quem cobre primeiro nas ausências">Reserva</th><th>Hoje com</th></tr></thead>`;
+    const body = linhas.length ? linhas.map(({ e, nf }) => {
+      const s = state.dpCtSel.has(e.id), r = ctResp(e), mudou = sim && r !== e.responsavel;
+      const cob = coberturaDe(e);
+      const hoje_ = !e.responsavel ? '<span class="dp-cell-sub">—</span>' : cob.coberta ? `<span class="pill pill-today" title="${escapeHtml(cob.titular)} está de ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdBR(cob.aus.fim)}">${escapeHtml(cob.efetivo)}</span>` : cob.aus ? '<span class="pill pill-late" title="Titular ausente e ninguém cobrindo esta empresa">sem cobertura</span>' : '<span class="dp-cell-sub">titular</span>';
+      return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}${mudou ? ' mudou' : ''}"${ro ? '' : ' draggable="true"'}>
+        ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
+        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
+        <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
+        <td>${escapeHtml(e.tributacao || '—')}</td>
+        <td class="num">${nf}</td>
+        <td><select data-ct-resp class="${r ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(r)}</select>${mudou ? `<div class="ct-antes">antes: ${escapeHtml(e.responsavel || 'sem responsável')}</div>` : ''}</td>
+        <td><select data-ct-reserva aria-label="Reserva de ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${optsRes(e.reserva, r)}</select></td>
+        <td>${hoje_}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="8"><div class="dp-empty">${state.dpEmpresas.length ? 'Nenhuma empresa nesta cartela com esses filtros.' : 'Nenhuma empresa cadastrada ainda.'}</div></td></tr>`;
+    $('#ct-table').innerHTML = head + '<tbody>' + body + '</tbody>';
+
+    const n = state.dpCtSel.size, bulk = $('#ct-bulk');
+    bulk.hidden = ro || !n;
+    if (n) bulk.innerHTML = `<b>${n}</b> selecionada(s) · Mover para <select id="ct-bulk-dest" aria-label="Mover para"><option value="" disabled selected>Escolha o analista…</option>${nomes.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}<option value="${SEM_RESP}">Sem responsável</option></select><button type="button" class="btn btn-sm btn-primary" id="ct-bulk-go">Mover</button><button type="button" class="btn btn-sm" id="ct-bulk-clear">Limpar seleção</button>`;
+  }
+
+  // Aplica (ou, no modo simulação, só registra no rascunho) as trocas de responsável: mapa empresa → analista.
+  async function aplicarMovimentos(mapa) {
+    if (state.readOnly) return false;
+    const canon = (n) => n === SEM_RESP || !n ? '' : canonResp(n);
+    const pares = Object.entries(mapa).map(([id, n]) => [findDpEmpresa(id), canon(n)]).filter(([e, n]) => e && e.responsavel !== n);
+    if (!pares.length) return false;
+    if (state.dpCtSim) {
+      pares.forEach(([e, n]) => { state.dpCtSim[e.id] = n; });
+      Object.keys(state.dpCtSim).forEach(id => { const e = findDpEmpresa(id); if (!e || e.responsavel === state.dpCtSim[id]) delete state.dpCtSim[id]; });
+      state.dpCtSel.clear();
+      renderDpActiveView();
+      return true;
+    }
+    const quando = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+    pares.forEach(([e, n]) => {
+      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${n || '—'}`, autor: state.meId || '' });
+      if (e.historico.length > 200) e.historico.length = 200;
+      e.responsavel = n; e.updatedAt = Date.now();
+    });
+    state.dpCtSel.clear();
+    renderDpActiveView();
+    return persist(async () => { for (const [e] of pares) await dpStore.updateFields(e.id, { responsavel: e.responsavel, historico: e.historico, updatedAt: e.updatedAt }); });
+  }
+  async function moverEmpresas(ids, destino) {
+    const mapa = {}; ids.forEach(id => { mapa[id] = destino; });
+    const sim = !!state.dpCtSim;
+    const ok = await aplicarMovimentos(mapa);
+    if (ok) requestAnimationFrame(() => ids.forEach(id => { const tr = $(`tr[data-ct-id="${id}"]`); if (tr) { tr.classList.remove('ct-flash'); void tr.offsetWidth; tr.classList.add('ct-flash'); } }));
+    if (ok && !sim) { const n = ids.length, nome = destino === SEM_RESP || !destino ? 'sem responsável' : canonResp(destino); toast(n === 1 ? `“${findDpEmpresa(ids[0])?.nome}” agora está com ${nome}.` : `${n} empresas movidas para ${nome}.`); }
+  }
+  async function definirReserva(id, nome) {
+    const e = findDpEmpresa(id);
+    if (!e || state.readOnly) return;
+    const novo = nome ? canonResp(nome) : '';
+    if ((e.reserva || '') === novo) return;
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva || '—'} → ${novo || '—'}`, autor: state.meId || '' });
+    if (e.historico.length > 200) e.historico.length = 200;
+    e.reserva = novo; e.updatedAt = Date.now();
+    renderDpActiveView();
+    persist(() => dpStore.updateFields(e.id, { reserva: e.reserva, historico: e.historico, updatedAt: e.updatedAt }));
+  }
+  async function salvarEquipe(nomes) { state.dpEquipe = normalizeEquipe(nomes); renderDpActiveView(); await persist(() => equipeStore.save(state.dpEquipe)); }
+
+  // ----- ausências: linha do tempo e lista -----
+  function statusAus(a, t = ymd(hoje())) { return a.fim < t ? 'encerrada' : a.inicio > t ? 'futura' : 'andamento'; }
+  function resumoCobertura(a) {
+    const emps = state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(a.analista));
+    const cont = new Map(); let sem = 0;
+    emps.forEach(e => { const q = a.porEmpresa[e.id] || a.padrao; if (!q || norm(q) === norm(a.analista)) sem++; else cont.set(q, (cont.get(q) || 0) + 1); });
+    return { emps: emps.length, sem, quem: [...cont.entries()].sort((x, y) => y[1] - x[1]) };
+  }
+  function renderCtAus() {
+    const ro = state.readOnly, hojeS = ymd(hoje());
+    const mes = state.dpCtMes || mesDe(hoje());
+    const { y, m } = mesParts(mes), nd = new Date(y, m + 1, 0).getDate();
+    const ini = `${mes}-01`, fim = `${mes}-${pad2(nd)}`;
+    const noMes = state.dpCob.ausencias.filter(a => a.inicio <= fim && a.fim >= ini);
+    const nomes = [...new Set([...dpResponsaveis(), ...state.dpCob.ausencias.map(a => a.analista)].map(n => dpResponsaveis().find(r => norm(r) === norm(n)) || n))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const dias = Array.from({ length: nd }, (_, i) => { const d = new Date(y, m, i + 1), s = ymd(d); return { s, d, n: noMes.filter(a => a.inicio <= s && a.fim >= s).length }; });
+    const cel = (dd, i) => `<i class="d${dd.d.getDay() === 0 || dd.d.getDay() === 6 ? ' wk' : ''}${dd.s === hojeS ? ' hoje' : ''}${dd.n >= 2 ? ' dois' : ''}" style="grid-column:${i + 1};grid-row:1"${dd.n >= 2 ? ` title="${dd.n} pessoas ausentes neste dia"` : ''}></i>`;
+    const linhaDe = (nome) => {
+      const bars = noMes.filter(a => norm(a.analista) === norm(nome)).map(a => {
+        const c1 = Math.max(1, +a.inicio.slice(8) + (a.inicio < ini ? 0 : 0)), a1 = a.inicio < ini ? 1 : +a.inicio.slice(8), b1 = a.fim > fim ? nd : +a.fim.slice(8);
+        const r = resumoCobertura(a);
+        const tip = `${a.analista} · ${a.motivo}\n${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}\n` + (r.quem.length ? 'Cobre: ' + r.quem.map(([q, n]) => `${q} (${n})`).join(', ') : 'Sem cobertura definida') + (r.sem && r.quem.length ? `\n${r.sem} empresa(s) sem cobertura` : '');
+        return `<button type="button" class="ct-bar${r.sem ? ' sem' : ''}" style="grid-column:${a1} / ${b1 + 1};grid-row:1;--c:${COR_MOTIVO[a.motivo]}" data-ct-aus="${escapeHtml(a.id)}" ${tipAttr(tip)}><span>${escapeHtml(a.motivo)}${r.quem.length ? ' → ' + escapeHtml(r.quem.map(q => q[0].split(' ')[0]).join(', ')) : ''}</span></button>`;
+      }).join('');
+      return `<div class="ct-tl-row"><span class="ct-tl-name"><span class="avatar" style="--av:${corDe(nome)}">${escapeHtml(iniciais(nome))}</span>${escapeHtml(nome)}</span><div class="ct-tl-track" style="--dias:${nd}">${dias.map(cel).join('')}${bars}</div></div>`;
+    };
+    const head = `<div class="ct-tl-row ct-tl-h"><span class="ct-tl-name"></span><div class="ct-tl-track" style="--dias:${nd}">${dias.map((dd, i) => `<span class="dn${dd.s === hojeS ? ' hoje' : ''}" style="grid-column:${i + 1}">${dd.d.getDate()}</span>`).join('')}</div></div>`;
+    const linhas = state.dpCob.ausencias.slice().sort((a, b) => b.inicio.localeCompare(a.inicio));
+    const item = (a) => {
+      const st = statusAus(a, hojeS), r = resumoCobertura(a);
+      const cobTxt = r.emps ? [r.quem.map(([q, n]) => `${escapeHtml(q)} (${n})`).join(', '), r.sem ? `<span class="ct-sem">${r.sem} sem cobertura</span>` : ''].filter(Boolean).join(' · ') : '<span class="dp-cell-sub">sem empresas ativas</span>';
+      const pill = st === 'andamento' ? '<span class="pill pill-today">Em andamento</span>' : st === 'futura' ? '<span class="pill pill-soon">Futura</span>' : '<span class="pill pill-muted">Encerrada</span>';
+      return `<tr class="${st === 'encerrada' ? 'inativa' : ''}"><td><b>${escapeHtml(a.analista)}</b>${a.obs ? `<div class="dp-cell-sub">${escapeHtml(a.obs)}</div>` : ''}</td><td><span class="ct-dot" style="--c:${COR_MOTIVO[a.motivo]}"></span>${escapeHtml(a.motivo)}</td><td>${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</td><td>${cobTxt}</td><td>${pill}</td>
+        <td class="ct-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-ct-aus="${escapeHtml(a.id)}">Editar</button>${st !== 'encerrada' ? `<button type="button" class="btn btn-sm" data-ct-prorrogar="${escapeHtml(a.id)}" title="Adiar o fim em 7 dias">+7 dias</button>` : ''}<button type="button" class="icon-btn" data-ct-aus-del="${escapeHtml(a.id)}" aria-label="Excluir ausência" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td></tr>`;
+    };
+    const tabela = (lista) => `<div class="ct-scroll"><table class="ct-table"><thead><tr><th>Analista</th><th>Motivo</th><th>Período</th><th>Cobertura</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(item).join('')}</tbody></table></div>`;
+    const abertas = linhas.filter(a => statusAus(a, hojeS) !== 'encerrada'), enc = linhas.filter(a => statusAus(a, hojeS) === 'encerrada');
+    $('#ct-count').textContent = `${state.dpCob.ausencias.length} ausência(s) registrada(s)`;
+    $('#ct-pane-aus').innerHTML = `<div class="ct-pane-in">
+      <div class="ct-tl-nav"><button type="button" class="icon-btn" data-ct-mes="-1" aria-label="Mês anterior">${ic('left')}</button><b>${MESES[m]} de ${y}</b><button type="button" class="icon-btn" data-ct-mes="1" aria-label="Próximo mês">${ic('right')}</button><button type="button" class="btn btn-sm" data-ct-mes="0">Hoje</button>
+        <span class="ct-leg">${MOTIVOS_AUS.map(x => `<span><i class="ct-dot" style="--c:${COR_MOTIVO[x]}"></i>${x}</span>`).join('')}<span><i class="ct-dot dois"></i>2+ ausentes</span></span></div>
+      <div class="list-card ct-sheet"><div class="ct-tl-wrap"><div class="ct-tl">${head}${nomes.map(linhaDe).join('') || '<div class="dp-empty">Cadastre analistas para ver a linha do tempo.</div>'}</div></div></div>
+      <h3 class="ct-h3">Ausências e coberturas</h3>
+      ${abertas.length ? `<div class="list-card ct-sheet">${tabela(abertas)}</div>` : '<div class="list-card ct-sheet"><div class="dp-empty">Nenhuma ausência em andamento ou prevista.</div></div>'}
+      ${enc.length ? `<details class="ct-enc"><summary>Encerradas (${enc.length})</summary><div class="list-card ct-sheet">${tabela(enc)}</div></details>` : ''}</div>`;
+  }
+
+  // ----- movimentações -----
+  function parseQuando(s) {
+    const m = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})\D+(\d{1,2}):(\d{2})/.exec(String(s || ''));
+    if (!m) return 0;
+    let y = +m[3]; if (y < 100) y += 2000;
+    return new Date(y, +m[2] - 1, +m[1], +m[4], +m[5]).getTime();
+  }
+  function ctMovimentos() {
+    const out = [];
+    state.dpEmpresas.forEach(e => e.historico.forEach(h => {
+      if (/^(Responsável|Reserva):/.test(h.alteracao || '')) out.push({ ts: parseQuando(h.data), quando: h.data, texto: h.alteracao, empresa: e.nome, empId: e.id, autor: h.autor });
+    }));
+    state.dpCob.log.forEach(l => out.push({ ts: Date.parse(l.em) || 0, quando: l.em ? new Date(l.em).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }) : '', texto: l.texto, empresa: '', autor: l.autor }));
+    return out.sort((a, b) => b.ts - a.ts);
+  }
+  function renderCtMov() {
+    const q = state.dpCtQuery;
+    const todos = ctMovimentos().filter(m => matchQ([m.texto, m.empresa], q));
+    $('#ct-count').textContent = `${todos.length} movimentação(ões)`;
+    const lista = todos.slice(0, 300);
+    $('#ct-pane-mov').innerHTML = `<div class="ct-pane-in"><div class="list-card ct-sheet">${lista.length ? `<div class="ct-scroll"><table class="ct-table"><thead><tr><th>Quando</th><th>O que mudou</th><th>Empresa</th><th>Por</th></tr></thead><tbody>${lista.map(m => `<tr><td class="dp-mono" style="white-space:nowrap">${escapeHtml(m.quando)}</td><td>${escapeHtml(m.texto)}</td><td>${m.empId ? `<button type="button" class="ct-emp" data-open-emp="${escapeHtml(m.empId)}"><div class="dp-cell-main">${escapeHtml(m.empresa)}</div></button>` : '<span class="dp-cell-sub">—</span>'}</td><td>${m.autor ? `<span data-uid="${escapeHtml(m.autor)}">Alguém da equipe</span>` : '—'}</td></tr>`).join('')}</tbody></table></div>${todos.length > lista.length ? `<p class="ct-hint" style="padding:0 12px 10px">Mostrando as ${lista.length} mais recentes de ${todos.length}.</p>` : ''}` : '<div class="dp-empty">Nenhuma troca de responsável ou reserva registrada ainda.</div>'}</div></div>`;
+    fillNames($('#ct-pane-mov'));
+  }
+
+  // ----- janela de ausência -----
+  const dlgAus = $('#dlg-aus'), formAus = $('#form-aus');
+  let ausEditId = null;
+  function ausOpcoes(sel, excluir, vazio) { return `<option value="">${vazio}</option>` + dpResponsaveis().filter(n => !excluir || norm(n) !== norm(excluir)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(sel) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join(''); }
+  function renderAusEmps(porEmpresaInicial) {
+    const f = formAus.elements, analista = f.analista.value;
+    const emps = state.dpEmpresas.filter(e => ativa(e) && norm(e.responsavel) === norm(analista)).sort(byNome);
+    const atuais = porEmpresaInicial || Object.fromEntries($$('[data-aus-emp]', dlgAus).map(s => [s.dataset.ausEmp, s.value]));
+    $('#aus-nome').textContent = analista || '…';
+    $('#aus-emps').innerHTML = emps.length ? emps.map(e => {
+      const v = atuais[e.id] !== undefined ? atuais[e.id] : (e.reserva && norm(e.reserva) !== norm(analista) ? e.reserva : '');
+      return `<div class="aus-row"><span class="aus-emp" title="${escapeHtml(e.nome)}">${nomeEmpHtml(e)}${e.reserva ? `<small>reserva: ${escapeHtml(e.reserva)}</small>` : ''}</span><select data-aus-emp="${escapeHtml(e.id)}" aria-label="Quem cobre ${escapeHtml(e.nome)}">${ausOpcoes(v, analista, '= padrão acima')}</select></div>`;
+    }).join('') : '<div class="dp-cell-sub">Este analista não tem empresas ativas na cartela.</div>';
+    atualizaAusHint();
+  }
+  function atualizaAusHint() {
+    const f = formAus.elements, padrao = f.padrao.value;
+    const sels = $$('[data-aus-emp]', dlgAus);
+    const sem = sels.filter(s => !s.value && !padrao).length;
+    $('#aus-hint').textContent = sels.length ? (sem ? `${sem} de ${sels.length} empresa(s) ainda sem cobertura.` : `${sels.length} empresa(s) cobertas.`) : '';
+    $('#aus-hint').style.color = sem ? 'var(--dp-late)' : '';
+  }
+  function abrirAus({ id, analista } = {}) {
+    if (state.readOnly) return;
+    const a = id ? state.dpCob.ausencias.find(x => x.id === id) : null;
+    ausEditId = a ? a.id : null;
+    const f = formAus.elements;
+    $('#dlg-aus-title').textContent = a ? 'Editar ausência' : 'Registrar ausência';
+    f.analista.innerHTML = ausOpcoes(a ? a.analista : analista || '', '', 'Escolha o analista…');
+    f.analista.required = true;
+    f.motivo.value = a ? a.motivo : 'Férias';
+    f.inicio.value = a ? a.inicio : ymd(hoje());
+    f.fim.value = a ? a.fim : ymd(addDays(hoje(), 14));
+    f.obs.value = a ? a.obs : '';
+    f.padrao.innerHTML = ausOpcoes(a ? a.padrao : '', a ? a.analista : analista || '', '— definir por empresa —');
+    $('#btn-aus-excluir').hidden = !a;
+    renderAusEmps(a ? a.porEmpresa : null);
+    if (!dlgAus.open) dlgAus.showModal();
+  }
+  formAus.elements.analista.addEventListener('change', () => { formAus.elements.padrao.innerHTML = ausOpcoes('', formAus.elements.analista.value, '— definir por empresa —'); renderAusEmps({}); });
+  formAus.elements.padrao.addEventListener('change', atualizaAusHint);
+  $('#aus-emps').addEventListener('change', atualizaAusHint);
+  formAus.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = formAus.elements;
+    const analista = canonResp(f.analista.value), inicio = f.inicio.value, fim = f.fim.value;
+    if (!analista) { toast('Escolha o analista ausente.'); return; }
+    if (!inicio || !fim || fim < inicio) { toast('A data final não pode ser anterior à inicial.'); return; }
+    const conflito = state.dpCob.ausencias.find(x => x.id !== ausEditId && norm(x.analista) === norm(analista) && x.inicio <= fim && x.fim >= inicio);
+    if (conflito) { toast(`${analista} já tem uma ausência de ${fmtYmdBR(conflito.inicio)} a ${fmtYmdBR(conflito.fim)}. Edite essa em vez de criar outra.`); return; }
+    const porEmpresa = {};
+    $$('[data-aus-emp]', dlgAus).forEach(s => { if (s.value) porEmpresa[s.dataset.ausEmp] = canonResp(s.value); });
+    const novo = normalizeAus({ id: ausEditId || uid(), analista, motivo: f.motivo.value, inicio, fim, padrao: f.padrao.value ? canonResp(f.padrao.value) : '', porEmpresa, obs: f.obs.value.trim(), criadoEm: Date.now(), autor: state.meId || '' });
+    const antigo = ausEditId ? state.dpCob.ausencias.find(x => x.id === ausEditId) : null;
+    if (antigo) { novo.criadoEm = antigo.criadoEm; novo.autor = antigo.autor; }
+    const r = resumoCobertura(novo);
+    const avisos = [];
+    if (r.sem) avisos.push(`${r.sem} de ${r.emps} empresa(s) ficarão sem cobertura.`);
+    r.quem.forEach(([q]) => { const b = state.dpCob.ausencias.find(x => x.id !== novo.id && norm(x.analista) === norm(q) && x.inicio <= fim && x.fim >= inicio); if (b) avisos.push(`${q} também estará ausente de ${fmtYmdDM(b.inicio)} a ${fmtYmdDM(b.fim)}.`); });
+    if (avisos.length) { const ok = await ask(avisos.join('\n') + '\n\nSalvar mesmo assim?', [{ label:'Voltar', value:false }, { label:'Salvar mesmo assim', kind:'btn-primary', value:true }]); if (!ok) return; }
+    dlgAus.close();
+    const resumo = `${analista} · ${novo.motivo} · ${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}` + (r.quem.length ? ` · cobertura: ${r.quem.map(([q, n]) => `${q} (${n})`).join(', ')}` : '');
+    await salvarCob(c => { const i = c.ausencias.findIndex(x => x.id === novo.id); if (i >= 0) c.ausencias[i] = novo; else c.ausencias.push(novo); }, `${antigo ? 'Alterou' : 'Registrou'} ausência: ${resumo}`);
+    toast(antigo ? 'Ausência atualizada.' : 'Ausência registrada.');
+  });
+  $('#btn-aus-cancelar').addEventListener('click', () => dlgAus.close());
+  $('#dlg-aus-close').addEventListener('click', () => dlgAus.close());
+  async function excluirAus(id) {
+    const a = state.dpCob.ausencias.find(x => x.id === id);
+    if (!a) return;
+    const ok = await ask(`Excluir a ausência de ${a.analista} (${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)})?\nA cobertura deixa de valer e as empresas voltam à titular.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (!ok) return;
+    if (dlgAus.open) dlgAus.close();
+    await salvarCob(c => { c.ausencias = c.ausencias.filter(x => x.id !== id); }, `Excluiu ausência: ${a.analista} · ${a.motivo} · ${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}`);
+    toast('Ausência excluída.');
+  }
+  $('#btn-aus-excluir').addEventListener('click', () => { if (ausEditId) excluirAus(ausEditId); });
+
+  // ----- transferir a cartela inteira -----
+  const dlgTr = $('#dlg-transf'), formTr = $('#form-transf');
+  let trNome = '', trExcluir = false;
+  function abrirTransf(nome, excluir = false) {
+    if (state.readOnly) return;
+    trNome = nome; trExcluir = excluir;
+    const emps = state.dpEmpresas.filter(e => norm(ctResp(e)) === norm(nome));
+    const outros = dpResponsaveis().filter(n => norm(n) !== norm(nome));
+    if (!outros.length && !excluir) { toast('Cadastre outro analista antes de transferir.'); return; }
+    $('#tr-title').textContent = excluir ? `Excluir ${nome}` : 'Transferir cartela';
+    $('#tr-nota').textContent = excluir ? 'As ausências deste analista serão apagadas e ele deixa de ser reserva ou substituto nas demais. Escolha para onde vão as empresas dele.' : 'É uma troca definitiva de responsável. Para ausência com data de volta, use “Ausência”.';
+    $('#btn-tr-ok').textContent = excluir ? 'Excluir analista' : 'Transferir';
+    $('#btn-tr-ok').classList.toggle('btn-danger', excluir);
+    $('#tr-nenhum-wrap').hidden = !excluir;
+    $('#tr-desc').textContent = `${emps.length} empresa(s) de ${nome}${state.dpCtSim && !excluir ? ' (simulação: nada será salvo agora)' : ''}.`;
+    $('#tr-um').innerHTML = outros.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    $('#tr-div').innerHTML = outros.map(n => `<label class="ct-chk"><input type="checkbox" value="${escapeHtml(n)}"> ${escapeHtml(n)}</label>`).join('');
+    formTr.elements.modo.value = 'um';
+    formTr.elements.remover.checked = false;
+    $('#tr-remover-wrap').hidden = excluir || !!state.dpCtSim || !state.dpEquipe.some(n => norm(n) === norm(nome));
+    $('#tr-um-wrap').hidden = !outros.length; $('#tr-div').hidden = true;
+    if (!outros.length) formTr.elements.modo.value = 'nenhum';
+    if (!dlgTr.open) dlgTr.showModal();
+  }
+  formTr.addEventListener('change', () => { const m = formTr.elements.modo.value; $('#tr-um-wrap').hidden = m !== 'um'; $('#tr-div').hidden = m !== 'dividir'; });
+  formTr.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emps = state.dpEmpresas.filter(x => norm(ctResp(x)) === norm(trNome)).sort(byNome);
+    if (!emps.length) { dlgTr.close(); return; }
+    const mapa = {};
+    const modo = formTr.elements.modo.value;
+    if (modo === 'nenhum') emps.forEach(x => { mapa[x.id] = SEM_RESP; });
+    else if (modo === 'um') emps.forEach(x => { mapa[x.id] = $('#tr-um').value; });
+    else {
+      const dest = $$('#tr-div input:checked').map(i => i.value);
+      if (dest.length < 2) { toast('Marque pelo menos dois analistas para dividir.'); return; }
+      const carga = Object.fromEntries(dest.map(n => [n, state.dpEmpresas.filter(x => norm(ctResp(x)) === norm(n)).length]));
+      emps.forEach(x => { const n = dest.reduce((a, b) => carga[b] < carga[a] ? b : a); mapa[x.id] = n; carga[n]++; });
+    }
+    const remover = formTr.elements.remover.checked && !state.dpCtSim;
+    const sim = !!state.dpCtSim, excluir = trExcluir, nome = trNome;
+    dlgTr.close();
+    const ok = await aplicarMovimentos(mapa);
+    if (excluir && ok) { await finalizarExclusao(nome); return; }
+    if (ok && !sim) toast(`Cartela de ${nome} transferida (${emps.length} empresa(s)).`);
+    if (ok && remover) await salvarEquipe(state.dpEquipe.filter(n => norm(n) !== norm(nome)));
+  });
+  $('#btn-tr-cancelar').addEventListener('click', () => dlgTr.close());
+  $('#dlg-transf-close').addEventListener('click', () => dlgTr.close());
+
+  // ----- excluir analista -----
+  async function excluirAnalista(nome) {
+    if (state.readOnly) return;
+    if (state.dpCtSim) { toast('Aplique ou descarte a simulação antes de excluir um analista.'); return; }
+    const emps = state.dpEmpresas.filter(e => norm(e.responsavel) === norm(nome));
+    if (emps.length) { abrirTransf(nome, true); return; }
+    const ok = await ask(`Excluir ${nome}?\nEle não tem empresas na cartela. Ausências, reserva e substituições dele também serão removidas.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
+    if (ok) await finalizarExclusao(nome);
+  }
+  // Tira o analista da equipe, limpa a reserva das empresas e apaga as ausências (e coberturas) em que ele aparece.
+  async function finalizarExclusao(nome) {
+    const doNome = (n) => norm(n) === norm(nome);
+    const comReserva = state.dpEmpresas.filter(e => doNome(e.reserva));
+    comReserva.forEach(e => {
+      e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva} → — (analista excluído)`, autor: state.meId || '' });
+      if (e.historico.length > 200) e.historico.length = 200;
+      e.reserva = ''; e.updatedAt = Date.now();
+    });
+    state.dpEquipe = normalizeEquipe(state.dpEquipe.filter(n => !doNome(n)));
+    if (state.dpCarteira && doNome(state.dpCarteira)) setCarteira('');
+    if (state.dpAgAnalista && doNome(state.dpAgAnalista)) { state.dpAgAnalista = ''; state.prefs.dpAgAnalista = ''; savePrefs(); }
+    await salvarCob(c => {
+      c.ausencias = c.ausencias.filter(a => !doNome(a.analista));
+      c.ausencias.forEach(a => { if (doNome(a.padrao)) a.padrao = ''; Object.keys(a.porEmpresa).forEach(id => { if (doNome(a.porEmpresa[id])) delete a.porEmpresa[id]; }); });
+    }, `Excluiu o analista ${nome}`);
+    await persist(async () => { await equipeStore.save(state.dpEquipe); for (const e of comReserva) await dpStore.updateFields(e.id, { reserva: e.reserva, historico: e.historico, updatedAt: e.updatedAt }); });
+    toast(`${nome} foi excluído.`);
+  }
+
+  // ----- exportar e imprimir -----
+  function ctDadosExport(todos) {
+    const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => (ctResp(a) || '￿').localeCompare(ctResp(b) || '￿', 'pt-BR') || byNome(a, b));
+    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length }; });
+  }
+  function ctCsv(todos) {
+    const rows = [['Analista','Reserva','Hoje com (cobertura)','Empresa','Código','CNPJ/CPF','Tributação','Situação','Funcionários ativos']];
+    ctDadosExport(todos).forEach(({ e, resp, hoje: h, nf }) => rows.push([resp, e.reserva, h, e.nome, e.cod, e.cnpj, e.tributacao, e.situacao, nf]));
+    offerFile(`dp-cartela-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  }
+  function ctImprimir() {
+    const dados = ctDadosExport(true).filter(d => ativa(d.e));
+    const por = new Map();
+    dados.forEach(d => { if (!por.has(d.resp)) por.set(d.resp, []); por.get(d.resp).push(d); });
+    const t = ymd(hoje());
+    const aus = (nome) => state.dpCob.ausencias.filter(a => norm(a.analista) === norm(nome) && a.fim >= t).sort((a, b) => a.inicio.localeCompare(b.inicio));
+    $('#ct-print').innerHTML = `<h1>Cartela de clientes · DP</h1><p class="ct-pr-sub">Emitida em ${fmtDMY(hoje())} · empresas ativas</p>` + [...por.entries()].map(([nome, ds]) => `
+      <section class="ct-pr-an"><h2>${escapeHtml(nome)} <small>${ds.length} empresa(s) · ${ds.reduce((n, d) => n + d.nf, 0)} func.</small></h2>
+      ${aus(nome).map(a => `<p class="ct-pr-aus">${escapeHtml(a.motivo)}: ${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</p>`).join('')}
+      <table><thead><tr><th>Empresa</th><th>Cód.</th><th>CNPJ / CPF</th><th>Tributação</th><th>Func.</th><th>Reserva</th></tr></thead><tbody>${ds.map(d => `<tr><td>${escapeHtml(d.e.nome)}${ehFilial(d.e) ? ' (filial)' : ''}${d.hoje ? ` <em>(hoje com ${escapeHtml(d.hoje)})</em>` : ''}</td><td>${escapeHtml(d.e.cod)}</td><td>${escapeHtml(d.e.cnpj)}</td><td>${escapeHtml(d.e.tributacao)}</td><td>${d.nf}</td><td>${escapeHtml(d.e.reserva)}</td></tr>`).join('')}</tbody></table></section>`).join('');
+    document.body.classList.add('ct-printing');
+    const off = () => { document.body.classList.remove('ct-printing'); $('#ct-print').innerHTML = ''; window.removeEventListener('afterprint', off); };
+    window.addEventListener('afterprint', off);
+    try { window.print(); } catch { off(); toast('Não foi possível abrir a impressão aqui. Use o CSV.'); return; }
+    setTimeout(() => window.addEventListener('pointerdown', off, { once: true }), 400);
+  }
+
+  // ----- eventos da aba -----
+  const ctView = $('#dp-view-cartela');
+  $('#ct-search').addEventListener('input', (e) => { state.dpCtQuery = e.target.value.trim(); renderCartela(); });
+  $('#ct-sit').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-sit]'); if (b) { state.dpCtTodas = b.dataset.ctSit === 'todas'; renderCartela(); } });
+  $('#ct-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-modo]'); if (b) { state.dpCtModo = b.dataset.ctModo; state.dpCtSel.clear(); renderCartela(); } });
+  $('#ct-aus-novo').addEventListener('click', () => abrirAus({ analista: state.dpCarteira && state.dpCarteira !== SEM_RESP ? state.dpCarteira : '' }));
+  $('#ct-sim-btn').addEventListener('click', async () => {
+    if (!state.dpCtSim) { state.dpCtSim = {}; toast('Simulação ligada: as trocas só valem depois de aplicar.'); renderCartela(); return; }
+    if (ctMudancas().length && !(await ask('Descartar as mudanças simuladas?', [{ label:'Continuar simulando', value:false }, { label:'Descartar', kind:'btn-danger', value:true }]))) return;
+    state.dpCtSim = null; renderCartela();
+  });
+  $('#ct-csv').addEventListener('click', (e) => { e.target.closest('details').open = false; ctCsv(false); });
+  $('#ct-csv-todos').addEventListener('click', (e) => { e.target.closest('details').open = false; ctCsv(true); });
+  $('#ct-print-btn').addEventListener('click', (e) => { e.target.closest('details').open = false; ctImprimir(); });
+  ctView.addEventListener('click', async (e) => {
+    const t = e.target;
+    const rem = t.closest('[data-ct-rem]');
+    if (rem) { e.stopPropagation(); excluirAnalista(rem.dataset.ctRem); return; }
+    const tr = t.closest('[data-ct-transf]');
+    if (tr) { e.stopPropagation(); abrirTransf(tr.dataset.ctTransf); return; }
+    const an = t.closest('[data-ct-an]');
+    if (an) { state.dpCtSel.clear(); setCarteira(an.dataset.ctAn); return; }
+    const so = t.closest('[data-ct-sort]');
+    if (so) { state.dpCtSort = so.dataset.ctSort; renderCartela(); return; }
+    const aus = t.closest('[data-ct-aus]');
+    if (aus) { if (state.readOnly) { state.dpCtModo = 'aus'; renderCartela(); } else abrirAus({ id: aus.dataset.ctAus }); return; }
+    const del = t.closest('[data-ct-aus-del]');
+    if (del) { excluirAus(del.dataset.ctAusDel); return; }
+    const pro = t.closest('[data-ct-prorrogar]');
+    if (pro) { const a = state.dpCob.ausencias.find(x => x.id === pro.dataset.ctProrrogar); if (a) { const novoFim = ymd(addDays(parseYmd(a.fim), 7)); await salvarCob(c => { const x = c.ausencias.find(y => y.id === a.id); if (x) x.fim = novoFim; }, `Prorrogou ausência de ${a.analista} até ${fmtYmdBR(novoFim)}`); toast(`Ausência de ${a.analista} vai até ${fmtYmdBR(novoFim)}.`); } return; }
+    const mes = t.closest('[data-ct-mes]');
+    if (mes) { const d = +mes.dataset.ctMes; state.dpCtMes = d === 0 ? '' : mesShift(state.dpCtMes || mesDe(hoje()), d); renderCartela(); return; }
+    if (t.id === 'ct-sim-aplicar') { const mapa = Object.fromEntries(ctMudancas()); state.dpCtSim = null; const ok = await aplicarMovimentos(mapa); if (ok) toast('Mudanças aplicadas e salvas.'); else renderCartela(); return; }
+    if (t.id === 'ct-sim-descartar') { state.dpCtSim = null; renderCartela(); return; }
+    if (t.id === 'ct-bulk-clear') { state.dpCtSel.clear(); renderCartela(); return; }
+    if (t.id === 'ct-bulk-go') { const d = $('#ct-bulk-dest').value; if (!d) { toast('Escolha para quem mover.'); return; } moverEmpresas([...state.dpCtSel], d); }
+  });
+  ctView.addEventListener('keydown', (e) => { const an = e.target.closest('[data-ct-an]'); if (an && e.target === an && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); an.click(); } });
+  ctView.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'ct-all') { ctLinhas().forEach(l => t.checked ? state.dpCtSel.add(l.e.id) : state.dpCtSel.delete(l.e.id)); renderCartela(); return; }
+    const tr = t.closest('[data-ct-id]');
+    if (!tr) return;
+    const id = tr.dataset.ctId;
+    if (t.matches('[data-ct-chk]')) { t.checked ? state.dpCtSel.add(id) : state.dpCtSel.delete(id); renderCartela(); return; }
+    if (t.matches('[data-ct-resp]')) moverEmpresas([id], t.value || SEM_RESP);
+    if (t.matches('[data-ct-reserva]')) definirReserva(id, t.value);
+  });
+  ctView.addEventListener('submit', (e) => {
+    if (e.target.id !== 'ct-add') return;
+    e.preventDefault();
+    const nome = $('#ct-add-nome').value.trim();
+    if (!nome) return;
+    if (dpResponsaveis().some(n => norm(n) === norm(nome))) { toast(`${nome} já está na equipe.`); return; }
+    salvarEquipe([...state.dpEquipe, nome]);
+    toast(`${nome} entrou na equipe.`);
+  });
+  // Arrastar: a linha (ou todas as selecionadas, se ela estiver entre elas) vai para o analista onde for solta.
+  let ctArrasto = null;
+  ctView.addEventListener('dragstart', (e) => {
+    const tr = e.target.closest?.('tr[data-ct-id]');
+    if (!tr) return;
+    const id = tr.dataset.ctId;
+    ctArrasto = state.dpCtSel.has(id) ? [...state.dpCtSel] : [id];
+    ctView.classList.add('ct-arrastando');
+    ctArrasto.forEach(x => $(`tr[data-ct-id="${x}"]`, ctView)?.classList.add('ct-pega'));
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', ctArrasto.length + ' empresa(s)'); } catch {}
+  });
+  ctView.addEventListener('dragend', () => { ctArrasto = null; ctView.classList.remove('ct-arrastando'); $$('.ct-an.drop, tr.ct-pega').forEach(x => x.classList.remove('drop', 'ct-pega')); });
+  ctView.addEventListener('dragover', (e) => {
+    const an = e.target.closest('[data-ct-drop]');
+    if (!an || !ctArrasto) return;
+    e.preventDefault();
+    $$('.ct-an.drop').forEach(x => { if (x !== an) x.classList.remove('drop'); });
+    an.classList.add('drop');
+  });
+  ctView.addEventListener('dragleave', (e) => { const an = e.target.closest('[data-ct-drop]'); if (an && !an.contains(e.relatedTarget)) an.classList.remove('drop'); });
+  ctView.addEventListener('drop', (e) => {
+    const an = e.target.closest('[data-ct-drop]');
+    if (!an || !ctArrasto) return;
+    e.preventDefault();
+    const ids = ctArrasto; ctArrasto = null;
+    an.classList.remove('drop');
+    moverEmpresas(ids, an.dataset.ctAn);
+  });
+
+  // ---------- Ferramentas do DP: vitrine e Importador Domínio ----------
+  // O código da ferramenta fica em importador.js, carregado só quando ela é aberta.
+  function makeImpLocal() {
+    const KEY = 'control-hub:dp-importacoes';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const impDb = { async save(itens) { await db.doc('dp_config/importacoes').set({ itens }); } };
+  let impStore = makeImpLocal();
+  // Mesma chave do gerador original: a lista que já estava no navegador vem junto.
+  function makeTiposLocal() {
+    const KEY = 'dominio_tipos_processo';
+    return {
+      load() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+      async save(itens) { try { localStorage.setItem(KEY, JSON.stringify(itens)); } catch { toast('Não foi possível salvar no navegador.'); } },
+    };
+  }
+  const tiposDb = { async save(itens) { await db.doc('dp_config/tipos_processo').set({ itens }); } };
+  let tiposStore = makeTiposLocal();
+  const IMP_MAX = 300;
+  const normalizeImports = (v) => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object' && x.id).map(x => ({
+    id: String(x.id), em: Number(x.em) || 0, autor: String(x.autor || ''), empId: String(x.empId || ''), empresa: String(x.empresa || '').slice(0, 140), cod: String(x.cod || ''),
+    modulo: x.modulo === 'lancamentos' ? 'lancamentos' : 'rpa', comp: String(x.comp || ''), tipo: String(x.tipo || ''),
+    linhas: Number(x.linhas) || 0, pessoas: Number(x.pessoas) || 0, total: Number(x.total) || 0, arquivo: String(x.arquivo || '').slice(0, 160),
+  })).sort((a, b) => b.em - a.em).slice(0, IMP_MAX);
+  const normalizeTipos = (v) => (Array.isArray(v) ? v : []).filter(t => t && /^\d{1,2}$/.test(String(t.codigo || ''))).map(t => ({ codigo: String(t.codigo), nome: String(t.nome || '').slice(0, 80) }));
+
+  const FERRAMENTAS_DP = [
+    { id: 'importador', nome: 'Importador Domínio', icone: 'upload', script: 'importador.js?v=1',
+      desc: 'RPA e lançamentos de rubricas: modelo travado para o cliente, conferência linha a linha e o arquivo .txt para o Domínio.' },
+  ];
+  const URL_XLSX = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  const IMP_MOD = { rpa: 'RPA', lancamentos: 'Lançamentos' };
+  const soDig = (v) => String(v ?? '').replace(/\D/g, '');
+  let impInst = null, impCarregando = null;
+
+  function impsVisiveis() {
+    if (!state.dpCarteira) return state.dpImports;
+    return state.dpImports.filter(i => { const e = i.empId && findDpEmpresa(i.empId); return e && naCarteira(e); });
+  }
+  function renderFerramentasDp() {
+    const f = FERRAMENTAS_DP.find(x => x.id === state.dpFerr);
+    $('#fe-vitrine').hidden = !!f;
+    $('#fe-tool').hidden = !f;
+    if (f) { $('#fe-tool-nome').textContent = f.nome; abrirFerramenta(f); return; }
+    renderVitrine();
+  }
+  function renderVitrine() {
+    const mes = ymd(hoje()).slice(0, 7);
+    const lista = impsVisiveis();
+    const doMes = lista.filter(i => ymd(new Date(i.em)).slice(0, 7) === mes).length;
+    const cards = FERRAMENTAS_DP.map(f => `<button type="button" class="fe-card" data-fe-abrir="${f.id}">
+      <span class="fe-ico">${ic(f.icone)}</span>
+      <span class="fe-card-txt"><b>${escapeHtml(f.nome)}</b><span>${escapeHtml(f.desc)}</span>
+      <span class="fe-card-meta">${doMes ? `${doMes} arquivo${doMes === 1 ? '' : 's'} gerado${doMes === 1 ? '' : 's'} este mês` : 'Nenhum arquivo gerado este mês'}</span></span>
+      <span class="fe-card-ir">Abrir ›</span></button>`).join('');
+    const fmtQuando = (ms) => { const d = new Date(ms); return `${fmtDM(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    const linhas = lista.slice(0, 60).map(i => {
+      const e = i.empId && findDpEmpresa(i.empId);
+      const emp = e ? `<button type="button" class="fe-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button>` : escapeHtml(i.empresa);
+      const qtd = i.modulo === 'rpa' ? `${i.pessoas} autônomo${i.pessoas === 1 ? '' : 's'}` : `${i.linhas} lançamento${i.linhas === 1 ? '' : 's'}${i.pessoas ? ` · ${i.pessoas} empregado${i.pessoas === 1 ? '' : 's'}` : ''}`;
+      return `<tr><td class="fe-quando">${fmtQuando(i.em)}</td><td>${emp}<span class="dp-cell-sub">${i.cod ? 'Domínio ' + escapeHtml(i.cod) : ''}</span></td>
+        <td>${IMP_MOD[i.modulo]}${i.tipo ? `<span class="dp-cell-sub">processo ${escapeHtml(i.tipo)}</span>` : ''}</td><td>${escapeHtml(i.comp)}</td>
+        <td>${qtd}</td><td class="fe-num">${brl(i.total)}</td><td><span data-uid="${escapeHtml(i.autor)}">${i.autor ? '' : '—'}</span></td></tr>`;
+    }).join('');
+    const quem = state.dpCarteira ? `carteira: ${escapeHtml(carteiraNome())}` : 'equipe toda';
+    const log = lista.length
+      ? `<div class="fe-log-lista"><table class="ct-table fe-table"><thead><tr><th>Quando</th><th>Empresa</th><th>Módulo</th><th>Competência</th><th>Registros</th><th class="fe-num">Total</th><th>Por</th></tr></thead><tbody>${linhas}</tbody></table></div>`
+      : `<div class="dp-empty"><strong>Nenhuma importação registrada${state.dpCarteira ? ' nesta carteira' : ''}</strong>Cada arquivo .txt baixado no Importador Domínio aparece aqui e no histórico da empresa.</div>`;
+    $('#fe-vitrine').innerHTML = `<div class="fe-wrap">
+      <div class="fe-grid">${cards}</div>
+      <section class="fe-log"><div class="fe-log-h"><h3>Últimas importações</h3><span class="dp-count">${quem} · ${lista.length}</span></div>${log}</section>
+    </div>`;
+    fillNames($('#fe-vitrine'));
+  }
+  function abrirFerramenta(f) {
+    if (impInst) { impInst.atualizar(); return; }
+    if (impCarregando) return;
+    const alvo = $('#fe-tool-root');
+    alvo.innerHTML = '<div class="dp-empty">Carregando a ferramenta…</div>';
+    impCarregando = carregarScriptExt(f.script, 'Não foi possível carregar a ferramenta. Verifique a conexão.')
+      .then(() => { impInst = window.HubImportador.montar(alvo, impApi()); })
+      .catch((e) => { alvo.innerHTML = `<div class="dp-empty"><strong>${escapeHtml(e.message)}</strong><button type="button" class="btn btn-sm" data-fe-abrir="${f.id}">Tentar de novo</button></div>`; })
+      .finally(() => { impCarregando = null; });
+  }
+  $('#dp-view-ferramentas').addEventListener('click', (e) => {
+    const a = e.target.closest('[data-fe-abrir]');
+    if (a) { state.dpFerr = a.dataset.feAbrir; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); return; }
+    if (e.target.closest('#fe-voltar')) { state.dpFerr = ''; renderFerramentasDp(); syncRoute(); window.scrollTo(0, 0); }
+  });
+
+  // Ponte entre a ferramenta e o Hub: dados do DP, downloads, cadastro e registro da equipe.
+  function impApi() {
+    return {
+      empresas: () => state.dpEmpresas.filter(ativa).map(e => ({ ...e, daCarteira: !!state.dpCarteira && naCarteira(e) }))
+        .sort((a, b) => (b.daCarteira - a.daCarteira) || byNome(a, b)),
+      temCarteira: () => !!state.dpCarteira,
+      empresa: (id) => findDpEmpresa(id) || null,
+      empresaPorCnpj: (c) => { const k = cnpjClean(c); return k.length === 14 ? (state.dpEmpresas.find(e => cnpjClean(e.cnpj) === k) || null) : null; },
+      empresaPorCodigo: (c) => { const k = soDig(c).replace(/^0+/, ''); if (!k) return null; const m = state.dpEmpresas.filter(e => soDig(e.codigoDominio).replace(/^0+/, '') === k); return m.find(ativa) || m[0] || null; },
+      nomeEmpHtml,
+      toast: (msg) => toast(msg),
+      somenteLeitura: () => state.readOnly,
+      salvar: (bytes, nome, mime) => offerFile(nome, bytes, mime),
+      carregarXlsx: async () => { await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o leitor de planilhas. Verifique a conexão.'); if (!window.XLSX) throw new Error('O leitor de planilhas não carregou.'); },
+      carregarPdf: async () => { await carregarScriptExt(URL_PDFJS); await carregarScriptExt(URL_PDFJS_WORKER); window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER; return window.pdfjsLib; },
+      tipos: () => state.dpTiposProc,
+      salvarTipos: salvarTiposProc,
+      abrirEmpresa: (id) => { const e = findDpEmpresa(id); if (e) openDpDetail(e); },
+      atualizarCadastro: impAtualizarCadastro,
+      registrar: impRegistrar,
+    };
+  }
+  async function salvarTiposProc(lista) {
+    if (state.readOnly) return;
+    state.dpTiposProc = normalizeTipos(lista);
+    if (await persist(() => tiposStore.save(state.dpTiposProc))) toast('Tipos de processo salvos para a equipe.');
+  }
+  async function impRegistrar(r) {
+    if (state.readOnly) return;
+    const agora = Date.now(), autor = state.meId || '';
+    // Baixar o mesmo arquivo de novo não vira outro registro.
+    if (state.dpImports.some(x => x.arquivo === r.arquivo && x.autor === autor && x.linhas === r.linhas && Math.abs(x.total - r.total) < 0.005 && agora - x.em < 10 * 60 * 1000)) return;
+    const e = (r.empId && findDpEmpresa(r.empId)) || null;
+    const [item] = normalizeImports([{ id: uid(), em: agora, autor, empId: e?.id || '', empresa: e?.nome || r.empresaNome || (r.empresaCod ? `Código ${r.empresaCod}` : 'Empresa não identificada'),
+      cod: r.empresaCod, modulo: r.modulo, comp: r.competencia, tipo: r.tipo, linhas: r.linhas, pessoas: r.pessoas, total: r.total, arquivo: r.arquivo }]);
+    state.dpImports = [item, ...state.dpImports].slice(0, IMP_MAX);
+    let campos = null;
+    if (e) {
+      const qtd = item.modulo === 'rpa' ? `${item.pessoas} autônomo(s)` : `${item.linhas} lançamento(s) de ${item.pessoas} empregado(s)`;
+      marcaHist(e, `Importação de ${IMP_MOD[item.modulo]} ${item.comp} gerada no Importador Domínio: ${qtd}, ${brl(item.total)} (${item.arquivo})`);
+      campos = { historico: e.historico, updatedAt: e.updatedAt };
+    }
+    await persist(async () => { await impStore.save(state.dpImports); if (campos) await dpStore.updateFields(e.id, campos); });
+  }
+  async function impAtualizarCadastro(id, itens) {
+    const e = findDpEmpresa(id);
+    if (!e || state.readOnly) return false;
+    const campos = {}, n = { rub: 0, rpa: 0, func: 0 }, partes = [];
+    itens.forEach(it => {
+      if (it.tipo === 'empresa') { e.codigoDominio = it.valor; campos.codigoDominio = it.valor; partes.push(`código Domínio ${it.valor}`); return; }
+      if (it.tipo === 'rubrica') { const r = normalizeDpRow(it.dado, DP_SECTIONS.rubricas.fields); if (r) { e.rubricas.push(r); campos.rubricas = e.rubricas; n.rub++; } return; }
+      const sec = it.tipo === 'rpa' ? 'rpa' : 'funcionarios';
+      if (it.id) { const r = e[sec].find(x => x.id === it.id); if (!r) return; Object.assign(r, it.mud); }
+      else { const r = normalizeDpRow(it.novo, DP_SECTIONS[sec].fields); if (!r) return; e[sec].push(r); }
+      campos[sec] = e[sec]; n[sec === 'rpa' ? 'rpa' : 'func']++;
+    });
+    if (n.rub) partes.push(`${n.rub} rubrica(s)`);
+    if (n.rpa) partes.push(`${n.rpa} autônomo(s)`);
+    if (n.func) partes.push(`${n.func} funcionário(s)`);
+    if (!partes.length) return false;
+    marcaHist(e, `Importador Domínio atualizou o cadastro: ${partes.join(', ')}`);
+    campos.historico = e.historico; campos.updatedAt = e.updatedAt;
+    const ok = await persist(() => dpStore.updateFields(e.id, campos));
+    if (ok) { toast(`Cadastro de ${e.nome} atualizado: ${partes.join(', ')}.`); refreshOpenDetail(); renderDpActiveView(); }
+    return ok;
+  }
+
+  // ---------- Uso do banco ----------
+  // O banco do artefato não informa tamanho nem cota: só tem limites fixos (5.000 documentos no total,
+  // 256 KiB por documento). O módulo lê todas as coleções que o Hub, o Portal e o Contábil usam e estima
+  // o tamanho de cada documento pelo JSON gravado.
+  const DB_MAX_DOCS = 5000, DB_MAX_DOC = 256 * 1024;
+  const USO_FIXAS = [
+    { path:'tools', app:'Hub' }, { path:'dp_empresas', app:'Hub' }, { path:'dp_config', app:'Hub' },
+    { path:'ctb_emp', app:'Contábil' }, { path:'ctb_comp', app:'Contábil' }, { path:'ctb_ano', app:'Contábil' }, { path:'ctb_config', app:'Contábil' },
+    { path:'empresas', app:'Portal' }, { path:'empresaSetores', app:'Portal' }, { path:'funcionarios', app:'Portal' }, { path:'contatos', app:'Portal' },
+    { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
+    { path:'fis_emp', app:'Fiscal' }, { path:'fis_comp', app:'Fiscal' }, { path:'fis_config', app:'Fiscal' },
+    { path:'cardapio_dias', app:'Cardápio' },
+  ];
+  const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
+  const usoCaminhoOk = (p) => { const s = String(p).split('/'); return s.length % 2 === 1 && s.length <= 15 && s.every(x => USO_SEG.test(x) && x !== '.' && x !== '..'); };
+  const usoExtras = {
+    load() { try { const l = JSON.parse(localStorage.getItem('control-hub:uso-extras') || '[]'); return Array.isArray(l) ? l.filter(usoCaminhoOk) : []; } catch { return []; } },
+    save(l) { try { localStorage.setItem('control-hub:uso-extras', JSON.stringify(l)); } catch {} },
+  };
+  state.uso = { medindo:false, res:null, em:0, hist:[], extras:usoExtras.load(), semBanco:false };
+  const fmtBytes = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toLocaleString('pt-BR', { maximumFractionDigits:1 })} KB` : `${(b / 1048576).toLocaleString('pt-BR', { maximumFractionDigits:2 })} MB`;
+  const usoPct = (p) => `${p.toLocaleString('pt-BR', { maximumFractionDigits: p < 10 ? 1 : 0 })}%`;
+  const usoNivel = (p) => p >= 90 ? 'is-late' : p >= 70 ? 'is-soon' : '';
+  const usoBarra = (p) => `<div class="uso-bar ${usoNivel(p)}" role="img" aria-label="${usoPct(p)}"><i style="width:${Math.min(100, p).toFixed(1)}%"></i></div>`;
+
+  function usoColecoes() {
+    const l = USO_FIXAS.map(c => ({ ...c }));
+    if (state.meId) l.push({ path:`data/users/${state.meId}/agenda/lembretes`, app:'Hub (só os seus)', rotulo:'lembretes pessoais' });
+    state.uso.extras.forEach(p => { if (!l.some(c => c.path === p)) l.push({ path:p, app:'Extra', extra:true }); });
+    return l;
+  }
+
+  async function usoMedir() {
+    const u = state.uso;
+    if (u.medindo) return;
+    if (!db) { u.semBanco = true; renderUso(); return; }
+    u.medindo = true; renderUso();
+    const enc = new TextEncoder(), res = [];
+    for (const c of usoColecoes()) {
+      try {
+        const snap = await db.collection(c.path).get();
+        const docs = snap.docs.map(d => ({ id:d.id, bytes:enc.encode(JSON.stringify(d.data())).length }));
+        const bytes = docs.reduce((s, d) => s + d.bytes, 0);
+        res.push({ ...c, n:docs.length, bytes, docs });
+      } catch (e) { res.push({ ...c, n:0, bytes:0, docs:[], erro:e?.code || 'erro' }); }
+    }
+    u.res = res; u.em = Date.now(); u.medindo = false;
+    try { const h = await db.doc('dp_config/uso_banco').get(); u.hist = h.exists && Array.isArray(h.data().itens) ? h.data().itens.filter(i => i && /^\d{4}-\d\d-\d\d$/.test(i.d)) : []; } catch {}
+    renderUso();
+    usoRegistrar();
+  }
+  // Uma linha por dia (a última medição do dia vale), para mostrar o crescimento.
+  async function usoRegistrar() {
+    const u = state.uso;
+    if (state.readOnly || !db || !u.res) return;
+    const n = u.res.reduce((s, c) => s + c.n, 0), b = u.res.reduce((s, c) => s + c.bytes, 0), d = ymd(new Date());
+    const ult = u.hist[u.hist.length - 1];
+    if (ult && ult.d === d && ult.n === n && ult.b === b) return;
+    const itens = u.hist.filter(i => i.d !== d).concat({ d, n, b }).slice(-120);
+    try { await db.doc('dp_config/uso_banco').set({ itens }); u.hist = itens; renderUso(); } catch {}
+  }
+
+  const usoTotais = (res) => {
+    const n = res.reduce((s, c) => s + c.n, 0), bytes = res.reduce((s, c) => s + c.bytes, 0);
+    const todos = res.flatMap(c => c.docs.map(d => ({ ...d, col:c.path })));
+    todos.sort((a, b) => b.bytes - a.bytes);
+    return { n, bytes, todos, maior:todos[0] || null };
+  };
+  const usoNomeDoc = (d) => {
+    const e = d.col === 'dp_empresas' && findDpEmpresa(d.id);
+    return e ? `<button type="button" class="fe-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><span class="dp-cell-sub">dp_empresas</span>` : `${escapeHtml(d.id)}<span class="dp-cell-sub">${escapeHtml(d.col)}</span>`;
+  };
+
+  function renderUso() {
+    const u = state.uso, root = $('#uso-root');
+    $('#uso-atualizar').disabled = u.medindo;
+    $('#uso-csv').disabled = !u.res;
+    $('#uso-quando').textContent = u.em ? `medido em ${fmtDMY(new Date(u.em))} ${String(new Date(u.em).getHours()).padStart(2, '0')}:${String(new Date(u.em).getMinutes()).padStart(2, '0')}` : '';
+    if (u.semBanco && !u.res) { root.innerHTML = `<div class="uso-wrap"><div class="dp-empty"><strong>Sem conexão com o banco do artefato</strong>Este painel está em modo local, sem banco compartilhado. Abra o Control Hub pelo artefato para medir o uso.</div></div>`; return; }
+    if (!u.res) { root.innerHTML = `<div class="uso-wrap"><div class="dp-empty"><strong>${u.medindo ? 'Medindo…' : 'Ainda não medido'}</strong>Lendo as coleções do Hub, do Portal e do Contábil.</div></div>`; return; }
+    const t = usoTotais(u.res), pctN = t.n / DB_MAX_DOCS * 100;
+    const pctMaior = t.maior ? t.maior.bytes / DB_MAX_DOC * 100 : 0;
+    const emRisco = t.todos.filter(d => d.bytes / DB_MAX_DOC >= .7).length;
+    // evolução
+    let tendencia = '';
+    if (u.hist.length >= 2) {
+      const h = u.hist, a = h[0], z = h[h.length - 1], mx = Math.max(...h.map(i => i.n), 1), mn = Math.min(...h.map(i => i.n));
+      const pts = h.map((i, k) => `${(k / (h.length - 1) * 100).toFixed(1)},${(40 - (mx === mn ? .5 : (i.n - mn) / (mx - mn)) * 36 - 2).toFixed(1)}`).join(' ');
+      const dN = z.n - a.n, dB = z.b - a.b, dt = (s) => fmtDMY(new Date(s + 'T12:00:00'));
+      tendencia = `<section class="uso-sec"><h3>Evolução</h3><div class="uso-trend"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Documentos por dia"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg><span>De ${dt(a.d)} a ${dt(z.d)}: ${dN >= 0 ? '+' : '−'}${Math.abs(dN).toLocaleString('pt-BR')} documento(s) e ${dB >= 0 ? '+' : '−'}${fmtBytes(Math.abs(dB))}.</span></div></section>`;
+    }
+    const linhas = [...u.res].sort((a, b) => b.n - a.n || b.bytes - a.bytes).map(c => {
+      const p = t.n ? c.n / t.n * 100 : 0, maior = c.docs.reduce((m, d) => d.bytes > (m?.bytes || -1) ? d : m, null);
+      const nome = `<b>${escapeHtml(c.rotulo || c.path)}</b>${c.rotulo ? `<span class="dp-cell-sub">${escapeHtml(c.path.replace(/^data\/users\/[^/]+/, 'data/users/…'))}</span>` : ''}${c.extra ? `<button type="button" class="uso-rm" data-uso-rm="${escapeHtml(c.path)}" aria-label="Tirar ${escapeHtml(c.path)} da lista">tirar</button>` : ''}`;
+      if (c.erro) return `<tr><td>${nome}</td><td>${escapeHtml(c.app)}</td><td colspan="5" class="uso-erro">Não foi possível ler (${escapeHtml(c.erro)}).</td></tr>`;
+      return `<tr><td>${nome}</td><td>${escapeHtml(c.app)}</td><td class="fe-num">${c.n.toLocaleString('pt-BR')}</td><td><div class="uso-mini">${usoBarra(p)}<span>${usoPct(p)}</span></div></td><td class="fe-num">${fmtBytes(c.bytes)}</td><td class="fe-num">${c.n ? fmtBytes(Math.round(c.bytes / c.n)) : '—'}</td><td>${maior ? `${fmtBytes(maior.bytes)}<span class="dp-cell-sub">${usoPct(maior.bytes / DB_MAX_DOC * 100)} do limite</span>` : '—'}</td></tr>`;
+    }).join('');
+    const topo = t.todos.slice(0, 10).map(d => `<tr><td>${usoNomeDoc(d)}</td><td class="fe-num">${fmtBytes(d.bytes)}</td><td><div class="uso-mini">${usoBarra(d.bytes / DB_MAX_DOC * 100)}<span>${usoPct(d.bytes / DB_MAX_DOC * 100)}</span></div></td></tr>`).join('');
+    root.innerHTML = `<div class="uso-wrap">
+      <div class="kpi-grid">
+        <div class="kpi-card ${usoNivel(pctN) === 'is-late' ? 'is-late' : usoNivel(pctN) === 'is-soon' ? 'is-soon' : 'is-ok'}"><span class="kpi-value">${t.n.toLocaleString('pt-BR')} <small>/ ${DB_MAX_DOCS.toLocaleString('pt-BR')}</small></span><span class="kpi-label">Documentos no banco</span></div>
+        <div class="kpi-card"><span class="kpi-value">${fmtBytes(t.bytes)}</span><span class="kpi-label">Tamanho estimado</span></div>
+        <div class="kpi-card ${usoNivel(pctMaior) === 'is-late' ? 'is-late' : usoNivel(pctMaior) === 'is-soon' ? 'is-soon' : ''}"><span class="kpi-value">${t.maior ? fmtBytes(t.maior.bytes) : '—'} <small>/ 256 KB</small></span><span class="kpi-label">Maior documento</span></div>
+        <div class="kpi-card"><span class="kpi-value">${u.res.filter(c => c.n).length}</span><span class="kpi-label">Coleções com dados</span></div>
+      </div>
+      <div class="uso-cap"><div class="uso-cap-txt"><b>${usoPct(pctN)}</b> do limite de documentos usado · restam ${(DB_MAX_DOCS - t.n).toLocaleString('pt-BR')}</div>${usoBarra(pctN)}</div>
+      ${pctN >= 70 || emRisco ? `<p class="uso-nota" style="color:var(--${pctN >= 90 ? 'brand-red' : 'cv-soon'})">${pctN >= 70 ? `O banco está em ${usoPct(pctN)} do limite de documentos: ao chegar a 100% não dá mais para criar registros novos (os existentes continuam editáveis). ` : ''}${emRisco ? `${emRisco} documento(s) passam de 70% do tamanho máximo de 256 KB.` : ''}</p>` : ''}
+      ${tendencia}
+      <section class="uso-sec"><h3>Por coleção</h3><div class="uso-tabela"><table class="ct-table"><thead><tr><th style="width:21%">Coleção</th><th style="width:13%">Módulo</th><th class="fe-num" style="width:11%">Documentos</th><th style="width:17%">% do banco</th><th class="fe-num" style="width:11%">Tamanho</th><th class="fe-num" style="width:11%">Média</th><th>Maior documento</th></tr></thead><tbody>${linhas}</tbody>
+        <tfoot><tr><td>Total</td><td></td><td class="fe-num">${t.n.toLocaleString('pt-BR')}</td><td></td><td class="fe-num">${fmtBytes(t.bytes)}</td><td class="fe-num">${t.n ? fmtBytes(Math.round(t.bytes / t.n)) : '—'}</td><td></td></tr></tfoot></table></div>
+        <form class="uso-extra" id="uso-extra-form" style="margin-top:10px"><input type="text" id="uso-extra-in" placeholder="Outra coleção (ex.: minha_colecao)" autocomplete="off" aria-label="Outra coleção para medir"><button type="submit" class="btn">Incluir na medição</button></form>
+      </section>
+      <section class="uso-sec"><h3>Maiores documentos</h3>${topo ? `<div class="uso-tabela"><table class="ct-table" style="min-width:560px"><thead><tr><th>Documento</th><th class="fe-num" style="width:110px">Tamanho</th><th style="width:30%">% do limite de 256 KB</th></tr></thead><tbody>${topo}</tbody></table></div>` : '<p class="uso-nota">Nenhum documento encontrado.</p>'}</section>
+      <p class="uso-nota">O tamanho é estimado pelo conteúdo gravado (JSON); o banco não informa o valor exato. A medição cobre as coleções listadas acima — o banco não permite listar todas — e, dentro de <i>data/users</i>, só a sua área pessoal (as dos outros usuários são privadas). Coleções novas podem ser incluídas pelo campo acima. Os limites são 5.000 documentos por artefato e 256 KB por documento.</p>
+    </div>`;
+    fillNames(root);
+  }
+
+  function openUsoModule() {
+    document.activeElement?.blur();
+    $('#view-home').hidden = true;
+    state.activeModule = 'uso';
+    syncShell(); closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-uso'; });
+    renderFerramentas(); syncRoute();
+    window.scrollTo(0, 0);
+    renderUso();
+    if (!state.uso.res && !state.uso.medindo) usoMedir();
+  }
+  $('#uso-atualizar').addEventListener('click', usoMedir);
+  $('#uso-csv').addEventListener('click', () => {
+    const u = state.uso; if (!u.res) return;
+    const rows = [['Coleção','Módulo','Documentos','Tamanho (bytes)','Maior documento (bytes)','Observação']];
+    u.res.forEach(c => rows.push([c.path, c.app, c.n, c.bytes, c.docs.reduce((m, d) => Math.max(m, d.bytes), 0), c.erro ? `erro: ${c.erro}` : '']));
+    const t = usoTotais(u.res); rows.push(['Total', '', t.n, t.bytes, t.maior?.bytes || 0, `limite ${DB_MAX_DOCS} documentos / ${DB_MAX_DOC} bytes por documento`]);
+    offerFile(`uso-banco-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
+  });
+  $('#uso-root').addEventListener('click', (e) => {
+    const rm = e.target.closest('[data-uso-rm]');
+    if (rm) { const u = state.uso; u.extras = u.extras.filter(p => p !== rm.dataset.usoRm); usoExtras.save(u.extras); if (u.res) u.res = u.res.filter(c => c.path !== rm.dataset.usoRm); renderUso(); return; }
+    const emp = e.target.closest('[data-open-emp]');
+    if (emp) { const x = findDpEmpresa(emp.dataset.openEmp); if (x) { openDpModule('empresas'); openDpDetail(x); } }
+  });
+  $('#uso-root').addEventListener('submit', (e) => {
+    if (e.target.id !== 'uso-extra-form') return;
+    e.preventDefault();
+    const v = $('#uso-extra-in').value.trim().replace(/^\/+|\/+$/g, ''), u = state.uso;
+    if (!usoCaminhoOk(v)) { toast('Informe o nome de uma coleção (número ímpar de partes separadas por “/”).'); return; }
+    if (usoColecoes().some(c => c.path === v)) { toast('Essa coleção já está na medição.'); return; }
+    u.extras.push(v); usoExtras.save(u.extras); usoMedir();
+  });
+
+  // ---------- inicialização ----------
+  function startLocal() {
+    toolsStore = makeLocalStore('control-hub:v1', () => DEFAULT_TOOLS);
+    dpStore = makeLocalStore('control-hub:dp', () => []);
+    geraisStore = makeGeraisLocal();
+    equipeStore = makeEquipeLocal();
+    state.dpEquipe = normalizeEquipe(equipeStore.load());
+    cobStore = makeCobLocal();
+    state.dpCob = normalizeCob(cobStore.load());
+    sindStore = makeSindLocal();
+    state.dpSind = normalizeSinds(sindStore.load());
+    cctStore = makeCctLocal();
+    state.dpCcts = normalizeCcts(cctStore.load());
+    impStore = makeImpLocal();
+    state.dpImports = normalizeImports(impStore.load());
+    tiposStore = makeTiposLocal();
+    state.dpTiposProc = normalizeTipos(tiposStore.load());
+    state.tools = toolsStore.load().map(normalizeTool);
+    state.toolsLoaded = true;
+    state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
+    state.dpGerais = normalizeGerais(geraisStore.load());
+    state.dpLoaded = true;
+    meusStore = makeMeusLocal();
+    state.meus = (Array.isArray(meusStore.load()) ? meusStore.load() : []).map(normalizeMeu);
+    state.meusLoaded = true;
+    refreshAll();
+    tryPendingEmp();
+  }
+
+  async function startShared() {
+    render();
+    const [dbNs, dl, user] = await Promise.all([window.claude.use('db'), window.claude.use('downloads'), window.claude.use('user')]);
+    downloads = dl;
+    userNs = user;
+    if (!dbNs) { startLocal(); return; }
+    db = dbNs;
+    toolsStore = toolsDbStore;
+    dpStore = dpDbStore;
+    geraisStore = geraisDb;
+    if (user) {
+      state.meId = await user.id();
+      if ((await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
+    }
+    const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
+
+    db.collection('tools').onSnapshot((snap) => {
+      state.tools = snap.docs.map((d,i) => normalizeTool({ ...d.data(), id:d.id }, i));
+      state.toolsLoaded = true;
+      render();
+    }, caiu);
+
+    db.collection('dp_empresas').onSnapshot((snap) => {
+      state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i));
+      state.dpLoaded = true;
+      refreshAll();
+      refreshOpenDetail();
+      tryPendingEmp();
+    }, caiu);
+
+    cctStore = cctDb;
+    db.doc('dp_config/ccts').onSnapshot((s) => {
+      state.dpCcts = normalizeCcts(s.exists ? s.data().itens : []);
+      refreshAll();
+    }, caiu);
+
+    sindStore = sindDb;
+    db.doc('dp_config/sindicatos').onSnapshot((s) => {
+      state.dpSind = normalizeSinds(s.exists ? s.data().itens : []);
+      refreshAll();
+    }, caiu);
+
+    impStore = impDb;
+    db.doc('dp_config/importacoes').onSnapshot((s) => {
+      state.dpImports = normalizeImports(s.exists ? s.data().itens : []);
+      if (state.activeModule === 'dp' && state.dpView === 'ferramentas') renderDpActiveView();
+    }, caiu);
+
+    // Tipos de processo do importador: lista da equipe. Na primeira vez, sobe a que estava no navegador.
+    tiposStore = tiposDb;
+    let tiposMigrados = false;
+    db.doc('dp_config/tipos_processo').onSnapshot((s) => {
+      if (s.exists) state.dpTiposProc = normalizeTipos(s.data().itens);
+      else {
+        state.dpTiposProc = normalizeTipos(makeTiposLocal().load());
+        if (state.dpTiposProc.length && !state.readOnly && !tiposMigrados) { tiposMigrados = true; tiposDb.save(state.dpTiposProc).catch(() => {}); }
+      }
+      if (impInst) impInst.atualizar();
+    }, caiu);
+
+    cobStore = cobDb;
+    db.doc('dp_config/cobertura').onSnapshot((s) => {
+      state.dpCob = normalizeCob(s.exists ? s.data() : null);
+      renderDpActiveView();
+    }, caiu);
+
+    equipeStore = equipeDb;
+    db.doc('dp_config/equipe').onSnapshot((s) => {
+      state.dpEquipe = normalizeEquipe(s.exists ? s.data().nomes : []);
+      renderDpActiveView();
+    }, caiu);
+
+    db.doc('dp_config/prazos_gerais').onSnapshot((s) => {
+      state.dpGerais = normalizeGerais(s.exists ? s.data().itens : []);
+      refreshAll();
+      refreshDetailDatas();
+      if (dlgGerais.open) renderGerais();
+    }, caiu);
+
+    if (!state.meId) state.meusOff = 'Entre com a sua conta para ter lembretes próprios.';
+    else {
+      try {
+        const col = db.doc(`data/users/${state.meId}/agenda`).collection('lembretes');
+        meusStore = makeMeusDb(col);
+        col.onSnapshot((snap) => {
+          state.meus = snap.docs.map(d => normalizeMeu({ ...d.data(), id: d.id }));
+          state.meusLoaded = true;
+          refreshAll();
+          if (dlgMeu.open) renderMeuDia();
+        }, caiu);
+      } catch { state.meusOff = 'Não foi possível abrir os seus lembretes.'; }
+    }
+
+    applyDpReadOnly();
+    refreshAll();
+  }
+
+  function syncHeaderHeight() {
+    document.documentElement.style.setProperty('--header-h', '0px');
+  }
+  window.addEventListener('resize', syncHeaderHeight);
+
+  // ---------- ponte com o assistente (assistente.js) ----------
+  // Cada módulo responde com linhas simples {t, sub, data, tom, abrir}; o DP responde daqui.
+  const dpAssist = {
+    modulo: 'dp', nome: 'Departamento Pessoal',
+    abas: [['painel', 'Painel'], ['agenda', 'Agenda'], ['empresas', 'Empresas'], ['funcionarios', 'Funcionários'], ['sindicatos', 'Convenções'], ['cartela', 'Cartela de clientes'], ['ferramentas', 'Ferramentas']],
+    pronto: () => state.dpLoaded,
+    exemplo: () => false,
+    empresas: () => state.dpEmpresas.filter(ativa).map(e => ({ id: e.id, nome: e.nome, cnpj: cnpjClean(e.cnpj), analista: e.responsavel })),
+    analistas: () => dpResponsaveis(),
+    irPara: (v, o) => { if (!DP_VIEWS.includes(v)) return false; if (v === 'agenda' && o && o.dia) irAgenda({ dia: o.dia }); else openDpModule(v); return true; },
+    abrirEmpresa: (id, aba) => { const e = findDpEmpresa(id); if (!e) return false; openDpModule('empresas'); openDpDetail(e, { tab: aba || 'dados' }); return true; },
+    consultar(tipo, p = {}) {
+      const t = hoje(), de = parseYmd(p.de) || t, ate = parseYmd(p.ate) || de, ana = p.analista || '';
+      const lista = state.dpEmpresas.filter(ativa).filter(e => !ana || norm(respEf(e)) === norm(ana) || norm(e.responsavel) === norm(ana));
+      if (tipo === 'vencimentos') {
+        const evs = [...eventos(de, ate, lista), ...(ana ? [] : meusEventos(de, ate))].sort(porData);
+        return { titulo: `Datas do DP, ${fmtDMY(de)}${+ate !== +de ? ' a ' + fmtDMY(ate) : ''}`, total: evs.length, linhas: evs.map(ev => ({
+          t: ev.titulo, sub: `${fmtDM(ev.d)} · ${ev.emps ? (ev.emps.length === 1 ? ev.emps[0].nome : ev.emps.length + ' empresa(s)') : ev.empresa ? ev.empresa.nome : 'só você'}${ev.sub ? ' · ' + ev.sub : ''}`,
+          data: ymd(ev.d), tom: ev.feito ? 'ok' : '', abrir: ev.empresa ? { empresa: ev.empresa.id, aba: ev.tab || 'dados' } : { aba: 'agenda', opts: { dia: ymd(ev.d) } } })) };
+      }
+      if (tipo === 'atrasos') {
+        const al = alertasPessoal(lista).filter(a => a.nivel !== 'soon');
+        const linhas = al.map(a => ({ t: (a.func ? (a.func.nome || 'Funcionário') + ' · ' : '') + a.txt, sub: `${a.empresa.nome} · ${a.nivel === 'late' ? 'atrasado' : 'hoje'} (${fmtDM(a.d)})`, tom: a.nivel === 'late' ? 'late' : 'warn', abrir: { empresa: a.empresa.id, aba: a.tab } }));
+        convencoesDaCarteira().linhas.filter(l => l.sit !== 'emdia' && l.emps.some(e => lista.includes(e))).forEach(l => linhas.push({ t: `Convenção ${tituloCurto(l.c)}`, sub: l.acoes[0] ? l.acoes[0].txt : '', tom: l.sit === 'vencida' ? 'late' : 'warn', abrir: { aba: 'sindicatos' } }));
+        return { titulo: 'Alertas do DP', total: linhas.length, linhas };
+      }
+      if (tipo === 'empresa') {
+        const e = findDpEmpresa(p.id); if (!e) return null;
+        const al = alertasPessoal([e]), prox = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral').slice(0, 4);
+        const ls = [{ t: `${e.tributacao || 'sem tributação'} · ${e.situacao}`, sub: `${e.responsavel || 'sem responsável'}${e.uf ? ' · ' + e.uf : ''}${e.dataBase ? ' · data-base ' + e.dataBase.toLowerCase() : ''}` },
+          { t: `${nfEmp(e)} funcionário(s) ativo(s)`, sub: empConvTxt(e).txt, tom: empConvTxt(e).ok ? '' : 'warn' }];
+        al.slice(0, 4).forEach(a => ls.push({ t: (a.func ? (a.func.nome || '') + ' · ' : '') + a.txt, sub: fmtDM(a.d), tom: a.nivel === 'late' ? 'late' : 'warn', abrir: { empresa: e.id, aba: a.tab } }));
+        prox.forEach(ev => ls.push({ t: ev.titulo, sub: fmtDM(ev.d) + ' ' + wd(ev.d), tom: '', abrir: { empresa: e.id, aba: ev.tab || 'dados' } }));
+        return { titulo: e.nome, total: ls.length, linhas: ls, abrirFicha: { empresa: e.id, aba: 'dados' } };
+      }
+      if (tipo === 'carteira') {
+        const por = {};
+        state.dpEmpresas.filter(ativa).forEach(e => { const a = e.responsavel || '(sem responsável)'; const q = por[a] = por[a] || { n: 0, f: 0 }; q.n++; q.f += nfEmp(e); });
+        const ks = Object.keys(por).filter(a => !ana || norm(a) === norm(ana)).sort((a, b) => por[b].n - por[a].n);
+        return { titulo: 'Carteira do DP', total: ks.length, linhas: ks.map(a => ({ t: `${a}: ${por[a].n} empresa(s)`, sub: `${por[a].f} funcionário(s)`, tom: '', abrir: { aba: 'cartela' } })) };
+      }
+      return null;
+    },
+    vocab: () => ({ etapas: [], obrigacoes: [] }),
+    // Ações do DP: lembrete pessoal (só o próprio usuário vê). Nada grava até executar().
+    acao(tipo, p = {}) {
+      if (tipo !== 'lembrete') return { erro: 'Ainda não sei fazer isso no DP.' };
+      if (!podeCriarMeu()) return { erro: state.meusOff || 'Você não tem permissão para criar lembretes aqui.' };
+      const texto = String(p.texto || '').trim().slice(0, 200);
+      if (!texto) return { erro: 'Diga o que devo lembrar (ex.: “me lembra de ligar para o cliente amanhã”).' };
+      const data = parseYmd(p.data) ? p.data : ymd(addDays(hoje(), 0));
+      const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '';
+      const l = normalizeMeu({ texto, data, hora, rep: 'nao', empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: state.meId || '', atualizadoEm: Date.now() });
+      const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
+      return {
+        titulo: 'Criar lembrete só seu', empresa: emp ? emp.nome : '',
+        linhas: [`“${texto}”`, `${fmtDateStr(data)}${hora ? ' às ' + hora : ''}`], aviso: '',
+        executar: async () => { if (!(await meusWrite(() => meusStore.save(l)))) throw new Error('falhou'); setMeuLocal(l); refreshAll(); return 'Lembrete criado.'; },
+        desfazer: async () => { if (await meusWrite(() => meusStore.del(l.id))) { state.meus = state.meus.filter(x => x.id !== l.id); refreshAll(); } },
+      };
+    },
+  };
+  window.__hubApi = {
+    versao: 1,
+    ativo: () => state.frameModule || state.activeModule || '',
+    abrirModulo: (k) => openModule(k),
+    inicio: () => goHome(),
+    quadros: () => $$('.portal-frame'),
+    api(k) { if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
+    carregar(k) {
+      if (k !== 'dp' && !FRAMES[k]) return Promise.resolve(null);
+      if (k !== 'dp') preloadFrame(k);
+      return new Promise((ok) => { const t0 = Date.now(); const tick = () => { const a = window.__hubApi.api(k); if ((a && a.pronto()) || Date.now() - t0 > 20000) return ok(a); setTimeout(tick, 250); }; tick(); });
+    },
+    modulos: () => ['dp', ...Object.keys(FRAMES)],
+  };
+  carregarScriptExt('assistente.js?v=6').catch(() => {});
+
+  loadPrefs();
+  applyTheme();
+  syncHeaderHeight();
+  state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
+  state.dpAgAnalista = typeof state.prefs.dpAgAnalista === 'string' ? state.prefs.dpAgAnalista : '';
+  state.dpEmpModo = state.prefs.dpEmpModo === 'lista' ? 'lista' : 'cards';
+  state.dpFuncModo = state.prefs.dpFuncModo === 'lista' ? 'lista' : 'tempo';
+  if (HOSTED) startShared(); else startLocal();
+  const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
+  if (rotaInicial) applyRoute(rotaInicial); else renderHome();
+})();
