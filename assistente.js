@@ -25,6 +25,48 @@
   var PREF = "tx-prefs-v1";
   function lerPref() { try { return JSON.parse(localStorage.getItem(PREF) || "{}"); } catch (e) { return {}; } }
   function salvarPref(o) { try { localStorage.setItem(PREF, JSON.stringify(Object.assign(lerPref(), o))); } catch (e) {} }
+  function lerLS(k, def) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
+  function gravarLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function nomeTax() { return String(lerPref().nome || "Tax").trim().slice(0, 20) || "Tax"; }
+  // Quem pode ver tudo (coordenação/editores do artefato): sem isso, CPFs aparecem mascarados nas respostas.
+  var podeVerTudo = false, ehCoord = false;
+  function mascarar(s) { return podeVerTudo ? String(s == null ? "" : s) : String(s == null ? "" : s).replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "***.***.***-**"); }
+  // Uso da IA por dia (neste navegador).
+  var USO = "tx-uso-v1";
+  function usoHoje() { var u = lerLS(USO, {}); return u.dia === ymd(hoje()) ? +u.n || 0 : 0; }
+  function contarUso() { var n = usoHoje() + 1; gravarLS(USO, {dia: ymd(hoje()), n: n}); gravarLS("tx-uso-tot", (+lerLS("tx-uso-tot", 0) || 0) + 1); return n; }
+  // Configuração da equipe (banco do Hub, editada pela coordenação; ver lote "equipe").
+  var cfgEquipe = {limiteDia: 0, instrucoes: ""};
+  function copiarTexto(t) {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return copiarVelho(t); }); } catch (e) {}
+    return Promise.resolve(copiarVelho(t));
+  }
+  function copiarVelho(t) { try { var a = doc.createElement("textarea"); a.value = t; a.style.cssText = "position:fixed;left:-9999px"; doc.body.appendChild(a); a.select(); var ok = doc.execCommand("copy"); a.remove(); return ok; } catch (e) { return false; } }
+  var dlNs = null;
+  function usarDownloads() { if (dlNs !== null) return Promise.resolve(dlNs); try { return window.claude && window.claude.use ? window.claude.use("downloads").then(function (d) { dlNs = d || false; return dlNs; }, function () { dlNs = false; return false; }) : Promise.resolve(false); } catch (e) { return Promise.resolve(false); } }
+  function salvarArquivo(nome, blob) {
+    return usarDownloads().then(function (d) {
+      if (d) return d.save({filename: nome, data: blob}).then(function () { return true; }, function () { return false; });
+      try { var a = doc.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; doc.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500); return true; } catch (e) { return false; }
+    });
+  }
+  // Planilha de uma lista de linhas {t, sub, data, mod}: .xlsx quando o leitor de planilhas já está carregado no Hub, senão .csv (abre no Excel).
+  function exportarLinhas(titulo, linhas) {
+    var cab = ["Item", "Detalhe", "Data", "Módulo"];
+    var rows = linhas.map(function (l) { return [mascarar(l.t), mascarar(l.sub || ""), l.data ? l.data.split("-").reverse().join("/") : "", MODN[l.mod] || ""]; });
+    var nome = (norm(titulo).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lista").slice(0, 60) + "-" + ymd(hoje());
+    if (window.XLSX && window.XLSX.utils) {
+      try {
+        var ws = XLSX.utils.aoa_to_sheet([cab].concat(rows)), wb = XLSX.utils.book_new();
+        ws["!cols"] = [{wch: 48}, {wch: 60}, {wch: 12}, {wch: 16}];
+        XLSX.utils.book_append_sheet(wb, ws, "Lista");
+        var buf = XLSX.write(wb, {type: "array", bookType: "xlsx"});
+        return salvarArquivo(nome + ".xlsx", new Blob([buf], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      } catch (e) {}
+    }
+    var csv = "﻿" + [cab].concat(rows).map(function (r) { return r.map(function (c) { c = String(c); return /[;"\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(";"); }).join("\r\n");
+    return salvarArquivo(nome + ".csv", new Blob([csv], {type: "text/csv;charset=utf-8"}));
+  }
 
   /* ============ períodos ============ */
   function mesInteiro(y, m) { return {de: new Date(y, m, 1), ate: new Date(y, m + 1, 0)}; }
@@ -141,11 +183,27 @@
     if (achou.length > 1) { var cheio = achou.filter(function (n) { return (" " + t + " ").indexOf(" " + norm(n) + " ") !== -1; }); if (cheio.length === 1) return [cheio[0]]; }
     return achou;
   }
+  // Distância de edição com corte (para erros de digitação: "contrutora" ≈ "construtora").
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    var ant = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) ant[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i]; var menor = i;
+      for (j = 1; j <= b.length; j++) { cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)); if (cur[j] < menor) menor = cur[j]; }
+      if (menor > max) return max + 1;
+      ant = cur;
+    }
+    return ant[b.length];
+  }
   function parecido(a, b) {
     if (a === b) return true;
     var m = Math.min(a.length, b.length); if (m < 5) return false;
     var i = 0; while (i < m && a.charAt(i) === b.charAt(i)) i++;
-    return i >= 5 && i >= m - 2;
+    if (i >= 5 && i >= m - 2) return true;
+    if (a.charAt(0) !== b.charAt(0)) return false;
+    var lim = m >= 8 ? 2 : 1;
+    return lev(a, b, lim) <= lim;
   }
   // Empresas citadas na frase, da mais provável para a menos. `ignorar`: nomes de analistas já reconhecidos.
   function casarEmpresas(t, ignorar) {
@@ -188,6 +246,65 @@
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
     {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Eu ando pela tela como se o layout fosse chão e parede: caminho pelo topo dos cartões e botões, pulo degraus e caio quando o chão some. Clique num espaço vazio e eu vou até lá. Clicando em mim, abre a conversa; em “🎨 Visual” você troca o meu desenho. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
   ];
+  // Glossário do setor (respondido sem IA; a IA também consulta).
+  var GLOSSARIO = {
+    "das": "DAS: Documento de Arrecadação do Simples Nacional, a guia mensal que paga os tributos do Simples. Vence no dia 20 do mês seguinte.",
+    "pgdas-d": "PGDAS-D: programa onde se apura o Simples Nacional do mês e se gera o DAS. Entregue até o dia 20 do mês seguinte.",
+    "defis": "DEFIS: Declaração de Informações Socioeconômicas e Fiscais, anual, das empresas do Simples Nacional (até 31 de março).",
+    "dctfweb": "DCTFWeb: declaração mensal dos débitos previdenciários e de terceiros (vindos do eSocial e da EFD-Reinf); gera a DARF de INSS.",
+    "dctf": "DCTF: Declaração de Débitos e Créditos Tributários Federais (IRPJ, CSLL, PIS, COFINS, IPI…) para empresas fora do Simples.",
+    "efd-reinf": "EFD-Reinf: escrituração das retenções e outras informações fiscais (serviços tomados com retenção, CPRB…); alimenta a DCTFWeb.",
+    "reinf": "EFD-Reinf: escrituração das retenções e outras informações fiscais (serviços tomados com retenção, CPRB…); alimenta a DCTFWeb.",
+    "efd icms ipi": "EFD ICMS/IPI (SPED Fiscal): escrituração mensal de entradas, saídas e apuração do ICMS e do IPI.",
+    "sped fiscal": "SPED Fiscal (EFD ICMS/IPI): escrituração mensal de entradas, saídas e apuração do ICMS e do IPI.",
+    "efd contribuicoes": "EFD-Contribuições: escrituração mensal do PIS e da COFINS (Lucro Presumido e Real).",
+    "sped": "SPED: Sistema Público de Escrituração Digital, o conjunto de arquivos digitais (ECD, ECF, EFD…) enviados à Receita.",
+    "ecd": "ECD: Escrituração Contábil Digital, os livros contábeis (Diário e Razão) em formato digital; anual.",
+    "ecf": "ECF: Escrituração Contábil Fiscal, anual, com a apuração do IRPJ e da CSLL (substituiu a DIPJ).",
+    "esocial": "eSocial: sistema que reúne as informações trabalhistas, previdenciárias e fiscais dos empregados (admissões, folha, afastamentos, desligamentos).",
+    "fgts digital": "FGTS Digital: plataforma do governo para apurar e emitir as guias do FGTS a partir das informações do eSocial.",
+    "fgts": "FGTS: Fundo de Garantia do Tempo de Serviço, 8% da remuneração depositados mensalmente pelo empregador (pelo FGTS Digital).",
+    "darf": "DARF: Documento de Arrecadação de Receitas Federais, a guia para pagar tributos federais.",
+    "dirf": "DIRF: declaração anual do imposto retido na fonte. Foi substituída pelo eSocial e pela EFD-Reinf a partir de 2025.",
+    "rais": "RAIS: relação anual de informações sociais; hoje substituída pelo eSocial para quem já o envia.",
+    "caged": "CAGED: cadastro de admitidos e desligados; hoje as informações vêm do eSocial.",
+    "icms": "ICMS: imposto estadual sobre circulação de mercadorias e alguns serviços (transporte, comunicação).",
+    "icms st": "ICMS-ST (substituição tributária): o ICMS de toda a cadeia é recolhido antecipadamente por um contribuinte (normalmente o fabricante ou importador).",
+    "difal": "DIFAL: diferencial de alíquota do ICMS em operações interestaduais para consumidor final.",
+    "iss": "ISS: Imposto Sobre Serviços, municipal; cada prefeitura define alíquotas, prazos e declarações.",
+    "ipi": "IPI: Imposto sobre Produtos Industrializados, federal, para indústrias e equiparadas.",
+    "pis": "PIS: contribuição federal sobre o faturamento (cumulativo no Presumido, não cumulativo no Real).",
+    "cofins": "COFINS: contribuição federal sobre o faturamento (cumulativa no Presumido, não cumulativa no Real).",
+    "irpj": "IRPJ: Imposto de Renda da Pessoa Jurídica, trimestral ou anual (Presumido e Real).",
+    "csll": "CSLL: Contribuição Social sobre o Lucro Líquido, apurada junto com o IRPJ.",
+    "simples nacional": "Simples Nacional: regime unificado para micro e pequenas empresas, com uma guia só (DAS) e limite de faturamento de R$ 4,8 milhões por ano.",
+    "lucro presumido": "Lucro Presumido: regime em que IRPJ e CSLL são calculados sobre uma margem de lucro presumida do faturamento.",
+    "lucro real": "Lucro Real: regime em que IRPJ e CSLL são calculados sobre o lucro contábil ajustado; obrigatório acima de R$ 78 milhões de faturamento e para algumas atividades.",
+    "mei": "MEI: Microempreendedor Individual, faturamento até R$ 81 mil por ano, paga um valor fixo mensal (DAS-MEI) e entrega a DASN-SIMEI anual.",
+    "destda": "DeSTDA: declaração mensal do ICMS-ST, DIFAL e antecipação para empresas do Simples Nacional.",
+    "gia": "GIA: Guia de Informação e Apuração do ICMS, declaração estadual (em alguns estados substituída pela EFD).",
+    "nfe": "NF-e: Nota Fiscal Eletrônica de produtos (modelo 55).",
+    "nfse": "NFS-e: Nota Fiscal de Serviços Eletrônica, emitida no padrão da prefeitura ou no padrão nacional.",
+    "cct": "CCT: Convenção Coletiva de Trabalho, acordo entre sindicatos patronal e de empregados com piso, reajuste e regras da categoria; tem vigência e data-base.",
+    "data-base": "Data-base: mês do ano em que a categoria negocia o reajuste salarial da convenção coletiva.",
+    "data base": "Data-base: mês do ano em que a categoria negocia o reajuste salarial da convenção coletiva.",
+    "periodo aquisitivo": "Período aquisitivo: os 12 meses de trabalho que dão direito a 30 dias de férias.",
+    "periodo concessivo": "Período concessivo: os 12 meses seguintes ao aquisitivo, dentro dos quais a empresa precisa conceder as férias; depois disso são devidas em dobro.",
+    "aviso previo": "Aviso prévio: 30 dias, mais 3 dias por ano completo trabalhado na empresa, até 90 dias (Lei 12.506/2011).",
+    "rpa": "RPA: Recibo de Pagamento a Autônomo, usado para pagar quem presta serviço sem vínculo (com retenção de INSS e IR quando cabíveis).",
+    "pro-labore": "Pró-labore: remuneração dos sócios pelo trabalho na empresa, com INSS de 11% do sócio e contribuição patronal conforme o regime.",
+    "competencia": "Competência: o mês a que os fatos se referem (ex.: a competência 09/2026 é fechada e paga em outubro).",
+    "escrituracao": "Escrituração: lançar e organizar os documentos (notas, extratos) nos livros fiscais ou contábeis.",
+    "apuracao": "Apuração: calcular quanto de imposto é devido no período a partir da escrituração.",
+    "balancete": "Balancete: relatório com os saldos das contas contábeis num período, usado para conferir o fechamento.",
+    "onvio": "Onvio: portal da Thomson Reuters (Domínio) onde o cliente acessa e envia documentos; acompanhado no módulo Portal do Cliente.",
+    "dominio": "Domínio: sistema contábil da Thomson Reuters usado pelo escritório (folha, escrita fiscal, contabilidade)."
+  };
+  function buscarGlossario(t) {
+    var tt = " " + norm(t).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ") + " ", melhor = "", tam = 0;
+    Object.keys(GLOSSARIO).forEach(function (k) { var kk = " " + k.replace(/-/g, " ") + " "; if (tt.indexOf(kk) !== -1 && k.length > tam) { melhor = k; tam = k.length; } });
+    return melhor ? GLOSSARIO[melhor] : "";
+  }
   var VAZIAS = " como funciona funcionam faco fazer posso fazemos qual quais onde fica para pra isso esse essa esta uma uns que sobre tenho duvida quero saber preciso usar uso ";
   function buscarAjuda(t, mods, minimo) {
     var toks = t.split(" ").filter(function (w) { return w.length >= 3 && VAZIAS.indexOf(" " + w + " ") === -1; }), melhor = null, pts = 0;
@@ -247,15 +364,26 @@
   }
 
   // Entende a frase e devolve a lista de blocos da resposta.
-  function responder(texto) {
+  // op: {forcarIA, imagens, oculto (texto que vai para a IA no lugar do digitado)}
+  function responder(texto, op) {
+    op = op || {};
     var t = norm(texto);
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
     var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
     return Promise.all([iaPronta, quemSou()]).then(function () {
-      if (!iaOk) return porRegras("");
-      return perguntarIA(texto).then(function (bl) { return bl || porRegras(iaAviso); });
+      if (!iaOk) return op.imagens && op.imagens.length ? [T("Para ler imagens eu preciso da IA, que não está disponível agora.")] : porRegras("");
+      var lim = +cfgEquipe.limiteDia || 0;
+      if (lim && usoHoje() >= lim && !op.forcarIA) return porRegras("Limite de " + lim + " perguntas à IA por dia atingido (definido pela coordenação): respondendo pelas regras.");
+      var viaIA = function () { return perguntarIA(op.oculto || texto, op).then(function (bl) { return bl || porRegras(iaAviso); }); };
+      if (lerPref().economia && !op.forcarIA && !(op.imagens && op.imagens.length)) {
+        return carregarTodos().then(function () { return entender(texto, t); }).then(function (bl) {
+          if (!bl || bl.naoEntendi) return viaIA();
+          return bl.concat([{tipo: "rodape", texto: "Modo economia: respondido sem IA."}, CH([{rot: "Perguntar à IA", enviar: texto, forcarIA: true}])]);
+        });
+      }
+      return viaIA();
     });
   }
 
@@ -274,6 +402,10 @@
 
     var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per) : null;
     if (pedido) return prepararAcao(pedido, texto);
+    var gl = buscarGlossario(t);
+    if (gl && (/^(o que (e|eh|sao|significa)|significad|o que quer dizer|que e|qual o significado|define|definicao)/.test(t) || t.split(" ").length <= 3)) {
+      return Promise.resolve([{tipo: "ajuda", titulo: "Glossário", texto: gl}]);
+    }
 
     if (RX.saudacao.test(t) && t.split(" ").length <= 4) intent = "saudacao";
     else if (RX.obrigado.test(t)) intent = "obrigado";
@@ -452,19 +584,28 @@
       if (!window.claude || !window.claude.use) return;
       iaPronta = window.claude.use("sample").then(function (ns) {
         if (!ns || typeof ns !== "function") return null;
-        return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
+        return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { iaLimites = l || null; if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
+      }).catch(function () {});
+      window.claude.use("user").then(function (u) {
+        if (!u) return;
+        try { var ce = u.canEdit ? u.canEdit() : false; Promise.resolve(ce).then(function (v) { ehCoord = !!v; podeVerTudo = !!v; }); } catch (e) {}
       }).catch(function () {});
     } catch (e) {}
   }
+  var iaLimites = null;
+  // Quantas imagens / quais tipos a IA aceita nesta tela (null = não aceita).
+  function limitesImagem() { return iaOk && iaLimites && iaLimites.images ? iaLimites.images : null; }
   function compacto(r, max) {
     if (!r) return {total: 0, linhas: []};
-    var ls = (r.linhas || []).slice(0, max || 15).map(function (l) { return {t: l.t, sub: l.sub, data: l.data}; });
-    return {titulo: r.titulo, total: r.total, linhas: ls};
+    var ls = (r.linhas || []).slice(0, max || 15).map(function (l) { var o = {t: mascarar(l.t), sub: mascarar(l.sub), data: l.data}; if (l.dados) o.dados = l.dados; return o; });
+    var o = {titulo: r.titulo, total: r.total, linhas: ls};
+    if (r.resumo) o.resumo = r.resumo;
+    return o;
   }
   function anexarLista(extras, mod, r, a) {
     var tit = MODN[mod] + " · " + (r.titulo || "");
     if (extras.some(function (x) { return x.tipo === "linhas" && x.titulo === tit; })) return;
-    extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }),
+    extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: mod}, l); }),
       mais: r.linhas.length > 8 && r.verTudo ? {rot: "Ver os " + r.total + " no " + MODN[mod], acao: function () { return abrirItem(mod, r.verTudo); }} : null});
   }
   function ferramentasIA(cartoes) {
@@ -486,6 +627,8 @@
       {name: "analistas", description: "Lista os analistas conhecidos (nomes completos).", inputSchema: {type: "object", properties: {}}, execute: function () { return carregarTodos().then(function () { return indice().analistas; }); }},
       {name: "ajuda", description: "Busca na base de ajuda do Control Hub como usar uma função.", inputSchema: {type: "object", properties: {pergunta: {type: "string"}}, required: ["pergunta"]},
         execute: function (i) { var e = buscarAjuda(norm(i.pergunta), [], 2); return e ? {titulo: e.t, texto: e.a} : "Sem entrada na base de ajuda."; }},
+      {name: "glossario", description: "Explica um termo, sigla ou obrigação do setor contábil/fiscal/DP (DAS, DCTFWeb, EFD-Reinf, CCT, período concessivo…).", inputSchema: {type: "object", properties: {termo: {type: "string"}}, required: ["termo"]},
+        execute: function (i) { return buscarGlossario(i.termo) || "Termo fora do glossário: explique com cuidado e diga que é uma explicação geral."; }},
       {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
         execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
       {name: "preparar_acao", description: "Prepara uma alteração para o usuário confirmar num cartão. NÃO grava nada: diga ao usuário que ele precisa clicar em Confirmar. tipo: etapa (marcar etapa do fechamento; informe etapa e status), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar), entrega (obrigação do Fiscal; informe obrigacao e status), lembrete (lembrete pessoal; texto, data AAAA-MM-DD, hora HH:MM).",
@@ -519,47 +662,88 @@
         }}
     ];
   }
-  var conversa = [], iaAviso = "", bolhaAtual = null;
+  var conversa = lerConversa(), iaAviso = "", bolhaAtual = null;
+  function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && Date.now() - c.t < 3 * 864e5 && Array.isArray(c.c) ? c.c : []; }
+  function guardarConversa() { gravarLS("tx-conv-v1", {t: Date.now(), c: conversa.slice(-12)}); }
+  // Última linha "» a | b | c" = próximas perguntas sugeridas pela IA (viram botões).
+  function separarSeguintes(txt) {
+    var m = /\n?[ \t]*»[ \t]*([^\n]*)\s*$/.exec(txt || "");
+    if (!m) return {texto: txt, seg: []};
+    return {texto: txt.slice(0, m.index).trim(), seg: m[1].split("|").map(function (s) { return s.trim(); }).filter(function (s) { return s && s.length <= 80; }).slice(0, 3)};
+  }
+  function regrasIA() {
+    var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial", p = lerPref();
+    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio) e Cardápio (refeitório).\n" +
+      "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "), " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
+      "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
+      "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
+      "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
+      "Para mostrar uma tela use abrir. Para termos do setor (siglas, obrigações) use glossario; para como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise. " +
+      "Se pedirem rascunho de e-mail ou WhatsApp para cliente, escreva o texto pronto, cordial e objetivo, assinado “Equipe ControlTax”, só com dados que você consultou. Se pedirem para explicar ao cliente, use linguagem simples, sem siglas soltas. " +
+      (p.iniciante ? "A pessoa é nova no setor: explique os termos e o porquê de cada passo, com calma. " : "") +
+      (cfgEquipe.instrucoes ? "\nInstruções da coordenação: " + String(cfgEquipe.instrucoes).slice(0, 1500) + "\n" : "") +
+      "Termine SEMPRE com uma última linha começando com » e 2 ou 3 próximas perguntas ou pedidos curtos que a pessoa provavelmente fará, separados por | (ex.: » Abrir a agenda | E amanhã?).";
+  }
   // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder: aí entram as regras.
-  function perguntarIA(texto) {
+  function perguntarIA(texto, op) {
+    op = op || {};
     if (iaOcupada) return Promise.resolve([T("Ainda estou pensando na pergunta anterior.")]);
-    iaOcupada = true;
+    iaOcupada = true; pensando(true);
     var extras = [], tmp = null, proprio = false, dots = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>';
     if (bolhaAtual && bolhaAtual.isConnected) tmp = bolhaAtual;
     else if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; msgs.appendChild(tmp); proprio = true; }
     if (tmp) { tmp.innerHTML = dots; rolar(); }
-    var fimBolha = function (falhou) { if (!tmp) return; if (proprio) tmp.remove(); else if (falhou) tmp.innerHTML = dots; };
-    var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial";
-    var regras = "Você é o Tax, o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio) e Cardápio (refeitório).\n" +
-      "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "). A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
-      "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
-      "As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
-      "Para mudar algo (marcar etapa, entrega, pendência, fechar, lembrete) use preparar_acao: a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
-      "Para mostrar uma tela use abrir. Se a pergunta for sobre como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise.";
-    conversa.push({role: "user", content: texto});
+    var fimBolha = function (falhou) { pensando(false); if (!tmp) return; if (proprio) tmp.remove(); else if (falhou) tmp.innerHTML = dots; };
+    var imgs = op.imagens && op.imagens.length ? op.imagens : null;
+    conversa.push({role: "user", content: texto + (imgs ? "\n(Anexei " + imgs.length + " imagem(ns) nesta mensagem: leia e use o que estiver nelas.)" : "")});
     if (conversa.length > 12) conversa = conversa.slice(-12);
     while (conversa.length && conversa[0].role !== "user") conversa.shift();
+    var regras = regrasIA();
     var turnos = conversa.map(function (m, i) { return {role: m.role, content: i === 0 ? regras + "\n\n" + m.content : m.content}; });
-    return iaNs(turnos, {tools: ferramentasIA(extras), modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(u.text); rolar(); }})
+    var opts = {tools: ferramentasIA(extras), modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(String(u.text || "").replace(/\n?[ \t]*»[^\n]*$/, "")); rolar(); }};
+    if (imgs) opts.images = imgs;
+    contarUso(); atualizarSub();
+    registrarPergunta(texto, "ia");
+    return iaNs(turnos, opts)
       .then(function (r) {
         fimBolha(false); iaOcupada = false;
-        var txt = (r && r.text || "").trim() || "Pronto.";
-        conversa.push({role: "assistant", content: txt});
-        return [{tipo: "md", texto: txt}].concat(extras);
+        var bruto = (r && r.text || "").trim() || "Pronto.", s = separarSeguintes(bruto), txt = s.texto || "Pronto.";
+        conversa.push({role: "assistant", content: txt}); guardarConversa();
+        var out = [{tipo: "md", texto: txt, acoes: true, pergunta: texto}].concat(extras);
+        if (s.seg.length) out.push(CH(s.seg.map(function (x) { return {rot: x, enviar: x}; })));
+        return out;
       })
       .catch(function (e) {
         fimBolha(true); iaOcupada = false;
         conversa.pop();
         var cod = e && e.code;
-        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; iaAviso = "Sem autorização para usar a IA: respondendo pelas regras do assistente."; return null; }
+        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; atualizarSub(); iaAviso = "Sem autorização para usar a IA: respondendo pelas regras do assistente."; return null; }
+        if (cod === "images_unavailable" || cod === "image_rejected") return [T(cod === "image_rejected" ? "Não consegui ler essa imagem (tipo ou tamanho não aceito)." : "Esta tela não consegue enviar imagens para a IA.")];
         if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora: respondendo pelas regras."; return null; }
-        if (e && e.text) return [{tipo: "md", texto: e.text}].concat(extras);
+        if (e && e.text) return [{tipo: "md", texto: separarSeguintes(e.text).texto, acoes: true, pergunta: texto}].concat(extras);
         iaAviso = "A IA não respondeu: respondendo pelas regras."; return null;
       });
   }
-  // Markdown mínimo da IA: **negrito**, listas e quebras de linha (todo o resto vira texto).
+  // Markdown da IA: **negrito**, *itálico*, `código`, títulos, listas e tabelas (todo o resto vira texto).
   function mdHtml(t) {
-    return esc(String(t || "")).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\n)\s*[-*•]\s+/g, "$1• ").replace(/`([^`]+)`/g, "<b>$1</b>");
+    var ls = String(t || "").split("\n"), out = [], i = 0;
+    function inl(s) { return mascarar(esc(s)).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<i>$2</i>").replace(/`([^`]+)`/g, "<b>$1</b>"); }
+    function cels(l) { return l.trim().replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); }); }
+    while (i < ls.length) {
+      var l = ls[i];
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < ls.length && /^\s*\|?\s*:?-{2,}/.test(ls[i + 1])) {
+        var cab = cels(l), rows = []; i += 2;
+        while (i < ls.length && /^\s*\|.*\|\s*$/.test(ls[i])) { rows.push(cels(ls[i])); i++; }
+        out.push('<span class="tx-tab"><table><thead><tr>' + cab.map(function (c) { return "<th>" + inl(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+          rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + inl(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></span>");
+        continue;
+      }
+      if (/^#{1,4}\s+/.test(l)) out.push("<b>" + inl(l.replace(/^#+\s+/, "")) + "</b>");
+      else if (/^\s*[-*•]\s+/.test(l)) out.push("• " + inl(l.replace(/^\s*[-*•]\s+/, "")));
+      else out.push(inl(l));
+      i++;
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n");
   }
 
   function quem() {
@@ -568,7 +752,9 @@
   }
   function naoEntendi(p) {
     var ch = sugestoes().map(function (s) { return {rot: s, enviar: s}; });
-    return [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
+    var r = [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
+    r.naoEntendi = true;
+    return r;
   }
   function ajuda(p) {
     var e = buscarAjuda(p.t, p.mods, 2);
@@ -602,7 +788,7 @@
         if (!ls.length) { vazios.push(MODN[x.k]); return; }
         nada = false;
         var lim = unico ? 10 : 5;
-        out.push({tipo: "linhas", titulo: MODN[x.k] + " · " + x.r.total, nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: ls.slice(0, lim).map(function (l) { return Object.assign({mod: x.k}, l); }),
+        out.push({tipo: "linhas", titulo: MODN[x.k] + " · " + x.r.total, nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: ls.slice(0, lim).map(function (l) { return Object.assign({mod: x.k}, l); }), todas: ls.map(function (l) { return Object.assign({mod: x.k}, l); }),
           mais: (ls.length > lim || x.r.verTudo) ? {rot: ls.length > lim ? "Ver todas as " + x.r.total + " no " + MODN[x.k] : "Abrir no " + MODN[x.k], acao: function () { var v = x.r.verTudo || (ls[0] && ls[0].abrir && {aba: ls[0].abrir.aba, opts: ls[0].abrir.opts}) || {aba: ""}; return abrirItem(x.k, v); }} : null});
       });
       if (nada) {
@@ -626,7 +812,7 @@
       var out = [{tipo: "cab", texto: g.nome + (g.cnpj ? " · " + g.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : "")}], chips = [];
       res.forEach(function (x) {
         if (!x.r) return;
-        out.push({tipo: "linhas", titulo: MODN[x.k], nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: x.r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: x.k}, l); })});
+        out.push({tipo: "linhas", titulo: MODN[x.k], nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: x.r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: x.k}, l); }), todas: x.r.linhas.map(function (l) { return Object.assign({mod: x.k}, l); })});
         chips.push({rot: "Abrir no " + MODN[x.k], acao: function () { return abrirItem(x.k, {empresa: g.refs[x.k], aba: x.r.abrirFicha ? x.r.abrirFicha.aba : ""}); }});
       });
       if (out.length === 1) return [T("Encontrei “" + g.nome + "”, mas os módulos não trouxeram informações dela agora.")];
@@ -764,7 +950,29 @@
     '#tx-painel form input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;font-size:13px}#tx-painel form button{border:0;border-radius:8px;background:var(--blue-deep,#3C659B);color:#fff;font:600 12.5px "IBM Plex Sans",sans-serif;padding:0 14px;cursor:pointer}' +
     ':root[data-theme="dark"] #tx-painel form button{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #tx-painel form button{color:#0B1015}}' +
     '.tx-pensa{display:inline-flex;gap:4px;padding:9px 12px}.tx-pensa i{width:6px;height:6px;border-radius:50%;background:var(--ink-3,#5F6D77);animation:txPensa 1s infinite}.tx-pensa i:nth-child(2){animation-delay:.15s}.tx-pensa i:nth-child(3){animation-delay:.3s}@keyframes txPensa{50%{transform:translateY(-4px);opacity:.4}}' +
-    '@media (max-width:600px){#tx-painel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto;height:min(72vh,560px)}}';
+    '#tx-painel:not(.tx-doca){resize:both;min-width:300px;min-height:360px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}' +
+    '#tx-painel.tx-doca{left:auto!important;right:0!important;top:0!important;bottom:0;width:min(420px,100vw)!important;height:100vh!important;border-radius:0;border-width:0 0 0 1px;animation:none}' +
+    '#tx-painel header button[aria-pressed="true"]{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
+    '.tx-gaveta{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface,#fff);max-height:55%;overflow:auto}.tx-gaveta[hidden]{display:none}' +
+    '#tx-cfg{flex-direction:column;flex-wrap:nowrap;gap:7px;font-size:12.5px}.tx-cfg-sec{font:700 11px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3,#5F6D77);margin-top:4px}' +
+    '.tx-cfg-it{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.35}.tx-cfg-it input[type=text],.tx-cfg-it select,.tx-cfg-it textarea{font:inherit;padding:4px 7px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-cfg-it textarea{width:100%;min-height:70px}.tx-cfg-area{flex-direction:column;align-items:stretch}' +
+    '.tx-cfg-bool{flex-wrap:nowrap;align-items:flex-start}.tx-cfg-bool input{margin:2px 0 0;flex:none}' +
+    '.tx-cfg-uso{font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-cfg .tx-cb{align-self:flex-start;padding:4px 10px;font-size:12px}' +
+    '.tx-fixo{display:inline-flex;align-items:center;gap:2px}.tx-fixo-x{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:11px;padding:2px 4px}' +
+    '.tx-md{display:flex;flex-direction:column;gap:3px;align-self:stretch}.tx-acts{display:flex;flex-wrap:wrap;gap:2px;padding-left:4px}' +
+    '.tx-mini{border:0;background:none;color:var(--ink-3,#5F6D77);font:600 11px "IBM Plex Sans",sans-serif;padding:3px 6px;border-radius:5px;cursor:pointer;line-height:1.2}.tx-mini:hover{background:var(--surface-3,#EAEFF3);color:var(--ink,#101820)}.tx-mini.on{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
+    '.tx-bloco h4 .tx-h4t{flex:1;min-width:0}.tx-bloco h4 .tx-h4a{display:inline-flex;gap:0;margin-left:auto}.tx-bloco h4 .tx-mini{padding:1px 5px}' +
+    '.tx-tab{display:block;overflow-x:auto;margin:2px 0;white-space:normal}.tx-tab table{border-collapse:collapse;font-size:12px;min-width:100%}.tx-tab th,.tx-tab td{border:1px solid var(--rule,#DCE3E9);padding:3px 7px;text-align:left;vertical-align:top}.tx-tab th{background:var(--surface-3,#EAEFF3);font-weight:700}' +
+    '.tx-sep{align-self:center;font-size:11px;color:var(--ink-3,#5F6D77);border-bottom:1px dashed var(--rule-strong,#C2CCD5);padding:0 10px 2px}' +
+    '#tx-sug{position:absolute;left:8px;right:8px;bottom:54px;z-index:2;background:var(--surface,#fff);border:1px solid var(--rule-strong,#C2CCD5);border-radius:8px;box-shadow:0 8px 24px rgba(16,24,32,.18);max-height:230px;overflow:auto;display:flex;flex-direction:column}#tx-sug[hidden]{display:none}' +
+    '.tx-sg{display:flex;flex-direction:column;align-items:flex-start;border:0;background:none;color:inherit;text-align:left;padding:6px 10px;cursor:pointer;font:inherit}.tx-sg span{font-size:11px;color:var(--ink-3,#5F6D77)}.tx-sg:hover,.tx-sg.on{background:var(--blue-pale,#DCE8F1)}' +
+    '#tx-anx{display:flex;gap:6px;padding:6px 8px 0}#tx-anx[hidden]{display:none}.tx-anx-i{position:relative}.tx-anx-i img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--rule,#DCE3E9)}.tx-anx-i button{position:absolute;top:-6px;right:-6px;border:0;border-radius:50%;width:18px;height:18px;font-size:10px;background:var(--ink,#101820);color:var(--surface,#fff);cursor:pointer}' +
+    '#tx-painel form .tx-ib{background:none;color:var(--ink-2,#47545F);padding:0 7px;font-size:15px}#tx-painel form .tx-ib[hidden]{display:none}#tx-painel form .tx-ib.on{color:var(--brand-red,#C2000C);animation:txPensa 1s infinite}' +
+    '.tx-graf{margin:0;border:1px solid var(--rule,#DCE3E9);border-radius:8px;padding:8px 10px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:5px}.tx-graf figcaption{font:700 12px Archivo,sans-serif;color:var(--ink-2,#47545F);margin-bottom:2px}' +
+    '.tx-gr{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11.5px}.tx-gr-r{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2,#47545F)}.tx-gr-t{height:8px;background:var(--surface-3,#EAEFF3);border-radius:0 4px 4px 0;display:block}.tx-gr-t i{display:block;height:100%;background:var(--blue-deep,#3C659B);border-radius:0 4px 4px 0}.tx-gr b{font-variant-numeric:tabular-nums;color:var(--ink,#101820);font-weight:600}' +
+    '#tx-painel.tx-grande{font-size:15px}#tx-painel.tx-grande .tx-lin span,#tx-painel.tx-grande .tx-rod{font-size:13px}#tx-painel.tx-grande .tx-chip{font-size:13.5px}' +
+    '#tx-painel.tx-contraste{--surface:#fff;--surface-2:#fff;--surface-3:#e6e6e6;--ink:#000;--ink-2:#000;--ink-3:#222;--rule:#000;--rule-strong:#000;--blue-deep:#0033a0;--blue-pale:#d6e2ff}#tx-painel.tx-contraste .tx-t1,#tx-painel.tx-contraste .tx-bloco{border-width:2px}' +
+    '@media (max-width:600px){#tx-painel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto!important;height:min(72vh,560px)!important;resize:none}#tx-mascote{transition:none}}';
 
   function vw() { return Math.min(doc.documentElement.clientWidth || innerWidth, innerWidth); }
   function vh() { return Math.min(doc.documentElement.clientHeight || innerHeight, innerHeight); }
@@ -1006,10 +1214,13 @@
     plats.forEach(function (p) { if (pt.x >= p.l - 18 && pt.x <= p.r + 18 && p.t >= pt.y - 14 && (!m || p.t < m.t)) m = p; });
     return m || plats[plats.length - 1];
   }
+  // No celular o Tax fica quieto no canto (toque abre a conversa).
+  function celular() { return vw() <= 600; }
+  var parado2 = function () { return false; };
   function agendarPasseio() {
     clearTimeout(tWander);
     tWander = setTimeout(function () {
-      if (!aberto && !oculto && !dormiu && modo === "parado" && !doc.hidden && !reduzido()) passear();
+      if (!aberto && !oculto && !dormiu && modo === "parado" && !doc.hidden && !reduzido() && !celular() && !parado2()) passear();
       else agendarPasseio();
     }, rnd(4500, 11000));
   }
@@ -1059,7 +1270,7 @@
     return false;
   }
   function aoClicar(ev, quadro) {
-    if (ev.button || oculto || !el) return;
+    if (ev.button || oculto || !el || celular()) return;
     var alvo = ev.target; if (!alvo || !alvo.closest) return;
     if (alvo.closest("#tx-mascote,#tx-painel,.pop,#toasts,#toast")) return;
     var sel = (ev.view || window).getSelection && (ev.view || window).getSelection();
@@ -1095,42 +1306,313 @@
   }
 
   /* ============ painel de conversa ============ */
-  var msgs = null, hist = [];
+  var msgs = null, hist = [], anexos = [], SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var HIST = "tx-hist-v1", FIXOS = "tx-fixos-v1";
+  function guardarHist(r, x) { if (!x) return; var h = lerLS(HIST, []); h.push({r: r, x: String(x).slice(0, 1500), t: Date.now()}); gravarLS(HIST, h.slice(-40)); }
+  function textoDosBlocos(bl) {
+    var out = [];
+    (bl || []).forEach(function (b) {
+      if (b.tipo === "md" || b.tipo === "texto" || b.tipo === "cab") out.push(b.texto);
+      else if (b.tipo === "ajuda") out.push("**" + b.titulo + "**\n" + b.texto);
+      else if (b.tipo === "linhas") out.push("**" + b.titulo + "**\n" + b.linhas.slice(0, 5).map(function (l) { return "- " + l.t + (l.sub ? " (" + l.sub + ")" : ""); }).join("\n"));
+      else if (b.tipo === "confirma") out.push("[cartão: " + (b.plano.titulo || "ação") + "]");
+    });
+    return out.join("\n");
+  }
+  // Configurações do assistente (cada lote acrescenta itens).
+  var CFG = [
+    {sec: "Conversa", itens: [
+      {k: "nome", rot: "Nome do assistente", tipo: "texto", ph: "Tax", ao: function () { atualizarNome(); }},
+      {k: "iniciante", rot: "Modo iniciante: explica os termos e o porquê de cada passo", tipo: "bool"},
+      {k: "economia", rot: "Modo economia: perguntas simples respondidas sem IA", tipo: "bool"},
+      {k: "lerVoz", rot: "Ler as respostas em voz alta", tipo: "bool"},
+      {k: "fonteGrande", rot: "Letra maior no chat", tipo: "bool", ao: aplicarVisualPainel},
+      {k: "contraste", rot: "Alto contraste no chat", tipo: "bool", ao: aplicarVisualPainel},
+      {k: "doca", rot: "Chat fixo na lateral da tela", tipo: "bool", ao: aplicarVisualPainel}
+    ]}
+  ];
+  var COMANDOS = [
+    ["/hoje", "o que vence hoje", "O que vence hoje"], ["/semana", "o que vence esta semana", "Vencimentos da semana"],
+    ["/atrasos", "quem está atrasado", "Quem está atrasado"], ["/cliente", "pendências do cliente", "Aguardando o cliente"],
+    ["/cardapio", "cardápio da semana", "Cardápio da semana"], ["/empresa", "", "Ficha de uma empresa: /empresa nome"],
+    ["/abrir", "", "Abrir uma tela: /abrir fiscal agenda"], ["/limpar", "", "Apagar esta conversa"],
+    ["/config", "", "Configurações do assistente"], ["/ajuda", "", "Lista de comandos"]
+  ];
+  function comando(txt) {
+    var m = /^\/(\S+)\s*(.*)$/.exec(txt.trim()), c = m ? m[1].toLowerCase() : "", resto = m ? m[2] : "";
+    var dir = COMANDOS.filter(function (x) { return x[0] === "/" + c; })[0];
+    var extra = (COMANDOS_EXTRA[c] || null);
+    if (extra) return extra(resto);
+    if (c === "limpar") { limparConversa(); return null; }
+    if (c === "config") { abrirConfig(); return null; }
+    if (c === "empresa") return resto ? porRegrasDireto("empresa " + resto) : Promise.resolve([T("Diga o nome: /empresa Alfa Comércio")]);
+    if (c === "abrir") return resto ? porRegrasDireto("abrir " + resto) : Promise.resolve([T("Diga a tela: /abrir fiscal agenda")]);
+    if (dir && dir[1]) return porRegrasDireto(dir[1] + (resto ? " " + resto : ""));
+    return Promise.resolve([{tipo: "ajuda", titulo: "Comandos (respondidos sem IA)", texto: COMANDOS.concat(Object.keys(COMANDOS_EXTRA).map(function (k) { return ["/" + k, "", COMANDOS_EXTRA[k].rot || ""]; })).map(function (x) { return x[0] + " · " + x[2]; }).join("\n")}]);
+  }
+  var COMANDOS_EXTRA = {};
+  function porRegrasDireto(frase) { return carregarTodos().then(quemSou).then(function () { return entender(frase, norm(frase)); }); }
+  function limparConversa() {
+    conversa = []; guardarConversa(); gravarLS(HIST, []);
+    if (msgs) { msgs.innerHTML = ""; boasVindas(false); }
+  }
+  function atualizarSub() {
+    var sub = painel && $("#tx-sub", painel); if (!sub) return;
+    var n = usoHoje();
+    sub.textContent = iaOk ? "com IA · " + (n ? n + (n === 1 ? " pergunta hoje" : " perguntas hoje") : "assistente do Control Hub") : "assistente do Control Hub";
+  }
+  function atualizarNome() {
+    if (painel) { var b = $("header b", painel); if (b) b.textContent = nomeTax(); }
+    if (el) { el.setAttribute("aria-label", "Abrir o assistente " + nomeTax()); el.title = nomeTax() + ", o assistente do Hub"; }
+  }
+  function aplicarVisualPainel() {
+    if (!painel) return;
+    var p = lerPref();
+    painel.classList.toggle("tx-grande", !!p.fonteGrande);
+    painel.classList.toggle("tx-contraste", !!p.contraste);
+    painel.classList.toggle("tx-doca", !!p.doca);
+    var bd = $("#tx-doca-b", painel); if (bd) bd.setAttribute("aria-pressed", p.doca ? "true" : "false");
+    if (!p.doca && p.tam && p.tam.w) { painel.style.width = p.tam.w + "px"; painel.style.height = p.tam.h + "px"; } else { painel.style.width = ""; painel.style.height = ""; }
+    posicionarPainel();
+  }
   function montarPainel() {
     painel = doc.createElement("section");
-    painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente Tax"); painel.hidden = true;
-    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub · com IA</small></div><button type="button" id="tx-visual" title="Mudar o visual do Tax" aria-label="Mudar o visual do Tax">🎨 Visual</button><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
-      '<div id="tx-skins" hidden></div>' +
+    painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente"); painel.hidden = true;
+    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b></b><small id="tx-sub">assistente do Control Hub</small></div>' +
+      '<button type="button" id="tx-fixos-b" title="Perguntas fixadas" aria-label="Perguntas fixadas">📌</button>' +
+      '<button type="button" id="tx-visual" title="Mudar o visual" aria-label="Mudar o visual">🎨</button>' +
+      '<button type="button" id="tx-cfg-b" title="Configurações" aria-label="Configurações">⚙</button>' +
+      '<button type="button" id="tx-doca-b" title="Fixar o chat na lateral" aria-label="Fixar o chat na lateral" aria-pressed="false">◨</button>' +
+      '<button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+      '<div id="tx-skins" class="tx-gaveta" hidden></div><div id="tx-cfg" class="tx-gaveta" hidden></div><div id="tx-fixos" class="tx-gaveta" hidden></div>' +
       '<div id="tx-msgs" aria-live="polite"></div>' +
-      '<form autocomplete="off"><input id="tx-in" type="text" maxlength="300" placeholder="Pergunte ou peça algo…" aria-label="Mensagem para o Tax"><button type="submit">Enviar</button></form>';
+      '<div id="tx-sug" role="listbox" hidden></div><div id="tx-anx" hidden></div>' +
+      '<form autocomplete="off"><button type="button" class="tx-ib" id="tx-clipe" title="Anexar imagem (print, foto de documento)" aria-label="Anexar imagem" hidden>📎</button><input type="file" id="tx-arq" accept="image/*" multiple hidden>' +
+      '<input id="tx-in" type="text" maxlength="600" placeholder="Pergunte, peça algo ou digite / para comandos" aria-label="Mensagem para o assistente" aria-autocomplete="list" aria-controls="tx-sug">' +
+      '<button type="button" class="tx-ib" id="tx-mic" title="Falar a pergunta" aria-label="Falar a pergunta" hidden>🎤</button><button type="submit" id="tx-env">Enviar</button></form>';
     doc.body.appendChild(painel);
     msgs = $("#tx-msgs", painel);
+    atualizarNome();
     $("#tx-fecha", painel).onclick = fecharPainel;
     $("#tx-visual", painel).onclick = abrirVisuais;
-    $("form", painel).onsubmit = function (e) { e.preventDefault(); var i = $("#tx-in", painel), v = i.value.trim(); if (!v) return; i.value = ""; enviar(v); };
+    $("#tx-cfg-b", painel).onclick = abrirConfig;
+    $("#tx-fixos-b", painel).onclick = abrirFixos;
+    $("#tx-doca-b", painel).onclick = function () { salvarPref({doca: !lerPref().doca}); aplicarVisualPainel(); };
+    var inp = $("#tx-in", painel);
+    $("form", painel).onsubmit = function (e) {
+      e.preventDefault();
+      if (sugAtivo()) { escolherSug(); return; }
+      var v = inp.value.trim(); if (!v && !anexos.length) return;
+      inp.value = ""; fecharSug();
+      enviar(v || "O que tem nesta imagem?");
+    };
+    inp.addEventListener("input", atualizarSug);
+    inp.addEventListener("keydown", teclaSug);
+    inp.addEventListener("blur", function () { setTimeout(fecharSug, 150); });
+    inp.addEventListener("paste", function (e) {
+      var lim = limitesImagem(); if (!lim || !e.clipboardData) return;
+      var fs = [].slice.call(e.clipboardData.files || []).filter(function (f) { return /^image\//.test(f.type); });
+      if (fs.length) { e.preventDefault(); anexar(fs); }
+    });
+    $("#tx-clipe", painel).onclick = function () { $("#tx-arq", painel).click(); };
+    $("#tx-arq", painel).onchange = function () { anexar([].slice.call(this.files || [])); this.value = ""; };
+    if (SR) { $("#tx-mic", painel).hidden = false; $("#tx-mic", painel).onclick = ouvir; }
+    try { new ResizeObserver(function () { if (!aberto || lerPref().doca || !painel.style.width) return; salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); }).observe(painel); } catch (e) {}
+    painel.addEventListener("mouseup", function () { if (!lerPref().doca && (painel.style.width || painel.style.height)) salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); });
+    aplicarVisualPainel();
   }
   function posicionarPainel() {
     if (!painel || !aberto) return;
-    var pw = Math.min(380, vw() - 16), ph = Math.min(540, vh() - 24);
+    if (lerPref().doca) { painel.style.left = ""; painel.style.top = ""; return; }
+    if (vw() <= 600) { painel.style.left = ""; painel.style.top = ""; return; }
+    var pw = Math.min(painel.offsetWidth || 380, vw() - 16), ph = Math.min(painel.offsetHeight || 540, vh() - 24);
     var x = pos.x + W / 2 - pw / 2, y = pos.y - ph - 10;
     if (y < 8) y = Math.min(pos.y + HM + 10, vh() - ph - 8);
     x = Math.max(8, Math.min(vw() - pw - 8, x)); y = Math.max(8, Math.min(vh() - ph - 8, y));
     painel.style.left = x + "px"; painel.style.top = y + "px";
   }
+  function gavetas(id) {
+    ["tx-skins", "tx-cfg", "tx-fixos"].forEach(function (g) { var x = $("#" + g, painel); if (x && g !== id) x.hidden = true; });
+    var box = $("#" + id, painel); if (!box) return null;
+    if (!box.hidden) { box.hidden = true; return null; }
+    box.innerHTML = ""; box.hidden = false; return box;
+  }
+  function abrirConfig() {
+    if (!painel) montarPainel();
+    var box = gavetas("tx-cfg"); if (!box) return;
+    var p = lerPref();
+    CFG.forEach(function (s) {
+      if (s.so && !s.so()) return;
+      var h = doc.createElement("div"); h.className = "tx-cfg-sec"; h.textContent = s.sec; box.appendChild(h);
+      s.itens.forEach(function (it) {
+        if (it.so && !it.so()) return;
+        var lb = doc.createElement("label"); lb.className = "tx-cfg-it tx-cfg-" + it.tipo;
+        if (it.tipo === "bool") {
+          var c = doc.createElement("input"); c.type = "checkbox"; c.checked = it.padrao ? p[it.k] !== false : !!p[it.k];
+          c.onchange = function () { var o = {}; o[it.k] = c.checked; salvarPref(o); if (it.ao) it.ao(c.checked); };
+          lb.appendChild(c); lb.appendChild(doc.createTextNode(" " + it.rot));
+        } else if (it.tipo === "sel") {
+          lb.appendChild(doc.createTextNode(it.rot + " "));
+          var s2 = doc.createElement("select");
+          it.opcoes.forEach(function (o) { var op = doc.createElement("option"); op.value = o[0]; op.textContent = o[1]; s2.appendChild(op); });
+          s2.value = p[it.k] != null ? p[it.k] : it.opcoes[0][0];
+          s2.onchange = function () { var o = {}; o[it.k] = s2.value; salvarPref(o); if (it.ao) it.ao(s2.value); };
+          lb.appendChild(s2);
+        } else if (it.tipo === "botao") {
+          var b = doc.createElement("button"); b.type = "button"; b.className = "tx-cb"; b.textContent = it.rot; b.onclick = function (ev) { ev.preventDefault(); it.ao(b); }; lb.appendChild(b);
+        } else if (it.tipo === "info") {
+          lb.textContent = typeof it.rot === "function" ? it.rot() : it.rot;
+        } else {
+          lb.appendChild(doc.createTextNode(it.rot + " "));
+          var t = doc.createElement(it.tipo === "area" ? "textarea" : "input"); if (it.tipo !== "area") t.type = "text"; t.value = it.valor ? it.valor() : (p[it.k] || ""); t.placeholder = it.ph || ""; t.maxLength = it.max || 20;
+          t.onchange = function () { if (it.salvar) it.salvar(t.value); else { var o = {}; o[it.k] = t.value.trim(); salvarPref(o); } if (it.ao) it.ao(t.value); };
+          lb.appendChild(t);
+        }
+        box.appendChild(lb);
+      });
+    });
+    var uso = doc.createElement("div"); uso.className = "tx-cfg-uso";
+    uso.textContent = "IA neste navegador: " + usoHoje() + " pergunta(s) hoje, " + (+lerLS("tx-uso-tot", 0) || 0) + " no total. Cada pergunta à IA usa o plano do Claude de quem pergunta." + (cfgEquipe.limiteDia ? " Limite da equipe: " + cfgEquipe.limiteDia + " por dia." : "");
+    box.appendChild(uso);
+    var lim = doc.createElement("button"); lim.type = "button"; lim.className = "tx-cb"; lim.textContent = "Apagar esta conversa"; lim.onclick = function () { limparConversa(); box.hidden = true; }; box.appendChild(lim);
+  }
+  function abrirFixos() {
+    var box = gavetas("tx-fixos"); if (!box) return;
+    var fx2 = lerLS(FIXOS, []);
+    if (!fx2.length) { box.innerHTML = '<div class="tx-rod">Nenhuma pergunta fixada. Use 📌 embaixo de uma resposta para guardar a pergunta aqui.</div>'; return; }
+    fx2.forEach(function (q, i) {
+      var w = doc.createElement("span"); w.className = "tx-fixo";
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-chip"; b.textContent = q; b.onclick = function () { box.hidden = true; enviar(q); };
+      var x = doc.createElement("button"); x.type = "button"; x.className = "tx-fixo-x"; x.textContent = "✕"; x.title = "Desafixar"; x.setAttribute("aria-label", "Desafixar " + q);
+      x.onclick = function () { var l = lerLS(FIXOS, []); l.splice(i, 1); gravarLS(FIXOS, l); box.hidden = true; abrirFixos(); };
+      w.appendChild(b); w.appendChild(x); box.appendChild(w);
+    });
+  }
+  function fixar(q) { var l = lerLS(FIXOS, []).filter(function (x) { return x !== q; }); l.unshift(q); gravarLS(FIXOS, l.slice(0, 10)); }
+
+  /* ---- autocompletar: comandos com "/", nomes de empresas e analistas ---- */
+  var sugIdx = -1, sugItens = [];
+  function sugAtivo() { var s = $("#tx-sug", painel); return s && !s.hidden && sugIdx >= 0; }
+  function fecharSug() { var s = painel && $("#tx-sug", painel); if (s) s.hidden = true; sugIdx = -1; sugItens = []; }
+  function atualizarSug() {
+    var inp = $("#tx-in", painel), v = inp.value, s = $("#tx-sug", painel), itens = [];
+    if (/^\/\S*$/.test(v)) {
+      var c = v.toLowerCase();
+      itens = COMANDOS.concat(Object.keys(COMANDOS_EXTRA).map(function (k) { return ["/" + k, "", COMANDOS_EXTRA[k].rot || ""]; })).filter(function (x) { return x[0].indexOf(c) === 0; }).map(function (x) { return {rot: x[0], sub: x[2], valor: x[0] + " "}; });
+    } else {
+      var m = /(\S{3,})$/.exec(v);
+      if (m && apisCarregadas().length) {
+        var w = norm(m[1]), ix = indice(), achou = {};
+        ix.empresas.forEach(function (g) { if (itens.length >= 6) return; if (norm(g.nome).split(" ").some(function (t) { return t.indexOf(w) === 0; }) && !achou[g.nome]) { achou[g.nome] = 1; itens.push({rot: g.nome, sub: "empresa · " + Object.keys(g.refs).map(function (k) { return MODN[k]; }).join(", "), valor: v.slice(0, m.index) + g.nome}); } });
+        ix.analistas.forEach(function (n) { if (itens.length >= 8) return; if (norm(n).split(" ").some(function (t) { return t.indexOf(w) === 0; })) itens.push({rot: n, sub: "analista", valor: v.slice(0, m.index) + n}); });
+        if (itens.length === 1 && norm(itens[0].rot) === norm(v.slice(m.index))) itens = [];
+      }
+    }
+    sugItens = itens; sugIdx = -1;
+    if (!itens.length) { s.hidden = true; return; }
+    s.innerHTML = "";
+    itens.forEach(function (it, i) {
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-sg"; b.setAttribute("role", "option");
+      b.innerHTML = "<b>" + esc(it.rot) + "</b><span>" + esc(it.sub || "") + "</span>";
+      b.onmousedown = function (e) { e.preventDefault(); sugIdx = i; escolherSug(); };
+      s.appendChild(b);
+    });
+    s.hidden = false;
+  }
+  function teclaSug(e) {
+    var s = $("#tx-sug", painel); if (s.hidden || !sugItens.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sugIdx = (sugIdx + (e.key === "ArrowDown" ? 1 : -1) + sugItens.length) % sugItens.length; [].forEach.call(s.children, function (c, i) { c.classList.toggle("on", i === sugIdx); }); }
+    else if (e.key === "Tab") { e.preventDefault(); if (sugIdx < 0) sugIdx = 0; escolherSug(); }
+    else if (e.key === "Escape") { e.stopPropagation(); fecharSug(); }
+  }
+  function escolherSug() { var it = sugItens[sugIdx]; if (!it) return; var inp = $("#tx-in", painel); inp.value = it.valor; fecharSug(); inp.focus(); }
+
+  /* ---- anexos (imagens para a IA) ---- */
+  function anexar(fs) {
+    var lim = limitesImagem(); if (!lim) return;
+    var tipos = lim.mediaTypes || [];
+    fs.forEach(function (f) { if ((!tipos.length || tipos.indexOf(f.type) !== -1) && anexos.length < (lim.maxCount || 1)) anexos.push(f); });
+    pintarAnexos();
+  }
+  function pintarAnexos() {
+    var a = $("#tx-anx", painel); a.innerHTML = "";
+    anexos.forEach(function (f, i) {
+      var w = doc.createElement("span"); w.className = "tx-anx-i";
+      var im = doc.createElement("img"); im.alt = f.name || "imagem"; try { im.src = URL.createObjectURL(f); } catch (e) {}
+      var x = doc.createElement("button"); x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Tirar anexo"); x.onclick = function () { anexos.splice(i, 1); pintarAnexos(); };
+      w.appendChild(im); w.appendChild(x); a.appendChild(w);
+    });
+    a.hidden = !anexos.length;
+  }
+  function atualizarClipe() { var c = painel && $("#tx-clipe", painel); if (c) c.hidden = !limitesImagem(); }
+
+  /* ---- voz: ditar a pergunta e ouvir a resposta ---- */
+  var rec = null;
+  function ouvir() {
+    var b = $("#tx-mic", painel), inp = $("#tx-in", painel);
+    if (rec) { try { rec.stop(); } catch (e) {} return; }
+    try { rec = new SR(); } catch (e) { b.hidden = true; return; }
+    rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = false;
+    var final = "";
+    rec.onresult = function (ev) { var t = ""; for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; inp.value = t; if (ev.results[ev.results.length - 1].isFinal) final = t; };
+    rec.onerror = function (ev) { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") { b.hidden = true; addBot([{tipo: "rodape", texto: "O microfone está bloqueado nesta página: digite a pergunta."}]); } };
+    rec.onend = function () { b.classList.remove("on"); rec = null; var v = (final || "").trim(); if (v) { inp.value = ""; enviar(v); } };
+    b.classList.add("on");
+    try { rec.start(); } catch (e) { rec = null; b.classList.remove("on"); }
+  }
+  function falar(txt) {
+    try {
+      var s = window.speechSynthesis; if (!s) return false;
+      s.cancel();
+      var u = new SpeechSynthesisUtterance(String(txt).replace(/[*#`|»•]/g, " ").replace(/\s+/g, " ").slice(0, 1200));
+      u.lang = "pt-BR";
+      var v = s.getVoices().filter(function (x) { return /^pt(-|_)BR/i.test(x.lang); })[0]; if (v) u.voice = v;
+      s.speak(u); return true;
+    } catch (e) { return false; }
+  }
+
   function rolar() { msgs.scrollTop = msgs.scrollHeight; }
-  function addUser(txt) { var d = doc.createElement("div"); d.className = "tx-m-u"; d.textContent = txt; msgs.appendChild(d); rolar(); }
-  function addBot(blocos) {
+  function addUser(txt, semGuardar) { var d = doc.createElement("div"); d.className = "tx-m-u"; d.textContent = txt; msgs.appendChild(d); rolar(); if (!semGuardar) guardarHist("u", txt); }
+  function addBot(blocos, semGuardar) {
     if (!blocos || !blocos.length) return null;
     var d = doc.createElement("div"); d.className = "tx-m-b";
     blocos.forEach(function (b) { var n = blocoDom(b); if (n) d.appendChild(n); });
     msgs.appendChild(d);
     if (d.offsetHeight > msgs.clientHeight) msgs.scrollTop = d.offsetTop - msgs.offsetTop - 6; else rolar();
+    if (!semGuardar) guardarHist("b", textoDosBlocos(blocos));
     return d;
+  }
+  function botaoMini(rot, titulo, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-mini"; x.textContent = rot; x.title = titulo; x.setAttribute("aria-label", titulo); x.onclick = function () { fn(x); }; return x; }
+  function barraAcoes(b) {
+    var bar = doc.createElement("div"); bar.className = "tx-acts";
+    var q = b.pergunta || "";
+    bar.appendChild(botaoMini("Explicar melhor", "Explicar melhor", function () { enviar("Explicar melhor", {oculto: "Explique melhor e com mais detalhes a sua resposta anterior."}); }));
+    if (q) bar.appendChild(botaoMini("↻", "Responder de outro jeito", function () {
+      if (conversa.length && conversa[conversa.length - 1].role === "assistant") { conversa.pop(); if (conversa.length && conversa[conversa.length - 1].role === "user") conversa.pop(); }
+      enviar("↻ " + q, {oculto: q + "\n(Responda de outro jeito, mais claro.)"});
+    }));
+    var avaliou = false;
+    function aval(bom, x) {
+      if (avaliou) return; avaliou = true; x.classList.add("on");
+      registrarFeedback(q, b.texto, bom);
+      if (!bom) addBot([T("Obrigado pelo aviso! Quer que eu tente de outro jeito?"), CH([{rot: "Tentar de novo", enviar: "↻ " + q, oculto: q + "\n(A resposta anterior não ajudou. Responda de outro jeito, mais claro e completo.)"}])]);
+    }
+    bar.appendChild(botaoMini("👍", "Resposta útil", function (x) { aval(true, x); }));
+    bar.appendChild(botaoMini("👎", "Resposta não ajudou", function (x) { aval(false, x); }));
+    bar.appendChild(botaoMini("⧉", "Copiar a resposta", function (x) { copiarTexto(b.texto.replace(/\*\*/g, "")).then(function (ok) { x.textContent = ok ? "✓" : "✕"; setTimeout(function () { x.textContent = "⧉"; }, 1500); }); }));
+    if (window.speechSynthesis) bar.appendChild(botaoMini("🔊", "Ouvir a resposta", function () { falar(b.texto); }));
+    if (q) bar.appendChild(botaoMini("📌", "Fixar esta pergunta", function (x) { fixar(q); x.classList.add("on"); x.title = "Fixada"; }));
+    return bar;
   }
   function blocoDom(b) {
     var d;
-    if (b.tipo === "md") { d = doc.createElement("div"); d.className = "tx-t1"; d.innerHTML = mdHtml(b.texto); return d; }
-    if (b.tipo === "texto") { d = doc.createElement("div"); d.className = "tx-t1"; d.textContent = b.texto; return d; }
+    if (b.tipo === "md") {
+      d = doc.createElement("div"); d.className = "tx-md";
+      var bolha = doc.createElement("div"); bolha.className = "tx-t1"; bolha.innerHTML = mdHtml(b.texto); d.appendChild(bolha);
+      if (b.acoes) { d.appendChild(barraAcoes(b)); if (lerPref().lerVoz) setTimeout(function () { falar(b.texto); }, 50); }
+      return d;
+    }
+    if (b.tipo === "texto") { d = doc.createElement("div"); d.className = "tx-t1"; d.textContent = mascarar(b.texto); return d; }
     if (b.tipo === "cab") { d = doc.createElement("div"); d.className = "tx-cab"; d.textContent = b.texto; return d; }
     if (b.tipo === "rodape") { d = doc.createElement("div"); d.className = "tx-rod"; d.textContent = b.texto; return d; }
     if (b.tipo === "ajuda") { d = doc.createElement("div"); d.className = "tx-aj"; d.innerHTML = "<b>" + esc(b.titulo) + "</b>" + esc(b.texto); return d; }
@@ -1138,25 +1620,48 @@
       d = doc.createElement("div"); d.className = "tx-chips";
       b.itens.forEach(function (c) {
         var x = doc.createElement("button"); x.type = "button"; x.className = "tx-chip"; x.textContent = c.rot;
-        x.onclick = function () { if (c.enviar) enviar(c.enviar); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
+        x.onclick = function () { if (c.enviar) enviar(c.enviar, {forcarIA: c.forcarIA, oculto: c.oculto}); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
         d.appendChild(x);
       });
       return d;
     }
     if (b.tipo === "confirma") return cartaoConfirma(b);
+    if (b.tipo === "grafico") return graficoDom(b);
     if (b.tipo === "linhas") {
       d = doc.createElement("div"); d.className = "tx-bloco";
-      var h = doc.createElement("h4"); h.textContent = b.titulo; if (b.nota) { var s = doc.createElement("small"); s.textContent = b.nota; h.appendChild(s); } d.appendChild(h);
+      var h = doc.createElement("h4"); var ht = doc.createElement("span"); ht.className = "tx-h4t"; ht.textContent = b.titulo; h.appendChild(ht);
+      if (b.nota) { var s = doc.createElement("small"); s.textContent = b.nota; h.appendChild(s); }
+      var todas = b.todas || b.linhas;
+      var ac = doc.createElement("span"); ac.className = "tx-h4a";
+      ac.appendChild(botaoMini("⬇", "Baixar a lista em planilha (" + todas.length + " itens)", function (x) { exportarLinhas(b.titulo, todas).then(function (ok) { x.textContent = ok ? "✓" : "⬇"; setTimeout(function () { x.textContent = "⬇"; }, 1800); }); }));
+      ac.appendChild(botaoMini("⧉", "Copiar a lista", function (x) { copiarTexto(b.titulo + "\n" + todas.map(function (l) { return "• " + mascarar(l.t) + (l.sub ? " — " + mascarar(l.sub) : ""); }).join("\n")).then(function (ok) { x.textContent = ok ? "✓" : "✕"; setTimeout(function () { x.textContent = "⧉"; }, 1500); }); }));
+      h.appendChild(ac);
+      d.appendChild(h);
       b.linhas.forEach(function (l) {
         var x = doc.createElement(l.abrir ? "button" : "div"); x.className = "tx-lin " + (l.tom || "");
-        if (l.abrir) { x.type = "button"; x.title = "Abrir no " + MODN[l.mod]; x.onclick = function () { abrirItem(l.mod, l.abrir); }; }
-        x.innerHTML = "<i></i><div><b>" + esc(l.t) + "</b>" + (l.sub ? "<span>" + esc(l.sub) + "</span>" : "") + "</div>";
+        if (l.abrir) { x.type = "button"; x.title = "Abrir no " + MODN[l.mod]; x.onclick = function () { abrirItem(l.mod, l.abrir, l); }; }
+        x.innerHTML = "<i></i><div><b>" + esc(mascarar(l.t)) + "</b>" + (l.sub ? "<span>" + esc(mascarar(l.sub)) + "</span>" : "") + "</div>";
         d.appendChild(x);
       });
       if (b.mais) { var m = doc.createElement("button"); m.type = "button"; m.className = "tx-mais"; m.textContent = b.mais.rot + " ›"; m.onclick = function () { var r = b.mais.acao(); if (r && r.then) r.catch(function () {}); }; d.appendChild(m); }
       return d;
     }
     return null;
+  }
+  // Gráfico de barras horizontais pequeno (dentro do chat).
+  function graficoDom(b) {
+    var d = doc.createElement("figure"); d.className = "tx-graf";
+    var cap = doc.createElement("figcaption"); cap.textContent = b.titulo || ""; d.appendChild(cap);
+    var itens = (b.itens || []).filter(function (x) { return isFinite(+x.valor); }).slice(0, 12), max = Math.max.apply(null, itens.map(function (x) { return +x.valor; }).concat([0]));
+    itens.forEach(function (x) {
+      var r = doc.createElement("div"); r.className = "tx-gr";
+      var rot = doc.createElement("span"); rot.className = "tx-gr-r"; rot.textContent = x.rotulo; rot.title = x.rotulo;
+      var trilho = doc.createElement("span"); trilho.className = "tx-gr-t";
+      var barra = doc.createElement("i"); barra.style.width = (max > 0 ? Math.max(2, +x.valor / max * 100) : 0) + "%"; trilho.appendChild(barra);
+      var v = doc.createElement("b"); v.textContent = (+x.valor).toLocaleString("pt-BR") + (b.unidade ? " " + b.unidade : "");
+      r.appendChild(rot); r.appendChild(trilho); r.appendChild(v); d.appendChild(r);
+    });
+    return d;
   }
 
   // Cartão de confirmação: nada grava antes do clique em "Confirmar" (ou de um "sim" na conversa).
@@ -1191,26 +1696,61 @@
     pintar("", "");
     return d;
   }
-  function enviar(txt) {
-    addUser(txt);
+  function enviar(txt, op) {
+    op = op || {};
+    if (!painel) montarPainel();
+    fecharSug();
+    if (/^\//.test(txt)) {
+      addUser(txt);
+      var rc = comando(txt);
+      if (rc && rc.then) {
+        var pc = doc.createElement("div"); pc.className = "tx-m-b"; pc.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pc); rolar();
+        rc.then(function (bl) { pc.remove(); addBot(bl); }).catch(function () { pc.remove(); addBot([T("Não consegui executar esse comando.")]); });
+      }
+      return;
+    }
+    var imgs = anexos.slice(); anexos = []; if (painel) pintarAnexos();
+    addUser(txt + (imgs.length ? "  📎" + imgs.length : ""));
     var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar(); bolhaAtual = pensa;
     var temModulos = apisCarregadas().length >= H.modulos().length;
     var lento = setTimeout(function () { if (!temModulos && !iaOk) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
-    responder(txt).then(function (bl) { clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl); }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot([T("Tive um problema para responder agora. Tente de novo em instantes.")]); });
+    responder(txt, {forcarIA: op.forcarIA, oculto: op.oculto, imagens: imgs}).then(function (bl) {
+      clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl);
+      if (bl && bl.naoEntendi) registrarPergunta(txt, "nao_entendi");
+      aoResponder(bl);
+    }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot([T("Tive um problema para responder agora. Tente de novo em instantes.")]); });
+  }
+  // Ganchos preenchidos por outras partes (mascote, avisos, equipe).
+  var aoResponder = function () {}, pensando = function () {}, registrarPergunta = function () {}, registrarFeedback = function () {};
+  function boasVindas(retomou) {
+    var fixados = lerLS(FIXOS, []).slice(0, 4).map(function (q) { return {rot: "📌 " + q, enviar: q}; });
+    var ch = fixados.concat(sugestoes().map(function (s) { return {rot: s, enviar: s}; })).slice(0, 7);
+    var oi = retomou ? "Continuando de onde paramos. Pode perguntar, ou comece do zero." :
+      (iaOk ? "Oi! Eu sou o " + nomeTax() + ". Pergunte do seu jeito: prazos, atrasos, empresas, cardápio, como usar o Hub… Também abro telas, preparo alterações para você confirmar e rascunho mensagens. Digite / para ver os comandos." : "Oi! Eu sou o " + nomeTax() + ". Posso responder sobre prazos, atrasos, empresas e cardápio, abrir telas e tirar dúvidas de uso. Digite / para ver os comandos.");
+    var bl = [T(oi), CH(ch)];
+    if (retomou) bl.push(CH([{rot: "Começar do zero", acao: function () { limparConversa(); }}]));
+    addBot(bl, true);
   }
   function abrirPainel() {
     if (!painel) montarPainel();
     parar(); acordar();
-    var sub = $("#tx-sub", painel); if (sub) sub.textContent = iaOk ? "assistente do Control Hub · com IA" : "assistente do Control Hub";
+    atualizarSub(); atualizarClipe();
     aberto = true; painel.hidden = false; painel.classList.remove("tx-oculto");
-    posicionarPainel();
+    aplicarVisualPainel();
     if (!msgs.children.length) {
-      addBot([T(iaOk ? "Oi! Eu sou o Tax. Pergunte do seu jeito: prazos, atrasos, empresas, cardápio, como usar o Hub… Também abro telas e preparo alterações para você confirmar." : "Oi! Eu sou o Tax. Posso responder sobre prazos, atrasos, empresas e cardápio, abrir telas e tirar dúvidas de uso."), CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))]);
+      var h = lerLS(HIST, []);
+      if (h.length) {
+        var ult = h[h.length - 1].t, dt = new Date(ult);
+        var sep = doc.createElement("div"); sep.className = "tx-sep"; sep.textContent = "Conversa anterior · " + dm(dt) + " " + pad2(dt.getHours()) + ":" + pad2(dt.getMinutes()); msgs.appendChild(sep);
+        h.slice(-16).forEach(function (m) { if (m.r === "u") addUser(m.x, true); else addBot([{tipo: "md", texto: m.x}], true); });
+        var sep2 = doc.createElement("div"); sep2.className = "tx-sep"; sep2.textContent = "agora"; msgs.appendChild(sep2);
+        boasVindas(true);
+      } else boasVindas(false);
     }
     carregarTodos();
-    setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); }, 30);
+    setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); rolar(); }, 30);
   }
-  function fecharPainel() { if (!painel) return; aberto = false; painel.hidden = true; if (el) el.focus({preventScroll: true}); }
+  function fecharPainel() { if (!painel) return; aberto = false; painel.hidden = true; fecharSug(); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (el) el.focus({preventScroll: true}); }
 
 
   /* ---------- visuais ---------- */
@@ -1224,9 +1764,7 @@
     balao("Gostei! 😄", 1600); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 1400);
   }
   function abrirVisuais() {
-    var box = $("#tx-skins", painel);
-    if (!box.hidden) { box.hidden = true; return; }
-    box.innerHTML = "";
+    var box = gavetas("tx-skins"); if (!box) return;
     Object.keys(SKINS).forEach(function (k) {
       var b = doc.createElement("button"); b.type = "button"; b.className = "tx-sk" + (k === skinKey ? " on" : ""); b.title = SKINS[k].nome;
       b.innerHTML = '<span class="tx-sk-i">' + svgSkin(k) + '</span><span>' + SKINS[k].nome + '</span>';
@@ -1247,6 +1785,7 @@
     el.innerHTML = '<div class="tx-sombra"></div><div class="tx-corpo"><div class="tx-face">' + svgSkin(skinKey) + '</div></div><span class="tx-z" aria-hidden="true">z</span><div class="tx-balao" role="status"></div>';
     if (oculto) el.classList.add("tx-oculto");
     doc.body.appendChild(el);
+    atualizarNome();
     colocarInicial();
     el.addEventListener("click", function (e) { e.stopPropagation(); if (dormiu) { acordar(); balao("Hã? Já acordei!", 2000); return; } aberto ? fecharPainel() : abrirPainel(); });
     el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aberto ? fecharPainel() : abrirPainel(); } });

@@ -5589,7 +5589,7 @@
     },
     modulos: () => ['dp', ...Object.keys(FRAMES)],
   };
-  carregarScriptExt('assistente.js?v=6').catch(() => {});
+  carregarScriptExt('assistente.js?v=7').catch(() => {});
 
   loadPrefs();
   applyTheme();
