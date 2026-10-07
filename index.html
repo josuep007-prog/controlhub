@@ -2112,6 +2112,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         <option value="dp">DP — particularidades de folha</option>
         <option value="portal">Portal do Cliente — implantação</option>
         <option value="contabil">Contábil — carteira, fechamento e prazos</option>
+        <option value="fiscal">Fiscal — fechamento, agenda de obrigações e empresas</option>
         <option value="cardapio">Cardápio — refeitório</option>
       </select>
     </label>
@@ -2590,7 +2591,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     { id:'gestta', name:'Gestta', url:'https://app.gestta.com.br', icon:'📈', category:'Acompanhamento', color:'#0F7A55', description:'Andamento das empresas.', tags:['empresas'] },
     { id:'portal-cliente', name:'Portal do Cliente', url:'', icon:'🧑‍💼', category:'Atalhos', color:'#3C659B', description:'Painel de implantação do Portal do Cliente.', tags:['cliente'], moduleKey:'portal' },
     { id:'planilha-dp', name:'Departamento Pessoal', url:'', icon:'👥', category:'Atalhos', color:'#C2000C', description:'Empresas, agenda, funcionários, convenções e cartela de clientes.', tags:['dp','folha'], moduleKey:'dp' },
-    { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Acesso rápido pelo app.', tags:['planilha','fiscal'] },
+    { id:'planilha-fiscal', name:'Planilha Fiscal', url:'', icon:'🧾', category:'Atalhos', color:'#3C659B', description:'Fechamento, agenda de obrigações e saúde fiscal das empresas.', tags:['planilha','fiscal'], moduleKey:'fiscal' },
     { id:'planilha-contabil', name:'Planilha Contábil', url:'', icon:'📒', category:'Atalhos', color:'#0F7A55', description:'Carteira, fechamento mensal e prazos do contábil.', tags:['planilha','contábil'], moduleKey:'contabil' },
     { id:'zappy', name:'Zappy', url:'', icon:'💬', category:'Comunicação', color:'#167A45', description:'Só os contatos.', tags:['whatsapp','contatos'] },
     { id:'zimbra', name:'Zimbra', url:'', icon:'✉️', category:'Comunicação', color:'#167A45', description:'Agendamento das salas e monitoramento das comunicações.', tags:['e-mail','salas'] },
@@ -2605,12 +2606,12 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
       icon: t.icon || '🔧',
       category: String(t.category || 'Geral').trim() || 'Geral',
       color: t.id === 'planilha-dp' && String(t.color).toUpperCase() === '#9A6B00' ? '#C2000C' : /^#[0-9a-f]{6}$/i.test(t.color||'') ? t.color : '#3C659B',
-      description: t.id === 'planilha-dp' && t.description === 'Particularidades de folha por empresa.' ? 'Empresas, agenda, funcionários, convenções e cartela de clientes.' : t.id === 'planilha-contabil' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Carteira, fechamento mensal e prazos do contábil.' : (t.description || ''),
+      description: t.id === 'planilha-dp' && t.description === 'Particularidades de folha por empresa.' ? 'Empresas, agenda, funcionários, convenções e cartela de clientes.' : t.id === 'planilha-contabil' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Carteira, fechamento mensal e prazos do contábil.' : t.id === 'planilha-fiscal' && t.description === 'Acesso rápido pelo app.' && !safeUrl(t.url) ? 'Fechamento, agenda de obrigações e saúde fiscal das empresas.' : (t.description || ''),
       tags: Array.isArray(t.tags) ? t.tags.filter(Boolean).map(String) : [],
       notes: t.notes || '',
       favorite: !!t.favorite,
       newTab: t.newTab !== false,
-      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : String(t.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === 'cardapio' ? 'cardapio' : ''),
+      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : t.id === 'planilha-fiscal' && !safeUrl(t.url) ? 'fiscal' : String(t.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === 'cardapio' ? 'cardapio' : ''),
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
       lastUsed: t.lastUsed || null,
@@ -3287,7 +3288,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
   function openFrame(key) {
     Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
     let f = $(`#${key}-frame`);
@@ -7720,6 +7721,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     { path:'ctb_emp', app:'Contábil' }, { path:'ctb_comp', app:'Contábil' }, { path:'ctb_ano', app:'Contábil' }, { path:'ctb_config', app:'Contábil' },
     { path:'empresas', app:'Portal' }, { path:'empresaSetores', app:'Portal' }, { path:'funcionarios', app:'Portal' }, { path:'contatos', app:'Portal' },
     { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
+    { path:'fis_emp', app:'Fiscal' }, { path:'fis_comp', app:'Fiscal' }, { path:'fis_config', app:'Fiscal' },
     { path:'cardapio_dias', app:'Cardápio' },
   ];
   const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
