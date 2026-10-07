@@ -186,7 +186,7 @@
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
     {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas."},
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
-    {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar dispensar esconder voltar atalho", a: "Clique num espaço vazio da tela e eu vou até lá. Clicando em mim, abre a conversa. Para me dispensar, use “Dormir por hoje” no topo da conversa; aperte Ctrl+J para me chamar de volta a qualquer hora."}
+    {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Clique num espaço vazio da tela e eu vou até lá. Clicando em mim, abre a conversa. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
   ];
   var VAZIAS = " como funciona funcionam faco fazer posso fazemos qual quais onde fica para pra isso esse essa esta uma uns que sobre tenho duvida quero saber preciso usar uso ";
   function buscarAjuda(t, mods, minimo) {
@@ -213,7 +213,6 @@
     carteira: /\b(carteira|quantas empresas|quantos clientes|quantas)\b/,
     empresa: /\b(empresa|cliente|situacao|como (esta|ta|anda)|me fala|fala (da|do|sobre)|ficha|dados d[aeo]|informacoes)\b/,
     ajuda: /^(como|onde|o que (e|significa|quer dizer)|para que serve|pra que serve|qual a diferenca|duvida|tenho uma duvida|passo a passo|tutorial)\b|\b(como (faco|faz|eu|se)|onde (fica|vejo|encontro|clico)|ensina)\b/,
-    dormir: /\b(some|vai embora|dormir|esconde|tchau|dispensar|chega)\b/
   };
 
   /* ============ resposta ============ */
@@ -254,7 +253,6 @@
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
     if (iaOk && /^(ia|ai|claude)[ :,]/.test(t)) return perguntarIA(texto.replace(/^\s*(ia|ai|claude)[ :,]+/i, ""));
-    if (RX.dormir.test(t) && t.split(" ").length <= 4) { setTimeout(dormirHoje, 600); return Promise.resolve([T("Tá bom! Volto amanhã, ou é só apertar Ctrl+J. 👋")]); }
     return carregarTodos().then(quemSou).then(function () { return entender(texto, t); });
   }
 
@@ -743,7 +741,6 @@
   function chamar(pt) {
     andar(pt.x - W / 2, pt.y - HM, function () { classe(["tx-acena"], []); balao(["Oi! Estou aqui.", "Chamou?", "Pois não!"][Math.floor(Math.random() * 3)], 2600); setTimeout(function () { classe([], ["tx-acena"]); }, 1900); });
   }
-  function dormirHoje() { oculto = true; fecharPainel(); el.classList.add("tx-oculto"); salvarPref({dispensado: ymd(hoje())}); }
   function mostrar() { oculto = false; salvarPref({dispensado: ""}); el.classList.remove("tx-oculto"); colocar(vw() - W - 24, vh() - HM - 16); acordar(); }
 
   // Clique "vazio": nada interativo por perto (botão, link, campo, linha clicável…).
@@ -798,13 +795,12 @@
   function montarPainel() {
     painel = doc.createElement("section");
     painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente Tax"); painel.hidden = true;
-    painel.innerHTML = '<header><span class="tx-av">' + SVG + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub</small></div><button type="button" id="tx-dorme" title="Esconde o assistente até amanhã (Ctrl+J chama de volta)">Dormir por hoje</button><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+    painel.innerHTML = '<header><span class="tx-av">' + SVG + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub</small></div><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
       '<div id="tx-msgs" aria-live="polite"></div>' +
       '<form autocomplete="off"><input id="tx-in" type="text" maxlength="300" placeholder="Pergunte ou peça algo…" aria-label="Mensagem para o Tax"><button type="submit">Enviar</button></form>';
     doc.body.appendChild(painel);
     msgs = $("#tx-msgs", painel);
     $("#tx-fecha", painel).onclick = fecharPainel;
-    $("#tx-dorme", painel).onclick = dormirHoje;
     $("form", painel).onsubmit = function (e) { e.preventDefault(); var i = $("#tx-in", painel), v = i.value.trim(); if (!v) return; i.value = ""; enviar(v); };
   }
   function posicionarPainel() {
@@ -911,7 +907,7 @@
   /* ============ início ============ */
   function iniciar() {
     iniciarIA();
-    if (lerPref().dispensado === ymd(hoje())) oculto = true;
+    if (lerPref().dispensado) salvarPref({dispensado: ""});
     var st = doc.createElement("style"); st.id = "tx-css"; st.textContent = CSS; doc.head.appendChild(st);
     el = doc.createElement("div"); el.id = "tx-mascote"; el.className = "tx-parado"; el.setAttribute("role", "button"); el.tabIndex = 0;
     el.setAttribute("aria-label", "Abrir o assistente Tax"); el.title = "Tax, o assistente do Hub";
