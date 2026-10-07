@@ -253,6 +253,7 @@
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
+    if (iaOk && /^(ia|ai|claude)[ :,]/.test(t)) return perguntarIA(texto.replace(/^\s*(ia|ai|claude)[ :,]+/i, ""));
     if (RX.dormir.test(t) && t.split(" ").length <= 4) { setTimeout(dormirHoje, 600); return Promise.resolve([T("Tá bom! Volto amanhã, ou é só apertar Ctrl+J. 👋")]); }
     return carregarTodos().then(quemSou).then(function () { return entender(texto, t); });
   }
@@ -441,16 +442,107 @@
     return colocou ? out.join("").replace(/\s+/g, " ") : texto + " " + nome;
   }
 
+
+  /* ============ IA opcional (capability "sample": gasta o plano de quem clicou) ============ */
+  var iaOk = false, iaNs = null, iaOcupada = false;
+  function iniciarIA() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      window.claude.use("sample").then(function (ns) {
+        if (!ns || typeof ns !== "function") return null;
+        return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function compacto(r, max) {
+    if (!r) return {total: 0, linhas: []};
+    var ls = (r.linhas || []).slice(0, max || 15).map(function (l) { return {t: l.t, sub: l.sub, data: l.data}; });
+    return {titulo: r.titulo, total: r.total, linhas: ls};
+  }
+  function ferramentasIA(cartoes) {
+    var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
+    return [
+      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. tipo: vencimentos (entregas/prazos num período), atrasos, pendencias (aguardando o cliente), carteira (empresas por analista) ou cardapio. Datas em AAAA-MM-DD; sem datas = hoje.",
+        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio"]}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}}, required: ["modulo", "tipo"]},
+        execute: function (i) { return modulo(i.modulo).then(function (a) { if (!a) return "Módulo indisponível."; var r = a.consultar(i.tipo, {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || ""}); return r ? compacto(r) : "Esse módulo não tem esse tipo de consulta."; }); }},
+      {name: "empresa", description: "Situação de uma empresa pelo nome ou CNPJ, em todos os módulos onde ela existe.",
+        inputSchema: {type: "object", properties: {consulta: {type: "string"}}, required: ["consulta"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var es = casarEmpresas(norm(i.consulta), {});
+            if (!es.length) return "Não achei empresa com esse nome/CNPJ.";
+            var g = es[0].g, out = {nome: g.nome, cnpj: g.cnpj, outrasParecidas: es.slice(1, 4).map(function (x) { return x.g.nome; }), modulos: {}};
+            return Promise.all(Object.keys(g.refs).map(function (m) { return modulo(m).then(function (a) { var r = a && a.consultar("empresa", {id: g.refs[m]}); if (r) out.modulos[m] = compacto(r, 12); }); })).then(function () { return out; });
+          });
+        }},
+      {name: "analistas", description: "Lista os analistas conhecidos (nomes completos).", inputSchema: {type: "object", properties: {}}, execute: function () { return carregarTodos().then(function () { return indice().analistas; }); }},
+      {name: "ajuda", description: "Busca na base de ajuda do Control Hub como usar uma função.", inputSchema: {type: "object", properties: {pergunta: {type: "string"}}, required: ["pergunta"]},
+        execute: function (i) { var e = buscarAjuda(norm(i.pergunta), [], 2); return e ? {titulo: e.t, texto: e.a} : "Sem entrada na base de ajuda."; }},
+      {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
+        execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || ""}).then(function () { return "Aberto."; }); }},
+      {name: "preparar_acao", description: "Prepara uma alteração para o usuário confirmar num cartão. NÃO grava nada: diga ao usuário que ele precisa clicar em Confirmar. tipo: etapa (marcar etapa do fechamento; informe etapa e status), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar), entrega (obrigação do Fiscal; informe obrigacao e status), lembrete (lembrete pessoal; texto, data AAAA-MM-DD, hora HH:MM).",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "lembrete"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var pd = {tipo: i.tipo, mod: i.modulo || "", status: {concluida: "c", entregue: "c", retificada: "r", em_andamento: "a", pendente: ""}[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : []};
+            if (i.tipo !== "lembrete") {
+              var es = casarEmpresas(norm(i.empresa || ""), {});
+              if (!es.length) return "Não achei essa empresa.";
+              if (es.length > 1 && es[1].s >= es[0].s * 0.92) return "Empresa ambígua: " + es.slice(0, 4).map(function (x) { return x.g.nome; }).join("; ");
+              pd.emp = es[0];
+              if (i.tipo === "etapa" || i.tipo === "entrega") {
+                var tt = limpo(norm(i.etapa || i.obrigacao || "")), mods = Object.keys(pd.emp.g.refs), ok = false;
+                mods.forEach(function (m) {
+                  var a = carregados[m]; if (!a || !a.vocab || ok) return; var v = a.vocab();
+                  var lista = i.tipo === "entrega" ? v.obrigacoes : v.etapas; if (!lista.length) return;
+                  var r = melhorPorTokens(tt, lista, function (x) { return [x.c || x.l, x.l]; });
+                  if (r.item && r.pts >= 0.5) { ok = true; pd.mod = m; if (i.tipo === "entrega") pd.ob = r.item.k; else pd.etapa = r.item.k; }
+                });
+                if (!ok) return "Não reconheci essa " + (i.tipo === "entrega" ? "obrigação" : "etapa") + ".";
+              }
+            }
+            return prepararAcao(pd, "").then(function (bl) {
+              var c = bl.filter(function (b) { return b.tipo === "confirma"; })[0];
+              if (!c) return (bl[0] && bl[0].texto) || "Não consegui preparar.";
+              cartoes.push(c);
+              return "Cartão de confirmação preparado (" + c.plano.titulo + ": " + (c.plano.linhas || []).join("; ") + "). Nada foi gravado: o usuário precisa clicar em Confirmar.";
+            });
+          });
+        }}
+    ];
+  }
+  function perguntarIA(texto) {
+    if (!iaOk) return Promise.resolve([T("A IA não está disponível aqui.")]);
+    if (iaOcupada) return Promise.resolve([T("Ainda estou pensando na pergunta anterior.")]);
+    iaOcupada = true;
+    var cartoes = [], tmp = null;
+    if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; tmp.innerHTML = '<div class="tx-t1 tx-ia">✨ Pensando com IA…</div>'; msgs.appendChild(tmp); rolar(); }
+    var regras = "Você é o Tax, assistente do Control Hub da ControlTax (escritório contábil: DP, Contábil, Fiscal, Portal do Cliente, Cardápio). Hoje é " + ymd(hoje()) + ". Responda em português do Brasil, curto e direto, só com o que as ferramentas devolverem; nunca invente dados. Se a pessoa pedir para marcar/registrar algo, use preparar_acao (ela confirma no cartão) e avise que falta confirmar. Dados de Fiscal em modo exemplo vêm marcados como tal pelo módulo (se vier 'exemplo', avise).";
+    var turnos = [{role: "user", content: regras + "\n\nPergunta: " + texto}];
+    return iaNs(turnos, {tools: ferramentasIA(cartoes), modelTier: "quick", cache: false, onText: function (u) { var n = tmp && tmp.querySelector(".tx-ia"); if (n) { n.textContent = u.text; rolar(); } }})
+      .then(function (r) { if (tmp) tmp.remove(); iaOcupada = false; var out = [T((r && r.text) || "Não consegui responder.")]; return out.concat(cartoes); })
+      .catch(function (e) {
+        if (tmp) tmp.remove(); iaOcupada = false;
+        var cod = e && e.code;
+        if (cod === "not_granted") { iaOk = false; return [T("Sem a autorização para usar a IA. Sigo só com as minhas regras.")]; }
+        if (cod === "rate_limited") return [T("A IA recebeu perguntas demais agora. Tente de novo em instantes.")];
+        var parc = e && e.text ? [T(e.text)] : [T("Não consegui usar a IA agora.")];
+        return parc.concat(cartoes);
+      });
+  }
+
   function quem() {
     return [T("Eu consigo:\n• responder o que vence, o que está atrasado e quem está aguardando o cliente (DP, Contábil, Fiscal e Portal);\n• mostrar a situação de uma empresa pelo nome ou CNPJ;\n• ver a carteira de um analista;\n• dizer o cardápio do dia;\n• abrir qualquer tela (“abrir a agenda do Fiscal”);\n• tirar dúvidas de como usar."),
       CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))];
   }
-  function naoEntendi() {
-    return [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))];
+  function naoEntendi(p) {
+    var ch = sugestoes().map(function (s) { return {rot: s, enviar: s}; });
+    if (iaOk && p && p.texto) ch.unshift({rot: "✨ Perguntar com IA", acao: function () { return perguntarIA(p.texto); }});
+    return [T(iaOk && p && p.texto ? "Não entendi pelas minhas regras. Posso tentar com IA (usa o seu plano do Claude), ou tente de outro jeito:" : "Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
   }
   function ajuda(p) {
     var e = buscarAjuda(p.t, p.mods, 2);
-    if (!e) return naoEntendi();
+    if (!e) return naoEntendi(p);
     var out = [{tipo: "ajuda", titulo: e.t, texto: e.a}];
     if (e.ir) out.push(CH([{rot: "Abrir " + (e.ir.aba ? "essa tela" : MODN[e.ir.m]), acao: function () { return abrirItem(e.ir.m, {aba: e.ir.aba}); }}]));
     return out;
@@ -818,6 +910,7 @@
 
   /* ============ início ============ */
   function iniciar() {
+    iniciarIA();
     if (lerPref().dispensado === ymd(hoje())) oculto = true;
     var st = doc.createElement("style"); st.id = "tx-css"; st.textContent = CSS; doc.head.appendChild(st);
     el = doc.createElement("div"); el.id = "tx-mascote"; el.className = "tx-parado"; el.setAttribute("role", "button"); el.tabIndex = 0;
