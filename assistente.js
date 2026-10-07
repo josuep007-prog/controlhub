@@ -252,8 +252,11 @@
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
-    if (iaOk && /^(ia|ai|claude)[ :,]/.test(t)) return perguntarIA(texto.replace(/^\s*(ia|ai|claude)[ :,]+/i, ""));
-    return carregarTodos().then(quemSou).then(function () { return entender(texto, t); });
+    var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
+    return Promise.all([iaPronta, quemSou()]).then(function () {
+      if (!iaOk) return porRegras("");
+      return perguntarIA(texto).then(function (bl) { return bl || porRegras(iaAviso); });
+    });
   }
 
   function entender(texto, t) {
@@ -443,10 +446,11 @@
 
   /* ============ IA opcional (capability "sample": gasta o plano de quem clicou) ============ */
   var iaOk = false, iaNs = null, iaOcupada = false;
+  var iaPronta = Promise.resolve();
   function iniciarIA() {
     try {
       if (!window.claude || !window.claude.use) return;
-      window.claude.use("sample").then(function (ns) {
+      iaPronta = window.claude.use("sample").then(function (ns) {
         if (!ns || typeof ns !== "function") return null;
         return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
       }).catch(function () {});
@@ -457,12 +461,18 @@
     var ls = (r.linhas || []).slice(0, max || 15).map(function (l) { return {t: l.t, sub: l.sub, data: l.data}; });
     return {titulo: r.titulo, total: r.total, linhas: ls};
   }
+  function anexarLista(extras, mod, r, a) {
+    var tit = MODN[mod] + " · " + (r.titulo || "");
+    if (extras.some(function (x) { return x.tipo === "linhas" && x.titulo === tit; })) return;
+    extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }),
+      mais: r.linhas.length > 8 && r.verTudo ? {rot: "Ver os " + r.total + " no " + MODN[mod], acao: function () { return abrirItem(mod, r.verTudo); }} : null});
+  }
   function ferramentasIA(cartoes) {
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
     return [
       {name: "consultar", description: "Consulta dados de um módulo do Control Hub. tipo: vencimentos (entregas/prazos num período), atrasos, pendencias (aguardando o cliente), carteira (empresas por analista) ou cardapio. Datas em AAAA-MM-DD; sem datas = hoje.",
         inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio"]}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}}, required: ["modulo", "tipo"]},
-        execute: function (i) { return modulo(i.modulo).then(function (a) { if (!a) return "Módulo indisponível."; var r = a.consultar(i.tipo, {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || ""}); return r ? compacto(r) : "Esse módulo não tem esse tipo de consulta."; }); }},
+        execute: function (i) { return modulo(i.modulo).then(function (a) { if (!a) return "Módulo indisponível."; var r = a.consultar(i.tipo, {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || ""}); if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a); if (r && a.exemplo && a.exemplo()) { r = Object.assign({}, r, {aviso: "dados de exemplo"}); } return r ? compacto(r) : "Esse módulo não tem esse tipo de consulta."; }); }},
       {name: "empresa", description: "Situação de uma empresa pelo nome ou CNPJ, em todos os módulos onde ela existe.",
         inputSchema: {type: "object", properties: {consulta: {type: "string"}}, required: ["consulta"]},
         execute: function (i) {
@@ -470,14 +480,14 @@
             var es = casarEmpresas(norm(i.consulta), {});
             if (!es.length) return "Não achei empresa com esse nome/CNPJ.";
             var g = es[0].g, out = {nome: g.nome, cnpj: g.cnpj, outrasParecidas: es.slice(1, 4).map(function (x) { return x.g.nome; }), modulos: {}};
-            return Promise.all(Object.keys(g.refs).map(function (m) { return modulo(m).then(function (a) { var r = a && a.consultar("empresa", {id: g.refs[m]}); if (r) out.modulos[m] = compacto(r, 12); }); })).then(function () { return out; });
+            return Promise.all(Object.keys(g.refs).map(function (m) { return modulo(m).then(function (a) { var r = a && a.consultar("empresa", {id: g.refs[m]}); if (r) { out.modulos[m] = compacto(r, 12); anexarLista(cartoes, m, {titulo: g.nome, total: r.total, linhas: r.linhas}, a); } }); })).then(function () { return out; });
           });
         }},
       {name: "analistas", description: "Lista os analistas conhecidos (nomes completos).", inputSchema: {type: "object", properties: {}}, execute: function () { return carregarTodos().then(function () { return indice().analistas; }); }},
       {name: "ajuda", description: "Busca na base de ajuda do Control Hub como usar uma função.", inputSchema: {type: "object", properties: {pergunta: {type: "string"}}, required: ["pergunta"]},
         execute: function (i) { var e = buscarAjuda(norm(i.pergunta), [], 2); return e ? {titulo: e.t, texto: e.a} : "Sem entrada na base de ajuda."; }},
       {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
-        execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || ""}).then(function () { return "Aberto."; }); }},
+        execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
       {name: "preparar_acao", description: "Prepara uma alteração para o usuário confirmar num cartão. NÃO grava nada: diga ao usuário que ele precisa clicar em Confirmar. tipo: etapa (marcar etapa do fechamento; informe etapa e status), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar), entrega (obrigação do Fiscal; informe obrigacao e status), lembrete (lembrete pessoal; texto, data AAAA-MM-DD, hora HH:MM).",
         inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "lembrete"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
         execute: function (i) {
@@ -509,24 +519,47 @@
         }}
     ];
   }
+  var conversa = [], iaAviso = "", bolhaAtual = null;
+  // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder: aí entram as regras.
   function perguntarIA(texto) {
-    if (!iaOk) return Promise.resolve([T("A IA não está disponível aqui.")]);
     if (iaOcupada) return Promise.resolve([T("Ainda estou pensando na pergunta anterior.")]);
     iaOcupada = true;
-    var cartoes = [], tmp = null;
-    if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; tmp.innerHTML = '<div class="tx-t1 tx-ia">✨ Pensando com IA…</div>'; msgs.appendChild(tmp); rolar(); }
-    var regras = "Você é o Tax, assistente do Control Hub da ControlTax (escritório contábil: DP, Contábil, Fiscal, Portal do Cliente, Cardápio). Hoje é " + ymd(hoje()) + ". Responda em português do Brasil, curto e direto, só com o que as ferramentas devolverem; nunca invente dados. Se a pessoa pedir para marcar/registrar algo, use preparar_acao (ela confirma no cartão) e avise que falta confirmar. Dados de Fiscal em modo exemplo vêm marcados como tal pelo módulo (se vier 'exemplo', avise).";
-    var turnos = [{role: "user", content: regras + "\n\nPergunta: " + texto}];
-    return iaNs(turnos, {tools: ferramentasIA(cartoes), modelTier: "quick", cache: false, onText: function (u) { var n = tmp && tmp.querySelector(".tx-ia"); if (n) { n.textContent = u.text; rolar(); } }})
-      .then(function (r) { if (tmp) tmp.remove(); iaOcupada = false; var out = [T((r && r.text) || "Não consegui responder.")]; return out.concat(cartoes); })
+    var extras = [], tmp = null, proprio = false, dots = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>';
+    if (bolhaAtual && bolhaAtual.isConnected) tmp = bolhaAtual;
+    else if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; msgs.appendChild(tmp); proprio = true; }
+    if (tmp) { tmp.innerHTML = dots; rolar(); }
+    var fimBolha = function (falhou) { if (!tmp) return; if (proprio) tmp.remove(); else if (falhou) tmp.innerHTML = dots; };
+    var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial";
+    var regras = "Você é o Tax, o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio) e Cardápio (refeitório).\n" +
+      "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "). A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
+      "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
+      "As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
+      "Para mudar algo (marcar etapa, entrega, pendência, fechar, lembrete) use preparar_acao: a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
+      "Para mostrar uma tela use abrir. Se a pergunta for sobre como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise.";
+    conversa.push({role: "user", content: texto});
+    if (conversa.length > 12) conversa = conversa.slice(-12);
+    while (conversa.length && conversa[0].role !== "user") conversa.shift();
+    var turnos = conversa.map(function (m, i) { return {role: m.role, content: i === 0 ? regras + "\n\n" + m.content : m.content}; });
+    return iaNs(turnos, {tools: ferramentasIA(extras), modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(u.text); rolar(); }})
+      .then(function (r) {
+        fimBolha(false); iaOcupada = false;
+        var txt = (r && r.text || "").trim() || "Pronto.";
+        conversa.push({role: "assistant", content: txt});
+        return [{tipo: "md", texto: txt}].concat(extras);
+      })
       .catch(function (e) {
-        if (tmp) tmp.remove(); iaOcupada = false;
+        fimBolha(true); iaOcupada = false;
+        conversa.pop();
         var cod = e && e.code;
-        if (cod === "not_granted") { iaOk = false; return [T("Sem a autorização para usar a IA. Sigo só com as minhas regras.")]; }
-        if (cod === "rate_limited") return [T("A IA recebeu perguntas demais agora. Tente de novo em instantes.")];
-        var parc = e && e.text ? [T(e.text)] : [T("Não consegui usar a IA agora.")];
-        return parc.concat(cartoes);
+        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; iaAviso = "Sem autorização para usar a IA: respondendo pelas regras do assistente."; return null; }
+        if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora: respondendo pelas regras."; return null; }
+        if (e && e.text) return [{tipo: "md", texto: e.text}].concat(extras);
+        iaAviso = "A IA não respondeu: respondendo pelas regras."; return null;
       });
+  }
+  // Markdown mínimo da IA: **negrito**, listas e quebras de linha (todo o resto vira texto).
+  function mdHtml(t) {
+    return esc(String(t || "")).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\n)\s*[-*•]\s+/g, "$1• ").replace(/`([^`]+)`/g, "<b>$1</b>");
   }
 
   function quem() {
@@ -535,8 +568,7 @@
   }
   function naoEntendi(p) {
     var ch = sugestoes().map(function (s) { return {rot: s, enviar: s}; });
-    if (iaOk && p && p.texto) ch.unshift({rot: "✨ Perguntar com IA", acao: function () { return perguntarIA(p.texto); }});
-    return [T(iaOk && p && p.texto ? "Não entendi pelas minhas regras. Posso tentar com IA (usa o seu plano do Claude), ou tente de outro jeito:" : "Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
+    return [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
   }
   function ajuda(p) {
     var e = buscarAjuda(p.t, p.mods, 2);
@@ -607,7 +639,7 @@
   var OPT_ANA = {fiscal: {agenda: "ag.ana", empresas: "em.ana", fechamento: "fx.ana"}, contabil: {fechamento: "fx.ana", carteira: "ct.ana", prazos: "ob.ana"}};
   function abrirItem(mod, ab) {
     ab = ab || {};
-    fecharPainel();
+    if (!ab.manter) fecharPainel();
     H.abrirModulo(mod);
     return modulo(mod).then(function (a) {
       if (!a) return false;
@@ -1067,7 +1099,7 @@
   function montarPainel() {
     painel = doc.createElement("section");
     painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente Tax"); painel.hidden = true;
-    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub</small></div><button type="button" id="tx-visual" title="Mudar o visual do Tax" aria-label="Mudar o visual do Tax">🎨 Visual</button><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub · com IA</small></div><button type="button" id="tx-visual" title="Mudar o visual do Tax" aria-label="Mudar o visual do Tax">🎨 Visual</button><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
       '<div id="tx-skins" hidden></div>' +
       '<div id="tx-msgs" aria-live="polite"></div>' +
       '<form autocomplete="off"><input id="tx-in" type="text" maxlength="300" placeholder="Pergunte ou peça algo…" aria-label="Mensagem para o Tax"><button type="submit">Enviar</button></form>';
@@ -1097,6 +1129,7 @@
   }
   function blocoDom(b) {
     var d;
+    if (b.tipo === "md") { d = doc.createElement("div"); d.className = "tx-t1"; d.innerHTML = mdHtml(b.texto); return d; }
     if (b.tipo === "texto") { d = doc.createElement("div"); d.className = "tx-t1"; d.textContent = b.texto; return d; }
     if (b.tipo === "cab") { d = doc.createElement("div"); d.className = "tx-cab"; d.textContent = b.texto; return d; }
     if (b.tipo === "rodape") { d = doc.createElement("div"); d.className = "tx-rod"; d.textContent = b.texto; return d; }
@@ -1160,18 +1193,19 @@
   }
   function enviar(txt) {
     addUser(txt);
-    var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar();
+    var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar(); bolhaAtual = pensa;
     var temModulos = apisCarregadas().length >= H.modulos().length;
-    var lento = setTimeout(function () { if (!temModulos) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
+    var lento = setTimeout(function () { if (!temModulos && !iaOk) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
     responder(txt).then(function (bl) { clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl); }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot([T("Tive um problema para responder agora. Tente de novo em instantes.")]); });
   }
   function abrirPainel() {
     if (!painel) montarPainel();
     parar(); acordar();
+    var sub = $("#tx-sub", painel); if (sub) sub.textContent = iaOk ? "assistente do Control Hub · com IA" : "assistente do Control Hub";
     aberto = true; painel.hidden = false; painel.classList.remove("tx-oculto");
     posicionarPainel();
     if (!msgs.children.length) {
-      addBot([T("Oi! Eu sou o Tax. Posso responder sobre prazos, atrasos, empresas e cardápio, abrir telas e tirar dúvidas de uso."), CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))]);
+      addBot([T(iaOk ? "Oi! Eu sou o Tax. Pergunte do seu jeito: prazos, atrasos, empresas, cardápio, como usar o Hub… Também abro telas e preparo alterações para você confirmar." : "Oi! Eu sou o Tax. Posso responder sobre prazos, atrasos, empresas e cardápio, abrir telas e tirar dúvidas de uso."), CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))]);
     }
     carregarTodos();
     setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); }, 30);
