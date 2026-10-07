@@ -336,6 +336,31 @@ setInterval(checkDay, 30000);
 document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkDay(); });
 window.addEventListener("focus", checkDay);
 
+// Ponte com o assistente do Hub.
+window.__assistente = {
+  modulo: "cardapio", nome: "Cardápio",
+  abas: [],
+  pronto: function(){ return loaded; },
+  exemplo: function(){ return false; },
+  empresas: function(){ return []; }, analistas: function(){ return []; },
+  irPara: function(v, o){ var d = o && o.dia ? new Date(o.dia + "T12:00:00") : now; weekStart = mondayOf(d); renderHead(); renderGrid(); return true; },
+  abrirEmpresa: function(){ return false; },
+  consultar: function(tipo, p){
+    if(tipo !== "cardapio" && tipo !== "vencimentos") return null;
+    p = p || {};
+    var de = new Date((p.de || keyOf(now)) + "T12:00:00"), ate = new Date((p.ate || p.de || keyOf(now)) + "T12:00:00"), ls = [];
+    for(var d = new Date(de); d <= ate && ls.length < 31; d.setDate(d.getDate() + 1)){
+      var k = keyOf(d), doc = data[k], w = d.getDay();
+      if(w === 0 || w === 6){ if(!doc) continue; }
+      var rot = WD[w] + ", " + d.getDate() + " de " + MESES[d.getMonth()];
+      if(doc && doc.tipo === "feriado") ls.push({t: rot, sub: "Feriado: " + doc.nome + " (sem serviço)", data: k, tom: "", abrir: {aba: "", opts: {dia: k}}});
+      else if(doc) ls.push({t: rot, sub: [doc.principal, doc.guarnicao, doc.salada, doc.sobremesa].filter(Boolean).join(" · "), data: k, tom: "", abrir: {aba: "", opts: {dia: k}}});
+      else ls.push({t: rot, sub: "Cardápio ainda não cadastrado", data: k, tom: "", abrir: {aba: "", opts: {dia: k}}});
+    }
+    return {titulo: "Cardápio", total: ls.length, linhas: ls};
+  }
+};
+
 // Aberto dentro do Control Hub, usa a conexão da página principal (ela só aceita objetos criados lá).
 function noPai(){ try{ return window.parent !== window && window.parent.claude && window.parent.claude.use ? window.parent : null; }catch(e){ return null; } }
 function usarCap(n){

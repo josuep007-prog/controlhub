@@ -3289,14 +3289,19 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
   const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
-  function openFrame(key) {
-    Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
+  // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
+  function preloadFrame(key) {
     let f = $(`#${key}-frame`);
     if (!f) {
       f = document.createElement('iframe');
-      f.id = `${key}-frame`; f.className = 'portal-frame' + (FRAMES[key].rail ? ' com-rail' : ''); f.title = FRAMES[key].title; f.src = FRAMES[key].src;
+      f.id = `${key}-frame`; f.className = 'portal-frame' + (FRAMES[key].rail ? ' com-rail' : ''); f.title = FRAMES[key].title; f.src = FRAMES[key].src; f.hidden = true;
       document.body.appendChild(f);
     }
+    return f;
+  }
+  function openFrame(key) {
+    Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
+    const f = preloadFrame(key);
     f.hidden = false;
     document.body.classList.add('portal-open');
     // Com barra lateral: o módulo fica marcado nela e dá para trocar de módulo sem voltar ao início.
@@ -7993,6 +7998,67 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     document.documentElement.style.setProperty('--header-h', '0px');
   }
   window.addEventListener('resize', syncHeaderHeight);
+
+  // ---------- ponte com o assistente (assistente.js) ----------
+  // Cada módulo responde com linhas simples {t, sub, data, tom, abrir}; o DP responde daqui.
+  const dpAssist = {
+    modulo: 'dp', nome: 'Departamento Pessoal',
+    abas: [['painel', 'Painel'], ['agenda', 'Agenda'], ['empresas', 'Empresas'], ['funcionarios', 'Funcionários'], ['sindicatos', 'Convenções'], ['cartela', 'Cartela de clientes'], ['ferramentas', 'Ferramentas']],
+    pronto: () => state.dpLoaded,
+    exemplo: () => false,
+    empresas: () => state.dpEmpresas.filter(ativa).map(e => ({ id: e.id, nome: e.nome, cnpj: cnpjClean(e.cnpj), analista: e.responsavel })),
+    analistas: () => dpResponsaveis(),
+    irPara: (v, o) => { if (!DP_VIEWS.includes(v)) return false; if (v === 'agenda' && o && o.dia) irAgenda({ dia: o.dia }); else openDpModule(v); return true; },
+    abrirEmpresa: (id, aba) => { const e = findDpEmpresa(id); if (!e) return false; openDpModule('empresas'); openDpDetail(e, { tab: aba || 'dados' }); return true; },
+    consultar(tipo, p = {}) {
+      const t = hoje(), de = parseYmd(p.de) || t, ate = parseYmd(p.ate) || de, ana = p.analista || '';
+      const lista = state.dpEmpresas.filter(ativa).filter(e => !ana || norm(respEf(e)) === norm(ana) || norm(e.responsavel) === norm(ana));
+      if (tipo === 'vencimentos') {
+        const evs = [...eventos(de, ate, lista), ...(ana ? [] : meusEventos(de, ate))].sort(porData);
+        return { titulo: `Datas do DP, ${fmtDMY(de)}${+ate !== +de ? ' a ' + fmtDMY(ate) : ''}`, total: evs.length, linhas: evs.map(ev => ({
+          t: ev.titulo, sub: `${fmtDM(ev.d)} · ${ev.emps ? (ev.emps.length === 1 ? ev.emps[0].nome : ev.emps.length + ' empresa(s)') : ev.empresa ? ev.empresa.nome : 'só você'}${ev.sub ? ' · ' + ev.sub : ''}`,
+          data: ymd(ev.d), tom: ev.feito ? 'ok' : '', abrir: ev.empresa ? { empresa: ev.empresa.id, aba: ev.tab || 'dados' } : { aba: 'agenda', opts: { dia: ymd(ev.d) } } })) };
+      }
+      if (tipo === 'atrasos') {
+        const al = alertasPessoal(lista).filter(a => a.nivel !== 'soon');
+        const linhas = al.map(a => ({ t: (a.func ? (a.func.nome || 'Funcionário') + ' · ' : '') + a.txt, sub: `${a.empresa.nome} · ${a.nivel === 'late' ? 'atrasado' : 'hoje'} (${fmtDM(a.d)})`, tom: a.nivel === 'late' ? 'late' : 'warn', abrir: { empresa: a.empresa.id, aba: a.tab } }));
+        convencoesDaCarteira().linhas.filter(l => l.sit !== 'emdia' && l.emps.some(e => lista.includes(e))).forEach(l => linhas.push({ t: `Convenção ${tituloCurto(l.c)}`, sub: l.acoes[0] ? l.acoes[0].txt : '', tom: l.sit === 'vencida' ? 'late' : 'warn', abrir: { aba: 'sindicatos' } }));
+        return { titulo: 'Alertas do DP', total: linhas.length, linhas };
+      }
+      if (tipo === 'empresa') {
+        const e = findDpEmpresa(p.id); if (!e) return null;
+        const al = alertasPessoal([e]), prox = eventos(t, addDays(t, 45), [e]).filter(ev => ev.tipo !== 'geral').slice(0, 4);
+        const ls = [{ t: `${e.tributacao || 'sem tributação'} · ${e.situacao}`, sub: `${e.responsavel || 'sem responsável'}${e.uf ? ' · ' + e.uf : ''}${e.dataBase ? ' · data-base ' + e.dataBase.toLowerCase() : ''}` },
+          { t: `${nfEmp(e)} funcionário(s) ativo(s)`, sub: empConvTxt(e).txt, tom: empConvTxt(e).ok ? '' : 'warn' }];
+        al.slice(0, 4).forEach(a => ls.push({ t: (a.func ? (a.func.nome || '') + ' · ' : '') + a.txt, sub: fmtDM(a.d), tom: a.nivel === 'late' ? 'late' : 'warn', abrir: { empresa: e.id, aba: a.tab } }));
+        prox.forEach(ev => ls.push({ t: ev.titulo, sub: fmtDM(ev.d) + ' ' + wd(ev.d), tom: '', abrir: { empresa: e.id, aba: ev.tab || 'dados' } }));
+        return { titulo: e.nome, total: ls.length, linhas: ls, abrirFicha: { empresa: e.id, aba: 'dados' } };
+      }
+      if (tipo === 'carteira') {
+        const por = {};
+        state.dpEmpresas.filter(ativa).forEach(e => { const a = e.responsavel || '(sem responsável)'; const q = por[a] = por[a] || { n: 0, f: 0 }; q.n++; q.f += nfEmp(e); });
+        const ks = Object.keys(por).filter(a => !ana || norm(a) === norm(ana)).sort((a, b) => por[b].n - por[a].n);
+        return { titulo: 'Carteira do DP', total: ks.length, linhas: ks.map(a => ({ t: `${a}: ${por[a].n} empresa(s)`, sub: `${por[a].f} funcionário(s)`, tom: '', abrir: { aba: 'cartela' } })) };
+      }
+      return null;
+    },
+  };
+  window.__hubApi = {
+    versao: 1,
+    ativo: () => state.frameModule || state.activeModule || '',
+    abrirModulo: (k) => openModule(k),
+    inicio: () => goHome(),
+    quadros: () => $$('.portal-frame'),
+    api(k) { if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
+    carregar(k) {
+      if (k !== 'dp' && !FRAMES[k]) return Promise.resolve(null);
+      if (k !== 'dp') preloadFrame(k);
+      return new Promise((ok) => { const t0 = Date.now(); const tick = () => { const a = window.__hubApi.api(k); if ((a && a.pronto()) || Date.now() - t0 > 20000) return ok(a); setTimeout(tick, 250); }; tick(); });
+    },
+    modulos: () => ['dp', ...Object.keys(FRAMES)],
+  };
+  carregarScriptExt('assistente.js?v=1').catch(() => {});
 
   loadPrefs();
   applyTheme();

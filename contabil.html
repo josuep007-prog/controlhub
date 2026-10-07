@@ -2116,6 +2116,56 @@ function ligarBanco(){
 }
 function erroBanco(err){ console.error(err); toast("Falha ao ler os dados do Hub. Recarregue a página."); }
 
+/* ============ ponte com o assistente do Hub ============ */
+window.__assistente = {
+  modulo: "contabil", nome: "Contábil",
+  abas: [["painel", "Painel"], ["fechamento", "Fechamento"], ["carteira", "Carteira"], ["prazos", "Prazos"], ["cadastro", "Cadastro"]],
+  pronto: function(){ return !!S.carregou.empresas; },
+  exemplo: function(){ return false; },
+  empresas: function(){ return listaEmpresas().map(function(e){ return {id:e.id, nome:e.nome, cnpj:cnpjDig(e.cnpj), analista:e.analista}; }); },
+  analistas: function(){ return analistas(); },
+  irPara: function(v, o){ if(VIEWS.indexOf(v) === -1) return false; irPara(v, o); return true; },
+  abrirEmpresa: function(id){ if(!S.empresas[id]) return false; abrirFicha(id); return true; },
+  consultar: function(tipo, p){
+    p = p || {};
+    var de = parseYmd(p.de) || hoje(), ate = parseYmd(p.ate) || de, ana = p.analista || "";
+    var dele = function(e){ return !ana || norm(e.analista) === norm(ana) || norm(e.apoio) === norm(ana); };
+    if(tipo === "vencimentos"){
+      var vs = vencimentosImpostos(de, ate).concat(vencimentosAnuais(de, ate)).map(function(v){
+        var emps = v.emps.filter(dele), pend = v.pendentes.filter(dele);
+        return {v: v, n: emps.length, pend: pend.length};
+      }).filter(function(x){ return x.n; }).sort(function(a, b){ return a.v.data - b.v.data; });
+      return {titulo: "Vencimentos do Contábil, " + dataBR(ymd(de)) + (ymd(ate) !== ymd(de) ? " a " + dataBR(ymd(ate)) : ""), total: vs.length, linhas: vs.map(function(x){
+        var v = x.v;
+        return {t: v.def.l + (v.tipo === "imp" ? " de " + compCurta(v.comp) : " " + v.ano), sub: dataBR(ymd(v.data)).slice(0, 5) + " · " + (x.pend ? x.pend + " de " + x.n + " empresas pendentes" : "tudo feito (" + x.n + ")"), data: ymd(v.data), tom: x.pend ? (v.data < hoje() ? "late" : "") : "ok", abrir: {aba: "prazos"}};
+      })};
+    }
+    if(tipo === "atrasos"){
+      var at = empresasControle().filter(dele).map(function(e){ return {e: e, r: resumoAte(e)}; }).filter(function(x){ return x.r.faixa === 1 || x.r.faixa === 2 || x.r.faixa === 3; }).sort(function(a, b){ return b.r.meses - a.r.meses; });
+      return {titulo: "Fechamento atrasado no Contábil", total: at.length, linhas: at.map(function(x){ return {t: x.e.nome, sub: "fechado até " + rotAte(x.r.ate) + " · " + rotAtraso(x.r.meses) + " de atraso" + (x.r.piores.length && x.r.piores.length < ETAPAS.length ? " · mais atrasada: " + x.r.piores.map(function(f){ return f.c; }).join(", ") : ""), tom: x.r.faixa >= 2 ? "late" : "warn", abrir: {empresa: x.e.id}}; }), verTudo: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.faixa": "atras", "fx.ana": ana, "fx.busca": ""}}};
+    }
+    if(tipo === "pendencias"){
+      var cl = empresasControle().filter(dele).filter(function(e){ return !!entrada(compPendencia(e), e.id).pend; });
+      return {titulo: "Aguardando o cliente (Contábil)", total: cl.length, linhas: cl.map(function(e){ var c = compPendencia(e), en = entrada(c, e.id); return {t: e.nome, sub: en.pend + " · " + compCurta(c) + " · parado há " + diasParado(en) + " dia(s)", tom: "warn", abrir: {empresa: e.id}}; }), verTudo: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.faixa": "cli", "fx.ana": ana, "fx.busca": ""}}};
+    }
+    if(tipo === "empresa"){
+      var e = S.empresas[p.id]; if(!e) return null;
+      var r = resumoAte(e), pend = entrada(compPendencia(e), e.id).pend, ls = [];
+      ls.push({t: (TRIB[e.trib] ? TRIB[e.trib].l : "Sem tributação") + (e.grupo ? " · grupo " + e.grupo : ""), sub: [e.analista || "sem analista", e.apoio ? "apoio " + e.apoio : "", SIT[e.sit].l].filter(Boolean).join(" · ")});
+      ls.push({t: r.faixa === "ni" && !r.ate ? "Falta informar o andamento" : "Fechado até " + rotAte(r.ate), sub: fimEmp(e) ? rotAtraso(r.meses) + (r.meses ? " de atraso" : "") : "", tom: r.faixa === 0 ? "ok" : r.faixa === "ni" ? "" : r.faixa === 1 ? "warn" : "late", abrir: {empresa: e.id}});
+      if(pend) ls.push({t: "Aguardando o cliente: " + pend, sub: "", tom: "warn"});
+      return {titulo: e.nome, total: ls.length, linhas: ls, abrirFicha: {empresa: e.id}};
+    }
+    if(tipo === "carteira"){
+      var por = {};
+      empresasControle().forEach(function(x){ var a = x.analista || "(sem analista)"; var q = por[a] = por[a] || {n: 0, atr: 0}; q.n++; var f = resumoAte(x).faixa; if(f === 1 || f === 2 || f === 3) q.atr++; });
+      var ks = Object.keys(por).filter(function(a){ return !ana || norm(a) === norm(ana); }).sort(function(a, b){ return por[b].n - por[a].n; });
+      return {titulo: "Carteira do Contábil", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com fechamento atrasado", tom: q.atr ? "warn" : "ok", abrir: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": a === "(sem analista)" ? "" : a, "fx.faixa": "", "fx.busca": ""}}}; })};
+    }
+    return null;
+  }
+};
+
 (function iniciar(){
   var p = lerPrefs();
   if(p.eu) S.eu = p.eu;

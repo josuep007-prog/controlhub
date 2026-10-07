@@ -9306,6 +9306,62 @@
     }catch(e){}
     return window.claude && window.claude.use ? window.claude.use(n) : Promise.resolve(null);
   }
+  /* ---------- ponte com o assistente do Hub ---------- */
+  window.__assistente = {
+    modulo: "portal", nome: "Portal do Cliente",
+    abas: [["dashboard", "Hoje"], ["progresso", "Consulta"], ["foco", "Foco"], ["impedimentos", "Impedimentos"], ["relatorios", "Relatórios"], ["cadastro", "Cadastro"]],
+    pronto: function(){ return !carregando(); },
+    exemplo: function(){ return false; },
+    empresas: function(){ return state.empresas.filter(function(e){ return e.ativo !== false; }).map(function(e){
+      var d = state.setores.filter(function(s){ return s.empresaId === e.id && s.analistaNome; })[0];
+      return {id:e.id, nome:e.nome, cnpj:String(e.cnpj || "").replace(/\D/g, ""), analista:d ? d.analistaNome : ""};
+    }); },
+    analistas: function(){ var m = {}; state.setores.forEach(function(s){ if(s.analistaNome) m[s.analistaNome] = true; }); return Object.keys(m).sort(); },
+    irPara: function(v){ if(["dashboard","progresso","foco","impedimentos","relatorios","cadastro"].indexOf(v) === -1) return false; setView(v); return true; },
+    abrirEmpresa: function(){ setView("progresso"); return true; },
+    consultar: function(tipo, p){
+      p = p || {};
+      var de = p.de || hojeISO(), ate = p.ate || de, ana = p.analista || "", hoje_ = hojeISO();
+      var docsDe = function(id){ return state.setores.filter(function(s){ return s.empresaId === id; }); };
+      var daAna = function(empresaId, setores){ return !ana || docsDe(empresaId).some(function(s){ return (!setores || setores.indexOf(s.setor) !== -1) && normBusca(s.analistaNome) === normBusca(ana); }); };
+      var dataBR_ = function(k){ return k ? k.slice(8) + "/" + k.slice(5, 7) : ""; };
+      if(tipo === "vencimentos"){
+        var ls = [];
+        state.contatos.forEach(function(c){
+          if(c.statusTreinamento === "agendado" && c.agendadoPara && c.agendadoPara >= de && c.agendadoPara <= ate && daAna(c.empresaId, c.setores)) ls.push({t: "Treinamento: " + (c.nome || "contato"), sub: dataBR_(c.agendadoPara) + (c.agendadoHora ? " às " + c.agendadoHora : "") + " · " + (c.empresaNome || ""), data: c.agendadoPara, tom: "", abrir: {aba: "dashboard"}});
+        });
+        state.setores.forEach(function(sd){
+          var inf = etapaInfo(sd, "treinamentoAnalista", sd.empresaId);
+          if(inf.status === "agendado" && inf.agendadoPara && inf.agendadoPara >= de && inf.agendadoPara <= ate && (!ana || normBusca(sd.analistaNome) === normBusca(ana))) ls.push({t: "Treinamento do analista (" + SETOR_LABEL[sd.setor] + ")", sub: dataBR_(inf.agendadoPara) + (inf.agendadoHora ? " às " + inf.agendadoHora : "") + " · " + (sd.empresaNome || ""), data: inf.agendadoPara, tom: "", abrir: {aba: "dashboard"}});
+        });
+        ls.sort(function(a, b){ return a.data < b.data ? -1 : 1; });
+        return {titulo: "Agenda do Portal do Cliente", total: ls.length, linhas: ls};
+      }
+      if(tipo === "atrasos" || tipo === "pendencias"){
+        var m = model(), out = [];
+        state.contatos.forEach(function(c){ if(agendamentoAtrasado(c) && daAna(c.empresaId, c.setores)) out.push({t: "Treinamento atrasado: " + (c.nome || "contato"), sub: (c.empresaNome || "") + " · era para " + dataBR_(c.agendadoPara), tom: "late", abrir: {aba: "dashboard"}}); });
+        m.bloqueios.forEach(function(b){ out.push({t: "Impedimento: " + b.nome, sub: (b.desc || "") + (b.aguardando ? " · aguardando " + b.aguardando : "") + (b.desde ? " · desde " + dataBR_(b.desde) : ""), tom: "warn", abrir: {aba: "impedimentos"}}); });
+        return {titulo: "Atrasos e impedimentos no Portal do Cliente", total: out.length, linhas: out};
+      }
+      if(tipo === "empresa"){
+        var e = state.empresas.filter(function(x){ return x.id === p.id; })[0]; if(!e) return null;
+        var docs = docsDe(e.id), fr = frentesDaEmpresa(e, docs), l2 = [];
+        l2.push({t: "Progresso geral: " + Math.round(progressoEmpresa(e, docs) * 100) + "%", sub: fr.length + " frente(s) em implantação", tom: ""});
+        fr.forEach(function(f){ l2.push({t: SETOR_LABEL[f.setor] + ": " + Math.round(progressoSetor(e, f) * 100) + "%", sub: (f.analistaNome || "sem analista") + (f.impedimento && f.impedimento.ativo ? " · impedimento: " + (f.impedimento.descricao || "") : ""), tom: f.impedimento && f.impedimento.ativo ? "warn" : ""}); });
+        var cs = state.contatos.filter(function(c){ return c.empresaId === e.id; });
+        if(cs.length) l2.push({t: cs.length + " contato(s)", sub: cs.filter(function(c){ return c.statusTreinamento === "concluido"; }).length + " treinado(s)", tom: ""});
+        return {titulo: e.nome + " no Portal do Cliente", total: l2.length, linhas: l2, abrirFicha: {empresa: e.id}};
+      }
+      if(tipo === "carteira"){
+        var por = {};
+        state.setores.forEach(function(s){ if(!s.analistaNome) return; (por[s.analistaNome] = por[s.analistaNome] || []).push(s); });
+        var ks = Object.keys(por).filter(function(a){ return !ana || normBusca(a) === normBusca(ana); });
+        return {titulo: "Frentes por analista no Portal do Cliente", total: ks.length, linhas: ks.map(function(a){ return {t: a + ": " + por[a].length + " frente(s)", sub: "", tom: ""}; })};
+      }
+      return null;
+    }
+  };
+
   usarCap("db").then(function(db){
     if(!db){ semBanco = true; $("#carregandoAviso").hidden = true; $("#dbWarning").hidden = false; renderAll(); return; }
     try{ dbRef = monitorarGravacoes(db); dbRef.collection("empresas"); }catch(e){ console.error(e); dbRef = db; }
