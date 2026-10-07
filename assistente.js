@@ -186,7 +186,7 @@
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
     {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas."},
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
-    {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Clique num espaço vazio da tela e eu vou até lá. Clicando em mim, abre a conversa. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
+    {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Eu ando pela tela como se o layout fosse chão e parede: caminho pelo topo dos cartões e botões, pulo degraus e caio quando o chão some. Clique num espaço vazio e eu vou até lá. Clicando em mim, abre a conversa; em “🎨 Visual” você troca o meu desenho. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
   ];
   var VAZIAS = " como funciona funcionam faco fazer posso fazemos qual quais onde fica para pra isso esse essa esta uma uns que sobre tenho duvida quero saber preciso usar uso ";
   function buscarAjuda(t, mods, minimo) {
@@ -635,47 +635,77 @@
   }
 
   /* ============ mascote ============ */
-  var W = 56, HM = 66;
-  var el = null, painel = null, pos = {x: 0, y: 0}, tAnda = 0, tWander = 0, tSono = 0, andando = false, aberto = false, oculto = false, dormiu = false;
-  var SVG = '<svg viewBox="0 0 64 76" width="100%" height="100%" aria-hidden="true" focusable="false">' +
-    '<g class="tx-antena"><line x1="32" y1="9" x2="32" y2="17" stroke="#47545F" stroke-width="2.4" stroke-linecap="round"/><circle cx="32" cy="7" r="4.2" fill="#C2000C"/></g>' +
-    '<rect class="tx-pe tx-pe-e" x="20" y="62" width="10" height="12" rx="5" fill="#2B4A75"/><rect class="tx-pe tx-pe-d" x="34" y="62" width="10" height="12" rx="5" fill="#2B4A75"/>' +
-    '<rect class="tx-braco tx-braco-e" x="3" y="34" width="10" height="21" rx="5" fill="#3C659B"/><rect class="tx-braco tx-braco-d" x="51" y="34" width="10" height="21" rx="5" fill="#3C659B"/>' +
-    '<rect x="9" y="15" width="46" height="52" rx="21" fill="#3C659B"/><rect x="9" y="15" width="46" height="52" rx="21" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="1.5"/>' +
-    '<rect x="15" y="21" width="34" height="28" rx="13" fill="#EAF2FA"/>' +
-    '<g class="tx-olhos"><ellipse cx="25" cy="34" rx="4.2" ry="5.4" fill="#101820"/><ellipse cx="39" cy="34" rx="4.2" ry="5.4" fill="#101820"/><circle cx="26.4" cy="32" r="1.4" fill="#fff"/><circle cx="40.4" cy="32" r="1.4" fill="#fff"/></g>' +
-    '<ellipse cx="20.5" cy="41" rx="3" ry="1.8" fill="#E8474B" opacity=".35"/><ellipse cx="43.5" cy="41" rx="3" ry="1.8" fill="#E8474B" opacity=".35"/>' +
-    '<path class="tx-boca" d="M27.5 42.5 q4.5 4.2 9 0" stroke="#101820" stroke-width="2" fill="none" stroke-linecap="round"/>' +
-    '<path d="M23 59 l18 -7" stroke="#C2000C" stroke-width="4.2" stroke-linecap="round"/><path d="M31 61 l11 -4.5" stroke="#8CC6EC" stroke-width="3" stroke-linecap="round"/></svg>';
-  var CSS = '#tx-mascote{position:fixed;left:0;top:0;width:' + W + 'px;height:' + HM + 'px;z-index:525;cursor:pointer;outline:none;will-change:transform;-webkit-tap-highlight-color:transparent;user-select:none}' +
-    '#tx-mascote.tx-oculto,#tx-painel.tx-oculto{display:none}' +
-    '#tx-mascote .tx-corpo{position:absolute;inset:0;transform-origin:50% 100%}' +
-    '#tx-mascote .tx-sombra{position:absolute;left:10px;right:10px;bottom:-3px;height:7px;border-radius:50%;background:rgba(16,24,32,.28);filter:blur(2px)}' +
-    '#tx-mascote:focus-visible .tx-corpo{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 3px #6BAAC9) drop-shadow(0 0 3px #6BAAC9)}' +
-    '#tx-mascote:hover .tx-corpo{filter:brightness(1.08)}' +
-    '#tx-mascote .tx-pe,#tx-mascote .tx-braco,#tx-mascote .tx-olhos{transform-box:fill-box;transform-origin:center}' +
-    '#tx-mascote .tx-braco-d{transform-origin:20% 15%}#tx-mascote .tx-braco-e{transform-origin:80% 15%}' +
-    '#tx-mascote.tx-parado .tx-corpo{animation:txRespira 3.2s ease-in-out infinite}' +
-    '#tx-mascote .tx-olhos{animation:txPisca 5.5s infinite}' +
-    '#tx-mascote.tx-andando .tx-corpo{animation:txBalanca .3s ease-in-out infinite alternate}' +
-    '#tx-mascote.tx-andando .tx-pe-e{animation:txPasso .3s ease-in-out infinite alternate}#tx-mascote.tx-andando .tx-pe-d{animation:txPasso .3s ease-in-out infinite alternate-reverse}' +
-    '#tx-mascote.tx-andando .tx-braco-e{animation:txSwing .3s ease-in-out infinite alternate}#tx-mascote.tx-andando .tx-braco-d{animation:txSwing .3s ease-in-out infinite alternate-reverse}' +
-    '#tx-mascote.tx-dir .tx-olhos{translate:2px 0}#tx-mascote.tx-esq .tx-olhos{translate:-2px 0}' +
-    '#tx-mascote.tx-acena .tx-braco-d{animation:txAcena .45s ease-in-out 4 alternate}' +
-    '#tx-mascote.tx-dorme .tx-olhos{animation:none;transform:scaleY(.12) translateY(3px)}#tx-mascote.tx-dorme .tx-corpo{animation:txRespira 4s ease-in-out infinite}' +
+  var CEL = 4, COLS = 14, W = CEL * COLS, HM = 44;
+  var el = null, painel = null, pos = {x: 0, y: 0}, fx = 0, fy = 0, tWander = 0, tSono = 0, andando = false, aberto = false, oculto = false, dormiu = false;
+  /* Visuais: pixel art (cada letra é uma cor da paleta; "E" = olhos; "." = vazio). Pernas em dois quadros para o passo. */
+  var SKINS = {
+    laranja: {nome: "Laranjinha", body: "O", pal: {O: "#E07A3F", D: "#B2531F", E: "#241510"},
+      rows: ["...OOOOOOOO...", "...OOOOOOOO...", "...OOEOOEOO...", "...OOEOOEOO...", "..OOOOOOOOOO..", "..OOOOOOOOOO..", "...OOOOOOOO...", "...OOOOOOOO...", "...DDDDDDDD..."],
+      legsA: ["...O.O..O.O...", "...D.D..D.D..."], legsB: ["....O.OO.O....", "....D.DD.D...."]},
+    controltax: {nome: "ControlTax", body: "B", pal: {B: "#3C659B", R: "#C2000C", E: "#101820"},
+      rows: ["......RR......", "......RR......", "..BBBBBBBBBB..", "..BBBBBBBBBB..", "..BBEEBBEEBB..", "..BBEEBBEEBB..", "..BBBBBBBBBB..", "..RRRRRRRRRR..", "...BBBBBBBB..."],
+      legsA: ["...BB....BB...", "...BB....BB..."], legsB: ["....BB..BB....", "....BB..BB...."]},
+    fantasma: {nome: "Fantasminha", body: "G", pal: {G: "#6FC3F0", W: "#FFFFFF", E: "#1B3A8A"},
+      rows: ["....GGGGGG....", "..GGGGGGGGGG..", ".GGGGGGGGGGGG.", ".GGWWGGGGWWGG.", ".GGWEGGGGWEGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG."],
+      legsA: [".GGG..GG..GGG.", ".GGG..GG..GGG."], legsB: [".GG..GGGG..GG.", ".GG..GGGG..GG."]},
+    alien: {nome: "Alienzinho", body: "A", pal: {A: "#5FD068", E: "#10301A"},
+      rows: ["..A........A..", "...A......A...", "..AAAAAAAAAA..", ".AAEEAAAAEEAA.", "AAAEEAAAAEEAAA", "AAAAAAAAAAAAAA", "A.AAAAAAAAAA.A", "A.A........A.A"],
+      legsA: ["...AA....AA...", "..AA......AA.."], legsB: ["....AA..AA....", "...AA....AA..."]},
+    gato: {nome: "Gatinho", body: "C", pal: {C: "#E6B15A", P: "#E87A8F", E: "#2B2B2B"},
+      rows: [".C..........C.", ".CC........CC.", ".CCCCCCCCCCCC.", ".CCCCCCCCCCCC.", ".CCECCCCCCECC.", ".CCECCCCCCECC.", ".CCCCCPPCCCCC.", "..CCCCCCCCCC..", "..CCCCCCCCCC.."],
+      legsA: ["..CC......CC..", "..CC......CC.."], legsB: ["...CC....CC...", "...CC....CC..."]}
+  };
+  var skinKey = "laranja";
+  function skinDe(k) { return SKINS[k] || SKINS.laranja; }
+  function altura(k) { var s = skinDe(k); return (s.rows.length + 2) * CEL; }
+  function runs(linhas, y0, cor, so) {
+    var out = "";
+    linhas.forEach(function (ln, j) {
+      for (var i = 0; i < ln.length;) {
+        var ch = ln.charAt(i); if (ch === ".") { i++; continue; }
+        var k = i; while (k < ln.length && ln.charAt(k) === ch) k++;
+        var c = cor(ch); if (c && (!so || so(ch))) out += '<rect x="' + i + '" y="' + (y0 + j) + '" width="' + (k - i) + '" height="1" fill="' + c + '"/>';
+        i = k;
+      }
+    });
+    return out;
+  }
+  function svgSkin(key) {
+    var s = skinDe(key), n = s.rows.length, p = s.pal;
+    var corpo = runs(s.rows, 0, function (ch) { return ch === "E" ? p[s.body] : p[ch]; });
+    var eo = runs(s.rows, 0, function (ch) { return p.E; }, function (ch) { return ch === "E"; });
+    var ec = ""; s.rows.forEach(function (ln, j) { for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") ec += '<rect x="' + i + '" y="' + (j + 0.6) + '" width="1" height="0.4" fill="' + p.E + '"/>'; });
+    return '<svg viewBox="0 0 ' + COLS + ' ' + (n + 2) + '" width="100%" height="100%" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><g>' + corpo + '</g>' +
+      '<g class="tx-lA">' + runs(s.legsA, n, function (ch) { return p[ch]; }) + '</g><g class="tx-lB">' + runs(s.legsB, n, function (ch) { return p[ch]; }) + '</g>' +
+      '<g class="tx-eo">' + eo + '</g><g class="tx-ec">' + ec + '</g></svg>';
+  }
+  var CSS = '#tx-mascote{position:fixed;left:0;top:0;width:' + W + 'px;height:var(--tx-hm,44px);z-index:525;cursor:pointer;outline:none;will-change:transform;-webkit-tap-highlight-color:transparent;user-select:none}' +
+    '#tx-mascote.tx-oculto,#tx-painel.tx-oculto{display:none}#tx-mascote.tx-poof{opacity:0;transition:opacity .16s}' +
+    '#tx-mascote .tx-corpo{position:absolute;inset:0}#tx-mascote .tx-face{position:absolute;inset:0}#tx-mascote.tx-esq .tx-face{transform:scaleX(-1)}' +
+    '#tx-mascote .tx-sombra{position:absolute;left:8px;right:8px;bottom:-2px;height:5px;border-radius:50%;background:rgba(16,24,32,.25)}' +
+    '#tx-mascote:focus-visible .tx-corpo{filter:drop-shadow(0 0 2px #6BAAC9) drop-shadow(0 0 2px #6BAAC9)}#tx-mascote:hover .tx-corpo{filter:brightness(1.1)}' +
+    '#tx-mascote .tx-lB{visibility:hidden}#tx-mascote .tx-ec{visibility:hidden}' +
+    '#tx-mascote.tx-andando .tx-lA{animation:txVA .34s steps(1) infinite}#tx-mascote.tx-andando .tx-lB{animation:txVB .34s steps(1) infinite}' +
+    '#tx-mascote.tx-andando .tx-corpo{animation:txBob .34s steps(1) infinite}' +
+    '#tx-mascote.tx-pulo .tx-lA{visibility:hidden}#tx-mascote.tx-pulo .tx-lB{visibility:visible}' +
+    '#tx-mascote .tx-eo{animation:txPisca 5.5s steps(1) infinite}#tx-mascote .tx-ec{animation:txPisca2 5.5s steps(1) infinite}' +
+    '#tx-mascote.tx-dorme .tx-eo{animation:none;visibility:hidden}#tx-mascote.tx-dorme .tx-ec{animation:none;visibility:visible}' +
+    '#tx-mascote.tx-parado .tx-corpo{animation:txRespira 3s ease-in-out infinite}#tx-mascote.tx-acena .tx-corpo{animation:txPula .32s ease-out 4}' +
     '#tx-mascote .tx-z{position:absolute;right:-6px;top:-8px;font:700 13px Archivo,sans-serif;color:var(--blue-deep,#3C659B);opacity:0}#tx-mascote.tx-dorme .tx-z{animation:txZ 2.4s ease-out infinite}' +
-    '#tx-mascote .tx-balao{position:absolute;bottom:' + (HM + 8) + 'px;left:50%;transform:translateX(-50%) scale(.9);transform-origin:50% 100%;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;padding:6px 10px;font:600 12px "IBM Plex Sans",sans-serif;white-space:nowrap;box-shadow:var(--shadow-1,0 2px 8px rgba(0,0,0,.15));opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}' +
+    '#tx-mascote .tx-balao{position:absolute;bottom:calc(var(--tx-hm,44px) + 8px);left:50%;transform:translateX(-50%) scale(.9);transform-origin:50% 100%;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;padding:6px 10px;font:600 12px "IBM Plex Sans",sans-serif;white-space:nowrap;box-shadow:0 6px 18px rgba(16,24,32,.18);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}' +
     '#tx-mascote .tx-balao.on{opacity:1;transform:translateX(-50%) scale(1)}' +
-    '@keyframes txRespira{50%{transform:translateY(-2px) scaleY(1.02)}}@keyframes txPisca{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}' +
-    '@keyframes txBalanca{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-3px) rotate(3deg)}}@keyframes txPasso{from{transform:translateY(0)}to{transform:translateY(-5px)}}' +
-    '@keyframes txSwing{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}@keyframes txAcena{from{transform:rotate(0)}to{transform:rotate(-125deg)}}@keyframes txZ{0%{opacity:0;transform:translate(0,4px)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}' +
+    '@keyframes txVA{0%{visibility:visible}50%{visibility:hidden}}@keyframes txVB{0%{visibility:hidden}50%{visibility:visible}}@keyframes txBob{50%{transform:translateY(-3px)}}' +
+    '@keyframes txPisca{0%,94%{visibility:visible}95%,97%{visibility:hidden}98%,100%{visibility:visible}}@keyframes txPisca2{0%,94%{visibility:hidden}95%,97%{visibility:visible}98%,100%{visibility:hidden}}' +
+    '@keyframes txRespira{50%{transform:translateY(-1px)}}@keyframes txPula{40%{transform:translateY(-14px)}}@keyframes txZ{0%{opacity:0;transform:translate(0,4px)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}' +
     '@media (prefers-reduced-motion:reduce){#tx-mascote *{animation:none!important}}' +
     '#tx-painel{position:fixed;z-index:526;width:min(380px,calc(100vw - 16px));height:min(540px,calc(100vh - 24px));display:flex;flex-direction:column;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.32);overflow:hidden;font:13px "IBM Plex Sans",sans-serif;animation:txPainel .18s ease-out}' +
     '@keyframes txPainel{from{opacity:0;transform:translateY(8px) scale(.98)}}' +
     '#tx-painel header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA)}' +
     '#tx-painel header b{font:700 14px Archivo,sans-serif;display:block;line-height:1.1}#tx-painel header small{display:block;font-size:11px;color:var(--ink-3,#5F6D77)}' +
     '#tx-painel header .tx-t{flex:1;min-width:0}#tx-painel header button{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;border-radius:4px;padding:5px 7px;font:600 11.5px "IBM Plex Sans",sans-serif}#tx-painel header button:hover{background:var(--surface-3,#EAEFF3);color:var(--ink,#101820)}' +
-    '#tx-painel .tx-av{width:30px;height:34px;flex:none}' +
+    '#tx-skins{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface,#fff)}#tx-skins[hidden]{display:none}' +
+    '.tx-sk{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA);color:var(--ink-2,#47545F);border-radius:8px;padding:6px 8px;font:600 10.5px "IBM Plex Sans",sans-serif;cursor:pointer}.tx-sk:hover{border-color:var(--blue-deep,#3C659B)}.tx-sk.on{border-color:var(--blue-deep,#3C659B);box-shadow:inset 0 0 0 1px var(--blue-deep,#3C659B)}.tx-sk-i{width:42px;height:34px;display:block}' +
+    '#tx-painel .tx-av{width:32px;height:30px;flex:none}' +
     '#tx-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}' +
     '.tx-m-u{align-self:flex-end;max-width:85%;background:var(--blue-deep,#3C659B);color:#fff;padding:7px 11px;border-radius:12px 12px 3px 12px;white-space:pre-wrap;overflow-wrap:anywhere}' +
     ':root[data-theme="dark"] .tx-m-u{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tx-m-u{color:#0B1015}}' +
@@ -702,13 +732,10 @@
     '#tx-painel form input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;font-size:13px}#tx-painel form button{border:0;border-radius:8px;background:var(--blue-deep,#3C659B);color:#fff;font:600 12.5px "IBM Plex Sans",sans-serif;padding:0 14px;cursor:pointer}' +
     ':root[data-theme="dark"] #tx-painel form button{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #tx-painel form button{color:#0B1015}}' +
     '.tx-pensa{display:inline-flex;gap:4px;padding:9px 12px}.tx-pensa i{width:6px;height:6px;border-radius:50%;background:var(--ink-3,#5F6D77);animation:txPensa 1s infinite}.tx-pensa i:nth-child(2){animation-delay:.15s}.tx-pensa i:nth-child(3){animation-delay:.3s}@keyframes txPensa{50%{transform:translateY(-4px);opacity:.4}}' +
-    '@media (max-width:600px){#tx-painel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto;height:min(72vh,560px)}#tx-mascote{transform:scale(.9)}}';
+    '@media (max-width:600px){#tx-painel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto;height:min(72vh,560px)}}';
 
-  function vw() { return doc.documentElement.clientWidth || innerWidth; }
-  function vh() { return doc.documentElement.clientHeight || innerHeight; }
-  function limite(x, y) { return {x: Math.max(4, Math.min(vw() - W - 4, x)), y: Math.max(4, Math.min(vh() - HM - 4, y))}; }
-  function colocar(x, y) { pos = limite(x, y); el.style.transition = "none"; el.style.transform = "translate(" + pos.x + "px," + pos.y + "px)"; }
-  function posicaoAtual() { var r = el.getBoundingClientRect(); return {x: r.left, y: r.top}; }
+  function vw() { return Math.min(doc.documentElement.clientWidth || innerWidth, innerWidth); }
+  function vh() { return Math.min(doc.documentElement.clientHeight || innerHeight, innerHeight); }
   function classe(add, rem) { (rem || []).forEach(function (c) { el.classList.remove(c); }); (add || []).forEach(function (c) { el.classList.add(c); }); }
   function balao(txt, ms) {
     var b = $(".tx-balao", el); if (!b) return;
@@ -716,32 +743,276 @@
   }
   function acordar() { dormiu = false; classe([], ["tx-dorme"]); clearTimeout(tSono); tSono = setTimeout(adormecer, 120000); }
   function adormecer() { if (aberto || andando) { tSono = setTimeout(adormecer, 30000); return; } dormiu = true; classe(["tx-dorme"], ["tx-acena"]); }
-  // Caminha até (x, y), com os pés no ponto; chama `fim` ao chegar.
-  function andar(x, y, fim) {
-    acordar();
-    var a = posicaoAtual(), alvo = limite(x, y), dx = alvo.x - a.x, dy = alvo.y - a.y, dist = Math.sqrt(dx * dx + dy * dy);
-    clearTimeout(tAnda);
-    if (dist < 4 || reduzido()) { colocar(alvo.x, alvo.y); andando = false; classe(["tx-parado"], ["tx-andando"]); if (fim) fim(); return; }
-    var dur = Math.max(350, dist / 0.16);
-    andando = true;
-    classe(["tx-andando", dx >= 0 ? "tx-dir" : "tx-esq"], ["tx-parado", "tx-dir", "tx-esq", "tx-acena"]);
-    el.style.transition = "transform " + dur + "ms cubic-bezier(.35,.1,.3,1)";
-    el.style.transform = "translate(" + alvo.x + "px," + alvo.y + "px)";
-    pos = alvo;
-    tAnda = setTimeout(function () { andando = false; classe(["tx-parado"], ["tx-andando", "tx-dir", "tx-esq"]); if (fim) fim(); }, dur + 30);
+
+  /* ---------- física: o layout vira chão e parede ----------
+     Plataformas = topo de cada bloco visível com fundo/borda/sombra (cartões, botões, tabelas, cabeçalhos…);
+     o chão é a base da janela. O Tax anda pelo topo, sobe degraus baixos pulando, desce caindo e dá a volta em paredes altas. */
+  var JUMP = 240, VEL = 78, GRAV = 1700;
+  var plats = [], platT = 0, plano = null, tw = null, modo = "parado", rafId = 0, tUlt = 0, dirMov = 1, vy = 0, atual = null;
+  function hw() { return W / 2 - 6; }
+  function quadroVisivel() {
+    var r = null;
+    try { H.quadros().forEach(function (f) { try { if (!f.hidden && f.contentDocument && f.contentDocument.body) { var b = f.getBoundingClientRect(); if (b.width > 100) r = {f: f, rect: b, d: f.contentDocument}; } } catch (e) {} }); } catch (e) {}
+    return r;
   }
-  function parar() { if (!andando) return; var a = posicaoAtual(); clearTimeout(tAnda); colocar(a.x, a.y); andando = false; classe(["tx-parado"], ["tx-andando", "tx-dir", "tx-esq"]); }
+  function minX() { var q = quadroVisivel(); return q ? Math.max(0, q.rect.left) : 0; }
+  function coletar() {
+    var q = quadroVisivel(), d = q ? q.d : doc, ox = q ? q.rect.left : 0, oy = q ? q.rect.top : 0, VW = vw(), VH = vh(), out = [], all, view;
+    try { all = d.body.getElementsByTagName("*"); view = d.defaultView; } catch (e) { all = []; }
+    var n = Math.min(all.length, 4500), mx = minX();
+    for (var i = 0; i < n; i++) {
+      var e = all[i];
+      if (e.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+      var r = e.getBoundingClientRect(), w = r.width, h = r.height;
+      if (w < 70 || h < 26 || (w > VW * 0.97 && h > VH * 0.7)) continue;
+      var L = r.left + ox, T = r.top + oy, R = r.right + ox, B = r.bottom + oy;
+      if (T < 44 || T > VH - 36 || R < mx + 10 || L > VW - 10) continue;
+      var cs; try { cs = view.getComputedStyle(e); } catch (x) { continue; }
+      if (cs.visibility === "hidden" || cs.display === "none" || +cs.opacity < 0.2) continue;
+      var tem = false, bg = cs.backgroundColor;
+      if (bg && bg !== "transparent") { var m = /rgba\([^)]*,\s*([\d.]+)\)$/.exec(bg); tem = !m || +m[1] > 0.15; }
+      if (!tem && parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle !== "none") tem = true;
+      if (!tem && cs.boxShadow && cs.boxShadow !== "none") tem = true;
+      if (!tem) continue;
+      if (e.closest && e.closest("#tx-mascote,#tx-painel")) continue;
+      out.push({l: Math.max(mx, L), r: Math.min(VW, R), t: T, b: B});
+    }
+    out.sort(function (a, b) { return a.t - b.t || a.l - b.l; });
+    var fim = [];
+    out.forEach(function (p) { if (fim.length < 320 && !fim.some(function (o) { return Math.abs(o.t - p.t) < 3 && Math.abs(o.l - p.l) < 8 && Math.abs(o.r - p.r) < 8; })) fim.push(p); });
+    fim.push({l: mx, r: VW, t: VH - 2, b: VH + 40, piso: true});
+    return fim;
+  }
+  function atualizarPlats() { plats = coletar(); platT = Date.now(); }
+  function apoio(x, y, tol) {
+    var m = null, dm = 1e9;
+    plats.forEach(function (p) { if (x >= p.l - 2 && x <= p.r + 2) { var dd = Math.abs(p.t - y); if (dd <= tol && dd < dm) { dm = dd; m = p; } } });
+    return m;
+  }
+  function abaixo(x, y) {
+    var m = null;
+    plats.forEach(function (p) { if (x >= p.l - 2 && x <= p.r + 2 && p.t >= y + 1 && (!m || p.t < m.t)) m = p; });
+    return m || plats[plats.length - 1];
+  }
+  function parede(d) {
+    var h = hw();
+    for (var i = 0; i < plats.length; i++) {
+      var p = plats[i];
+      if (p.piso || p.t >= fy - 6 || p.b <= fy - HM + 8) continue;
+      if (fx >= p.l - 1 && fx <= p.r + 1) continue;
+      if (d > 0 && fx < p.l && fx + h + 3 >= p.l) return p;
+      if (d < 0 && fx > p.r && fx - h - 3 <= p.r) return p;
+    }
+    return null;
+  }
+  // Como ir da plataforma A para a B: ponto de partida em A, de chegada em B e tipo do movimento.
+  function aresta(A, B) {
+    var dy = A.t - B.t, h = hw() + 2, dir;
+    if (dy > JUMP) return null;
+    var gap;
+    if (B.l >= A.r - 12) { dir = 1; gap = B.l - A.r; } else if (B.r <= A.l + 12) { dir = -1; gap = A.l - B.r; } else gap = null;
+    if (gap === null && dy > 6) {
+      // B mais alta e sobreposta: pula direto para cima, no trecho em comum
+      var o0 = Math.max(A.l, B.l), o1 = Math.min(A.r, B.r);
+      if (o1 - o0 < 2 * h) return null;
+      var ox = Math.max(o0 + h, Math.min(o1 - h, (o0 + o1) / 2));
+      return {tipo: "sobe", dir: 1, a: ox, b: ox};
+    }
+    if (dy > 6 || Math.abs(dy) <= 6) {
+      if (gap === null || gap > (dy > 6 ? 70 : 80)) return null;
+      return dir > 0 ? {tipo: dy > 6 ? "sobe" : "plano", dir: 1, a: A.r - 6, b: Math.min(B.r - h, B.l + 14)} : {tipo: dy > 6 ? "sobe" : "plano", dir: -1, a: A.l + 6, b: Math.max(B.l + h, B.r - 14)};
+    }
+    // B mais baixa: sai pela borda de A e cai
+    if (B.l <= A.r + 140 && B.r >= A.r + 6 && B.r - B.l > 2 * h) return {tipo: "desce", dir: 1, a: A.r - 6, b: Math.max(B.l + h, Math.min(A.r + 26, B.r - h))};
+    if (B.r >= A.l - 140 && B.l <= A.l - 6 && B.r - B.l > 2 * h) return {tipo: "desce", dir: -1, a: A.l + 6, b: Math.min(B.r - h, Math.max(A.l - 26, B.l + h))};
+    return null;
+  }
+  function bfs(origem) {
+    var prev = new Map(), fila = [origem], vis = new Set([origem]);
+    while (fila.length) {
+      var A = fila.shift();
+      for (var i = 0; i < plats.length; i++) {
+        var B = plats[i]; if (vis.has(B)) continue;
+        var e = aresta(A, B); if (!e) continue;
+        vis.add(B); prev.set(B, {de: A, e: e}); fila.push(B);
+      }
+    }
+    return prev;
+  }
+  function passosAte(prev, origem, destino, xFinal) {
+    var cadeia = [], p = destino;
+    while (p && p !== origem) { var r = prev.get(p); if (!r) return null; cadeia.unshift({de: r.de, para: p, e: r.e}); p = r.de; }
+    var passos = [];
+    cadeia.forEach(function (c) {
+      passos.push({tipo: "anda", x: c.e.a});
+      var dx = c.e.b - c.e.a, desce = c.e.tipo === "desce";
+      var T = desce ? Math.max(0.28, Math.sqrt(2 * Math.max(1, c.para.t - c.de.t) / GRAV)) + Math.abs(dx) / 900 : 0.42 + Math.hypot(dx, c.para.t - c.de.t) / 800;
+      passos.push({tipo: "salta", x0: c.e.a, y0: c.de.t, x1: c.e.b, y1: c.para.t, T: T, arc: desce ? 12 : Math.max(24, c.de.t - c.para.t + 30), desce: desce, plat: c.para});
+    });
+    passos.push({tipo: "anda", x: xFinal});
+    return passos;
+  }
+  function desenhar() {
+    pos = {x: fx - W / 2, y: fy - HM};
+    el.style.transform = "translate3d(" + Math.round(pos.x) + "px," + Math.round(pos.y) + "px,0)";
+    if (aberto) posicionarPainel();
+  }
+  function parado() { modo = "parado"; andando = false; classe(["tx-parado"], ["tx-andando", "tx-pulo"]); }
+  function proximoPasso() {
+    if (!plano) { parado(); return; }
+    var s = plano.passos.shift();
+    if (!s) { var fim = plano.fim; plano = null; parado(); agendarPasseio(); if (fim) fim(); return; }
+    if (s.tipo === "anda") {
+      if (Math.abs(s.x - fx) < 1.5) { proximoPasso(); return; }
+      modo = "anda"; andando = true; alvoX = s.x; dirMov = s.x >= fx ? 1 : -1;
+      classe(["tx-andando", dirMov > 0 ? "tx-dir" : "tx-esq"], ["tx-parado", "tx-pulo", dirMov > 0 ? "tx-esq" : "tx-dir"]);
+    } else {
+      modo = "salta"; andando = true; tw = s; tw.t = 0; fx = s.x0; fy = s.y0; dirMov = s.x1 >= s.x0 ? 1 : -1;
+      classe(["tx-pulo", dirMov > 0 ? "tx-dir" : "tx-esq"], ["tx-parado", "tx-andando", dirMov > 0 ? "tx-esq" : "tx-dir"]);
+    }
+    iniciarRaf();
+  }
+  var alvoX = 0;
+  function aterrissar(p) { atual = p; fy = p.t; vy = 0; }
+  function cair() {
+    modo = "queda"; andando = true; vy = 0; plano = plano || null;
+    classe(["tx-pulo"], ["tx-parado", "tx-andando"]);
+    iniciarRaf();
+  }
+  function iniciarRaf() { if (!rafId) { tUlt = 0; rafId = requestAnimationFrame(tick); } }
+  function tick(ts) {
+    rafId = 0;
+    if (doc.hidden) { if (modo !== "parado") rafId = requestAnimationFrame(tick); return; }
+    var dt = tUlt ? Math.min(0.05, (ts - tUlt) / 1000) : 0.016; tUlt = ts;
+    if (Date.now() - platT > 600) {
+      var f0 = {x: fx, y: fy}; atualizarPlats();
+      if (modo === "anda") { var ap0 = apoio(fx, fy, 40); if (ap0) { fy = ap0.t; atual = ap0; } else cair(); }
+    }
+    if (modo === "anda") {
+      var h = hw(), mn = minX() + h, mxx = vw() - h, passo = VEL * dt * dirMov;
+      var w = parede(dirMov);
+      if (w) {
+        if (w.t >= fy - JUMP && plano) {
+          var x1 = dirMov > 0 ? Math.min(w.r - h, w.l + 14) : Math.max(w.l + h, w.r - 14), desti = plano.destino;
+          var T = 0.4;
+          plano.passos = [{tipo: "salta", x0: fx, y0: fy, x1: x1, y1: w.t, T: T, arc: Math.max(24, fy - w.t + 26), desce: false, plat: w}];
+          plano.replanejar = desti;
+          proximoPasso(); rafId = rafId || requestAnimationFrame(tick); return;
+        }
+        // parede alta demais: desiste do trajeto (o passeio só dá meia-volta)
+        if (plano && plano.destino) { var d0 = plano.destino, f1 = plano.fim; plano = null; teletransportar(d0.x, d0.t, f1); return; }
+        plano = null; parado(); agendarPasseio(); return;
+      }
+      var nx = fx + passo;
+      if (nx < mn || nx > mxx) { plano = null; parado(); agendarPasseio(); return; }
+      var chegou = (alvoX - fx) * (alvoX - (nx)) <= 0;
+      fx = chegou ? alvoX : nx;
+      desenhar();
+      if (chegou) proximoPasso(); else rafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (modo === "salta") {
+      tw.t += dt;
+      var u = Math.min(1, tw.t / tw.T);
+      fx = tw.x0 + (tw.x1 - tw.x0) * u;
+      fy = tw.desce ? tw.y0 + (tw.y1 - tw.y0) * u * u - 4 * tw.arc * u * (1 - u) : tw.y0 + (tw.y1 - tw.y0) * u - 4 * tw.arc * u * (1 - u);
+      desenhar();
+      if (u >= 1) {
+        fx = tw.x1; fy = tw.y1;
+        var ap = apoio(fx, fy, 10);
+        if (!ap) { cair(); rafId = rafId || requestAnimationFrame(tick); return; }
+        aterrissar(ap); desenhar();
+        if (plano && plano.replanejar) { var d1 = plano.replanejar, f2 = plano.fim, dd = plano.destino; plano.replanejar = null; plano.tent = (plano.tent || 0) + 1; if (plano.tent > 3) { plano = null; teletransportar(dd.x, dd.t, f2); return; } plano = null; irPara(dd.p, dd.x, f2, (dd.tent || 0) + 1); return; }
+        proximoPasso();
+      } else rafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (modo === "queda") {
+      var antes = fy; vy += GRAV * dt; fy += vy * dt;
+      var pouso = null;
+      plats.forEach(function (p) { if (fx >= p.l - 2 && fx <= p.r + 2 && p.t >= antes - 1 && p.t <= fy + 1 && (!pouso || p.t < pouso.t)) pouso = p; });
+      if (pouso) { aterrissar(pouso); desenhar(); if (plano && plano.destino && !plano.passos.length) { var q = plano.destino, f3 = plano.fim; plano = null; irPara(q.p, q.x, f3, 0); } else if (plano) proximoPasso(); else { parado(); agendarPasseio(); } return; }
+      desenhar(); rafId = requestAnimationFrame(tick);
+    }
+  }
+  function teletransportar(x, y, fim) {
+    if (window.__txDebug) console.log("[tx] poof", Math.round(fx), Math.round(fy), "->", Math.round(x), Math.round(y), String(new Error().stack).split("\n")[2]);
+    modo = "poof"; plano = null; andando = false;
+    classe(["tx-poof"], []);
+    setTimeout(function () {
+      fx = x; fy = y; atual = apoio(fx, fy, 10); desenhar();
+      classe([], ["tx-poof"]); parado(); agendarPasseio(); if (fim) fim();
+    }, 190);
+  }
+  // Vai até x na plataforma `plat` (usa o grafo de plataformas; sem caminho, some e reaparece lá).
+  function irPara(plat, x, fim, tent) {
+    acordar(); if (!el) return;
+    if (!plat) plat = plats[plats.length - 1];
+    if (plats.indexOf(plat) === -1) { var q = plat; plat = null; plats.forEach(function (p) { if (!plat && Math.abs(p.t - q.t) < 4 && Math.abs(p.l - q.l) < 6 && Math.abs(p.r - q.r) < 6) plat = p; }); plat = plat || plats[plats.length - 1]; }
+    var h = hw(), xf = Math.max(plat.l + h + 2, Math.min(plat.r - h - 2, x));
+    if (plat.r - plat.l < 2 * h + 4) xf = (plat.l + plat.r) / 2;
+    var destino = {p: plat, x: xf, t: plat.t, tent: tent || 0};
+    if (reduzido()) { teletransportar(xf, plat.t, fim); return; }
+    var cur = apoio(fx, fy, 8);
+    if (!cur) { plano = {passos: [], fim: fim, destino: destino}; atualizarPlats(); cair(); return; }
+    if (cur === plat) { plano = {passos: [{tipo: "anda", x: xf}], fim: fim, destino: destino}; proximoPasso(); return; }
+    var prev = bfs(cur);
+    var passos = prev.has(plat) ? passosAte(prev, cur, plat, xf) : null;
+    if (!passos) { teletransportar(xf, plat.t, fim); return; }
+    plano = {passos: passos, fim: fim, destino: destino};
+    proximoPasso();
+  }
+  function parar() {
+    if (modo === "parado") return;
+    if (modo === "salta" && tw) { fx = tw.x1; fy = tw.y1; }
+    plano = null;
+    if (modo === "queda" || modo === "salta") { var ap = apoio(fx, fy, 12) || abaixo(fx, fy); fy = ap.t; atual = ap; }
+    desenhar(); parado();
+  }
+  function destinoPara(pt) {
+    var m = null;
+    plats.forEach(function (p) { if (pt.x >= p.l - 18 && pt.x <= p.r + 18 && p.t >= pt.y - 14 && (!m || p.t < m.t)) m = p; });
+    return m || plats[plats.length - 1];
+  }
   function agendarPasseio() {
     clearTimeout(tWander);
     tWander = setTimeout(function () {
-      if (!aberto && !oculto && !dormiu && !andando && !doc.hidden && !reduzido()) andar(rnd(8, vw() - W - 8), vh() - HM - rnd(12, 110));
-      agendarPasseio();
-    }, rnd(6000, 15000));
+      if (!aberto && !oculto && !dormiu && modo === "parado" && !doc.hidden && !reduzido()) passear();
+      else agendarPasseio();
+    }, rnd(4500, 11000));
+  }
+  function passear() {
+    atualizarPlats();
+    var cur = apoio(fx, fy, 10);
+    if (!cur) { cair(); return; }
+    atual = cur;
+    if (Math.random() < 0.4) {
+      var prev = bfs(cur), alc = []; prev.forEach(function (v, k) { alc.push(k); });
+      if (alc.length) { var alvo = alc[Math.floor(Math.random() * alc.length)]; irPara(alvo, rnd(alvo.l, alvo.r), null, 0); return; }
+    }
+    var h = hw(), lo = Math.max(cur.l + h + 2, minX() + h), hi = Math.min(cur.r - h - 2, vw() - h);
+    if (hi - lo < 20) { agendarPasseio(); return; }
+    var dist = rnd(50, 240) * (Math.random() < 0.5 ? -1 : 1), x = Math.max(lo, Math.min(hi, fx + dist));
+    plano = {passos: [{tipo: "anda", x: x}], fim: null, destino: null};
+    proximoPasso();
   }
   function chamar(pt) {
-    andar(pt.x - W / 2, pt.y - HM, function () { classe(["tx-acena"], []); balao(["Oi! Estou aqui.", "Chamou?", "Pois não!"][Math.floor(Math.random() * 3)], 2600); setTimeout(function () { classe([], ["tx-acena"]); }, 1900); });
+    atualizarPlats();
+    var D = destinoPara(pt);
+    irPara(D, pt.x, function () { classe(["tx-acena"], []); balao(["Oi! Estou aqui.", "Chamou?", "Pois não!"][Math.floor(Math.random() * 3)], 2600); setTimeout(function () { classe([], ["tx-acena"]); }, 1400); }, 0);
   }
-  function mostrar() { oculto = false; salvarPref({dispensado: ""}); el.classList.remove("tx-oculto"); colocar(vw() - W - 24, vh() - HM - 16); acordar(); }
+  function reapoiar() {
+    if (!el) return;
+    atualizarPlats();
+    if (modo !== "parado") return;
+    var ap = apoio(fx, fy, 60);
+    if (ap) { fy = ap.t; atual = ap; desenhar(); } else cair();
+  }
+  function colocarInicial() {
+    atualizarPlats();
+    fx = Math.max(minX() + hw(), vw() - 60); fy = plats[plats.length - 1].t; atual = plats[plats.length - 1]; desenhar();
+  }
+  function mostrar() { oculto = false; el.classList.remove("tx-oculto"); acordar(); }
 
   // Clique "vazio": nada interativo por perto (botão, link, campo, linha clicável…).
   function interativo(alvo) {
@@ -775,6 +1046,7 @@
         d.__tx = 1;
         d.addEventListener("click", function (ev) { aoClicar(ev, f); });
         d.addEventListener("keydown", aoTecla);
+        var ts = 0; d.addEventListener("scroll", function () { clearTimeout(ts); ts = setTimeout(reapoiar, 120); }, true);
       } catch (e) {}
     });
   }
@@ -795,12 +1067,14 @@
   function montarPainel() {
     painel = doc.createElement("section");
     painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente Tax"); painel.hidden = true;
-    painel.innerHTML = '<header><span class="tx-av">' + SVG + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub</small></div><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b>Tax</b><small id="tx-sub">assistente do Control Hub</small></div><button type="button" id="tx-visual" title="Mudar o visual do Tax" aria-label="Mudar o visual do Tax">🎨 Visual</button><button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+      '<div id="tx-skins" hidden></div>' +
       '<div id="tx-msgs" aria-live="polite"></div>' +
       '<form autocomplete="off"><input id="tx-in" type="text" maxlength="300" placeholder="Pergunte ou peça algo…" aria-label="Mensagem para o Tax"><button type="submit">Enviar</button></form>';
     doc.body.appendChild(painel);
     msgs = $("#tx-msgs", painel);
     $("#tx-fecha", painel).onclick = fecharPainel;
+    $("#tx-visual", painel).onclick = abrirVisuais;
     $("form", painel).onsubmit = function (e) { e.preventDefault(); var i = $("#tx-in", painel), v = i.value.trim(); if (!v) return; i.value = ""; enviar(v); };
   }
   function posicionarPainel() {
@@ -904,6 +1178,30 @@
   }
   function fecharPainel() { if (!painel) return; aberto = false; painel.hidden = true; if (el) el.focus({preventScroll: true}); }
 
+
+  /* ---------- visuais ---------- */
+  function aplicarSkin(k) {
+    if (!SKINS[k]) return;
+    skinKey = k; salvarPref({skin: k});
+    HM = altura(k); el.style.setProperty("--tx-hm", HM + "px");
+    $(".tx-face", el).innerHTML = svgSkin(k);
+    if (painel) { var av = $(".tx-av", painel); if (av) av.innerHTML = svgSkin(k); }
+    reapoiar(); desenhar();
+    balao("Gostei! 😄", 1600); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 1400);
+  }
+  function abrirVisuais() {
+    var box = $("#tx-skins", painel);
+    if (!box.hidden) { box.hidden = true; return; }
+    box.innerHTML = "";
+    Object.keys(SKINS).forEach(function (k) {
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-sk" + (k === skinKey ? " on" : ""); b.title = SKINS[k].nome;
+      b.innerHTML = '<span class="tx-sk-i">' + svgSkin(k) + '</span><span>' + SKINS[k].nome + '</span>';
+      b.onclick = function () { aplicarSkin(k); box.hidden = true; };
+      box.appendChild(b);
+    });
+    box.hidden = false;
+  }
+
   /* ============ início ============ */
   function iniciar() {
     iniciarIA();
@@ -911,15 +1209,18 @@
     var st = doc.createElement("style"); st.id = "tx-css"; st.textContent = CSS; doc.head.appendChild(st);
     el = doc.createElement("div"); el.id = "tx-mascote"; el.className = "tx-parado"; el.setAttribute("role", "button"); el.tabIndex = 0;
     el.setAttribute("aria-label", "Abrir o assistente Tax"); el.title = "Tax, o assistente do Hub";
-    el.innerHTML = '<div class="tx-sombra"></div><div class="tx-corpo">' + SVG + '</div><span class="tx-z" aria-hidden="true">z</span><div class="tx-balao" role="status"></div>';
+    skinKey = SKINS[lerPref().skin] ? lerPref().skin : "laranja"; HM = altura(skinKey); el.style.setProperty("--tx-hm", HM + "px");
+    el.innerHTML = '<div class="tx-sombra"></div><div class="tx-corpo"><div class="tx-face">' + svgSkin(skinKey) + '</div></div><span class="tx-z" aria-hidden="true">z</span><div class="tx-balao" role="status"></div>';
     if (oculto) el.classList.add("tx-oculto");
     doc.body.appendChild(el);
-    colocar(vw() - W - 24, vh() - HM - 16);
+    colocarInicial();
     el.addEventListener("click", function (e) { e.stopPropagation(); if (dormiu) { acordar(); balao("Hã? Já acordei!", 2000); return; } aberto ? fecharPainel() : abrirPainel(); });
     el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aberto ? fecharPainel() : abrirPainel(); } });
     doc.addEventListener("click", function (ev) { aoClicar(ev, null); });
     doc.addEventListener("keydown", aoTecla);
-    window.addEventListener("resize", function () { colocar(pos.x, pos.y); posicionarPainel(); });
+    window.addEventListener("resize", function () { reapoiar(); posicionarPainel(); });
+    var tScroll = 0; doc.addEventListener("scroll", function () { clearTimeout(tScroll); tScroll = setTimeout(reapoiar, 120); }, true);
+    setInterval(function () { if (modo === "parado" && !doc.hidden && !aberto) reapoiar(); }, 1500);
     doc.addEventListener("visibilitychange", function () { if (!doc.hidden) agendarPasseio(); });
     setInterval(function () {
       ligarQuadros();
@@ -934,7 +1235,8 @@
   window.__assistenteHub = {
     perguntar: function (t) { return responder(t); },
     mostrar: mostrar, abrir: abrirPainel, fechar: fecharPainel, versao: 1,
-    estado: function () { return {aberto: aberto, oculto: oculto, andando: andando, dormiu: dormiu, pos: pos}; }
+    estado: function () { return {aberto: aberto, oculto: oculto, andando: andando, dormiu: dormiu, pos: pos, modo: modo, pes: {x: fx, y: fy}, plataformas: plats.length}; },
+    irPara: function (x, y) { chamar({x: x, y: y}); }, plataformas: function () { return plats.slice(); }, visual: function (k) { aplicarSkin(k); }, skins: function () { return Object.keys(SKINS); }
   };
   if (doc.body) iniciar(); else doc.addEventListener("DOMContentLoaded", iniciar);
 })();
