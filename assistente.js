@@ -321,7 +321,7 @@
   var VAZIAS = " como funciona funcionam faco fazer posso fazemos qual quais onde fica para pra isso esse essa esta uma uns que sobre tenho duvida quero saber preciso usar uso ";
   function buscarAjuda(t, mods, minimo) {
     var toks = t.split(" ").filter(function (w) { return w.length >= 3 && VAZIAS.indexOf(" " + w + " ") === -1; }), melhor = null, pts = 0;
-    AJUDA.forEach(function (e) {
+    AJUDA.concat(ajudaEquipe).forEach(function (e) {
       var base = norm(e.k + " " + e.t).split(" "), p = 0;
       toks.forEach(function (w) { if (base.indexOf(w) !== -1) p += 2; else if (base.some(function (b) { return parecido(w, b); })) p += 1; });
       if (e.m && mods.indexOf(e.m) !== -1) p += 2;
@@ -1175,6 +1175,7 @@
     '#tx-mascote.tx-le .tx-corpo{transform:translateY(3px) scaleY(.92);transform-origin:50% 100%}#tx-mascote.tx-le .tx-eo{animation:none}' +
     '#tx-mascote.tx-pensando .tx-corpo{animation:txRespira 1s ease-in-out infinite}#tx-mascote.tx-pensando .tx-balao{font-size:16px;letter-spacing:2px;border-radius:14px}' +
     '#tx-mascote.tx-porta .tx-corpo{animation:txPorta .6s ease-in-out}@keyframes txPorta{0%,100%{transform:scaleX(1)}45%{transform:scaleX(.08)}}' +
+    '#tx-mascote.tx-segura .tx-corpo{transform:translateY(-4px) rotate(-6deg);transition:transform .12s}#tx-mascote.tx-segura .tx-lA{visibility:hidden}#tx-mascote.tx-segura .tx-lB{visibility:visible}' +
     '#tx-mascote.tx-escondido{opacity:.38;filter:saturate(.6)}#tx-mascote.tx-escondido .tx-sombra{display:none}' +
     '#tx-mascote.tx-arrastado{cursor:grabbing}#tx-mascote.tx-arrastado .tx-corpo{transform:rotate(-8deg) scale(1.05)}' +
     '.tx-pegada{position:fixed;z-index:524;width:5px;height:3px;border-radius:2px;background:var(--ink-3,#5F6D77);opacity:.35;pointer-events:none;animation:txPeg 1.3s ease-out forwards}@keyframes txPeg{to{opacity:0}}' +
@@ -1224,6 +1225,7 @@
     '#tx-cfg{flex-direction:column;flex-wrap:nowrap;gap:7px;font-size:12.5px}.tx-cfg-sec{font:700 11px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3,#5F6D77);margin-top:4px}' +
     '.tx-cfg-it{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.35}.tx-cfg-it input[type=text],.tx-cfg-it select,.tx-cfg-it textarea{font:inherit;padding:4px 7px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-cfg-it textarea{width:100%;min-height:70px}.tx-cfg-area{flex-direction:column;align-items:stretch}' +
     '.tx-cfg-bool{flex-wrap:nowrap;align-items:flex-start}.tx-cfg-bool input{margin:2px 0 0;flex:none}' +
+    '.tx-aj-form{display:flex;flex-direction:column;gap:5px;margin-top:4px}.tx-aj-form input,.tx-aj-form textarea{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-aj-form .tx-cb{align-self:flex-start}.tx-conf-l .tx-mini{margin-left:4px}' +
     '.tx-cfg-uso{font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-cfg .tx-cb{align-self:flex-start;padding:4px 10px;font-size:12px}' +
     '.tx-fixo{display:inline-flex;align-items:center;gap:2px}.tx-fixo-x{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:11px;padding:2px 4px}' +
     '.tx-md{display:flex;flex-direction:column;gap:3px;align-self:stretch}.tx-acts{display:flex;flex-wrap:wrap;gap:2px;padding-left:4px}' +
@@ -1513,6 +1515,9 @@
     var D = destinoPara(pt);
     irPara(D, pt.x, function () { classe(["tx-acena"], []); balao(["Oi! Estou aqui.", "Chamou?", "Pois não!"][Math.floor(Math.random() * 3)], 2600); setTimeout(function () { classe([], ["tx-acena"]); }, 1400); }, 0);
   }
+  // Rolagem: o mascote se segura (o chão está se mexendo).
+  var tSeg = 0;
+  function segurar() { if (!el || modo !== "parado") return; el.classList.add("tx-segura"); clearTimeout(tSeg); tSeg = setTimeout(function () { el.classList.remove("tx-segura"); }, 450); }
   function reapoiar() {
     if (!el) return;
     atualizarPlats();
@@ -1558,7 +1563,7 @@
         d.__tx = 1;
         d.addEventListener("click", function (ev) { aoClicar(ev, f); });
         d.addEventListener("keydown", aoTecla);
-        var ts = 0; d.addEventListener("scroll", function () { clearTimeout(ts); ts = setTimeout(reapoiar, 120); }, true);
+        var ts = 0; d.addEventListener("scroll", function () { segurar(); clearTimeout(ts); ts = setTimeout(reapoiar, 120); }, true);
       } catch (e) {}
     });
   }
@@ -2091,7 +2096,7 @@
     doc.addEventListener("click", function (ev) { aoClicar(ev, null); });
     doc.addEventListener("keydown", aoTecla);
     window.addEventListener("resize", function () { reapoiar(); posicionarPainel(); });
-    var tScroll = 0; doc.addEventListener("scroll", function () { clearTimeout(tScroll); tScroll = setTimeout(reapoiar, 120); }, true);
+    var tScroll = 0; doc.addEventListener("scroll", function () { segurar(); clearTimeout(tScroll); tScroll = setTimeout(reapoiar, 120); }, true);
     setInterval(function () { if (modo === "parado" && !doc.hidden && !aberto) reapoiar(); }, 1500);
     doc.addEventListener("visibilitychange", function () { if (!doc.hidden) agendarPasseio(); });
     setInterval(function () {
@@ -2100,7 +2105,7 @@
       el.classList.toggle("tx-oculto", esconde);
       if (painel) painel.classList.toggle("tx-oculto", algumDialogo() && !aberto ? true : false);
     }, 600);
-    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos(); iniciarAvisos(); atualizarBadge(); iniciarMascoteExtra();
+    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos(); iniciarAvisos(); atualizarBadge(); iniciarMascoteExtra(); iniciarEquipe();
     if (!oculto && !lerPref().visto) { salvarPref({visto: 1}); setTimeout(function () { balao("Oi! Sou o Tax. Clique em mim para conversar.", 5200); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 2000); }, 1800); }
   }
 
@@ -2577,6 +2582,92 @@
     setInterval(function () { if (!doc.hidden) checarHorarios(); }, 30000);
     setTimeout(checarHorarios, 9000);
   }
+
+  /* ============ equipe: configuração compartilhada, ajuda da equipe, registros e painel da coordenação ============ */
+  // Banco do Hub: tax_config/geral {limiteDia, instrucoes}; tax_ajuda/{id} {t, k, a}; registros por dia em tax_perguntas, tax_feedback e tax_acoes ({itens: {id: {...}}}).
+  var userNs = null, meuId = "", ajudaEquipe = [];
+  function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function registrarNoDia(col, item) {
+    return usarDb().then(function (db) {
+      if (!db) return;
+      var ref = db.doc(col + "/" + ymd(hoje())), o = {}; o[rid()] = item;
+      return ref.update({itens: o}).catch(function () { return ref.set({itens: o}); });
+    }).catch(function () {});
+  }
+  registrarPergunta = function (texto, modo) { registrarNoDia("tax_perguntas", {q: String(texto).slice(0, 200), modo: modo, em: new Date().toISOString()}); };
+  registrarFeedback = function (q, r, bom) { registrarNoDia("tax_feedback", {q: String(q || "").slice(0, 200), r: String(r || "").slice(0, 300), bom: !!bom, em: new Date().toISOString()}); };
+  var aoConfirmarAntes = aoConfirmar;
+  aoConfirmar = function (pl) { aoConfirmarAntes(pl); if (/dados de exemplo/i.test(pl.aviso || "")) return; registrarNoDia("tax_acoes", {titulo: pl.titulo || "", empresa: pl.empresa || "", linha: ((pl.linhas || [])[0] || "").slice(0, 200), quem: meuId, em: new Date().toISOString()}); };
+  function iniciarEquipe() {
+    try {
+      if (window.claude && window.claude.use) window.claude.use("user").then(function (u) { userNs = u || null; if (u && u.id) Promise.resolve(u.id()).then(function (i) { meuId = i || ""; }, function () {}); }).catch(function () {});
+    } catch (e) {}
+    usarDb().then(function (db) {
+      if (!db) return;
+      try { db.doc("tax_config/geral").onSnapshot(function (d) { var x = d && d.exists !== false && d.data ? d.data() || {} : {}; cfgEquipe = {limiteDia: Math.max(0, +x.limiteDia || 0), instrucoes: String(x.instrucoes || "").slice(0, 1500)}; }, function () {}); } catch (e) {}
+      try { db.collection("tax_ajuda").onSnapshot(function (snap) { ajudaEquipe = snap.docs.map(function (d) { var x = d.data() || {}; return {id: d.id, t: String(x.t || ""), k: String(x.k || ""), a: String(x.a || ""), equipe: true}; }).filter(function (x) { return x.t && x.a; }); }, function () {}); } catch (e) {}
+    });
+  }
+  function salvarCfgEquipe(campo, valor) {
+    return usarDb().then(function (db) {
+      if (!db) throw new Error("sem banco");
+      var o = {}; o[campo] = valor; var ref = db.doc("tax_config/geral");
+      return ref.update(o).catch(function () { return ref.set(Object.assign({limiteDia: cfgEquipe.limiteDia, instrucoes: cfgEquipe.instrucoes}, o)); });
+    }).then(function () { balao("Configuração da equipe salva.", 1800); }, function () { balao("Não consegui salvar (sem permissão?).", 2500); });
+  }
+  // Editor da base de ajuda da equipe (no chat, só para a coordenação).
+  function editorAjuda() {
+    var d = doc.createElement("div"); d.className = "tx-conf";
+    var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = "Base de ajuda da equipe"; d.appendChild(h);
+    ajudaEquipe.forEach(function (x) {
+      var l = doc.createElement("div"); l.className = "tx-conf-l"; l.textContent = "• " + x.t + ": " + x.a.slice(0, 90) + (x.a.length > 90 ? "…" : "");
+      var b = botaoMini("✕", "Excluir “" + x.t + "”", function () { usarDb().then(function (db) { return db && db.doc("tax_ajuda/" + x.id).delete(); }).then(function () { l.remove(); }, function () { b.textContent = "!"; }); });
+      l.appendChild(b); d.appendChild(l);
+    });
+    var f = doc.createElement("form"); f.className = "tx-aj-form";
+    f.innerHTML = '<input name="t" maxlength="80" placeholder="Pergunta ou título (ex.: Como pedir o extrato ao cliente)" required><input name="k" maxlength="200" placeholder="Palavras-chave (opcional)"><textarea name="a" maxlength="1200" rows="3" placeholder="Resposta" required></textarea><button type="submit" class="tx-cb tx-cb-ok">Adicionar</button>';
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      var t = f.elements.t.value.trim(), a = f.elements.a.value.trim(); if (!t || !a) return;
+      usarDb().then(function (db) { if (!db) throw new Error(); return db.doc("tax_ajuda/" + slug(t) + "-" + rid().slice(-4)).set({t: t, k: f.elements.k.value.trim(), a: a, em: new Date().toISOString()}); })
+        .then(function () { f.reset(); var l = doc.createElement("div"); l.className = "tx-conf-l"; l.textContent = "✓ " + t; d.insertBefore(l, f); }, function () { var l = doc.createElement("div"); l.className = "tx-conf-av"; l.textContent = "Não consegui salvar (sem permissão?)."; d.insertBefore(l, f); });
+    };
+    d.appendChild(f);
+    return d;
+  }
+  // Painel da coordenação: perguntas mais feitas, não entendidas, avaliações e ações dos últimos dias.
+  function painelCoordenacao(dias) {
+    dias = dias || 30;
+    return usarDb().then(function (db) {
+      if (!db) return [T("Sem banco do Hub nesta tela.")];
+      var ds = []; for (var i = 0; i < dias; i++) ds.push(ymd(addDias(hoje(), -i)));
+      var ler = function (col) { return Promise.all(ds.map(function (d) { return db.doc(col + "/" + d).get().then(function (s) { var x = s && s.exists !== false && s.data ? s.data() || {} : {}; return Object.keys(x.itens || {}).map(function (k) { return Object.assign({dia: d}, x.itens[k]); }); }, function () { return []; }); })).then(function (l) { return [].concat.apply([], l); }); };
+      return Promise.all([ler("tax_perguntas"), ler("tax_feedback"), ler("tax_acoes")]).then(function (r) {
+        var pq = r[0], fb = r[1], ac = r[2], cont = {}, rot = {};
+        pq.forEach(function (x) { var k = norm(x.q).replace(/[^a-z0-9 ]/g, "").slice(0, 60); if (!k) return; cont[k] = (cont[k] || 0) + 1; rot[k] = rot[k] || x.q; });
+        var top = Object.keys(cont).sort(function (a, b) { return cont[b] - cont[a]; }).slice(0, 10);
+        var nao = pq.filter(function (x) { return x.modo === "nao_entendi"; }), ruins = fb.filter(function (x) { return !x.bom; }), bons = fb.filter(function (x) { return x.bom; });
+        var bl = [{tipo: "cab", texto: "Painel do assistente · últimos " + dias + " dias"},
+          T(pq.length + " pergunta(s) registradas, " + nao.length + " não entendida(s), " + bons.length + " 👍 e " + ruins.length + " 👎, " + ac.length + " alteração(ões) confirmada(s) pelo assistente. As perguntas são registradas sem o nome de quem perguntou.")];
+        if (top.length) bl.push({tipo: "grafico", titulo: "Perguntas mais feitas", itens: top.map(function (k) { return {rotulo: rot[k], valor: cont[k]}; })});
+        if (nao.length) bl.push(linhasBloco("Não entendidas (sugestão: criar na base de ajuda)", nao.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.dia.split("-").reverse().join("/")}; })));
+        if (ruins.length) bl.push(linhasBloco("Respostas que não ajudaram", ruins.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.r, tom: "warn"}; })));
+        var ids = ac.map(function (x) { return x.quem; }).filter(Boolean);
+        var nomes = userNs && userNs.profiles && ids.length ? Promise.resolve(userNs.profiles(ids.filter(function (v, i, a) { return a.indexOf(v) === i; }))).catch(function () { return {}; }) : Promise.resolve({});
+        return nomes.then(function (ps) {
+          if (ac.length) bl.push(linhasBloco("Alterações feitas pelo assistente", ac.slice().sort(function (a, b) { return a.em < b.em ? 1 : -1; }).slice(0, 60).map(function (x) { var n = x.quem && ps && ps[x.quem] && ps[x.quem].name || "alguém"; return {t: (x.empresa ? x.empresa + ": " : "") + (x.linha || x.titulo), sub: x.titulo + " · " + n + " · " + new Date(x.em).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"})}; })));
+          return bl;
+        });
+      });
+    });
+  }
+  COMANDOS_EXTRA.painel = function () { return ehCoord ? painelCoordenacao(30) : Promise.resolve([T("O painel do assistente é da coordenação (editores do Hub).")]); }; COMANDOS_EXTRA.painel.rot = "Painel do assistente (coordenação)";
+  CFG.push({sec: "Equipe (coordenação)", so: function () { return ehCoord; }, itens: [
+    {rot: "Limite de perguntas à IA por pessoa/dia (0 = sem limite):", tipo: "texto", max: 4, valor: function () { return String(cfgEquipe.limiteDia || 0); }, salvar: function (v) { salvarCfgEquipe("limiteDia", Math.max(0, parseInt(v, 10) || 0)); }},
+    {rot: "Instruções para a IA (tom, regras, termos internos):", tipo: "area", max: 1500, valor: function () { return cfgEquipe.instrucoes || ""; }, salvar: function (v) { salvarCfgEquipe("instrucoes", String(v).trim().slice(0, 1500)); }},
+    {rot: "Editar a base de ajuda da equipe", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Perguntas e respostas da equipe (entram na ajuda do assistente e da IA):")], true); var m = msgs.lastChild; m.appendChild(editorAjuda()); rolar(); }},
+    {rot: "Abrir o painel do assistente", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/painel"); painelCoordenacao(30).then(function (bl) { addBot(bl); }); }}
+  ]});
 
   window.__assistenteHub = {
     perguntar: function (t) { return responder(t); },
