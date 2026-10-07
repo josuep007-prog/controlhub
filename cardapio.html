@@ -1,0 +1,347 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><script>try{var __t=localStorage.getItem("controlhub-theme");if(__t==="light"||__t==="dark")document.documentElement.setAttribute("data-theme",__t);}catch(e){}</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Cardápio do Mês</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: masthead escuro com filete vermelho (padrão Control Hub), painel do dia e grade seg-sex que vira lista no celular */
+:root{
+  --page:#EDF0F3; --surface:#FFFFFF; --surface-2:#F5F8FA; --surface-3:#EAEFF3;
+  --ink:#101820; --ink-2:#47545F; --ink-3:#5F6D77; --rule:#DCE3E9; --rule-strong:#C2CCD5;
+  --brand-red:#C2000C; --brand-red-soft:#FBEAEA; --blue-deep:#3C659B; --blue-pale:#DCE8F1;
+  --masthead:#0E151B; --masthead-ink:#E9EEF2; --masthead-ink-2:#8FA0AD;
+  --status-green:#167A45; --green-soft:#E1F2E8; --status-warn:#B5530C; --warn-soft:#FBEBDD;
+  --shadow-1:0 1px 2px rgba(16,24,32,.05),0 6px 16px rgba(16,24,32,.06);
+  --r:4px;
+  --display:"Archivo",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0B1015; --surface:#131A21; --surface-2:#182129; --surface-3:#1E2831;
+  --ink:#E8EDF2; --ink-2:#AAB7C2; --ink-3:#7A8791; --rule:#242F39; --rule-strong:#35434E;
+  --brand-red:#E8474B; --brand-red-soft:#2C1416; --blue-deep:#8CC6EC; --blue-pale:#1B2B38;
+  --masthead:#080D11; --status-green:#4ECC8B; --green-soft:#12301F; --status-warn:#FF9D42; --warn-soft:#352212;
+  --shadow-1:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0B1015; --surface:#131A21; --surface-2:#182129; --surface-3:#1E2831;
+  --ink:#E8EDF2; --ink-2:#AAB7C2; --ink-3:#7A8791; --rule:#242F39; --rule-strong:#35434E;
+  --brand-red:#E8474B; --brand-red-soft:#2C1416; --blue-deep:#8CC6EC; --blue-pale:#1B2B38;
+  --masthead:#080D11; --status-green:#4ECC8B; --green-soft:#12301F; --status-warn:#FF9D42; --warn-soft:#352212;
+  --shadow-1:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.35); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font-family:var(--body);font-size:13.5px;line-height:1.5;margin:0}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+button{font-family:inherit;color:inherit}
+::selection{background:var(--brand-red);color:#fff}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:22px}
+.masthead{background:var(--masthead);border-bottom:3px solid var(--brand-red);position:sticky;top:env(safe-area-inset-top,0px);z-index:30}
+.masthead .wrap{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-block:12px 10px}
+.wordmark{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.02em;line-height:1}
+.wm-a{color:var(--brand-red)} .wm-b{color:#7FC2DE}
+.brand-tag{font-size:11.5px;font-weight:500;color:var(--masthead-ink-2);margin-top:3px;display:flex;align-items:center;gap:6px}
+.brand-tag i{width:4px;height:4px;border-radius:50%;background:var(--brand-red);display:block}
+.crumb{font-family:var(--mono);font-size:11px;color:var(--masthead-ink-2);text-align:right}
+main{padding-block:22px 60px;display:flex;flex-direction:column;gap:18px}
+.head{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.eyebrow{display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.eyebrow i{width:4px;height:4px;border-radius:50%;background:var(--brand-red);display:block}
+h1{font-size:clamp(26px,4.5vw,36px);line-height:1.1;margin-top:6px;font-weight:700}
+.sub{color:var(--ink-3);margin-top:4px}
+.seg{display:inline-flex;border:1px solid var(--rule-strong);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.chip{font:inherit;font-size:12.5px;font-weight:600;border:0;background:none;color:var(--ink-2);padding:8px 13px;cursor:pointer;white-space:nowrap}
+.chip + .chip{border-left:1px solid var(--rule-strong)}
+.chip:hover{color:var(--blue-deep)}
+.chip[aria-pressed="true"]{background:var(--blue-deep);color:#fff}
+:root[data-theme="dark"] .chip[aria-pressed="true"]{color:#0B1015}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .chip[aria-pressed="true"]{color:#0B1015}}
+.chip:focus-visible,.day:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.detail{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-1);padding:22px;display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:20px 32px;position:relative}
+.detail::before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:3px;background:var(--brand-red)}
+.detail .date{font-family:var(--mono);font-size:60px;line-height:.95;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.detail .wd{font-family:var(--display);font-weight:600;font-size:16px;margin-top:6px}
+.detail .kcal{margin-top:8px;color:var(--ink-3);font-family:var(--mono);font-size:12px}
+.tag{display:inline-flex;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px;background:var(--blue-pale);color:var(--blue-deep);margin-top:10px}
+.items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 24px;margin:0}
+.items div{min-width:0}
+.items dt{font-family:var(--display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.items dd{margin:3px 0 0;font-size:14px}
+.items .main{grid-column:1/-1}
+.items .main dd{font-family:var(--display);font-size:19px;font-weight:600;line-height:1.25}
+.legend{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12px;color:var(--ink-3)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--status-green)}
+.dot.hol{background:var(--status-warn)}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.colh{text-align:center;font-family:var(--display);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 2px}
+.cell{min-height:118px;border-radius:var(--r);background:var(--surface-3);border:1px solid var(--rule);padding:8px;font-family:var(--mono);font-size:13px;color:var(--ink-3);opacity:.65}
+.cell small{display:block;font-family:var(--body);font-size:10.5px;margin-top:4px}
+.cell.out{opacity:.35}
+.day.today{border-color:var(--brand-red)}
+.day{font:inherit;text-align:left;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);padding:10px;display:flex;flex-direction:column;gap:6px;cursor:pointer;min-height:118px;min-width:0;position:relative;transition:border-color .15s,background .15s}
+.day:hover{border-color:var(--blue-deep);background:var(--surface-2)}
+.day[aria-pressed="true"]{border-color:var(--blue-deep);box-shadow:inset 0 0 0 1px var(--blue-deep)}
+.day[aria-pressed="true"]::before{content:"";position:absolute;left:-1px;top:14%;bottom:14%;width:3px;background:var(--brand-red);border-radius:0 2px 2px 0}
+.day .n{font-family:var(--mono);font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;font-variant-numeric:tabular-nums}
+.day .wdn{display:none;font-family:var(--body);font-size:11px;font-weight:500;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.day .p{font-size:12.5px;line-height:1.35;overflow-wrap:anywhere}
+.day.hol{background:var(--warn-soft);border-color:transparent;cursor:default}
+.day.hol:hover{background:var(--warn-soft);border-color:transparent}
+.badge{display:inline-flex;font-size:10.5px;font-weight:600;color:var(--status-green);background:var(--green-soft);border-radius:3px;padding:1px 6px}
+.today-mark{font-size:10.5px;font-weight:600;background:var(--brand-red);color:#fff;padding:1px 7px;border-radius:3px}
+@media (max-width:760px){
+  .wrap{padding-inline:12px}
+  .detail{grid-template-columns:1fr}
+  .grid{gap:3px}
+  .cell,.day,.day.hol{min-height:54px;padding:5px;align-items:center}
+  .cell small,.day .p,.day .badge,.today-mark{display:none}
+  .day{gap:2px;justify-content:center}
+  .day .n{font-size:14px;justify-content:center}
+  .day::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--status-green)}
+  .day.hol::after{background:var(--status-warn)}
+  .colh{font-size:9.5px;letter-spacing:.02em}
+  .items{grid-template-columns:1fr}
+  .crumb{display:none}
+}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.001ms!important}}
+
+.nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule-strong);background:var(--surface);color:var(--ink-2);border-radius:var(--r);padding:8px 13px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--blue-deep);color:var(--blue-deep)}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--blue-deep);outline-offset:2px}
+.btn-primary{background:var(--blue-deep);border-color:var(--blue-deep);color:#fff}
+.btn-primary:hover{filter:brightness(1.06);color:#fff}
+.btn-danger{border-color:var(--brand-red);color:var(--brand-red)}
+.btn-danger:hover{background:var(--brand-red);color:#fff;border-color:var(--brand-red)}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+.btn.icon{padding:8px 11px}
+:root[data-theme="dark"] .btn-primary,:root[data-theme="dark"] .btn-primary:hover{color:#0B1015}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn-primary,:root:not([data-theme="light"]) .btn-primary:hover{color:#0B1015}}
+.status{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.status.err{color:var(--brand-red)}
+.empty{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;align-items:flex-start;color:var(--ink-2)}
+.empty b{font-family:var(--display);font-size:17px;color:var(--ink)}
+.actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.form{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.form label{display:flex;flex-direction:column;gap:4px;font-family:var(--display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700;min-width:0}
+.form .wide{grid-column:1/-1}
+input[type=text],input[type=number]{font:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink);background:var(--surface);border:1px solid var(--rule-strong);border-radius:var(--r);padding:8px 10px;width:100%}
+input:focus{border-color:var(--blue-deep);box-shadow:0 0 0 3px var(--blue-pale);outline:none}
+.day.empty-day{background:var(--surface-2);border-style:dashed;color:var(--ink-3)}
+.day.empty-day .p{font-size:11.5px}
+.cell.free{opacity:.65}
+.today-mark{display:inline-block}
+@media (max-width:760px){.form{grid-template-columns:1fr}.day.empty-day .p{display:none}}
+
+.week{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.wk{background:var(--surface);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow-1);display:flex;flex-direction:column;min-width:0;position:relative}
+.wk.today{border-color:var(--brand-red)}
+.wk-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 14px 10px;border-bottom:1px solid var(--rule)}
+.wk-h .wdn{font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.wk-h .dn{font-family:var(--mono);font-size:26px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.wk-b{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;flex:1}
+.wk-b dl{margin:0;display:flex;flex-direction:column;gap:10px}
+.wk-b dt{font-family:var(--display);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.wk-b dd{margin:2px 0 0;font-size:13.5px;overflow-wrap:anywhere}
+.wk-b .main dd{font-family:var(--display);font-size:16px;font-weight:600;line-height:1.25}
+.wk-f{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--ink-3);font-family:var(--mono);font-size:11.5px}
+.wk.hol{background:var(--warn-soft);border-color:transparent;box-shadow:none}
+.wk.hol .wk-b b{font-family:var(--display);font-size:16px}
+.wk.empty-day{background:var(--surface-2);border-style:dashed;box-shadow:none}
+.wk.empty-day .wk-b{color:var(--ink-3);align-items:flex-start}
+.wk.free{opacity:.7}
+@media (max-width:760px){.week{grid-template-columns:1fr}}
+</style>
+
+<div class="masthead"><div class="wrap">
+  <div>
+    <div class="wordmark"><span class="wm-a">Control</span> <span class="wm-b">Hub</span></div>
+    <div class="brand-tag"><i></i>Painel interno · ControlTax</div>
+  </div>
+  <div class="crumb">Refeitório / Cardápio</div>
+</div></div>
+
+<main class="wrap">
+  <div class="head">
+    <div>
+      <div class="eyebrow"><i></i>Refeitório · Almoço</div>
+      <h1 id="title">Cardápio</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="nav">
+      <div class="seg" role="group" aria-label="Navegar entre semanas">
+        <button class="chip" id="prev" type="button" aria-label="Semana anterior">‹</button>
+        <button class="chip" id="today" type="button">Hoje</button>
+        <button class="chip" id="next" type="button" aria-label="Próxima semana">›</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status">Carregando cardápio…</div>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+
+  <div class="legend">
+    <span>Cardápio sujeito a alteração sem aviso.</span>
+  </div>
+
+  <section class="week" id="grid" aria-label="Cardápio da semana"></section>
+</main>
+
+<script>
+var MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+var WD = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+var now = new Date();
+function mondayOf(dt){ var d = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()); var w = d.getDay(); d.setDate(d.getDate() - (w===0 ? 6 : w-1)); return d; }
+var weekStart = mondayOf(now);
+var data = {}, selected = null, editing = false, confirmDel = false;
+var db = null, canWrite = false, loaded = false, saving = false;
+var gridEl = document.getElementById("grid"), detailEl = document.getElementById("detail"), statusEl = document.getElementById("status");
+
+function pad(n){ return n<10 ? "0"+n : ""+n; }
+function keyOf(dt){ return dt.getFullYear()+"-"+pad(dt.getMonth()+1)+"-"+pad(dt.getDate()); }
+function esc(t){ return String(t==null?"":t).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function setStatus(t, err){ statusEl.textContent = t; statusEl.className = "status"+(err?" err":""); statusEl.hidden = !t; }
+function weekDays(){
+  var out = [];
+  for (var i=0;i<7;i++){
+    var d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate()+i);
+    if (i<5 || data[keyOf(d)]) out.push(d);
+  }
+  return out;
+}
+
+function renderHead(){
+  var a = weekStart, b = new Date(a.getFullYear(), a.getMonth(), a.getDate()+4);
+  var t = a.getMonth()===b.getMonth()
+    ? a.getDate()+" a "+b.getDate()+" de "+MESES[b.getMonth()]
+    : a.getDate()+" de "+MESES[a.getMonth()]+" a "+b.getDate()+" de "+MESES[b.getMonth()];
+  document.getElementById("title").textContent = "Semana de " + t;
+  var n = weekDays().filter(function(d){ var x = data[keyOf(d)]; return x && x.tipo!=="feriado"; }).length;
+  document.getElementById("sub").textContent = !loaded ? "" : n ? n+(n===1?" dia":" dias")+" com cardápio · "+b.getFullYear() : "Nenhum cardápio cadastrado nesta semana";
+}
+
+function dayCard(d){
+  var k = keyOf(d), doc = data[k], w = d.getDay();
+  var isToday = keyOf(now)===k, cls = isToday ? " today" : "";
+  var head = '<div class="wk-h"><div><div class="wdn">'+WD[w]+'</div></div><div class="dn">'+d.getDate()+'<span class="wdn" style="margin-left:6px">'+MESES[d.getMonth()].slice(0,3)+'</span></div></div>';
+  var editBtn = canWrite ? '<button type="button" class="btn btn-sm" data-edit="'+k+'">Editar</button>' : '';
+  if (doc && doc.tipo==="feriado")
+    return '<article class="wk hol'+cls+'">'+head+'<div class="wk-b"><b>Feriado</b><span>'+esc(doc.nome)+'</span><span class="eyebrow"><i></i>Sem serviço</span><div class="wk-f"><span></span>'+editBtn+'</div></div></article>';
+  if (doc)
+    return '<article class="wk'+cls+'">'+head+'<div class="wk-b"><dl>'
+      + '<div class="main"><dt>Prato principal</dt><dd>'+esc(doc.principal)+'</dd></div>'
+      + '<div><dt>Guarnição</dt><dd>'+esc(doc.guarnicao)+'</dd></div>'
+      + '<div><dt>Salada</dt><dd>'+esc(doc.salada)+'</dd></div>'
+      + '<div><dt>Sobremesa</dt><dd>'+esc(doc.sobremesa)+'</dd></div></dl>'
+      + '<div class="wk-f"><span></span>'+editBtn+'</div></div></article>';
+  if (canWrite)
+    return '<article class="wk empty-day'+cls+'">'+head+'<div class="wk-b"><span>Sem cardápio cadastrado.</span><button type="button" class="btn btn-primary btn-sm" data-edit="'+k+'">Cadastrar</button></div></article>';
+  return '<article class="wk empty-day free'+cls+'">'+head+'<div class="wk-b"><span>Cardápio ainda não publicado.</span></div></article>';
+}
+function renderGrid(){
+  gridEl.className = "week";
+  gridEl.innerHTML = weekDays().map(dayCard).join("");
+}
+
+function fmtDate(k){
+  var p = k.split("-"), dt = new Date(+p[0], +p[1]-1, +p[2]);
+  return {d:+p[2], wd:WD[dt.getDay()]+(dt.getDay()>0&&dt.getDay()<6?"-feira":""), m:MESES[dt.getMonth()]};
+}
+function renderDetail(){
+  if (!editing || !selected){ detailEl.hidden = true; detailEl.innerHTML = ""; return; }
+  detailEl.hidden = false;
+  var f = fmtDate(selected), doc = data[selected];
+  detailEl.innerHTML = '<div><div class="eyebrow">Editando</div><div class="date">'+f.d+'</div><div class="wd">'+f.wd+', '+f.m+'</div></div>' + formHtml(doc);
+  bindForm();
+}
+
+var formTipo = "cardapio";
+function formHtml(doc){
+  doc = doc || {};
+  formTipo = doc.tipo==="feriado" ? "feriado" : "cardapio";
+  function inp(id,label,val,wide,type){ return '<label class="'+(wide?'wide':'')+'" for="'+id+'">'+label+'<input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val)+'"></label>'; }
+  return '<form class="form" id="form" autocomplete="off">'
+    + '<div class="wide"><div class="seg" role="group" aria-label="Tipo do dia"><button type="button" class="chip" id="t-card" aria-pressed="'+(formTipo==="cardapio")+'">Cardápio</button><button type="button" class="chip" id="t-hol" aria-pressed="'+(formTipo==="feriado")+'">Feriado / sem serviço</button></div></div>'
+    + '<div class="wide" id="box-card" '+(formTipo==="cardapio"?'':'hidden')+'><div class="form">'
+    + inp("f-principal","Prato principal",doc.principal,true)
+    + inp("f-guarnicao","Guarnição",doc.guarnicao) + inp("f-salada","Salada",doc.salada) + inp("f-sobremesa","Sobremesa",doc.sobremesa)
+    + '</div></div>'
+    + '<div class="wide" id="box-hol" '+(formTipo==="feriado"?'':'hidden')+'>'+inp("f-nome","Nome do feriado ou motivo",doc.nome,true)+'</div>'
+    + '<div class="actions"><button class="btn btn-primary" id="save" type="submit">Salvar</button><button class="btn" id="cancel" type="button">Cancelar</button>'
+    + (data[selected] ? '<button class="btn btn-danger" id="del" type="button">'+(confirmDel?'Confirmar remoção do dia':'Remover dia')+'</button>' : '')
+    + '<span class="status" id="formmsg"></span></div></form>';
+}
+function bindForm(){
+  function tipo(t){ formTipo=t; document.getElementById("t-card").setAttribute("aria-pressed",t==="cardapio"); document.getElementById("t-hol").setAttribute("aria-pressed",t==="feriado"); document.getElementById("box-card").hidden=t!=="cardapio"; document.getElementById("box-hol").hidden=t!=="feriado"; }
+  document.getElementById("t-card").onclick = function(){ tipo("cardapio"); };
+  document.getElementById("t-hol").onclick = function(){ tipo("feriado"); };
+  document.getElementById("cancel").onclick = function(){ editing=false; confirmDel=false; renderDetail(); };
+  var del = document.getElementById("del");
+  if (del) del.onclick = function(){
+    if (!confirmDel){ confirmDel = true; del.textContent = "Confirmar remoção do dia"; return; }
+    run(function(){ return db.doc("cardapio_dias/"+selected).delete(); }, function(){ editing=false; confirmDel=false; });
+  };
+  document.getElementById("form").onsubmit = function(e){
+    e.preventDefault();
+    var v = function(id){ return document.getElementById(id).value.trim(); }, body;
+    if (formTipo==="feriado"){ if(!v("f-nome")) return msg("Informe o nome do feriado."); body = {tipo:"feriado", nome:v("f-nome")}; }
+    else {
+      if(!v("f-principal")) return msg("Informe o prato principal.");
+      body = {tipo:"cardapio", principal:v("f-principal"), guarnicao:v("f-guarnicao"), salada:v("f-salada"), sobremesa:v("f-sobremesa")};
+    }
+    run(function(){ return db.doc("cardapio_dias/"+selected).set(body); }, function(){ editing=false; confirmDel=false; });
+  };
+}
+function msg(t){ var m=document.getElementById("formmsg"); if(m){ m.textContent=t; m.className="status err"; } }
+function run(op, done){
+  if (saving) return; saving = true;
+  msg("Salvando…"); var m=document.getElementById("formmsg"); if(m) m.className="status";
+  op().then(function(){ saving=false; done(); renderHead(); renderGrid(); renderDetail(); }, function(err){
+    saving=false;
+    if (err && err.code==="invalid_argument"){ canWrite=false; editing=false; renderGrid(); renderDetail(); setStatus("Você não tem permissão para editar o cardápio.", true); }
+    else msg("Não foi possível salvar. Tente novamente.");
+  });
+}
+
+function goWeek(delta){
+  weekStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate()+7*delta);
+  editing=false; confirmDel=false; renderHead(); renderGrid(); renderDetail();
+}
+gridEl.addEventListener("click", function(e){
+  var b = e.target.closest("button[data-edit]");
+  if (b){ selected = b.dataset.edit; editing = true; confirmDel = false; renderDetail(); detailEl.scrollIntoView({block:"nearest"}); }
+});
+document.getElementById("prev").onclick = function(){ goWeek(-1); };
+document.getElementById("next").onclick = function(){ goWeek(1); };
+document.getElementById("today").onclick = function(){ weekStart = mondayOf(now); goWeek(0); };
+
+renderHead(); renderGrid(); renderDetail();
+
+// Aberto dentro do Control Hub, usa a conexão da página principal (ela só aceita objetos criados lá).
+function noPai(){ try{ return window.parent !== window && window.parent.claude && window.parent.claude.use ? window.parent : null; }catch(e){ return null; } }
+function usarCap(n){
+  var P = noPai();
+  if (P) return P.claude.use(n);
+  return window.claude && window.claude.use ? window.claude.use(n) : Promise.resolve(null);
+}
+function clonarPara(v){ var P = noPai(); return P ? P.JSON.parse(JSON.stringify(v)) : JSON.parse(JSON.stringify(v)); }
+function bancoReal(raw){
+  return {
+    doc: function(p){ var r = raw.doc(p); return {
+      set: function(o){ return r.set(clonarPara(o)); },
+      delete: function(){ return r.delete(); }
+    }; },
+    collection: function(n){ var c = raw.collection(n); return { onSnapshot: function(cb, err){ return c.onSnapshot(cb, err); } }; }
+  };
+}
+(async function start(){
+  var raw = await usarCap("db");
+  db = raw ? bancoReal(raw) : null;
+  if (!db){ setStatus("Entre na sua conta do Claude para ver o cardápio.", true); return; }
+  var user = await usarCap("user");
+  canWrite = !user || user.can("data.write") !== false;
+  db.collection("cardapio_dias").onSnapshot(function(snap){
+    var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); });
+    data = m; loaded = true; setStatus("");
+    renderHead(); renderGrid(); if (!editing) renderDetail();
+  }, function(){ setStatus("Não foi possível carregar o cardápio agora.", true); });
+})();
+</script>
+
+</body></html>

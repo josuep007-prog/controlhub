@@ -2112,6 +2112,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
         <option value="dp">DP — particularidades de folha</option>
         <option value="portal">Portal do Cliente — implantação</option>
         <option value="contabil">Contábil — carteira, fechamento e prazos</option>
+        <option value="cardapio">Cardápio — refeitório</option>
       </select>
     </label>
     <div class="form-row">
@@ -2609,7 +2610,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
       notes: t.notes || '',
       favorite: !!t.favorite,
       newTab: t.newTab !== false,
-      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : ''),
+      moduleKey: t.moduleKey || (t.id === 'portal-cliente' && !safeUrl(t.url) ? 'portal' : t.id === 'planilha-contabil' && !safeUrl(t.url) ? 'contabil' : String(t.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() === 'cardapio' ? 'cardapio' : ''),
       order: Number.isFinite(t.order) ? t.order : i,
       uses: Number(t.uses) || 0,
       lastUsed: t.lastUsed || null,
@@ -3286,7 +3287,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
   function openFrame(key) {
     Object.keys(FRAMES).forEach(k => { if (k !== key) closeFrame(k); });
     let f = $(`#${key}-frame`);
@@ -7719,6 +7720,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
     { path:'ctb_emp', app:'Contábil' }, { path:'ctb_comp', app:'Contábil' }, { path:'ctb_ano', app:'Contábil' }, { path:'ctb_config', app:'Contábil' },
     { path:'empresas', app:'Portal' }, { path:'empresaSetores', app:'Portal' }, { path:'funcionarios', app:'Portal' }, { path:'contatos', app:'Portal' },
     { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
+    { path:'cardapio_dias', app:'Cardápio' },
   ];
   const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
   const usoCaminhoOk = (p) => { const s = String(p).split('/'); return s.length % 2 === 1 && s.length <= 15 && s.every(x => USO_SEG.test(x) && x !== '.' && x !== '..'); };
@@ -8002,4 +8004,3 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   if (rotaInicial) applyRoute(rotaInicial); else renderHome();
 })();
 </script>
-
