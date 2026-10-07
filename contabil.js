@@ -1662,11 +1662,31 @@ window.__assistente = {
       var por = {};
       empresasControle().forEach(function(x){ var a = x.analista || "(sem analista)"; var q = por[a] = por[a] || {n: 0, atr: 0}; q.n++; var f = resumoAte(x).faixa; if(f === 1 || f === 2 || f === 3) q.atr++; });
       var ks = Object.keys(por).filter(function(a){ return !ana || norm(a) === norm(ana); }).sort(function(a, b){ return por[b].n - por[a].n; });
-      return {titulo: "Carteira do Contábil", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com fechamento atrasado", tom: q.atr ? "warn" : "ok", abrir: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": a === "(sem analista)" ? "" : a, "fx.faixa": "", "fx.busca": ""}}}; })};
+      return {titulo: "Carteira do Contábil", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com fechamento atrasado", dados: {analista: a, empresas: q.n, atrasadas: q.atr}, tom: q.atr ? "warn" : "ok", abrir: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": a === "(sem analista)" ? "" : a, "fx.faixa": "", "fx.busca": ""}}}; })};
+    }
+    if(tipo === "competencia"){
+      var comp = /^\d{4}-\d{2}$/.test(p.comp || "") ? p.comp : compEmFechamento(), lsC = [], porA = {};
+      empresasControle().filter(function(x){ return naComp(x, comp); }).forEach(function(x){
+        var r2 = resumo(x, comp), a2 = x.analista || "(sem analista)", q2 = porA[a2] = porA[a2] || {analista: a2, empresas: 0, fechadas: 0, aguardandoCliente: 0};
+        q2.empresas++; if(r2.fechada) q2.fechadas++; else if(r2.pend) q2.aguardandoCliente++;
+        if(!r2.fechada && dele(x)) lsC.push({t: x.nome, sub: "falta: " + r2.falta.map(function(f){ return f.l; }).join(", ") + (r2.pend ? " · aguardando cliente: " + r2.pend : ""), tom: r2.pend ? "warn" : compAtrasada(comp) ? "late" : "", abrir: {empresa: x.id}, dados: {analista: x.analista || ""}});
+      });
+      return {titulo: "Fechamento do Contábil em " + compRot(comp) + ": " + lsC.length + " em aberto", total: lsC.length, linhas: lsC, resumo: Object.keys(porA).map(function(k){ return porA[k]; }), verTudo: {aba: "fechamento", opts: {"fx.modo": "mes", "fx.ana": ana, "fx.busca": ""}}};
+    }
+    if(tipo === "fechado"){
+      var fz = empresasControle().filter(dele).map(function(x){ return {e: x, r: resumoAte(x)}; }).sort(function(a3, b3){ return (b3.r.meses || 0) - (a3.r.meses || 0); });
+      return {titulo: "Fechado até, do mais atrasado para o mais em dia", total: fz.length, linhas: fz.map(function(x){ return {t: x.e.nome, sub: "fechado até " + rotAte(x.r.ate) + (x.r.meses ? " · " + rotAtraso(x.r.meses) + " de atraso" : " · em dia"), tom: x.r.faixa === 0 ? "ok" : x.r.faixa === "ni" ? "" : x.r.faixa === 1 ? "warn" : "late", abrir: {empresa: x.e.id}, dados: {analista: x.e.analista || "", meses: x.r.meses || 0}}; }), verTudo: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": ana, "fx.faixa": "", "fx.busca": ""}}};
+    }
+    if(tipo === "impostos"){
+      var vi = vencimentosImpostos(de, ate).sort(function(a3, b3){ return a3.data - b3.data; }), lsI = [];
+      vi.forEach(function(v){ var pend = v.pendentes.filter(dele); if(!v.emps.filter(dele).length) return; lsI.push({t: v.def.l + " de " + compCurta(v.comp), sub: dataBR(ymd(v.data)).slice(0, 5) + " · " + (pend.length ? pend.length + " sem guia: " + pend.slice(0, 6).map(function(x){ return x.nome; }).join(", ") + (pend.length > 6 ? "…" : "") : "todas com guia") + " · " + v.apuradas + " apurada(s)", data: ymd(v.data), tom: pend.length ? (v.data < hoje() ? "late" : "") : "ok", abrir: {aba: "prazos"}}); });
+      return {titulo: "Impostos do Contábil (apurado / guia enviada)", total: lsI.length, linhas: lsI};
     }
     return null;
   },
-  vocab: function(){ return {etapas: ETAPAS.map(function(x){ return {k:x.k, l:x.l, c:x.c}; }), obrigacoes: []}; },
+  listar: function(){ return listaEmpresas().map(function(e){ var r = fimEmp(e) ? resumoAte(e) : null; return {id:e.id, nome:e.nome, cnpj:cnpjDig(e.cnpj), analista:e.analista || "", apoio: e.apoio || "", tributacao: TRIB[e.trib] ? TRIB[e.trib].l : "", situacao: SIT[e.sit] ? SIT[e.sit].l : "", grupo: e.grupo || "", atraso: !!(r && (r.faixa === 1 || r.faixa === 2 || r.faixa === 3)), mesesAtraso: r ? r.meses || 0 : 0, aguardandoCliente: !!entrada(compPendencia(e), e.id).pend}; }); },
+  coord: function(){ return !!S.coord; },
+  vocab: function(){ return {etapas: ETAPAS.map(function(x){ return {k:x.k, l:x.l, c:x.c}; }), obrigacoes: [], impostos: (S.cfg.impostos || []).map(function(d){ return {k:d.k, l:d.l}; })}; },
   acao: function(tipo, p){
     p = p || {};
     var e = S.empresas[p.id];
@@ -1710,6 +1730,39 @@ window.__assistente = {
       else { ent.cobr = (ent0.cobr || []).concat([hj]).slice(-20); }
       return {titulo: modo === "recebida" ? "Dar a pendência por recebida" : "Registrar cobrança de hoje", empresa: e.nome, linhas: ["Pendência: “" + ent0.pend + "”", quando],
         executar: guarda(function(){ return salvarCompEntrada(comp, e.id, ent).then(function(){ return modo === "recebida" ? "Pendência encerrada." : "Cobrança registrada."; }); }), desfazer: guarda(function(){ return salvarCompEntrada(comp, e.id, ent0); })};
+    }
+    if(tipo === "imposto"){
+      var def = (S.cfg.impostos || []).filter(function(d){ return d.k === p.imposto; })[0];
+      if(!def) return {erro: "Não conheci esse imposto."};
+      var ROT = {a: "Apurado", e: "Guia enviada", n: "Não se aplica", "": "Pendente"};
+      var val = {apurado: "a", guia: "e", enviada: "e", guia_enviada: "e", na: "n", nao_se_aplica: "n", pendente: ""}[p.valor || "guia"];
+      if(val === undefined) val = "e";
+      var ini = new Date(hoje()); ini.setDate(ini.getDate() - 150); var fim = new Date(hoje()); fim.setDate(fim.getDate() + 60);
+      var vs = vencimentosImpostos(ini, fim).filter(function(v){ return v.def.k === def.k && v.emps.indexOf(e) !== -1 && (!p.comp || v.comp === p.comp); }).sort(function(a3, b3){ return a3.data - b3.data; });
+      var alvo = val ? vs.filter(function(v){ var c0 = stImp(v.comp, e, def.k); return c0 !== val && !(val === "a" && c0 === "e"); })[0] : vs.filter(function(v){ return !!stImp(v.comp, e, def.k); }).pop();
+      if(!alvo) return {erro: val ? def.l + " de “" + e.nome + "” não tem vencimento pendente" + (p.comp ? " em " + compRot(p.comp) : "") + "." : "Não achei " + def.l + " marcado para desfazer."};
+      var cur = stImp(alvo.comp, e, def.k), entI0 = copia(entrada(alvo.comp, e.id)), entI = copia(entI0); entI.v = entI.v || {};
+      if(val) entI.v[def.k] = [val, ymd(hoje()), S.meId || ""]; else delete entI.v[def.k];
+      return {titulo: "Marcar imposto", empresa: e.nome, linhas: [def.l + " de " + compRot(alvo.comp) + ": " + ROT[cur] + " → " + ROT[val], "Vencimento " + dataBR(ymd(alvo.data))],
+        executar: guarda(function(){ return salvarCompEntrada(alvo.comp, e.id, entI).then(function(){ return "Pronto: " + def.l + " de " + compCurta(alvo.comp) + " " + ROT[val].toLowerCase() + "."; }); }),
+        desfazer: guarda(function(){ return salvarCompEntrada(alvo.comp, e.id, entI0); })};
+    }
+    if(tipo === "transferir"){
+      if(!S.coord) return {erro: "Só a coordenação transfere empresas entre analistas."};
+      var nomes = analistas(), para = String(p.para || "").trim();
+      var alvoA = nomes.filter(function(n){ return norm(n) === norm(para); })[0] || nomes.filter(function(n){ return norm(n).split(" ")[0] === norm(para).split(" ")[0]; })[0];
+      if(!alvoA) return {erro: "Não conheço o analista “" + para + "” no Contábil."};
+      if(norm(alvoA) === norm(e.analista)) return {erro: "“" + e.nome + "” já é de " + alvoA + "."};
+      var eT = copia(e), yT = Object.assign({}, e, {analista: alvoA}); if(norm(yT.apoio) === norm(alvoA)) yT.apoio = "";
+      return {titulo: "Transferir empresa", empresa: e.nome, linhas: ["Analista no Contábil: " + (e.analista || "—") + " → " + alvoA],
+        executar: guarda(function(){ return salvarEmpresas([yT]).then(function(){ return "Pronto: agora é de " + alvoA + "."; }); }), desfazer: guarda(function(){ return salvarEmpresas([eT]); })};
+    }
+    if(tipo === "observacao"){
+      var txO = String(p.texto || "").trim().slice(0, 300);
+      if(!txO) return {erro: "Qual observação devo anotar?"};
+      var eO = copia(e), yO = Object.assign({}, e, {obs: ((e.obs ? e.obs + "\n" : "") + dataBR(ymd(hoje())).slice(0, 5) + ": " + txO).slice(-1200)});
+      return {titulo: "Anotar observação na ficha", empresa: e.nome, linhas: ["“" + txO + "”", "Fica nas observações da ficha do Contábil"],
+        executar: guarda(function(){ return salvarEmpresas([yO]).then(function(){ return "Observação anotada."; }); }), desfazer: guarda(function(){ return salvarEmpresas([eO]); })};
     }
     return {erro: "Ainda não sei fazer isso no Contábil."};
   }

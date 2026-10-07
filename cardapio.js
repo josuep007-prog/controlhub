@@ -165,6 +165,26 @@ window.__assistente = {
       else ls.push({t: rot, sub: "Cardápio ainda não cadastrado", data: k, tom: "", abrir: {aba: "", opts: {dia: k}}});
     }
     return {titulo: "Cardápio", total: ls.length, linhas: ls};
+  },
+  podeEditar: function(){ return !!db && canWrite; },
+  // Cadastra/edita um dia (ou marca feriado). Nada grava até executar().
+  acao: function(tipo, p){
+    p = p || {};
+    if(tipo !== "cardapio") return {erro: "No Cardápio eu só cadastro o cardápio de um dia."};
+    if(!db || !canWrite) return {erro: "Você não tem permissão para editar o cardápio."};
+    var k = /^\d{4}-\d{2}-\d{2}$/.test(p.dia || "") ? p.dia : "";
+    if(!k) return {erro: "De qual dia? (AAAA-MM-DD)"};
+    var cl = function(v){ return String(v || "").trim().slice(0, 120); };
+    var body = p.feriado ? {tipo: "feriado", nome: cl(p.feriado)} : {tipo: "cardapio", principal: cl(p.principal), guarnicao: cl(p.guarnicao), salada: cl(p.salada), sobremesa: cl(p.sobremesa)};
+    if(body.tipo === "cardapio" && !body.principal) return {erro: "Qual é o prato principal?"};
+    var antes = data[k] ? JSON.parse(JSON.stringify(data[k])) : null;
+    var f = fmtDate(k), ls = [f.wd + ", " + f.d + " de " + f.m];
+    if(body.tipo === "feriado") ls.push("Feriado / sem serviço: " + body.nome);
+    else ls.push([body.principal, body.guarnicao, body.salada, body.sobremesa].filter(Boolean).join(" · "));
+    if(antes) ls.push("Substitui o que estava cadastrado");
+    return {titulo: antes ? "Editar o cardápio do dia" : "Cadastrar o cardápio do dia", empresa: "", linhas: ls, aviso: "",
+      executar: function(){ return db.doc("cardapio_dias/" + k).set(body).then(function(){ return "Cardápio salvo."; }); },
+      desfazer: function(){ return antes ? db.doc("cardapio_dias/" + k).set(antes) : db.doc("cardapio_dias/" + k).delete(); }};
   }
 };
 

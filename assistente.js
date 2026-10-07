@@ -89,6 +89,9 @@
     if (/\b(semana que vem|proxima semana|semana seguinte)\b/.test(t)) { var seg = addDias(h, ((8 - h.getDay()) % 7) || 7); return {de: seg, ate: addDias(seg, 6)}; }
     if ((m = /\b(?:proximos|proximas|em|nos proximos) (\d{1,3}) dias?\b/.exec(t))) return {de: h, ate: addDias(h, +m[1])};
     if (/\bproximos dias\b/.test(t)) return {de: h, ate: addDias(h, 7)};
+    if (/\b(proxima quinzena|proximos 15 dias)\b/.test(t)) return {de: h, ate: addDias(h, 15)};
+    if (/\b(ate o )?fim do mes\b/.test(t)) return {de: h, ate: new Date(h.getFullYear(), h.getMonth() + 1, 0)};
+    if ((m = /\bate o dia (\d{1,2})\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { var lim = new Date(h.getFullYear(), h.getMonth(), +m[1]); if (lim < h) lim = new Date(h.getFullYear(), h.getMonth() + 1, +m[1]); return {de: h, ate: lim}; }
     if (/\b(esta|essa|nesta|nessa) semana\b|\bsemana\b/.test(t)) return {de: h, ate: addDias(h, (7 - h.getDay()) % 7)};
     if (/\b(mes que vem|proximo mes)\b/.test(t)) return mesInteiro(h.getFullYear(), h.getMonth() + 1);
     for (var i = 0; i < 12; i++) if (new RegExp("\\b" + MESES_N[i] + "\\b").test(t)) { r = mesInteiro(h.getFullYear(), i); return r; }
@@ -208,7 +211,14 @@
   // Empresas citadas na frase, da mais provável para a menos. `ignorar`: nomes de analistas já reconhecidos.
   function casarEmpresas(t, ignorar) {
     var ix = indice(), toks = t.split(" ").filter(Boolean), dig = (t.replace(/[^\d ]/g, "").match(/\d{8,14}/) || [])[0], out = [];
+    var tt0 = " " + t + " ";
+    Object.keys(apelidos).forEach(function (k) {
+      if (tt0.indexOf(" " + k + " ") === -1) return;
+      var ap = apelidos[k], g0 = ix.empresas.filter(function (g) { return (ap.cnpj && g.cnpj === ap.cnpj) || norm(g.nome) === norm(ap.empresa); })[0];
+      if (g0) out.push({g: g0, s: 3, apelido: true});
+    });
     ix.empresas.forEach(function (g) {
+      if (out.some(function (o) { return o.g === g; })) return;
       if (dig && g.cnpj && g.cnpj.indexOf(dig) !== -1) { out.push({g: g, s: 2}); return; }
       var soma = 0, n = 0;
       g.tok.forEach(function (w, i) { if (ignorar[w]) return; if (toks.some(function (x) { return parecido(x, w); })) { soma += g.peso[i]; n++; } });
@@ -242,7 +252,10 @@
     {t: "Impedimentos no Portal", m: "portal", k: "impedimento impedimentos bloqueio portal empresa", a: "Na aba Impedimentos ficam as empresas, setores e pessoas travados, com o motivo, desde quando e de quem se aguarda retorno.", ir: {m: "portal", aba: "impedimentos"}},
     {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
-    {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas."},
+    {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
+    {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
+    {t: "Apelidos de empresas", k: "apelido apelidos nome curto padaria", a: "Diga “a padaria do centro é a Panificadora Silva” e eu guardo o apelido (com confirmação) para toda a equipe usar nas próximas perguntas."},
+    {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas. A última opção da busca manda o texto como pergunta para o assistente."},
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
     {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Eu ando pela tela como se o layout fosse chão e parede: caminho pelo topo dos cartões e botões, pulo degraus e caio quando o chão some. Clique num espaço vazio e eu vou até lá. Clicando em mim, abre a conversa; em “🎨 Visual” você troca o meu desenho. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
   ];
@@ -551,21 +564,32 @@
     if (pd.tipo === "ambigua_mod") {
       return Promise.resolve([T("Essa empresa está em mais de um módulo. Em qual?"), CH(pd.mods.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]);
     }
-    var e = pd.emp, mod = pd.mod;
-    if (pd.tipo === "lembrete") mod = "dp";
+    return montarPlano(pd, texto).then(function (r) {
+      if (r.blocos) return r.blocos;
+      return [{tipo: "confirma", plano: r.plano, mod: r.mod, titulo: r.plano.titulo}];
+    });
+  }
+  // Monta o plano de uma ação num módulo (nada grava). Devolve {plano, mod} ou {blocos} (pergunta/erro).
+  var SO_MOD = {lembrete: "dp", cardapio: "cardapio", etapa_portal: "portal", imposto: "contabil"};
+  var TIPO_PONTE = {etapa_portal: "etapa"};
+  function montarPlano(pd, texto) {
+    texto = texto || "";
+    var e = pd.emp, mod = pd.mod || SO_MOD[pd.tipo] || "";
+    if (SO_MOD[pd.tipo]) mod = SO_MOD[pd.tipo];
     else if (!mod) {
       var cand = Object.keys(e.g.refs).filter(function (m) { return m === "fiscal" || m === "contabil"; });
-      if (!cand.length) return Promise.resolve([T("Só consigo marcar etapas e pendências em empresas do Fiscal ou do Contábil, e essa não está em nenhum dos dois.")]);
+      if (!cand.length) return Promise.resolve({blocos: [T("Só consigo fazer isso em empresas do Fiscal ou do Contábil, e “" + e.g.nome + "” não está em nenhum dos dois.")]});
       mod = escolherModulo(pd, cand);
-      if (mod === "?") return Promise.resolve([T("“" + e.g.nome + "” está no Fiscal e no Contábil. Em qual deles?"), CH(cand.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]);
+      if (mod === "?") return Promise.resolve({blocos: [T("“" + e.g.nome + "” está no Fiscal e no Contábil. Em qual deles?"), CH(cand.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]});
     }
     return modulo(mod).then(function (a) {
-      if (!a || !a.acao) return [T("Ainda não consigo fazer isso no " + MODN[mod] + ".")];
+      if (!a || !a.acao) return {blocos: [T("Ainda não consigo fazer isso no " + MODN[mod] + ".")]};
       var id = e ? e.g.refs[mod] : "";
-      var p = {id: id, etapa: pd.etapa, status: pd.status, ob: pd.ob, modo: pd.modo, texto: pd.texto, comp: pd.comp, data: pd.data, hora: pd.hora};
-      var plano = a.acao(pd.tipo, p);
-      if (!plano || plano.erro) return [T(plano && plano.erro ? plano.erro : "Não consegui preparar essa ação.")];
-      return [{tipo: "confirma", plano: plano, mod: mod, titulo: plano.titulo}];
+      if (e && !id && pd.tipo !== "lembrete") return {blocos: [T("“" + e.g.nome + "” não está no " + MODN[mod] + ".")]};
+      var p = Object.assign({}, pd.params || {}, {id: id, etapa: pd.etapa, status: pd.status, ob: pd.ob, modo: pd.modo, texto: pd.texto, comp: pd.comp, data: pd.data, hora: pd.hora});
+      var plano = a.acao(TIPO_PONTE[pd.tipo] || pd.tipo, p);
+      if (!plano || plano.erro) return {blocos: [T(plano && plano.erro ? plano.erro : "Não consegui preparar essa ação.")], erro: plano && plano.erro ? plano.erro : "Não consegui preparar essa ação."};
+      return {plano: plano, mod: mod};
     });
   }
   function substituirEmpresa(texto, nome) {
@@ -608,13 +632,144 @@
     extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: mod}, l); }),
       mais: r.linhas.length > 8 && r.verTudo ? {rot: "Ver os " + r.total + " no " + MODN[mod], acao: function () { return abrirItem(mod, r.verTudo); }} : null});
   }
+  // Acha a empresa pelo texto (nome, CNPJ ou apelido). Devolve {g} ou {erro}.
+  function acharEmpresa(txt) {
+    var es = casarEmpresas(norm(txt || ""), {});
+    if (!es.length) return {erro: "Não achei a empresa “" + txt + "”."};
+    if (es.length > 1 && es[1].s >= es[0].s * 0.92 && es[0].s < 2) return {erro: "Empresa ambígua: " + es.slice(0, 4).map(function (x) { return x.g.nome; }).join("; ") + ". Pergunte qual."};
+    return {g: es[0].g, x: es[0]};
+  }
+  var STATUS_IA = {concluida: "c", entregue: "c", retificada: "r", em_andamento: "a", pendente: ""};
+  // Converte os argumentos das ferramentas (preparar_acao / preparar_lote) num pedido para montarPlano.
+  function pedidoDe(i, emp) {
+    var pd = {tipo: i.tipo, mod: i.modulo || "", status: STATUS_IA[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : [],
+      params: {imposto: "", valor: i.valor, para: i.para, rep: i.repetir, dia: i.data, principal: i.principal, guarnicao: i.guarnicao, salada: i.salada, sobremesa: i.sobremesa, feriado: i.feriado, setor: i.setor}};
+    if (i.tipo === "cardapio" || i.tipo === "lembrete") { if (i.tipo === "lembrete" && emp) pd.emp = emp; return {pd: pd}; }
+    if (!emp) return {erro: "Diga a empresa."};
+    pd.emp = emp;
+    var tt = limpo(norm(i.etapa || i.obrigacao || i.imposto || "")), ok = false;
+    if (i.tipo === "etapa" || i.tipo === "entrega" || i.tipo === "imposto" || i.tipo === "etapa_portal") {
+      var mods = i.tipo === "imposto" ? ["contabil"] : i.tipo === "etapa_portal" ? ["portal"] : Object.keys(emp.g.refs);
+      if (pd.mod && i.tipo === "etapa") mods = [pd.mod];
+      var noMod = mods.filter(function (m) { return emp.g.refs[m]; });
+      if (!noMod.length) return {erro: "“" + emp.g.nome + "” não está no " + mods.map(function (m) { return MODN[m]; }).join(" nem no ") + "."};
+      mods.forEach(function (m) {
+        var a = carregados[m]; if (!a || !a.vocab || ok || !emp.g.refs[m]) return; var v = a.vocab();
+        var lista = i.tipo === "entrega" ? v.obrigacoes : i.tipo === "imposto" ? (v.impostos || []) : v.etapas; if (!lista || !lista.length) return;
+        var r = melhorPorTokens(tt, lista, function (x) { return [x.c || x.l, x.l]; });
+        if (r.item && r.pts >= 0.5) { ok = true; pd.mod = m; if (i.tipo === "entrega") pd.ob = r.item.k; else if (i.tipo === "imposto") pd.params.imposto = r.item.k; else pd.etapa = r.item.k; }
+      });
+      if (!ok) return {erro: "Não reconheci “" + (i.etapa || i.obrigacao || i.imposto || "") + "”" + (i.tipo === "etapa_portal" ? " (etapas do Portal: Habilitação no Domínio, Treinamento do analista)" : "") + "."};
+      if (i.tipo === "etapa_portal") pd.status = {c: "concluido", a: "andamento", "": "pendente", r: "concluido"}[pd.status];
+    }
+    return {pd: pd};
+  }
+  // Ações feitas pelo assistente nesta sessão (para "desfazer tudo da última hora").
+  var feitosSessao = [];
+  function cartaoLote(planos, falhas, titulo) {
+    var linhas = planos.map(function (x) { return (x.plano.empresa ? x.plano.empresa + ": " : "") + (x.plano.linhas || [])[0]; });
+    if (linhas.length > 25) linhas = linhas.slice(0, 25).concat(["… e mais " + (planos.length - 25)]);
+    return {tipo: "confirma", titulo: titulo, plano: {titulo: titulo + " (" + planos.length + ")", empresa: "", linhas: linhas, aviso: falhas.length ? falhas.length + " não entram: " + falhas.slice(0, 4).join(" · ") + (falhas.length > 4 ? "…" : "") : "",
+      executar: function () {
+        var ok = 0, erros = 0;
+        return planos.reduce(function (pr, x) { return pr.then(function () { return Promise.resolve().then(function () { return x.plano.executar(); }).then(function () { ok++; x.feito = true; }, function () { erros++; }); }); }, Promise.resolve())
+          .then(function () { return ok + " feita(s)" + (erros ? ", " + erros + " com erro" : "") + "."; });
+      },
+      desfazer: function () {
+        return planos.slice().reverse().reduce(function (pr, x) { return pr.then(function () { return x.feito && x.plano.desfazer ? Promise.resolve().then(function () { return x.plano.desfazer(); }).catch(function () {}) : null; }); }, Promise.resolve());
+      }}};
+  }
+  // Agrega a carteira de cada módulo por analista.
+  function cargaAnalistas() {
+    return carregarTodos().then(function () {
+      var por = {};
+      ["fiscal", "contabil", "dp", "portal"].forEach(function (m) {
+        var a = carregados[m]; if (!a) return;
+        var r = a.consultar("carteira", {}); if (!r) return;
+        r.linhas.forEach(function (l) { var d = l.dados; if (!d || !d.analista || /^\(sem/.test(d.analista)) return; var k = norm(d.analista).split(" ").slice(0, 2).join(" "); var q = por[k] = por[k] || {analista: d.analista, modulos: {}, pontos: 0}; q.modulos[MODN[m]] = Object.assign({}, d, {analista: undefined}); q.pontos += (d.atrasadas || 0) * 3 + (d.aguardandoCliente || 0) + (d.empresas || 0) * 0.15 + (d.frentes || 0) * 0.3; });
+      });
+      return Object.keys(por).map(function (k) { var q = por[k]; q.pontos = Math.round(q.pontos * 10) / 10; return q; }).sort(function (a, b) { return b.pontos - a.pontos; });
+    });
+  }
+  function listarTudo() {
+    return carregarTodos().then(function () {
+      var out = [];
+      Object.keys(carregados).forEach(function (m) { var a = carregados[m]; if (!a || !a.listar) return; if (a.exemplo && a.exemplo() && indice().empresas.length > 0 && apisCarregadas().some(function (b) { return b !== a && b.listar && b.listar().length; })) { /* exemplo convive com real: marca */ } a.listar().forEach(function (x) { out.push(Object.assign({modulo: m, exemplo: !!(a.exemplo && a.exemplo())}, x)); }); });
+      return out;
+    });
+  }
+  function contem(a, b) { return !b || norm(a).indexOf(norm(b)) !== -1; }
+  // Calendário simples para cálculos (feriados vêm do Fiscal quando carregado).
+  function feriadosEntre(de, ate) {
+    var a = carregados.fiscal; if (!a) return {};
+    var r = a.consultar("feriados", {de: ymd(de), ate: ymd(ate)}), m = {};
+    (r && r.linhas || []).forEach(function (l) { m[l.data] = 1; });
+    return m;
+  }
+  function calcular(i) {
+    var d = function (s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+    var aviso = " (estimativa: confira na legislação, na convenção e no sistema de folha)";
+    if (i.tipo === "aviso_previo") {
+      var a0 = d(i.admissao), a1 = d(i.desligamento) || hoje(); if (!a0) return "Informe a data de admissão (AAAA-MM-DD).";
+      var anos = a1.getFullYear() - a0.getFullYear(); if (a1.getMonth() < a0.getMonth() || (a1.getMonth() === a0.getMonth() && a1.getDate() < a0.getDate())) anos--;
+      anos = Math.max(0, anos);
+      var dias = Math.min(90, 30 + 3 * anos);
+      return {anosCompletos: anos, diasDeAviso: dias, regra: "30 dias + 3 por ano completo, até 90 (Lei 12.506/2011)", fimDoAvisoSeTrabalhadoDesde: i.desligamento ? ymd(addDias(a1, dias - 1)) : "", aviso: aviso};
+    }
+    if (i.tipo === "ferias_dias") {
+      var f = Math.max(0, +i.faltas || 0), dd = f <= 5 ? 30 : f <= 14 ? 24 : f <= 23 ? 18 : f <= 32 ? 12 : 0;
+      return {faltasInjustificadas: f, diasDeFerias: dd, regra: "CLT art. 130: até 5 faltas 30 dias; 6-14: 24; 15-23: 18; 24-32: 12; mais de 32: perde o direito", aviso: aviso};
+    }
+    if (i.tipo === "ferias_proporcionais") {
+      var p0 = d(i.inicio_periodo || i.admissao), p1 = d(i.data) || hoje(); if (!p0) return "Informe o início do período aquisitivo ou a admissão (AAAA-MM-DD).";
+      var meses = 0, c = new Date(p0);
+      while (meses < 12) { var prox = new Date(c); prox.setMonth(prox.getMonth() + 1); if (prox <= addDias(p1, 1)) { meses++; c = prox; } else { var resto = Math.round((p1 - c) / 864e5) + 1; if (resto >= 15) meses++; break; } }
+      return {avos: Math.min(12, meses) + "/12", diasProporcionais: Math.round(Math.min(12, meses) / 12 * 30 * 10) / 10, regra: "1/12 por mês trabalhado ou fração de 15 dias ou mais", aviso: aviso};
+    }
+    if (i.tipo === "dias_uteis") {
+      var x0 = d(i.de), x1 = d(i.ate); if (!x0 || !x1) return "Informe de e ate (AAAA-MM-DD).";
+      var fer = feriadosEntre(x0, x1), n = 0; for (var q = new Date(x0); q <= x1; q = addDias(q, 1)) if (q.getDay() % 6 && !fer[ymd(q)]) n++;
+      return {diasUteis: n, considera: carregados.fiscal ? "fins de semana e feriados nacionais e de Vitória/ES" : "só fins de semana (Fiscal não carregado)"};
+    }
+    if (i.tipo === "somar_dias_uteis") {
+      var b0 = d(i.data) || hoje(), n2 = +i.dias || 0, fer2 = feriadosEntre(b0, addDias(b0, n2 * 2 + 20)), cur = new Date(b0), k = 0;
+      while (k < n2) { cur = addDias(cur, 1); if (cur.getDay() % 6 && !fer2[ymd(cur)]) k++; }
+      return {data: ymd(cur), diaDaSemana: SEM[cur.getDay()]};
+    }
+    return "Tipo de cálculo desconhecido.";
+  }
+  // Apelidos de empresas cadastrados pela equipe (banco do Hub, coleção tax_apelidos).
+  var apelidos = {}, dbTax = null, dbTaxP = null;
+  function usarDb() {
+    if (!dbTaxP) dbTaxP = (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then(function (d) { dbTax = d || null; return dbTax; }, function () { return null; });
+    return dbTaxP;
+  }
+  function ouvirApelidos() {
+    usarDb().then(function (db) {
+      if (!db) return;
+      try { db.collection("tax_apelidos").onSnapshot(function (snap) { var m = {}; snap.docs.forEach(function (d) { var x = d.data() || {}; if (x.apelido && (x.empresa || x.cnpj)) m[norm(x.apelido)] = {empresa: x.empresa || "", cnpj: x.cnpj || ""}; }); apelidos = m; cache.indice = null; }, function () {}); } catch (e) {}
+    });
+  }
+  function slug(t) { return norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x"; }
+
   function ferramentasIA(cartoes) {
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
+    var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "funcionarios", "lembretes", "uso"];
     return [
-      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. tipo: vencimentos (entregas/prazos num período), atrasos, pendencias (aguardando o cliente), carteira (empresas por analista) ou cardapio. Datas em AAAA-MM-DD; sem datas = hoje.",
-        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio"]}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}}, required: ["modulo", "tipo"]},
-        execute: function (i) { return modulo(i.modulo).then(function (a) { if (!a) return "Módulo indisponível."; var r = a.consultar(i.tipo, {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || ""}); if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a); if (r && a.exemplo && a.exemplo()) { r = Object.assign({}, r, {aviso: "dados de exemplo"}); } return r ? compacto(r) : "Esse módulo não tem esse tipo de consulta."; }); }},
-      {name: "empresa", description: "Situação de uma empresa pelo nome ou CNPJ, em todos os módulos onde ela existe.",
+      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
+        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao)"}}, required: ["modulo", "tipo"]},
+        execute: function (i) {
+          return carregarTodos().then(function () { return modulo(i.modulo); }).then(function (a) {
+            if (!a) return "Módulo indisponível.";
+            var p = {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || "", comp: i.competencia || ""};
+            if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; p.id = f.g.refs[i.modulo]; if (!p.id) return "“" + f.g.nome + "” não está no " + MODN[i.modulo] + "."; }
+            var r = a.consultar(i.tipo, p);
+            if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a);
+            if (r && a.exemplo && a.exemplo()) r = Object.assign({}, r, {aviso: "dados de exemplo"});
+            return r ? compacto(r, 25) : "Esse módulo não tem esse tipo de consulta.";
+          });
+        }},
+      {name: "empresa", description: "Ficha completa de uma empresa (pelo nome, CNPJ ou apelido) em todos os módulos onde ela existe: DP, Contábil, Fiscal e Portal.",
         inputSchema: {type: "object", properties: {consulta: {type: "string"}}, required: ["consulta"]},
         execute: function (i) {
           return carregarTodos().then(function () {
@@ -624,44 +779,130 @@
             return Promise.all(Object.keys(g.refs).map(function (m) { return modulo(m).then(function (a) { var r = a && a.consultar("empresa", {id: g.refs[m]}); if (r) { out.modulos[m] = compacto(r, 12); anexarLista(cartoes, m, {titulo: g.nome, total: r.total, linhas: r.linhas}, a); } }); })).then(function () { return out; });
           });
         }},
+      {name: "buscar_empresas", description: "Busca e filtra empresas em todos os módulos (combinando filtros): texto (nome, CNPJ parcial, IE, IM, município, grupo), analista, modulo, regime/tributação, municipio, uf, situacao, so_atrasadas, so_aguardando_cliente, sem_analista. Devolve a lista (até 40) e o total.",
+        inputSchema: {type: "object", properties: {texto: {type: "string"}, analista: {type: "string"}, modulo: {type: "string", enum: ["dp", "contabil", "fiscal"]}, regime: {type: "string"}, municipio: {type: "string"}, uf: {type: "string"}, situacao: {type: "string"}, so_atrasadas: {type: "boolean"}, so_aguardando_cliente: {type: "boolean"}, sem_analista: {type: "boolean"}}},
+        execute: function (i) {
+          return listarTudo().then(function (rows) {
+            var dig = String(i.texto || "").replace(/\D/g, "");
+            var f = rows.filter(function (x) {
+              if (i.modulo && x.modulo !== i.modulo) return false;
+              if (i.texto && !(contem(x.nome, i.texto) || (dig.length >= 4 && String(x.cnpj).indexOf(dig) !== -1) || contem(x.ie, i.texto) || contem(x.im, i.texto) || contem(x.municipio, i.texto) || contem(x.grupo, i.texto))) return false;
+              if (i.analista && !(contem(x.analista, i.analista) || contem(x.apoio, i.analista) || contem(x.analistaEfetivo, i.analista))) return false;
+              if (i.regime && !(contem(x.regime, i.regime) || contem(x.tributacao, i.regime))) return false;
+              if (i.municipio && !contem(x.municipio, i.municipio)) return false;
+              if (i.uf && norm(x.uf) !== norm(i.uf)) return false;
+              if (i.situacao && !contem(x.situacao, i.situacao)) return false;
+              if (i.so_atrasadas && !x.atraso) return false;
+              if (i.so_aguardando_cliente && !x.aguardandoCliente) return false;
+              if (i.sem_analista && x.analista) return false;
+              return true;
+            });
+            var linhas = f.map(function (x) { return {t: x.nome, sub: [MODN[x.modulo], x.analista || "sem analista", x.regime || x.tributacao, x.municipio ? x.municipio + (x.uf ? "/" + x.uf : "") : "", x.atraso ? "com atraso" : "", x.aguardandoCliente ? "aguardando cliente" : "", x.exemplo ? "exemplo" : ""].filter(Boolean).join(" · "), tom: x.atraso ? "late" : x.aguardandoCliente ? "warn" : "", mod: x.modulo, abrir: {empresa: x.id}}; });
+            if (linhas.length) cartoes.push({tipo: "linhas", titulo: "Empresas encontradas · " + linhas.length, linhas: linhas.slice(0, 8), todas: linhas, nota: ""});
+            return {total: f.length, empresas: f.slice(0, 40).map(function (x) { var o = {}; ["modulo", "nome", "cnpj", "analista", "regime", "tributacao", "municipio", "uf", "situacao", "atraso", "aguardandoCliente", "funcionarios", "exemplo"].forEach(function (k) { if (x[k] !== undefined && x[k] !== "") o[k] = x[k]; }); return o; })};
+          });
+        }},
+      {name: "carga_analistas", description: "Carga de trabalho de cada analista somando os módulos (empresas, atrasadas, aguardando cliente, frentes do Portal). Use para 'quem está mais sobrecarregado' e 'quem pode ajudar' (menor pontuação no mesmo módulo).",
+        inputSchema: {type: "object", properties: {}}, execute: function () { return cargaAnalistas(); }},
+      {name: "conferir_cadastros", description: "Procura divergências de cadastro entre os módulos: empresas sem analista, sem CNPJ, com situação diferente entre setores (ex.: inativa no DP e ativa no Contábil) ou com nomes diferentes para o mesmo CNPJ.",
+        inputSchema: {type: "object", properties: {}},
+        execute: function () {
+          return listarTudo().then(function (rows) {
+            var reais = rows.filter(function (x) { return !x.exemplo; }), out = [], porCnpj = {};
+            reais.forEach(function (x) {
+              if (!x.analista) out.push({t: "Sem analista: " + x.nome, sub: MODN[x.modulo], tom: "warn", mod: x.modulo, abrir: {empresa: x.id}});
+              if (!x.cnpj) out.push({t: "Sem CNPJ: " + x.nome, sub: MODN[x.modulo], tom: "", mod: x.modulo, abrir: {empresa: x.id}});
+              if (x.cnpj) (porCnpj[x.cnpj] = porCnpj[x.cnpj] || []).push(x);
+            });
+            var ativo = function (x) { var s = norm(x.situacao || "ativa"); return /^ativ/.test(s); };
+            Object.keys(porCnpj).forEach(function (c) {
+              var g = porCnpj[c]; if (g.length < 2) return;
+              var at = g.filter(ativo), in2 = g.filter(function (x) { return !ativo(x); });
+              if (at.length && in2.length) out.push({t: "Situação diferente: " + g[0].nome, sub: g.map(function (x) { return MODN[x.modulo] + ": " + (x.situacao || "ativa"); }).join(" · "), tom: "late", mod: in2[0].modulo, abrir: {empresa: in2[0].id}});
+              var nomes = {}; g.forEach(function (x) { nomes[norm(x.nome).replace(/\b(ltda|me|epp|eireli|s a|sa)\b/g, "").trim()] = x.nome; });
+              if (Object.keys(nomes).length > 1) out.push({t: "Nomes diferentes para o CNPJ " + c, sub: g.map(function (x) { return MODN[x.modulo] + ": " + x.nome; }).join(" · "), tom: "", mod: g[0].modulo, abrir: {empresa: g[0].id}});
+            });
+            if (out.length) cartoes.push({tipo: "linhas", titulo: "Divergências de cadastro · " + out.length, linhas: out.slice(0, 8), todas: out, nota: ""});
+            return {total: out.length, itens: out.slice(0, 40).map(function (l) { return l.t + " — " + l.sub; })};
+          });
+        }},
       {name: "analistas", description: "Lista os analistas conhecidos (nomes completos).", inputSchema: {type: "object", properties: {}}, execute: function () { return carregarTodos().then(function () { return indice().analistas; }); }},
       {name: "ajuda", description: "Busca na base de ajuda do Control Hub como usar uma função.", inputSchema: {type: "object", properties: {pergunta: {type: "string"}}, required: ["pergunta"]},
         execute: function (i) { var e = buscarAjuda(norm(i.pergunta), [], 2); return e ? {titulo: e.t, texto: e.a} : "Sem entrada na base de ajuda."; }},
       {name: "glossario", description: "Explica um termo, sigla ou obrigação do setor contábil/fiscal/DP (DAS, DCTFWeb, EFD-Reinf, CCT, período concessivo…).", inputSchema: {type: "object", properties: {termo: {type: "string"}}, required: ["termo"]},
         execute: function (i) { return buscarGlossario(i.termo) || "Termo fora do glossário: explique com cuidado e diga que é uma explicação geral."; }},
+      {name: "calcular", description: "Cálculos de DP e de prazos (estimativas): aviso_previo (admissao, desligamento), ferias_dias (faltas), ferias_proporcionais (inicio_periodo ou admissao, data), dias_uteis (de, ate), somar_dias_uteis (data, dias). Datas AAAA-MM-DD.",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["aviso_previo", "ferias_dias", "ferias_proporcionais", "dias_uteis", "somar_dias_uteis"]}, admissao: {type: "string"}, desligamento: {type: "string"}, faltas: {type: "number"}, inicio_periodo: {type: "string"}, data: {type: "string"}, de: {type: "string"}, ate: {type: "string"}, dias: {type: "number"}}, required: ["tipo"]},
+        execute: function (i) { return carregarTodos().then(function () { return calcular(i); }); }},
+      {name: "grafico", description: "Mostra um gráfico de barras pequeno no chat (comparações, rankings, contagens). itens: [{rotulo, valor}] com no máximo 12.",
+        inputSchema: {type: "object", properties: {titulo: {type: "string"}, unidade: {type: "string"}, itens: {type: "array", items: {type: "object", properties: {rotulo: {type: "string"}, valor: {type: "number"}}, required: ["rotulo", "valor"]}}}, required: ["titulo", "itens"]},
+        execute: function (i) { cartoes.push({tipo: "grafico", titulo: i.titulo, unidade: i.unidade || "", itens: (i.itens || []).slice(0, 12)}); return "Gráfico exibido abaixo da resposta."; }},
       {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
         execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
-      {name: "preparar_acao", description: "Prepara uma alteração para o usuário confirmar num cartão. NÃO grava nada: diga ao usuário que ele precisa clicar em Confirmar. tipo: etapa (marcar etapa do fechamento; informe etapa e status), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar), entrega (obrigação do Fiscal; informe obrigacao e status), lembrete (lembrete pessoal; texto, data AAAA-MM-DD, hora HH:MM).",
-        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "lembrete"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
+      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (só coordenação: para = analista), observacao (anota texto na ficha), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () {
-            var pd = {tipo: i.tipo, mod: i.modulo || "", status: {concluida: "c", entregue: "c", retificada: "r", em_andamento: "a", pendente: ""}[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : []};
-            if (i.tipo !== "lembrete") {
-              var es = casarEmpresas(norm(i.empresa || ""), {});
-              if (!es.length) return "Não achei essa empresa.";
-              if (es.length > 1 && es[1].s >= es[0].s * 0.92) return "Empresa ambígua: " + es.slice(0, 4).map(function (x) { return x.g.nome; }).join("; ");
-              pd.emp = es[0];
-              if (i.tipo === "etapa" || i.tipo === "entrega") {
-                var tt = limpo(norm(i.etapa || i.obrigacao || "")), mods = Object.keys(pd.emp.g.refs), ok = false;
-                mods.forEach(function (m) {
-                  var a = carregados[m]; if (!a || !a.vocab || ok) return; var v = a.vocab();
-                  var lista = i.tipo === "entrega" ? v.obrigacoes : v.etapas; if (!lista.length) return;
-                  var r = melhorPorTokens(tt, lista, function (x) { return [x.c || x.l, x.l]; });
-                  if (r.item && r.pts >= 0.5) { ok = true; pd.mod = m; if (i.tipo === "entrega") pd.ob = r.item.k; else pd.etapa = r.item.k; }
-                });
-                if (!ok) return "Não reconheci essa " + (i.tipo === "entrega" ? "obrigação" : "etapa") + ".";
-              }
-            }
-            return prepararAcao(pd, "").then(function (bl) {
-              var c = bl.filter(function (b) { return b.tipo === "confirma"; })[0];
-              if (!c) return (bl[0] && bl[0].texto) || "Não consegui preparar.";
-              cartoes.push(c);
-              return "Cartão de confirmação preparado (" + c.plano.titulo + ": " + (c.plano.linhas || []).join("; ") + "). Nada foi gravado: o usuário precisa clicar em Confirmar.";
+            var emp = null;
+            if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; emp = f.x; }
+            var r = pedidoDe(i, emp); if (r.erro) return r.erro;
+            return montarPlano(r.pd, "").then(function (m) {
+              if (m.blocos) return m.erro || (m.blocos[0] && m.blocos[0].texto) || "Não consegui preparar.";
+              cartoes.push({tipo: "confirma", plano: m.plano, mod: m.mod, titulo: m.plano.titulo});
+              return "Cartão de confirmação preparado (" + m.plano.titulo + ": " + (m.plano.linhas || []).join("; ") + "). Nada foi gravado: o usuário precisa clicar em Confirmar.";
             });
           });
+        }},
+      {name: "preparar_lote", description: "Prepara a MESMA alteração para várias empresas de uma vez, num único cartão de confirmação (com prévia em lista e Desfazer). Informe empresas (lista de nomes) ou um filtro (analista, modulo, so_atrasadas, so_aguardando_cliente). Mesmos campos de preparar_acao (tipos etapa, fechar, entrega, imposto, pendencia cobrado/recebida, transferir, observacao). Máximo 60 empresas.",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "entrega", "imposto", "pendencia", "transferir", "observacao"]}, empresas: {type: "array", items: {type: "string"}}, filtro_analista: {type: "string"}, filtro_modulo: {type: "string", enum: ["fiscal", "contabil"]}, so_atrasadas: {type: "boolean"}, so_aguardando_cliente: {type: "boolean"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string"}, status: {type: "string"}, modo: {type: "string"}, texto: {type: "string"}, para: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
+        execute: function (i) {
+          return listarTudo().then(function (rows) {
+            var alvos = [];
+            if (i.empresas && i.empresas.length) {
+              var falt = [];
+              i.empresas.slice(0, 60).forEach(function (n) { var f = acharEmpresa(n); if (f.erro) falt.push(n); else alvos.push(f.x); });
+              if (!alvos.length) return "Não achei nenhuma dessas empresas.";
+            } else {
+              var mod = i.filtro_modulo || i.modulo || (i.tipo === "entrega" ? "fiscal" : i.tipo === "imposto" ? "contabil" : "");
+              if (!mod) return "Diga o módulo (fiscal ou contabil) ou a lista de empresas.";
+              var vistos = {};
+              rows.filter(function (x) { return x.modulo === mod && (!i.filtro_analista || contem(x.analista, i.filtro_analista)) && (!i.so_atrasadas || x.atraso) && (!i.so_aguardando_cliente || x.aguardandoCliente); }).forEach(function (x) {
+                var g = indice().empresas.filter(function (y) { return y.refs[mod] === x.id; })[0]; if (g && !vistos[g.nome]) { vistos[g.nome] = 1; alvos.push({g: g, s: 1}); }
+              });
+              if (!alvos.length) return "Nenhuma empresa nesse filtro.";
+              if (!i.modulo) i.modulo = mod;
+            }
+            alvos = alvos.slice(0, 60);
+            var planos = [], falhas = [];
+            return alvos.reduce(function (pr, emp) {
+              return pr.then(function () {
+                var r = pedidoDe(i, emp); if (r.erro) { falhas.push(emp.g.nome + ": " + r.erro); return; }
+                return montarPlano(r.pd, "").then(function (m) { if (m.plano) planos.push(m); else falhas.push(emp.g.nome + ": " + (m.erro || "não dá")); });
+              });
+            }, Promise.resolve()).then(function () {
+              if (!planos.length) return "Nenhuma alteração possível: " + falhas.slice(0, 5).join("; ");
+              cartoes.push(cartaoLote(planos, falhas, "Alteração em lote"));
+              return "Cartão em lote preparado com " + planos.length + " empresa(s)" + (falhas.length ? "; " + falhas.length + " ficaram de fora (" + falhas.slice(0, 3).join("; ") + ")" : "") + ". Nada foi gravado: o usuário precisa confirmar.";
+            });
+          });
+        }},
+      {name: "guardar_apelido", description: "Prepara (com confirmação) um apelido para uma empresa, usado pela equipe nas próximas perguntas (ex.: “padaria do centro” = Panificadora X).",
+        inputSchema: {type: "object", properties: {apelido: {type: "string"}, empresa: {type: "string"}}, required: ["apelido", "empresa"]},
+        execute: function (i) {
+          return carregarTodos().then(usarDb).then(function (db) {
+            if (!db) return "Sem banco para guardar apelidos.";
+            var f = acharEmpresa(i.empresa); if (f.erro) return f.erro;
+            var ap = String(i.apelido || "").trim().slice(0, 60); if (ap.length < 3) return "Apelido curto demais.";
+            var k = "tax_apelidos/" + slug(ap), antes = apelidos[norm(ap)];
+            cartoes.push({tipo: "confirma", titulo: "Guardar apelido", plano: {titulo: "Guardar apelido", empresa: f.g.nome, linhas: ["“" + ap + "” passa a significar " + f.g.nome + (antes ? " (antes: " + antes.empresa + ")" : "")], aviso: "Vale para toda a equipe.",
+              executar: function () { return db.doc(k).set({apelido: ap, empresa: f.g.nome, cnpj: f.g.cnpj || "", em: new Date().toISOString()}).then(function () { return "Apelido guardado."; }); },
+              desfazer: function () { return antes ? db.doc(k).set({apelido: ap, empresa: antes.empresa, cnpj: antes.cnpj, em: new Date().toISOString()}) : db.doc(k).delete(); }}});
+            return "Cartão de confirmação do apelido preparado. Nada foi gravado ainda.";
+          });
         }}
-    ];
+    ].concat(FERRAMENTAS_EXTRA.map(function (fn) { return fn(cartoes); }));
   }
+  var FERRAMENTAS_EXTRA = [];
   var conversa = lerConversa(), iaAviso = "", bolhaAtual = null;
   function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && Date.now() - c.t < 3 * 864e5 && Array.isArray(c.c) ? c.c : []; }
   function guardarConversa() { gravarLS("tx-conv-v1", {t: Date.now(), c: conversa.slice(-12)}); }
@@ -678,6 +919,7 @@
       "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
       "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
       "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
+      "Para comparar meses ou ver tendência, consulte competencia de cada mês; para números lado a lado use grafico; para filtros combinados use buscar_empresas; para carga da equipe use carga_analistas. " +
       "Para mostrar uma tela use abrir. Para termos do setor (siglas, obrigações) use glossario; para como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise. " +
       "Se pedirem rascunho de e-mail ou WhatsApp para cliente, escreva o texto pronto, cordial e objetivo, assinado “Equipe ControlTax”, só com dados que você consultou. Se pedirem para explicar ao cliente, use linguagem simples, sem siglas soltas. " +
       (p.iniciante ? "A pessoa é nova no setor: explique os termos e o porquê de cada passo, com calma. " : "") +
@@ -1328,7 +1570,8 @@
       {k: "lerVoz", rot: "Ler as respostas em voz alta", tipo: "bool"},
       {k: "fonteGrande", rot: "Letra maior no chat", tipo: "bool", ao: aplicarVisualPainel},
       {k: "contraste", rot: "Alto contraste no chat", tipo: "bool", ao: aplicarVisualPainel},
-      {k: "doca", rot: "Chat fixo na lateral da tela", tipo: "bool", ao: aplicarVisualPainel}
+      {k: "doca", rot: "Chat fixo na lateral da tela", tipo: "bool", ao: aplicarVisualPainel},
+      {rot: "Desfazer o que o assistente gravou na última hora", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/desfazer"); desfazerRecentes().then(function (bl) { addBot(bl); }); }}
     ]}
   ];
   var COMANDOS = [
@@ -1688,10 +1931,10 @@
     ctl.confirmar = function () {
       if (ctl.feito) return Promise.resolve(); ctl.feito = true; if (pendente === ctl) pendente = null;
       d.classList.add("tx-conf-ocupado");
-      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); }, function (e) { console.error(e); pintar("erro", "Não foi possível salvar. Nada foi alterado ou a gravação falhou: confira a tela do módulo."); });
+      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); feitosSessao.push({t: Date.now(), plano: pl, ctl: ctl}); aoConfirmar(pl); }, function (e) { console.error(e); pintar("erro", "Não foi possível salvar. Nada foi alterado ou a gravação falhou: confira a tela do módulo."); });
     };
     ctl.cancelar = function () { if (ctl.feito) return; ctl.feito = true; if (pendente === ctl) pendente = null; pintar("cancelado", ""); };
-    ctl.desfazer = function () { d.classList.add("tx-conf-ocupado"); return Promise.resolve().then(function () { return pl.desfazer(); }).then(function () { pintar("desfeito", "Voltei ao que estava antes."); }, function () { pintar("erro", "Não consegui desfazer. Ajuste direto no módulo."); }); };
+    ctl.desfazer = function () { d.classList.add("tx-conf-ocupado"); return Promise.resolve().then(function () { return pl.desfazer(); }).then(function () { ctl.desfeito = true; pintar("desfeito", "Voltei ao que estava antes."); }, function () { pintar("erro", "Não consegui desfazer. Ajuste direto no módulo."); }); };
     pendente = ctl;
     pintar("", "");
     return d;
@@ -1721,6 +1964,19 @@
     }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot([T("Tive um problema para responder agora. Tente de novo em instantes.")]); });
   }
   // Ganchos preenchidos por outras partes (mascote, avisos, equipe).
+  var aoConfirmar = function () {};
+  // Desfaz, do mais recente para o mais antigo, o que o assistente gravou na última hora (com confirmação).
+  function desfazerRecentes() {
+    var lim = Date.now() - 36e5, lista = feitosSessao.filter(function (x) { return x.t >= lim && !x.ctl.desfeito && x.plano.desfazer; });
+    if (!lista.length) return Promise.resolve([T("Não há ações minhas da última hora para desfazer.")]);
+    var planos = lista.slice().reverse().map(function (x) { return {plano: {titulo: x.plano.titulo, empresa: x.plano.empresa, linhas: ["desfazer: " + ((x.plano.linhas || [])[0] || x.plano.titulo)], executar: function () { return Promise.resolve().then(function () { return x.plano.desfazer(); }).then(function () { x.ctl.desfeito = true; }); }}}; });
+    var c = cartaoLote(planos, [], "Desfazer o que fiz na última hora");
+    c.plano.desfazer = null;
+    return Promise.resolve([c]);
+  }
+  COMANDOS_EXTRA.desfazer = function () { return desfazerRecentes(); }; COMANDOS_EXTRA.desfazer.rot = "Desfazer o que o assistente gravou na última hora";
+  COMANDOS_EXTRA.carga = function () { return cargaAnalistas().then(function (l) { return l.length ? [{tipo: "grafico", titulo: "Carga por analista (pontos: atrasos ×3, aguardando cliente, empresas)", itens: l.slice(0, 12).map(function (q) { return {rotulo: q.analista, valor: q.pontos}; })}, {tipo: "rodape", texto: "Pergunte “quem pode ajudar o Bruno?” para uma sugestão."}] : [T("Sem dados de carteira ainda.")]; }); }; COMANDOS_EXTRA.carga.rot = "Carga de trabalho por analista";
+  COMANDOS_EXTRA.glossario = function (r) { var g = buscarGlossario(r || ""); return Promise.resolve(g ? [{tipo: "ajuda", titulo: "Glossário", texto: g}] : [T("Não tenho esse termo no glossário" + (r ? ": “" + r + "”" : "") + ". Termos: " + Object.keys(GLOSSARIO).slice(0, 30).join(", ") + "…")]); }; COMANDOS_EXTRA.glossario.rot = "Significado de um termo: /glossario DCTFWeb";
   var aoResponder = function () {}, pensando = function () {}, registrarPergunta = function () {}, registrarFeedback = function () {};
   function boasVindas(retomou) {
     var fixados = lerLS(FIXOS, []).slice(0, 4).map(function (q) { return {rot: "📌 " + q, enviar: q}; });
@@ -1801,12 +2057,14 @@
       el.classList.toggle("tx-oculto", esconde);
       if (painel) painel.classList.toggle("tx-oculto", algumDialogo() && !aberto ? true : false);
     }, 600);
-    ligarQuadros(); agendarPasseio(); acordar();
+    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos();
     if (!oculto && !lerPref().visto) { salvarPref({visto: 1}); setTimeout(function () { balao("Oi! Sou o Tax. Clique em mim para conversar.", 5200); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 2000); }, 1800); }
   }
 
   window.__assistenteHub = {
     perguntar: function (t) { return responder(t); },
+    perguntarNoChat: function (t) { if (oculto) mostrar(); if (!aberto) abrirPainel(); enviar(t); },
+    nome: nomeTax,
     mostrar: mostrar, abrir: abrirPainel, fechar: fecharPainel, versao: 1,
     estado: function () { return {aberto: aberto, oculto: oculto, andando: andando, dormiu: dormiu, pos: pos, modo: modo, pes: {x: fx, y: fy}, plataformas: plats.length}; },
     irPara: function (x, y) { chamar({x: x, y: y}); }, plataformas: function () { return plats.slice(); }, visual: function (k) { aplicarSkin(k); }, skins: function () { return Object.keys(SKINS); }

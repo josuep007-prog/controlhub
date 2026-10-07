@@ -1378,8 +1378,8 @@ window.__assistente = {
       return {titulo: "Empresas com atraso no Fiscal", total: at.length, linhas: at.map(function(e){ return {t: e.nome, sub: linhaSit(e).slice(0, 2).map(function(l){ return l[1]; }).join(" · "), tom: "late", abrir: {empresa: e.id, aba: "obrig"}}; }), verTudo: {aba: "empresas", opts: {"em.ana": ana, "em.faixa": "atras", "em.busca": ""}}};
     }
     if(tipo === "pendencias"){
-      var cl = emps.filter(function(e){ return !!situ(e).cli; });
-      return {titulo: "Aguardando o cliente (Fiscal)", total: cl.length, linhas: cl.map(function(e){ var s = situ(e); return {t: e.nome, sub: s.cli + " · " + compCurta(s.cliComp) + " · parado há " + diasParado(entrada(s.cliComp, e.id)) + " dia(s)", tom: "warn", abrir: {empresa: e.id, aba: "obs"}}; }), verTudo: {aba: "fechamento", opts: {"fx.st": "cli", "fx.ana": ana}}};
+      var cl = emps.filter(function(e){ return !!situ(e).cli; }).map(function(e){ var s = situ(e), en = entrada(s.cliComp, e.id); return {e: e, s: s, dias: diasParado(en), cobr: (en.cobr || []).length}; }).sort(function(x, y){ return y.dias - x.dias || y.cobr - x.cobr; });
+      return {titulo: "Aguardando o cliente (Fiscal)", total: cl.length, linhas: cl.map(function(x){ return {t: x.e.nome, sub: x.s.cli + " · " + compCurta(x.s.cliComp) + " · parado há " + x.dias + " dia(s)" + (x.cobr ? " · cobrado " + x.cobr + "x" : ""), tom: "warn", abrir: {empresa: x.e.id, aba: "obs"}, dados: {analista: x.e.analista || "", dias: x.dias, cobrancas: x.cobr}}; }), verTudo: {aba: "fechamento", opts: {"fx.st": "cli", "fx.ana": ana}}};
     }
     if(tipo === "empresa"){
       var e = S.empresas[p.id]; if(!e) return null;
@@ -1395,10 +1395,36 @@ window.__assistente = {
       var por = {};
       listaEmpresas().forEach(function(x){ var a = x.analista || "(sem analista)"; var q = por[a] = por[a] || {n: 0, atr: 0, cli: 0}; var s3 = situ(x); q.n++; if(s3.atraso) q.atr++; if(s3.cli) q.cli++; });
       var ks = Object.keys(por).filter(function(a){ return !ana || norm(a) === norm(ana); }).sort(function(a, b){ return por[b].n - por[a].n; });
-      return {titulo: "Carteira do Fiscal", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com atraso · " + q.cli + " aguardando cliente", tom: q.atr ? "warn" : "ok", abrir: {aba: "empresas", opts: {"em.ana": a === "(sem analista)" ? "" : a, "em.faixa": "", "em.busca": ""}}}; })};
+      return {titulo: "Carteira do Fiscal", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com atraso · " + q.cli + " aguardando cliente", dados: {analista: a, empresas: q.n, atrasadas: q.atr, aguardandoCliente: q.cli}, tom: q.atr ? "warn" : "ok", abrir: {aba: "empresas", opts: {"em.ana": a === "(sem analista)" ? "" : a, "em.faixa": "", "em.busca": ""}}}; })};
+    }
+    if(tipo === "competencia"){
+      var comp = /^\d{4}-\d{2}$/.test(p.comp || "") ? p.comp : compEmFechamento(), lsC = [], porA = {};
+      listaEmpresas().filter(function(x){ return naComp(x, comp); }).forEach(function(x){
+        var r2 = resumo(x, comp), a2 = x.analista || "(sem analista)", q2 = porA[a2] = porA[a2] || {analista: a2, empresas: 0, fechadas: 0, atrasadas: 0, aguardandoCliente: 0};
+        q2.empresas++; if(r2.fechada) q2.fechadas++; else { if(r2.atras) q2.atrasadas++; if(r2.cli) q2.aguardandoCliente++; }
+        if(!r2.fechada && dele(x)) lsC.push({t: x.nome, sub: "falta: " + r2.falta.map(function(f){ return f.l; }).join(", ") + (r2.cli ? " · aguardando cliente: " + r2.pend : "") + (r2.atras ? " · fora do prazo" : ""), tom: r2.atras ? "late" : r2.cli ? "warn" : "", abrir: {aba: "fechamento", opts: {"fx.comp": comp, "fx.busca": x.nome, "fx.ana": "", "fx.st": ""}}, dados: {analista: x.analista || ""}});
+      });
+      return {titulo: "Fechamento do Fiscal em " + compRot(comp) + ": " + lsC.length + " em aberto", total: lsC.length, linhas: lsC, resumo: Object.keys(porA).map(function(k){ return porA[k]; }), verTudo: {aba: "fechamento", opts: {"fx.comp": comp, "fx.st": "abertas", "fx.ana": ana}}};
+    }
+    if(tipo === "historico"){
+      var eH = S.empresas[p.id]; if(!eH) return null;
+      var hs = (eH.hist || []).slice(-20).reverse();
+      return {titulo: "Histórico de " + eH.nome + " (Fiscal)", total: hs.length, linhas: hs.map(function(h){ return {t: h.t, sub: dataBR(h.d), data: h.d, abrir: {empresa: eH.id, aba: "dados"}}; })};
+    }
+    if(tipo === "prazosConferir"){
+      var nc = (S.cfg.obrig || []).filter(function(d){ return !d.ok; });
+      return {titulo: "Prazos marcados “conferir” no Fiscal", total: nc.length, linhas: nc.map(function(d){ return {t: d.l, sub: "dia " + d.dia + (d.regra ? " · " + d.regra : "") + " · confira com a legislação", tom: "warn", abrir: {aba: "cadastro"}}; })};
+    }
+    if(tipo === "feriados"){
+      var lsF = [];
+      for(var yy = de.getFullYear(); yy <= ate.getFullYear(); yy++) Object.keys(feriados(yy)).forEach(function(k){ var d = parseYmd(k); if(d >= de && d <= ate) lsF.push({t: dataBR(k) + " (" + ["domingo","segunda","terça","quarta","quinta","sexta","sábado"][d.getDay()] + ")", sub: "feriado considerado nos prazos (nacionais e de Vitória/ES)", data: k}); });
+      lsF.sort(function(x, y){ return x.data < y.data ? -1 : 1; });
+      return {titulo: "Feriados no período", total: lsF.length, linhas: lsF};
     }
     return null;
   },
+  listar: function(){ return listaEmpresas().map(function(e){ var s = situ(e); return {id:e.id, nome:e.nome, cnpj:cnpjDig(e.cnpj), analista:e.analista || "", regime: e.regime && REG[e.regime] ? REG[e.regime].l : "", atividade: e.ativ && ATIV[e.ativ] ? ATIV[e.ativ].l : "", municipio: e.municipio || "", uf: e.uf || "", ie: e.ie || "", im: e.im || "", situacao: e.sit || "ativa", atraso: !!s.atraso, aguardandoCliente: !!s.cli, saude: s.saude}; }); },
+  coord: function(){ return !!S.coord; },
   vocab: function(){ return {etapas: ETAPAS.map(function(x){ return {k:x.k, l:x.l, c:x.c}; }), obrigacoes: (S.cfg.obrig || []).map(function(d){ return {k:d.k, l:d.l}; })}; },
   // Prepara uma ação (nada grava até executar()). Devolve {erro} ou {titulo, linhas, aviso, executar, desfazer}.
   acao: function(tipo, p){
@@ -1454,6 +1480,23 @@ window.__assistente = {
       return {titulo: s2 ? "Marcar entrega" : "Desmarcar entrega", empresa: e.nome, linhas: [def.l + " de " + compRot(alvo.comp) + ": " + OB_ROT[a0] + " → " + OB_ROT[s2], "Vencimento " + dataBR(alvo.ds)], aviso: aviso,
         executar: guarda(function(){ return marcarEntrega(alvo.comp, e, def.k, s2).then(function(){ return "Pronto: " + def.l + " de " + compCurta(alvo.comp) + " " + (s2 ? OB_ROT[s2].toLowerCase() : "desmarcada") + "."; }); }),
         desfazer: guarda(function(){ return marcarEntrega(alvo.comp, e, def.k, a0); })};
+    }
+    if(tipo === "transferir"){
+      if(!S.coord) return {erro: "Só a coordenação transfere empresas entre analistas."};
+      var nomes = analistas(), para = String(p.para || "").trim();
+      var alvoA = nomes.filter(function(n){ return norm(n) === norm(para); })[0] || nomes.filter(function(n){ return norm(n).split(" ")[0] === norm(para).split(" ")[0]; })[0];
+      if(!alvoA) return {erro: "Não conheço o analista “" + para + "” no Fiscal."};
+      if(norm(alvoA) === norm(e.analista)) return {erro: "“" + e.nome + "” já é de " + alvoA + "."};
+      var eT = clone(e), yT = normEmp(Object.assign({}, e, {analista: alvoA, hist: (e.hist || []).concat([{d: ymd(hoje()), t: "Analista: " + (e.analista || "—") + " → " + alvoA, u: quemSou()}]).slice(-40)}), e.id);
+      return {titulo: "Transferir empresa", empresa: e.nome, linhas: ["Analista no Fiscal: " + (e.analista || "—") + " → " + alvoA], aviso: aviso,
+        executar: guarda(function(){ return salvarEmpresas([yT]).then(function(){ return "Pronto: agora é de " + alvoA + "."; }); }), desfazer: guarda(function(){ return salvarEmpresas([eT]); })};
+    }
+    if(tipo === "observacao"){
+      var txO = String(p.texto || "").trim().slice(0, 300);
+      if(!txO) return {erro: "Qual observação devo anotar?"};
+      var eO = clone(e), yO = normEmp(Object.assign({}, e, {obs: ((e.obs ? e.obs + "\n" : "") + dataBR(ymd(hoje())).slice(0, 5) + ": " + txO).slice(-1500)}), e.id);
+      return {titulo: "Anotar observação na ficha", empresa: e.nome, linhas: ["“" + txO + "”", "Fica na aba Observações da ficha do Fiscal"], aviso: aviso,
+        executar: guarda(function(){ return salvarEmpresas([yO]).then(function(){ return "Observação anotada."; }); }), desfazer: guarda(function(){ return salvarEmpresas([eO]); })};
     }
     return {erro: "Ainda não sei fazer isso no Fiscal."};
   }

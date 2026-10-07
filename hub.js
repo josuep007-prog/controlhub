@@ -724,6 +724,8 @@
       .map(l => ({ ico: ic('bell'), title: l.texto || 'Lembrete', sub: `${fmtDateStr(l.data)} · ${descreveRep(l)}`, run: () => openMeu({ lembrete: l }) })));
     add('Ferramentas', state.tools.filter(t => matchesToolQuery(t, q)).slice(0, 5)
       .map(t => ({ ico: toolIcon(t), title: t.name, sub: t.moduleKey ? 'Módulo' : hostOf(t.url), run: () => { if (t.moduleKey) openModule(t.moduleKey); else if (t.url) { recordUse(t); openLink(t.url); } else openFerramentaDialog(t); } })));
+    const tax = window.__assistenteHub;
+    if (tax && tax.perguntarNoChat) add('Assistente', [{ ico: '<span aria-hidden="true">💬</span>', title: `Perguntar ao ${tax.nome ? tax.nome() : 'Tax'}: “${q}”`, sub: 'A resposta aparece no chat do assistente', run: () => tax.perguntarNoChat(q) }]);
     return groups;
   }
   function renderSearch() {
@@ -5551,10 +5553,56 @@
         const por = {};
         state.dpEmpresas.filter(ativa).forEach(e => { const a = e.responsavel || '(sem responsável)'; const q = por[a] = por[a] || { n: 0, f: 0 }; q.n++; q.f += nfEmp(e); });
         const ks = Object.keys(por).filter(a => !ana || norm(a) === norm(ana)).sort((a, b) => por[b].n - por[a].n);
-        return { titulo: 'Carteira do DP', total: ks.length, linhas: ks.map(a => ({ t: `${a}: ${por[a].n} empresa(s)`, sub: `${por[a].f} funcionário(s)`, tom: '', abrir: { aba: 'cartela' } })) };
+        return { titulo: 'Carteira do DP', total: ks.length, linhas: ks.map(a => ({ t: `${a}: ${por[a].n} empresa(s)`, sub: `${por[a].f} funcionário(s)`, tom: '', abrir: { aba: 'cartela' }, dados: { analista: a, empresas: por[a].n, funcionarios: por[a].f } })) };
+      }
+      if (tipo === 'historico') {
+        const e = findDpEmpresa(p.id); if (!e) return null;
+        const hs = (e.historico || []).slice(0, 20);
+        return { titulo: `Histórico de ${e.nome} (DP)`, total: hs.length, linhas: hs.map(h => ({ t: h.alteracao, sub: h.data || '', abrir: { empresa: e.id, aba: 'dados' } })) };
+      }
+      if (tipo === 'convencao') {
+        const e = findDpEmpresa(p.id); if (!e) return null;
+        const ls = [];
+        empresaCcts(e).forEach(v => {
+          const c = v.cct, ef = cctEfetiva(v);
+          ls.push({ t: tituloCurto(c), sub: `vigência ${c.vigIni ? fmtDateStr(c.vigIni) : '?'} a ${c.vigFim ? fmtDateStr(c.vigFim) : '?'}${c.dataBase ? ' · data-base ' + c.dataBase.toLowerCase() : ''}${v.aditivos.length ? ' · ' + v.aditivos.length + ' aditivo(s)' : ''}`, abrir: { aba: 'sindicatos' } });
+          ef.reajusteItens.val.forEach(r => ls.push({ t: `Reajuste: ${r.rotulo || ''} ${r.pct || ''}`.trim(), sub: tituloCurto(ef.reajusteItens.de) }));
+          ef.pisos.val.slice(0, 8).forEach(x => ls.push({ t: `Piso ${x.nome || ''}: ${x.valor || ''}`.trim(), sub: tituloCurto(ef.pisos.de) }));
+          ef.beneficios.val.slice(0, 6).forEach(x => ls.push({ t: `${x.nome || 'Benefício'}: ${x.valor || ''}`, sub: tituloCurto(ef.beneficios.de) }));
+          (c.partes || []).forEach(x => ls.push({ t: `${x.papel === 'patronal' ? 'Sindicato patronal' : x.papel === 'laboral' ? 'Sindicato laboral' : 'Parte'}: ${x.nome || x.cnpj || ''}`, sub: '' }));
+        });
+        if (!ls.length) ls.push({ t: 'Nenhuma convenção vigente ligada a esta empresa', sub: empConvTxt(e).txt, tom: 'warn', abrir: { empresa: e.id, aba: 'dados' } });
+        return { titulo: `Convenção coletiva de ${e.nome}`, total: ls.length, linhas: ls };
+      }
+      if (tipo === 'convencoes') {
+        const cv = convencoesDaCarteira();
+        const ls = cv.linhas.filter(l => !ana || l.emps.some(e => lista.includes(e))).map(l => ({ t: `Convenção ${tituloCurto(l.c)}`, sub: `${l.emps.length} empresa(s) · ${l.c.dataBase ? 'data-base ' + l.c.dataBase.toLowerCase() + ' · ' : ''}${l.c.vigFim ? 'vigente até ' + fmtDateStr(l.c.vigFim) : 'vigência não informada'}${l.acoes[0] ? ' · ' + l.acoes[0].txt : ''}`, tom: l.sit === 'vencida' ? 'late' : l.sit === 'emdia' ? 'ok' : 'warn', abrir: { aba: 'sindicatos' }, dados: { dataBase: l.c.dataBase || '', situacao: l.sit } }));
+        cv.sem.slice(0, 10).forEach(x => ls.push({ t: `Sem convenção cadastrada: ${x.e.nome}`, sub: x.ss.map(s => s.nome || s.cod).join(', ') || 'sem sindicato informado', tom: 'warn', abrir: { empresa: x.e.id, aba: 'dados' } }));
+        return { titulo: 'Convenções da carteira (DP)', total: ls.length, linhas: ls };
+      }
+      if (tipo === 'funcionarios') {
+        const ls = [], ini = addDays(t, -60), fim = addDays(t, 60);
+        lista.forEach(e => (e.funcionarios || []).forEach(f => {
+          const ad = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), st = funcStatus(f);
+          if (ad && ad >= ini && ad <= t) ls.push({ t: `Admissão recente: ${f.nome || 'funcionário'}`, sub: `${e.nome} · admitido em ${fmtDMY(ad)}${f.cargo ? ' · ' + f.cargo : ''}`, data: ymd(ad), abrir: { empresa: e.id, aba: 'funcionarios' } });
+          if (fi && fi >= t && fi <= fim) ls.push({ t: `Férias: ${f.nome || 'funcionário'}`, sub: `${e.nome} · de ${fmtDMY(fi)}${f.feriasFim ? ' a ' + fmtDateStr(f.feriasFim) : ''}`, data: ymd(fi), abrir: { empresa: e.id, aba: 'funcionarios' } });
+          if (st === 'Afastado') ls.push({ t: `Afastado: ${f.nome || 'funcionário'}`, sub: e.nome, tom: 'warn', abrir: { empresa: e.id, aba: 'funcionarios' } });
+        }));
+        ls.sort((a, b) => (a.data || '9') < (b.data || '9') ? -1 : 1);
+        return { titulo: 'Funcionários: admissões recentes, férias e afastamentos', total: ls.length, linhas: ls };
+      }
+      if (tipo === 'lembretes') {
+        const evs = meusEventos(de, ate);
+        return { titulo: 'Seus lembretes', total: evs.length, linhas: evs.map(ev => ({ t: ev.titulo, sub: `${fmtDM(ev.d)}${ev.empresa ? ' · ' + ev.empresa.nome : ''}${ev.sub ? ' · ' + ev.sub : ''}`, data: ymd(ev.d), tom: ev.feito ? 'ok' : '', abrir: { aba: 'agenda', opts: { dia: ymd(ev.d) } }, dados: { hora: ev.hora || '', feito: !!ev.feito, texto: ev.meu.texto || '' } })) };
+      }
+      if (tipo === 'uso') {
+        const r = (state.uso && state.uso.res) || [];
+        return { titulo: 'Uso do banco (última medição nesta sessão)', total: r.length, linhas: r.map(x => ({ t: `${x.app || ''} ${x.path}`.trim(), sub: `${x.n || 0} documento(s) · ~${Math.round((x.bytes || 0) / 1024)} KiB`, tom: (x.n || 0) > 4000 ? 'late' : (x.n || 0) > 3000 ? 'warn' : '', dados: { docs: x.n || 0, bytes: x.bytes || 0 } })), resumo: r.length ? '' : 'Ainda não medido: abra Ferramentas › Uso do banco para medir.' };
       }
       return null;
     },
+    listar: () => state.dpEmpresas.map(e => ({ id: e.id, nome: e.nome, cnpj: cnpjClean(e.cnpj), analista: e.responsavel || '', analistaEfetivo: respEf(e) || '', tributacao: e.tributacao || '', situacao: e.situacao || '', uf: e.uf || '', funcionarios: nfEmp(e), dataBase: e.dataBase || '' })),
+    coord: () => !state.readOnly,
     vocab: () => ({ etapas: [], obrigacoes: [] }),
     // Ações do DP: lembrete pessoal (só o próprio usuário vê). Nada grava até executar().
     acao(tipo, p = {}) {
@@ -5564,11 +5612,12 @@
       if (!texto) return { erro: 'Diga o que devo lembrar (ex.: “me lembra de ligar para o cliente amanhã”).' };
       const data = parseYmd(p.data) ? p.data : ymd(addDays(hoje(), 0));
       const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '';
-      const l = normalizeMeu({ texto, data, hora, rep: 'nao', empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: state.meId || '', atualizadoEm: Date.now() });
+      const rep = REPS[p.rep] ? p.rep : 'nao';
+      const l = normalizeMeu({ texto, data, hora, rep, empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: state.meId || '', atualizadoEm: Date.now() });
       const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
       return {
         titulo: 'Criar lembrete só seu', empresa: emp ? emp.nome : '',
-        linhas: [`“${texto}”`, `${fmtDateStr(data)}${hora ? ' às ' + hora : ''}`], aviso: '',
+        linhas: [`“${texto}”`, `${fmtDateStr(data)}${hora ? ' às ' + hora : ''}${rep !== 'nao' ? ' · ' + REPS[rep].toLowerCase() : ''}`], aviso: '',
         executar: async () => { if (!(await meusWrite(() => meusStore.save(l)))) throw new Error('falhou'); setMeuLocal(l); refreshAll(); return 'Lembrete criado.'; },
         desfazer: async () => { if (await meusWrite(() => meusStore.del(l.id))) { state.meus = state.meus.filter(x => x.id !== l.id); refreshAll(); } },
       };
@@ -5589,7 +5638,7 @@
     },
     modulos: () => ['dp', ...Object.keys(FRAMES)],
   };
-  carregarScriptExt('assistente.js?v=7').catch(() => {});
+  carregarScriptExt('assistente.js?v=8').catch(() => {});
 
   loadPrefs();
   applyTheme();

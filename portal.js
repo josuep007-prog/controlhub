@@ -7482,9 +7482,64 @@
         var por = {};
         state.setores.forEach(function(s){ if(!s.analistaNome) return; (por[s.analistaNome] = por[s.analistaNome] || []).push(s); });
         var ks = Object.keys(por).filter(function(a){ return !ana || normBusca(a) === normBusca(ana); });
-        return {titulo: "Frentes por analista no Portal do Cliente", total: ks.length, linhas: ks.map(function(a){ return {t: a + ": " + por[a].length + " frente(s)", sub: "", tom: ""}; })};
+        return {titulo: "Frentes por analista no Portal do Cliente", total: ks.length, linhas: ks.map(function(a){ return {t: a + ": " + por[a].length + " frente(s)", sub: "", tom: "", dados: {analista: a, frentes: por[a].length}}; })};
+      }
+      if(tipo === "funil"){
+        var cont = {}, nEmp = 0, lsF = [];
+        ETAPAS.forEach(function(et){ cont[et.key] = {etapa: et.label, concluido: 0, andamento: 0, agendado: 0, pendente: 0}; });
+        state.empresas.filter(function(x){ return x.ativo !== false; }).forEach(function(e2){
+          var docs2 = docsDe(e2.id), fr2 = frentesDaEmpresa(e2, docs2); if(!fr2.length) return;
+          nEmp++;
+          fr2.forEach(function(f){ ETAPAS.forEach(function(et){ var st = "pendente"; try{ st = etapaInfo(f, et.key, e2.id).status || "pendente"; }catch(err){} if(cont[et.key][st] != null) cont[et.key][st]++; }); });
+          if(!daAna(e2.id)) return;
+          var pr = Math.round(progressoEmpresa(e2, docs2) * 100);
+          if(pr < 100) lsF.push({t: e2.nome, sub: pr + "% concluído · " + fr2.map(function(f){ return SETOR_LABEL[f.setor] + (f.analistaNome ? " (" + f.analistaNome + ")" : ""); }).join(", "), tom: pr < 30 ? "late" : "", abrir: {aba: "progresso"}, dados: {progresso: pr}});
+        });
+        lsF.sort(function(x, y){ return x.dados.progresso - y.dados.progresso; });
+        var cts = state.contatos.filter(function(c){ return !c.exemplo; });
+        return {titulo: "Implantação do Portal: empresas ainda não concluídas", total: lsF.length, linhas: lsF, resumo: {empresasEmImplantacao: nEmp, etapasPorFrente: ETAPAS.map(function(et){ return cont[et.key]; }), contatos: cts.length, contatosTreinados: cts.filter(function(c){ return c.statusTreinamento === "concluido"; }).length, contatosComUsuarioOnvio: cts.filter(function(c){ return c.cadastroOnvio && c.cadastroOnvio.status === "ativo"; }).length}};
+      }
+      if(tipo === "semTreinamento"){
+        var semT = state.contatos.filter(function(c){ return !c.exemplo && c.statusTreinamento !== "concluido" && daAna(c.empresaId, c.setores); });
+        return {titulo: "Contatos de clientes ainda sem treinamento", total: semT.length, linhas: semT.map(function(c){ return {t: c.nome || c.email || "contato", sub: (c.empresaNome || "") + " · " + (STATUS_LABEL[c.statusTreinamento] || "Pendente") + (c.agendadoPara ? " para " + dataBR_(c.agendadoPara) : ""), tom: agendamentoAtrasado(c) ? "late" : "", abrir: {aba: "dashboard"}}; })};
+      }
+      if(tipo === "onvio"){
+        if(!onvioPendente) return {titulo: "Conferência de usuários do Onvio", total: 0, linhas: [], resumo: "Nenhum relatório de usuários do Onvio lido nesta sessão (importe o PDF em Cadastro)."};
+        var ov = onvioPendente, lsO = [];
+        (ov.aplicar || []).forEach(function(x){ lsO.push({t: "Vai ativar: " + ((x.c && (x.c.nome || x.c.email)) || ""), sub: x.empresa || "", tom: "", abrir: {aba: "cadastro"}}); });
+        (ov.semContato || []).forEach(function(x){ lsO.push({t: "Usuário sem contato: " + x.email, sub: x.empresa || "", tom: "warn", abrir: {aba: "cadastro"}}); });
+        (ov.ausentes || []).forEach(function(x){ lsO.push({t: "Contato sem usuário no Onvio: " + (x.nome || x.email || ""), sub: x.empresa || "", tom: "warn", abrir: {aba: "cadastro"}}); });
+        return {titulo: "Usuários do Onvio para conferir", total: lsO.length, linhas: lsO};
       }
       return null;
+    },
+    vocab: function(){ return {etapas: ETAPAS.filter(function(et){ return !et.calculada && et.key !== "treinamentoCliente"; }).map(function(et){ return {k: et.key, l: et.label, c: et.curto}; }), obrigacoes: [], setores: Object.keys(SETOR_LABEL)}; },
+    // Marca etapa de implantação (habilitação no Domínio ou treinamento do analista). Nada grava até executar().
+    acao: function(tipo, p){
+      p = p || {};
+      if(tipo !== "etapa") return {erro: "No Portal eu só marco etapas de implantação."};
+      var e = state.empresas.filter(function(x){ return x.id === p.id; })[0];
+      if(!e) return {erro: "Não achei essa empresa no Portal do Cliente."};
+      var q = normBusca(p.etapa || "");
+      var et = ETAPAS.filter(function(x){ return x.key === p.etapa || normBusca(x.label) === q || normBusca(x.curto) === q || (q && normBusca(x.label).indexOf(q) !== -1); })[0];
+      if(!et) return {erro: "Qual etapa? Habilitação no Domínio ou treinamento do analista."};
+      if(et.calculada || et.key === "treinamentoCliente") return {erro: et.label + " é calculada pelos contatos: marque o treinamento ou o cadastro de cada contato no Portal."};
+      var st = {concluida: "concluido", concluido: "concluido", c: "concluido", em_andamento: "andamento", andamento: "andamento", a: "andamento", pendente: "pendente", "": "pendente"}[p.status == null ? "concluido" : p.status] || "concluido";
+      var setor = "";
+      if(!et.porEmpresa){
+        var sn = normBusca(p.setor || "");
+        setor = /pessoal|dp|folha/.test(sn) ? "pessoal" : /contab/.test(sn) ? "contabil" : /fisc/.test(sn) ? "fiscal" : "";
+        if(!setor){ var frs = frentesDaEmpresa(e, docsDe(e.id)); if(frs.length === 1) setor = frs[0].setor; }
+        if(!setor) return {erro: "De qual setor (Pessoal, Contábil ou Fiscal)?"};
+      }
+      var doc = setor ? state.setores.filter(function(s){ return s.id === sid(e.id, setor); })[0] : null;
+      var antes = et.porEmpresa ? habilitacaoEmpresa(e.id).status : statusDe(doc, et.key, e.id, setor);
+      var dataAntes = et.porEmpresa ? (habilitacaoEmpresa(e.id).data || "") : ((doc && doc.etapas && doc.etapas[et.key] && doc.etapas[et.key].data) || "");
+      if(antes === st) return {erro: et.label + " já está “" + STATUS_LABEL[st].toLowerCase() + "”."};
+      if(et.porEmpresa && habilitacaoEmpresa(e.id).inferida) return {erro: "A habilitação já conta como concluída: a empresa tem contato treinado."};
+      return {titulo: "Marcar etapa do Portal", empresa: e.nome, linhas: [et.label + (setor ? " · " + SETOR_LABEL[setor] : "") + ": " + (STATUS_LABEL[antes] || "Pendente") + " → " + STATUS_LABEL[st]], aviso: "",
+        executar: function(){ return Promise.resolve().then(function(){ focoSetStatus(e.id, setor, et.key, st, undefined, true); return "Pronto, marcado no Portal."; }); },
+        desfazer: function(){ return Promise.resolve().then(function(){ focoSetStatus(e.id, setor, et.key, antes, dataAntes, true); }); }};
     }
   };
 
