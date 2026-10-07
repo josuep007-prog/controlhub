@@ -170,8 +170,11 @@
   .ag-barra i{display:block; height:100%; background:var(--status-green); border-radius:99px;}
   :root[data-theme="dark"] .ag-dia.ag-hoje, :root:not([data-theme="light"]) .ag-dia.ag-hoje{color:#0B1015;}
   :root[data-theme="dark"] .ag-dia.ag-hoje small, :root:not([data-theme="light"]) .ag-dia.ag-hoje small{color:rgba(11,16,21,.75);}
-  .ag-nome{font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .ag-onde{font-size:11px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .ag-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere;}
+  .ag-onde{font-size:11px; color:var(--ink-3); overflow-wrap:anywhere; line-height:1.4;}
+  /* mesmo dia do item de cima: a data não se repete (o espaço fica, para alinhar) */
+  .ag-item.ag-mesmo-dia{border-top-style:dashed; padding-top:6px;}
+  .ag-item.ag-mesmo-dia .ag-dia{visibility:hidden; height:0; padding:0; border:0;}
   .agenda .att-empty{padding:4px 0;}
   .agenda-scroll{max-height:292px; overflow-y:auto; overscroll-behavior:contain; margin-right:-10px; padding-right:10px; scrollbar-width:thin; scrollbar-color:var(--rule-strong) transparent; outline:none; --fade:28px;}
   .agenda-scroll:focus-visible{box-shadow:0 0 0 2px var(--blue-pale); border-radius:var(--r);}
@@ -3289,7 +3292,11 @@
     $("#agendaCount").textContent = cnt.join(" · ");
     // Cada coluna mostra tudo numa área de altura fixa que rola com a roda do mouse.
     var coluna = function(cls, titulo, itens, html, vazio){
-      var linhas = itens.map(html).join("");
+      var diaDe = function(g){ return g && g.rep ? g.rep.agendadoPara || "" : ""; };
+      var linhas = itens.map(function(g, i){
+        var h = html(g), d = diaDe(g);
+        return d && i && diaDe(itens[i - 1]) === d ? h.replace('class="ag-item"', 'class="ag-item ag-mesmo-dia"') : h;
+      }).join("");
       return '<div class="agenda-col '+cls+'"><h3><span>'+titulo+'</span><span class="mono">'+itens.length+'</span></h3>' +
         (linhas ? '<div class="agenda-scroll" tabindex="0" data-col="'+esc(titulo)+'" aria-label="'+esc(titulo)+'">'+linhas+'</div>' : '<div class="att-empty">'+vazio+'</div>') + '</div>';
     };
