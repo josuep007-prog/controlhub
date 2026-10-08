@@ -5684,6 +5684,79 @@
       desfazer: async () => { await salvarCob(c => { c.ausencias = c.ausencias.filter(x => x.id !== novo.id); }, `Desfez a ausência: ${resumo}`); },
     };
   }
+  // ---------- convenções no assistente: busca por sindicato/CCT, contribuição patronal e reajuste aplicado ----------
+  const CONV_PALAVRAS = ['sindicato', 'sindicatos', 'convencao', 'convencoes', 'coletiva', 'coletivas', 'piso', 'pisos', 'salarial', 'salariais', 'data', 'base', 'reajuste', 'reajustes', 'vigencia', 'qual', 'quais', 'quando', 'categoria', 'dos', 'das', 'que', 'para', 'tem', 'cct', 'valor', 'trabalhadores', 'empregados'];
+  function convTokens(q) { return norm(String(q || '')).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3 && !CONV_PALAVRAS.includes(w)); }
+  // Convenções (CCT-mãe + aditivos) que casam com o texto: pelo sindicato (nome, apelido, código) ou pelo título/partes da CCT.
+  function dpConvPorTexto(q) {
+    const toks = convTokens(q); if (!toks.length) return [];
+    const todos = (hay) => { const h = norm(hay); return toks.every(w => h.includes(w)); };
+    const achadas = new Map();
+    const poe = (c) => { if (!c || achadas.has(c.id)) return; achadas.set(c.id, { cct: c, aditivos: state.dpCcts.filter(a => a.mae === c.id && a.status !== 'substituida').sort((a, b) => a.vigIni.localeCompare(b.vigIni)) }); };
+    state.dpSind.filter(s => !ehSemSind(s) && todos([s.nome, s.apelido, s.cod, s.cct].join(' '))).forEach(s => { const v = cctVigente(s); if (v) poe(v.cct); });
+    state.dpCcts.filter(c => c.tipo === 'cct' && c.status !== 'substituida' && todos([c.titulo, c.registro, ...c.partes.map(p => p.nome)].join(' '))).forEach(poe);
+    return [...achadas.values()];
+  }
+  function dpLinhasConv(v, extra = {}) {
+    const c = v.cct, ef = cctEfetiva(v), ls = [], emps = empsDaCct(c);
+    const ctrl = (a) => a ? fmtDateStr(a) : '?';
+    ls.push({ t: `Convenção ${tituloCurto(c)}`, sub: `vigência ${ctrl(c.vigIni)} a ${ctrl(c.vigFim)}${c.dataBase ? ' · data-base ' + c.dataBase.toLowerCase() : ''}${emps.length ? ' · ' + emps.length + ' empresa(s) na carteira' : ''}`, abrir: { aba: 'sindicatos' },
+      dados: { convencao: tituloCurto(c), dataBase: c.dataBase || '', vigencia: `${c.vigIni || ''} a ${c.vigFim || ''}`, empresas: emps.length } });
+    if (resumoReajuste(ef)) ls.push({ t: `Reajuste: ${resumoReajuste(ef)}`, sub: tituloCurto(ef.reajusteItens.de) });
+    ef.pisos.val.slice(0, 8).forEach(x => ls.push({ t: `Piso ${x.nome || ''}: ${x.valor || ''}`.trim(), sub: tituloCurto(ef.pisos.de) }));
+    if (!ef.pisos.val.length) ls.push({ t: 'Piso salarial não cadastrado nesta convenção', sub: 'Preencha em Convenções → Pisos', tom: 'warn' });
+    ef.beneficios.val.slice(0, 5).forEach(x => ls.push({ t: `${x.nome || 'Benefício'}: ${x.valor || ''}`, sub: tituloCurto(ef.beneficios.de) }));
+    [c, ...v.aditivos].forEach(x => x.contribs.filter(k => k.quem === 'empresa').forEach(k => ls.push({ t: `Contribuição patronal: ${k.nome}${k.vencimento ? ' · vence ' + fmtYmdBR(k.vencimento) : ''}`, sub: String(k.regra || '').slice(0, 140) })));
+    return ls;
+  }
+  function dpContribuicaoEmpresa(e) {
+    const ls = []; let temCalc = false;
+    empresaCcts(e).forEach(v => [v.cct, ...v.aditivos].forEach(x => x.contribs.filter(k => k.quem === 'empresa').forEach(k => {
+      const est = k.calc && k.calc.tipo ? estimaContrib(k, e) : null; if (est) temCalc = true;
+      const ok = est && Number.isFinite(est.v);
+      ls.push({ t: `${k.nome}: ${ok ? brl(est.v) : 'não consegui calcular'}`, sub: `${ok ? est.det : est ? est.det : 'sem regra de cálculo cadastrada'}${k.vencimento ? ' · vence ' + fmtYmdBR(k.vencimento) : ''}${k.regra ? ' · ' + String(k.regra).slice(0, 100) : ''}`, tom: ok ? '' : 'warn',
+        abrir: { empresa: e.id, aba: 'dados' }, dados: { contribuicao: k.nome, valor: ok ? Math.round(est.v * 100) / 100 : null } });
+    })));
+    if (!ls.length) ls.push({ t: 'Nenhuma contribuição patronal cadastrada nas convenções desta empresa', sub: empConvTxt(e).txt, tom: 'warn', abrir: { empresa: e.id, aba: 'dados' } });
+    return { titulo: `Contribuição patronal de ${e.nome} (estimativa)`, total: ls.length, linhas: ls, resumo: temCalc ? 'Estimativa com os dados do cadastro (funcionários, tributação, capital social): confira na convenção.' : '' };
+  }
+  function dpAcaoReajuste(p) {
+    if (state.readOnly) return { erro: 'Você pode consultar o DP, mas não tem permissão para editar.' };
+    const nv = nivelMod('dp');
+    let e0 = null;
+    if (p.id) { e0 = findDpEmpresa(p.id); if (!e0) return { erro: 'Não achei essa empresa no DP.' }; }
+    else if (nv !== 'coord') return { erro: 'Só a coordenação marca o reajuste de todo um sindicato. Cite a empresa da sua carteira.' };
+    const q = String(p.sindicato || '').trim();
+    let sinds;
+    if (e0) {
+      sinds = empresaSinds(e0).filter(s => !ehSemSind(s) && cicloDe(s));
+      if (q) { const toks = convTokens(q); if (toks.length) sinds = sinds.filter(s => { const h = norm([s.nome, s.apelido, s.cod, s.cct].join(' ')); return toks.every(w => h.includes(w)); }); }
+      else { const pend = sinds.filter(s => { const r = reajusteStatus(s); return r && r.pendente && r.pend.includes(e0); }); if (pend.length) sinds = pend; }
+    } else {
+      if (!q) return { erro: 'De qual sindicato ou convenção é o reajuste? (ex.: “marca o reajuste do Comerciários como aplicado”)' };
+      const toks = convTokens(q);
+      sinds = toks.length ? state.dpSind.filter(s => { if (ehSemSind(s) || !cicloDe(s)) return false; const h = norm([s.nome, s.apelido, s.cod, s.cct].join(' ')); return toks.every(w => h.includes(w)); }) : [];
+    }
+    if (!sinds.length) return { erro: e0 ? `“${e0.nome}” não tem sindicato com data-base cadastrada${q ? ' que combine com “' + q + '”' : ''}.` : `Não achei sindicato com data-base cadastrada que combine com “${q}”.` };
+    if (sinds.length > 1) return { erro: `Mais de um sindicato combina: ${sinds.slice(0, 5).map(rotuloSind).join('; ')}. Diga qual.` };
+    const s = sinds[0], r = reajusteStatus(s);
+    if (!r) return { erro: `${rotuloSind(s)} não tem data-base cadastrada.` };
+    if (r.reg.semReajuste) return { erro: `${rotuloSind(s)} está marcado como sem reajuste neste ciclo.` };
+    if (r.rascunho) return { erro: `A CCT de ${rotuloSind(s)} ainda está em rascunho: confirme os valores antes de marcar o reajuste.` };
+    let alvo = e0 ? [e0] : r.pend;
+    if (nv !== 'coord') alvo = alvo.filter(podeEmpresaDp);
+    if (e0 && !alvo.length) return { erro: `Você só altera as empresas da sua carteira: “${e0.nome}” é de ${e0.responsavel || 'outra pessoa'}.` };
+    alvo = alvo.filter(e => !r.reg.aplicado[e.id]);
+    if (!alvo.length) return { erro: e0 ? `O reajuste de ${rotuloSind(s)} já está marcado como aplicado em “${e0.nome}”.` : `O reajuste de ${rotuloSind(s)} já está aplicado em todas as empresas deste ciclo.` };
+    const ids = alvo.map(e => e.id), ref = `${s.dataBase.toLowerCase()}/${r.ano}`;
+    const nomes = alvo.slice(0, 6).map(e => e.nome).join(', ') + (alvo.length > 6 ? ` e mais ${alvo.length - 6}` : '');
+    return {
+      titulo: 'Marcar reajuste como aplicado', empresa: e0 ? e0.nome : rotuloSind(s),
+      linhas: [`${rotuloSind(s)} · data-base ${ref}${s.percentual ? ' · ' + s.percentual : ''}`, `${alvo.length} empresa(s): ${nomes}`], aviso: 'Só registra que o reajuste foi aplicado (no sindicato e no histórico de cada empresa). Não altera salários na folha.',
+      executar: async () => { await marcarReajuste(s.id, ids, true); return `Reajuste ${ref} marcado como aplicado em ${alvo.length} empresa(s).`; },
+      desfazer: async () => { await marcarReajuste(s.id, ids, false); },
+    };
+  }
   const dpAssist = {
     modulo: 'dp', nome: 'Departamento Pessoal',
     abas: [['painel', 'Painel'], ['agenda', 'Agenda'], ['empresas', 'Empresas'], ['funcionarios', 'Funcionários'], ['sindicatos', 'Convenções'], ['cartela', 'Cartela de clientes'], ['ferramentas', 'Ferramentas']],
@@ -5748,6 +5821,21 @@
         cv.sem.slice(0, 10).forEach(x => ls.push({ t: `Sem convenção cadastrada: ${x.e.nome}`, sub: x.ss.map(s => s.nome || s.cod).join(', ') || 'sem sindicato informado', tom: 'warn', abrir: { empresa: x.e.id, aba: 'dados' } }));
         return { titulo: 'Convenções da carteira (DP)', total: ls.length, linhas: ls };
       }
+      if (tipo === 'convencao_busca') {
+        const vs = dpConvPorTexto(p.q); if (!vs.length) return null;
+        const ls = []; vs.slice(0, 4).forEach(v => ls.push(...dpLinhasConv(v)));
+        return { titulo: `Convenção: ${p.q}`, total: ls.length, linhas: ls, verTudo: { aba: 'sindicatos' } };
+      }
+      if (tipo === 'contribuicao') {
+        const e = findDpEmpresa(p.id); if (!e) return null;
+        return dpContribuicaoEmpresa(e);
+      }
+      if (tipo === 'ausencias') {
+        const di = ymd(de), df = ymd(ate);
+        const ls = (state.dpCob.ausencias || []).filter(x => x.inicio <= df && x.fim >= di && (!ana || norm(x.analista) === norm(ana))).sort((a, b) => a.inicio.localeCompare(b.inicio))
+          .map(x => ({ t: `${x.analista} · ${x.motivo}`, sub: `${fmtYmdBR(x.inicio)} a ${fmtYmdBR(x.fim)}${x.padrao ? ' · cobre: ' + x.padrao : ' · sem cobertura definida'}`, data: x.inicio, tom: x.padrao ? '' : 'warn', abrir: { aba: 'cartela' } }));
+        return { titulo: 'Ausências de analistas (Cartela)', total: ls.length, linhas: ls, verTudo: { aba: 'cartela' } };
+      }
       if (tipo === 'funcionarios') {
         const ls = [], ini = addDays(t, -60), fim = addDays(t, 60);
         lista.forEach(e => (e.funcionarios || []).forEach(f => {
@@ -5776,6 +5864,7 @@
     acao(tipo, p = {}) {
       if (tipo === 'transferir' || tipo === 'observacao') return dpAcaoEmpresa(tipo, p);
       if (tipo === 'ausencia') return dpAcaoAusencia(p);
+      if (tipo === 'reajuste') return dpAcaoReajuste(p);
       if (tipo !== 'lembrete') return { erro: 'Ainda não sei fazer isso no DP.' };
       if (!podeCriarMeu()) return { erro: state.meusOff || 'Você não tem permissão para criar lembretes aqui.' };
       const texto = String(p.texto || '').trim().slice(0, 200);

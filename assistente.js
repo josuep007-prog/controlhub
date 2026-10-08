@@ -91,6 +91,33 @@
     if (+p.de === +p.ate) return n === 0 ? "hoje" : n === 1 ? "amanhã" : n === -1 ? "ontem" : SEM[p.de.getDay()] + ", " + dm(p.de);
     return "de " + dm(p.de) + " a " + dm(p.ate);
   }
+  // Datas ditas de jeito livre: "dia 10 do mês que vem", "dia 5 de março", "daqui a 3 dias úteis", "sexta que vem", "fim do mês que vem".
+  var DIA_SEM_N = {domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6};
+  var RX_DSEM = /\b(?:(proxima|proximo|essa|esta|nesta|nessa|na|no|para|pra|ate) )?(domingo|segunda|terca|quarta|quinta|sexta|sabado)(?: feira)?( que vem| passada)?\b/;
+  function diaNoMes(y, mo, d) { var u = new Date(y, mo + 1, 0).getDate(); return new Date(y, mo, Math.min(d, u)); }
+  function periodoLivre(t, h) {
+    var m, d;
+    if ((m = /\bdia (\d{1,2}) (?:do|de) (?:mes que vem|proximo mes|mes seguinte)\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { d = diaNoMes(h.getFullYear(), h.getMonth() + 1, +m[1]); return {de: d, ate: d}; }
+    if ((m = /\b(?:fim|final|ultimo dia) do mes que vem\b/.exec(t))) { d = diaNoMes(h.getFullYear(), h.getMonth() + 2, 0); return {de: d, ate: d}; }
+    if (/\bultimo dia (util )?do mes\b/.test(t)) { d = diaNoMes(h.getFullYear(), h.getMonth() + 1, 0); if (/util/.test(t)) while (d.getDay() % 6 === 0) d = addDias(d, -1); return {de: d, ate: d}; }
+    for (var i = 0; i < 12; i++) if ((m = new RegExp("\\bdia (\\d{1,2}) de " + MESES_N[i] + "\\b").exec(t)) && +m[1] >= 1 && +m[1] <= 31) {
+      d = diaNoMes(h.getFullYear(), i, +m[1]); if (d < h && (h - d) / 864e5 > 200) d = diaNoMes(h.getFullYear() + 1, i, +m[1]);
+      return {de: d, ate: d};
+    }
+    if ((m = /\b(nos proximos |proximos )?(?:daqui a |daqui |em |dentro de )?(\d{1,3}) dias? uteis\b/.exec(t))) { d = diasUteisDepois(h, +m[2]); return m[1] ? {de: h, ate: d} : {de: d, ate: d}; }
+    if ((m = /\b(?:daqui a|dentro de) (\d{1,3}) dias?\b/.exec(t))) { d = addDias(h, +m[1]); return {de: d, ate: d}; }
+    if ((m = /\b(?:daqui a|em|dentro de) (\d{1,2}) semanas?\b/.exec(t))) { d = addDias(h, 7 * +m[1]); return {de: d, ate: d}; }
+    if (/\bproximo dia util\b/.test(t)) { d = diasUteisDepois(h, 1); return {de: d, ate: d}; }
+    if ((m = RX_DSEM.exec(t)) && !/\b(domingo|segunda|terca|quarta|quinta|sexta|sabado)( feira)? (via|parcela|parte|opcao|etapa|vez|rodada|fase|guia|linha|coluna|tentativa)\b/.test(t)) {
+      var wd = DIA_SEM_N[m[2]], prox = /proxim|que vem/.test(m[0]), delta;
+      if (/\b(semana que vem|proxima semana|semana seguinte)\b/.test(t)) { var seg = addDias(h, ((8 - h.getDay()) % 7) || 7); d = addDias(seg, wd === 0 ? 6 : wd - 1); return {de: d, ate: d}; }
+      if (/passada/.test(m[0])) delta = -(((h.getDay() - wd + 7) % 7) || 7);
+      else { delta = (wd - h.getDay() + 7) % 7; if (delta === 0 && prox) delta = 7; }
+      d = addDias(h, delta);
+      return m[1] === "ate" ? {de: h, ate: d} : {de: d, ate: d};
+    }
+    return null;
+  }
   // Devolve {de, ate} ou null quando a frase não fala de datas.
   function periodo(t) {
     var h = hoje(), m, r;
@@ -98,6 +125,7 @@
       var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : h.getFullYear(), d = new Date(y, +m[2] - 1, +m[1]);
       if (!isNaN(d)) return {de: d, ate: d};
     }
+    var r2 = periodoLivre(t, h); if (r2) return r2;
     if ((m = /\bdia (\d{1,2})\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { var d2 = new Date(h.getFullYear(), h.getMonth(), +m[1]); return {de: d2, ate: d2}; }
     if (/\bdepois de amanha\b/.test(t)) return {de: addDias(h, 2), ate: addDias(h, 2)};
     if (/\bamanha\b/.test(t)) return {de: addDias(h, 1), ate: addDias(h, 1)};
@@ -269,7 +297,11 @@
     {t: "Impedimentos no Portal", m: "portal", k: "impedimento impedimentos bloqueio portal empresa", a: "Na aba Impedimentos ficam as empresas, setores e pessoas travados, com o motivo, desde quando e de quem se aguarda retorno.", ir: {m: "portal", aba: "impedimentos"}},
     {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
-    {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
+    {t: "Comparar analistas pelo chat", k: "comparar comparacao ranking quem tem mais atrasos sobrecarregado carga empresas por analista livre folgado equipe", a: "Pergunte, por exemplo: “quem tem mais atrasos?”, “quantas empresas por analista?”, “quem está mais sobrecarregado?” ou “quem está mais livre no Fiscal?”. Eu mostro o resultado em destaque e um gráfico com todos os analistas. Só entram os módulos a que você tem acesso."},
+    {t: "Datas ditas do seu jeito", k: "data datas periodo sexta que vem proximo mes dia 10 daqui a dias uteis fim do mes lembrete amanha semana", a: "Eu entendo datas como “sexta que vem”, “dia 10 do mês que vem”, “dia 5 de março”, “daqui a 3 dias úteis”, “próximo dia útil”, “fim do mês que vem” e “até sexta”. Vale para consultas e para lembretes (“me lembra sexta de ligar para o cliente”)."},
+    {t: "Convenções pelo chat", m: "dp", k: "convencao convencoes cct piso data base reajuste contribuicao patronal taxa negocial sindicato beneficios vigencia", a: "Pergunte, por exemplo: “qual o piso do Comerciários?”, “quando é a data-base do sindicato X?” ou “qual a contribuição patronal da Importbras?”. Mostro piso, reajuste, benefícios e contribuições da convenção vigente; a contribuição patronal é uma estimativa com os dados do cadastro (funcionários, tributação e capital social), então confira na convenção. Para marcar o reajuste como aplicado: “marca o reajuste do Comerciários como aplicado”."},
+    {t: "Ausências e resumo da segunda", m: "dp", k: "ausencias ferias afastamento analista equipe cobertura segunda resumo semana cardapio", a: "Pergunte “quem está de férias na equipe?” para ver as ausências de analistas na Cartela (com quem cobre). Na segunda de manhã, além do resumo do dia, eu mostro a semana: prazos, ausências e cardápio. Dá para desligar em Configurações → Avisos."},
+    {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Também marco o reajuste de convenção como aplicado (“marca o reajuste do Comerciários como aplicado”). Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
     {t: "Login e níveis de acesso", k: "login senha entrar sair acesso nivel niveis permissao coordenador analista consulta administrador usuario cadastro trocar senha esqueci", a: "O Hub tem login próprio, separado da conta do Claude. Quem ainda não tem conta cria uma na tela de entrada e espera o administrador liberar. Cada pessoa tem um nível por módulo: Coordenador (edita tudo no módulo), Analista (edita só a própria carteira, pelo nome de analista ligado ao usuário) e Consulta (só vê). Sem nível, o módulo some do Hub. Para trocar a senha ou sair, clique no seu avatar (canto da tela inicial ou barra lateral). Esqueceu a senha? Peça ao administrador uma senha provisória: você será obrigado a trocá-la ao entrar. O administrador gerencia tudo em Usuários."},
     {t: "Relatórios por departamento", k: "departamento departamentos relatorio relatorios resumo permissao acesso ver coordenacao liberar equipe separar setor", a: "Quando a coordenação liga a separação por departamento (⚙ → Equipe → Relatórios por departamento), cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela: um resumo do dia separado para cada departamento, e as consultas, fichas, carga e IA limitadas a eles. Cardápio e lembretes pessoais continuam para todos. A coordenação (editores do Hub) vê tudo e pode pedir /resumo fiscal, /resumo dp, /resumo contabil, /resumo portal ou /resumo todos. Se a sua tela estiver vazia, é porque falta a coordenação liberar o seu departamento. Isso organiza o que o assistente mostra: quem tem acesso ao Hub ainda consegue abrir os módulos pelas telas."},
     {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
@@ -362,6 +394,9 @@
     vencimentos: /\b(venc|prazo|entreg|agenda|compromiss|obrigac|calendario|guias?\b|o que (tem|temos|ha|rola)\b|vai ter\b)/,
     carteira: /\b(carteira|quantas empresas|quantos clientes|quantas)\b/,
     empresa: /\b(empresa|cliente|situacao|como (esta|ta|anda)|me fala|fala (da|do|sobre)|ficha|dados d[aeo]|informacoes)\b/,
+    conv: /\b(piso|pisos|data[ -]?base|database|reajuste|reajustes|convencao|convencoes|cct|ccts|contribuicao|contribuicoes|taxa negocial|sindicato|sindicatos)\b/,
+    convNao: /\b(pendente|pendentes|atrasad\w*|vencid\w*|vencendo|alerta\w*|aplicar|como)\b/,
+    ausencia: /\b(ferias|ausen\w*|afastad\w*|licenca|de folga)\b/,
     ajuda: /^(como|onde|o que (e|significa|quer dizer)|para que serve|pra que serve|qual a diferenca|duvida|tenho uma duvida|passo a passo|tutorial)\b|\b(como (faco|faz|eu|se)|onde (fica|vejo|encontro|clico)|ensina)\b/,
   };
 
@@ -434,6 +469,21 @@
     });
   }
 
+  // Perguntas que comparam analistas ("quem tem mais atrasos?", "empresas por analista", "quem está mais sobrecarregado?").
+  function ehComparacao(t) {
+    if (/\b(empresas?|clientes) por analista\b|\bquantas empresas (cada|por)\b|\bquantos clientes (cada|por)\b|\branking\b|\bsobrecarreg\w*|\bcarga (de trabalho )?(da equipe|dos analistas|de cada)\b|\bquem (esta|ta|anda) (mais )?(livre|folgad\w*|ocios\w*|disponivel)\b/.test(t)) return true;
+    return /\b(quem|analista|analistas|pessoa|equipe|time|colega|colegas|alguem)\b/.test(t) && /\b(mais|menos|maior|menor)\b/.test(t) && /\b(atras\w*|vencid\w*|ocupad\w*|carga|empresas|clientes|carteira|aguard\w*|pendenc\w*|livre|folgad\w*|ocios\w*)\b/.test(t) && !/\bempresas?\b.*\b(tem|com) mais\b.*\bfunc/.test(t);
+  }
+  // "marca X e me lembra sexta": separa o pedido em duas partes quando a segunda é um lembrete.
+  function dividirPedido(texto) {
+    var m = /^([\s\S]{8,}?)(?:\s*[,;]\s*|\s+e\s+(?:tamb[ée]m\s+)?)(me\s+lembr\w*[\s\S]*|cri(?:a|e)\w*\s+(?:um\s+)?lembrete[\s\S]*)$/i.exec(texto);
+    return m ? [m[1].trim(), m[2].trim()] : null;
+  }
+  function pedidoParcial(txt) {
+    var tt = norm(txt), ix = indice(), anaM = casarAnalista(tt, ix.analistas), ign = {};
+    anaM.forEach(function (n) { ign[norm(n).split(" ")[0]] = 1; });
+    return detectarAcao(tt, txt, casarEmpresas(tt, ign), detectarModulos(tt), periodo(tt), anaM);
+  }
   function entender(texto, t) {
     var ix = indice(), nomesAna = ix.analistas;
     var anaMatch = casarAnalista(t, nomesAna);
@@ -447,6 +497,14 @@
     var navega = RX.navegar.test(t);
     var intent = "";
 
+    var duas = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? dividirPedido(texto) : null;
+    if (duas) {
+      var pa = pedidoParcial(duas[0]), pb = pedidoParcial(duas[1]);
+      if (pa && pb && pb.tipo === "lembrete" && ["pergunta", "ambigua", "ambigua_mod", "ambigua_ob", "lembrete"].indexOf(pa.tipo) === -1) {
+        if (!pb.texto) { var rotA = pa.rotulo || pa.texto || ""; pb.texto = ((pa.emp ? pa.emp.g.nome : "Conferir") + (rotA ? ": " + rotA : "")).slice(0, 120); }
+        return Promise.all([prepararAcao(pa, duas[0]), prepararAcao(pb, duas[1])]).then(function (r) { return [T("São dois pedidos: preparei um cartão para cada. Confirme os dois (ou só o que quiser).")].concat(r[0], r[1]); });
+      }
+    }
     var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per, anaMatch) : null;
     if (pedido) return prepararAcao(pedido, texto);
     var gl = buscarGlossario(t);
@@ -458,8 +516,12 @@
     else if (RX.obrigado.test(t)) intent = "obrigado";
     else if (RX.quem.test(t)) intent = "quem";
     else if (RX.ajuda.test(t) && !emps.length) intent = "ajuda";
+    else if (emps.length && RX.conv.test(t) && !RX.convNao.test(t) && (!anaMatch.length || emps[0].s >= 1)) intent = "convencao";
     else if (emps.length && (!anaMatch.length || emps[0].s >= 1)) intent = "empresa";
     else if (navega && (mods.length || /\b(inicio|home|tela inicial)\b/.test(t) || detectarAba(t, carregados[mods[0]]))) intent = "navegar";
+    else if (!emps.length && ehComparacao(t)) intent = "comparar";
+    else if (!emps.length && RX.conv.test(t) && !RX.convNao.test(t)) intent = "convencao";
+    else if (!emps.length && RX.ausencia.test(t) && (/\b(analistas?|equipe|time|cobertura|cobrindo|cartela)\b/.test(t) || anaMatch.length)) intent = "ausencias";
     else if (RX.cliente.test(t)) intent = "cliente";
     else if (RX.cardapio.test(t)) intent = "cardapio";
     else if (RX.atrasos.test(t)) intent = "atrasos";
@@ -490,6 +552,9 @@
       case "empresa": return empresa(p, emps);
       case "vencimentos": case "atrasos": case "cliente": case "carteira": return consulta(p);
       case "cardapio": return consulta(p);
+      case "comparar": return comparar(p);
+      case "convencao": return convencoes(p, emps);
+      case "ausencias": return ausencias(p);
       default: return Promise.resolve(naoEntendi(p));
     }
   }
@@ -538,8 +603,10 @@
       var hora = (/\b(\d{1,2})\s?(?:h|:)\s?(\d{2})?\b/.exec(t) || []);
       var h = hora[1] && +hora[1] <= 23 ? pad2(+hora[1]) + ":" + (hora[2] || "00") : "";
       var txt = texto.replace(/^\s*(por favor[, ]*)?/i, "").replace(/\b(me )?lembr(a|e|ar)\b( de| que| para| pra)?/i, "").replace(/\b(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete( de| para| pra| que| sobre)?/i, "")
-        .replace(/(^|\s)(depois de amanh[ãa]|amanh[ãa]|hoje|ontem)(?=[\s,.;]|$)/ig, " ").replace(/\bdia \d{1,2}\b/ig, "").replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, "").replace(/(^|\s)(às|as)\s+\d{1,2}(h|:)?\d{0,2}h?(?=\s|$)/ig, " ").replace(/(^|\s)\d{1,2}\s?h(\d{2})?(?=\s|$)/ig, " ")
-        .replace(/\bna (segunda|terça|quarta|quinta|sexta)\b/ig, "").replace(/\s+/g, " ").replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "");
+        .replace(/(^|\s)(depois de amanh[ãa]|amanh[ãa]|hoje|ontem)(?=[\s,.;]|$)/ig, " ").replace(/\bdia \d{1,2} d[eo] (m[êe]s que vem|pr[óo]ximo m[êe]s|m[êe]s seguinte|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/ig, "").replace(/\bdia \d{1,2}\b/ig, "").replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, "").replace(/(^|\s)(às|as)\s+\d{1,2}(h|:)?\d{0,2}h?(?=\s|$)/ig, " ").replace(/(^|\s)\d{1,2}\s?h(\d{2})?(?=\s|$)/ig, " ")
+        .replace(/\bna (segunda|terça|quarta|quinta|sexta)\b/ig, "")
+        .replace(/(^|\s)(?:(pr[óo]xim[ao]|essa|esta|nesta|nessa|na|no|para|pra|at[ée]) )?(domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado)(?:[- ]feira)?( que vem| passada)?(?=[\s,.;]|$)/ig, function (mm, a, b, c, d) { return b || d || per || /feira/i.test(mm) ? " " : mm; })
+        .replace(/\bdia \d{1,2} d[eo] (m[êe]s que vem|pr[óo]ximo m[êe]s|m[êe]s seguinte)\b/ig, "").replace(/\b(daqui a|dentro de|em) \d{1,3} dias?( [úu]teis)?\b/ig, "").replace(/\b(fim|final|[úu]ltimo dia) d[oe] m[êe]s( que vem)?\b/ig, "").replace(/\bpr[óo]ximo dia [úu]til\b/ig, "").replace(/\s+/g, " ").replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "").replace(/^(de|para|pra|que)\s+/i, "");
       return {tipo: "lembrete", mod: "dp", texto: txt, data: per ? ymd(per.de) : ymd(hoje()), hora: h, emp: emps.length ? emps[0] : null};
     }
     // ---- DP: ausência de analista (férias, afastamento, licença) com cobertura; não precisa de empresa ----
@@ -561,6 +628,15 @@
       if (dts.length) { var d1 = mkD(dts[0], addDias(h0, -60)), d2 = dts.length > 1 ? mkD(dts[1], d1) : d1; ini = ymd(d1); fim = ymd(d2); }
       var mot = /^ferias/.test(mAus[1]) ? "ferias" : /^(afastament|atestado)/.test(mAus[1]) ? "afastamento" : /^licenca/.test(mAus[1]) ? "licenca" : "";
       return {tipo: "ausencia", mod: "dp", params: {analista: ausente, motivo: mot, inicio: ini, fim: fim, para: cobre}};
+    }
+    // ---- DP: marcar o reajuste da data-base como aplicado (sindicato inteiro ou uma empresa) ----
+    if (/\breajuste\b/.test(t) && (/\b(marc\w*|registr\w*|lanc\w*|confirm\w*|anot\w*|baix\w*)\b/.test(t) || /\baplic(amos|ei|ou|aram)\b/.test(t)) && /\b(aplicad\w*|aplic(amos|ei|ou|aram)|feito|feita|lancad\w*|conclu\w*|na folha)\b/.test(t) && !/\b(desmarc\w*|nao)\b/.test(t)) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var mR = /\breajuste\b(?:\s+(?:salarial|da data base|da cct|da convencao))?\s+(?:d[aeo]s?\s+)?([\s\S]*?)(?=\s+(?:como|ja|foi|foram|aplicad\w*|feito|feita|conclu\w*|na folha|ok|para|pra)\b|$)/.exec(t), sq = mR ? mR[1].trim().replace(/^(como|ja|foi|foram|aplicad\w*|feito|feita|conclu\w*|na folha|ok|para|pra)\b[\s\S]*$/, "") : "";
+      if (!sq) { var mS = /\b(?:sindicato|convencao|cct)\s+([\s\S]+?)(?=\s+(?:como|ja|foi|aplicad\w*|feito|na folha)\b|$)/.exec(t); sq = mS ? mS[0].trim() : ""; }
+      if (emps.length && !/\b(sindicato|convencao|cct)\b/.test(sq)) sq = "";
+      if (!emps.length && !sq) return {tipo: "pergunta", texto: "De qual sindicato é o reajuste? Por exemplo: “marca o reajuste do Comerciários como aplicado”."};
+      return {tipo: "reajuste", mod: "dp", emp: emps.length ? emps[0] : null, params: {sindicato: sq}};
     }
     if (!emps.length) return null;
     // ---- DP, Fiscal ou Contábil: passar a empresa para outro analista ----
@@ -585,7 +661,7 @@
     if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
     var e = emps[0], modsEmp = Object.keys(e.g.refs);
     var status = /\b(desmarc\w*|reabr\w*|desfaz\w*|volta\w*|pendente)\b/.test(t) ? "" : /\b(inici\w*|comec\w*|em andamento|andamento)\b/.test(t) ? "a" : /\bretific\w*\b/.test(t) ? "r" : "c";
-    var comp = per && ymd(per.de).slice(0, 7) === ymd(per.ate).slice(0, 7) && /\b(competencia|fechamento|de |do mes|em |mes)\b/.test(t) && !/\b(hoje|amanha|ontem|dia \d)/.test(t) ? ymd(per.de).slice(0, 7) : "";
+    var comp = per && ymd(per.de).slice(0, 7) === ymd(per.ate).slice(0, 7) && /\b(competencia|fechamento|de |do mes|em |mes)\b/.test(t) && !/\b(hoje|amanha|ontem|dia \d|domingo|segunda|terca|quarta|quinta|sexta|sabado|daqui|uteis|fim do|final do|ultimo dia|proximo dia)/.test(t) ? ymd(per.de).slice(0, 7) : "";
     // pendência do cliente
     var temPend = /\b(pendencia|pendente do cliente|aguardando|falta o cliente|cliente (nao )?(mandou|enviou)|cobrei|cobrado|cobranca|cobrar de novo)\b/.test(t) || /\bcliente\b.*\b(mandou|enviou|chegou)\b|\b(receb\w+|chegou|chegaram)\b.*\b(do|da) cliente\b/.test(t);
     if (temPend) {
@@ -729,6 +805,7 @@
     var pd = {tipo: i.tipo, mod: i.modulo || "", status: STATUS_IA[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : [],
       params: {imposto: "", valor: i.valor, para: i.para, rep: i.repetir, dia: i.data, principal: i.principal, guarnicao: i.guarnicao, salada: i.salada, sobremesa: i.sobremesa, feriado: i.feriado, setor: i.setor}};
     if (i.tipo === "ausencia") { pd.mod = "dp"; pd.mods = ["dp"]; pd.params.analista = i.analista; pd.params.inicio = i.inicio; pd.params.fim = i.fim; pd.params.motivo = i.motivo; return {pd: pd}; }
+    if (i.tipo === "reajuste") { pd.mod = "dp"; pd.mods = ["dp"]; pd.params.sindicato = i.sindicato; if (emp) pd.emp = emp; return {pd: pd}; }
     if (i.tipo === "cardapio" || i.tipo === "lembrete") { if (i.tipo === "lembrete" && emp) pd.emp = emp; return {pd: pd}; }
     if (!emp) return {erro: "Diga a empresa."};
     pd.emp = emp;
@@ -856,14 +933,14 @@
   }
   function ferramentasIA(cartoes) {
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
-    var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "funcionarios", "lembretes", "uso"];
+    var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "convencao_busca", "contribuicao", "ausencias", "funcionarios", "lembretes", "uso"];
     return [
-      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
-        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao)"}}, required: ["modulo", "tipo"]},
+      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Só no DP também: convencao_busca (texto = nome do sindicato ou da convenção: piso, reajuste, data-base, vigência, benefícios e contribuição patronal), contribuicao (empresa: estimativa da contribuição patronal) e ausencias (férias/afastamentos de analistas no período, com cobertura). Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
+        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao/contribuicao)"}, texto: {type: "string", description: "para convencao_busca: sindicato ou convenção"}}, required: ["modulo", "tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () { return modulo(i.modulo); }).then(function (a) {
             if (!a) return podeMod(i.modulo) ? "Módulo indisponível." : "Esta pessoa não tem acesso ao relatório de " + (DEPTOS[i.modulo] || i.modulo) + ": é de outro departamento. Explique isso a ela e não use outras fontes para responder.";
-            var p = {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || "", comp: i.competencia || ""};
+            var p = {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || "", comp: i.competencia || "", q: i.texto || ""};
             if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; p.id = f.g.refs[i.modulo]; if (!p.id) return "“" + f.g.nome + "” não está no " + MODN[i.modulo] + "."; }
             var r = a.consultar(i.tipo, p);
             if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a);
@@ -928,8 +1005,8 @@
         execute: function (i) { cartoes.push({tipo: "grafico", titulo: i.titulo, unidade: i.unidade || "", itens: (i.itens || []).slice(0, 12)}); return "Gráfico exibido abaixo da resposta."; }},
       {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
         execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
-      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (Fiscal/Contábil: só coordenação; no DP qualquer editor; para = analista), observacao (anota texto na ficha; no DP vai para o histórico da empresa), ausencia (só DP: analista, motivo ferias/afastamento/licenca, inicio e fim AAAA-MM-DD, para = quem cobre; sem empresa), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
-        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete", "ausencia"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil", "dp"]}, analista: {type: "string"}, inicio: {type: "string"}, fim: {type: "string"}, motivo: {type: "string", enum: ["ferias", "afastamento", "licenca"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
+      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (Fiscal/Contábil: só coordenação; no DP qualquer editor; para = analista), observacao (anota texto na ficha; no DP vai para o histórico da empresa), ausencia (só DP: analista, motivo ferias/afastamento/licenca, inicio e fim AAAA-MM-DD, para = quem cobre; sem empresa), reajuste (só DP: marca o reajuste da data-base do sindicato como aplicado; sindicato = nome do sindicato/convenção; com empresa marca só ela; não altera salários), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete", "ausencia", "reajuste"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil", "dp"]}, analista: {type: "string"}, sindicato: {type: "string"}, inicio: {type: "string"}, fim: {type: "string"}, motivo: {type: "string", enum: ["ferias", "afastamento", "licenca"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () {
             var emp = null;
@@ -1132,9 +1209,96 @@
         var quem = p.analista ? " para " + p.analista : "";
         return [T(p.intent === "atrasos" ? "Nada atrasado" + quem + (p.mods.length ? " nesse módulo" : "") + ". 👏" : p.intent === "cliente" ? "Ninguém aguardando o cliente" + quem + "." : p.intent === "cardapio" ? "Não achei cardápio para " + rotPeriodo(per) + "." : "Nada encontrado" + quem + " para " + rotPeriodo(per) + ".")];
       }
+      var totN = 0, partes = [];
+      res.forEach(function (x) { if (x.r && (x.r.linhas || []).length) { var n = x.r.total || x.r.linhas.length; totN += n; partes.push(MODN[x.k] + " " + n); } });
+      var ROT_N = {atrasos: ["atraso ou alerta", "atrasos e alertas"], vencimentos: ["data", "datas"], cliente: ["pendência aguardando o cliente", "pendências aguardando o cliente"]}[p.intent];
+      if (ROT_N && totN) out.unshift({tipo: "md", texto: "**" + totN + " " + ROT_N[totN === 1 ? 0 : 1] + "**" + (p.intent === "vencimentos" ? " · " + rotPeriodo(per) : "") + (p.analista ? " de " + p.analista.split(" ")[0] : "") + (partes.length > 1 ? " — " + partes.join(" · ") : "")});
       out.unshift({tipo: "cab", texto: cab});
       if (vazios.length && !p.mods.length) out.push({tipo: "rodape", texto: "Sem itens em: " + vazios.join(", ") + "."});
       return out;
+    });
+  }
+
+  /* ---------- comparações entre analistas ---------- */
+  function comparar(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var t = p.t, nomesMod = (p.mods || []).filter(podeMod).map(function (k) { return MODN[k]; });
+    var met = /\b(atras\w*|vencid\w*)\b/.test(t) ? "atrasos" : /\b(aguard\w*|pendenc\w*)\b/.test(t) ? "cliente" : /\b(empresas|carteira|clientes)\b/.test(t) ? "empresas" : "carga";
+    var asc = /\b(menos|menor|livre|livres|ocios\w*|folgad\w*|disponiv\w*)\b/.test(t);
+    var ROT = {atrasos: ["atraso", "atrasos", "Atrasos por analista"], cliente: ["item aguardando o cliente", "itens aguardando o cliente", "Aguardando o cliente por analista"], empresas: ["empresa na carteira", "empresas na carteira", "Empresas por analista"], carga: ["ponto de carga", "pontos de carga", "Carga de trabalho por analista"]}[met];
+    return cargaAnalistas().then(function (l) {
+      var linhas = [];
+      l.forEach(function (q) {
+        var v = 0, tem = false;
+        Object.keys(q.modulos).forEach(function (mn) {
+          if (nomesMod.length && nomesMod.indexOf(mn) === -1) return;
+          var d = q.modulos[mn]; tem = true;
+          v += met === "atrasos" ? d.atrasadas || 0 : met === "cliente" ? d.aguardandoCliente || 0 : met === "empresas" ? d.empresas || 0 : (d.atrasadas || 0) * 3 + (d.aguardandoCliente || 0) + (d.empresas || 0) * 0.15 + (d.frentes || 0) * 0.3;
+        });
+        if (tem) linhas.push({analista: q.analista, valor: Math.round(v * 10) / 10});
+      });
+      if (!linhas.length) return [T("Ainda não tenho dados de carteira por analista" + (nomesMod.length ? " em " + nomesMod.join(" / ") : "") + ".")];
+      linhas.sort(function (a, b) { return asc ? a.valor - b.valor : b.valor - a.valor; });
+      var topo = linhas[0].valor, empatados = linhas.filter(function (x) { return x.valor === topo; }), total = Math.round(linhas.reduce(function (a, x) { return a + x.valor; }, 0) * 10) / 10;
+      var fmt = function (n) { return n.toLocaleString("pt-BR"); }, local = nomesMod.length ? " no " + nomesMod.join(" / ") : "";
+      var out = [];
+      if (!asc && !topo && (met === "atrasos" || met === "cliente")) return [T((met === "atrasos" ? "Ninguém tem atrasos" : "Ninguém tem itens aguardando o cliente") + local + " agora. 👏")];
+      var quem = empatados.length > 3 ? empatados.length + " analistas empatados" : empatados.map(function (x) { return x.analista; }).join(", ");
+      out.push({tipo: "md", texto: "**" + quem + "** " + (empatados.length > 1 ? "têm" : "tem") + " " + (asc ? "menos" : "mais") + " " + ROT[1] + local + ": **" + fmt(topo) + "**" + (met !== "carga" && total ? " (de " + fmt(total) + " no total)" : "")});
+      out.push({tipo: "grafico", titulo: ROT[2] + local, itens: linhas.slice(0, 12).map(function (x) { return {rotulo: x.analista, valor: x.valor}; })});
+      if (met === "carga") out.push({tipo: "rodape", texto: "Pontos: atrasos ×3, aguardando o cliente ×1, empresas ×0,15 e frentes do Portal ×0,3."});
+      var alvo = asc ? null : linhas[0].analista;
+      if (alvo) out.push(CH([{rot: "Quem pode ajudar " + alvo.split(" ")[0] + "?", enviar: "quem pode ajudar " + alvo.split(" ")[0] + "?"}]));
+      return out;
+    });
+  }
+
+  /* ---------- convenções coletivas pelo chat (piso, data-base, reajuste, contribuição patronal) ---------- */
+  var STOP_CONV = ["qual", "quais", "quando", "como", "esta", "estao", "mostra", "mostrar", "mostre", "fala", "falar", "me", "das", "dos", "uma", "uns", "por", "com", "sobre", "tem", "temos", "existe", "existem", "hoje", "atual", "atuais", "vigente", "vigentes", "todas", "todos", "carteira", "empresa", "empresas", "sindicato", "sindicatos", "convencao", "convencoes", "coletiva", "coletivas", "cct", "ccts", "piso", "pisos", "salarial", "salariais", "data", "base", "database", "reajuste", "reajustes", "vigencia", "contribuicao", "contribuicoes", "patronal", "patronais", "assistencial", "negocial", "taxa", "beneficios", "valor", "valores", "categoria", "dessa", "desse", "dela", "dele", "mes", "que", "para", "pra", "pro", "dia"];
+  function textoConv(t) { return t.replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (w) { return w.length >= 3 && STOP_CONV.indexOf(w) === -1; }).join(" "); }
+  function destaqueConv(t, r) {
+    var ls = r.linhas || [], dst = [];
+    if (/\bpiso/.test(t)) ls.filter(function (l) { return /^Piso /.test(l.t); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t.replace(/^Piso /, "Piso ") + "**"); });
+    else if (/\bdata[ -]?base|database/.test(t)) ls.filter(function (l) { return l.dados && l.dados.convencao && l.dados.dataBase; }).slice(0, 3).forEach(function (l) { dst.push("**Data-base: " + l.dados.dataBase + "** (" + l.dados.convencao + ")"); });
+    else if (/\breajuste/.test(t)) ls.filter(function (l) { return /^Reajuste/.test(l.t); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t + "**"); });
+    else if (/\b(contribu|taxa negocial|patronal)/.test(t)) ls.filter(function (l) { return /^Contribui/.test(l.t) || (l.dados && l.dados.contribuicao); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t + "**"); });
+    return dst.join("\n");
+  }
+  function convencoes(p, emps) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    if (!podeMod("dp")) return Promise.resolve([T("As convenções coletivas ficam no Departamento Pessoal, e você não tem acesso a esse relatório: é de outro departamento.")]);
+    return modulo("dp").then(function (a) {
+      if (!a) return [T("O módulo do DP não está disponível agora.")];
+      var t = p.t, contrib = /\b(contribu\w*|taxa negocial|patronal|assistencial)\b/.test(t), g = emps && emps[0] ? emps[0].g : null, r = null, q = "";
+      if (g) {
+        if (!g.refs.dp) return [T("“" + g.nome + "” não está no DP, então não tenho a convenção dela por aqui.")];
+        r = a.consultar(contrib ? "contribuicao" : "convencao", {id: g.refs.dp});
+      } else {
+        q = textoConv(t).replace(/\b(abr\w*|ir|vai|leva\w*|ver|veja|quero|entrar|acessar|acesse|volta\w*|navegar|mostr\w*)\b/g, " ").replace(/\s+/g, " ").trim();
+        if (!q && RX.navegar.test(t)) return abrirItem("dp", {aba: "sindicatos"}).then(function () { return [T("Abrindo as Convenções do DP.")]; });
+        r = q ? a.consultar("convencao_busca", {q: q}) : a.consultar("convencoes", {analista: p.analista});
+      }
+      var abrirDP = CH([{rot: "Abrir Convenções no DP", acao: function () { return abrirItem("dp", {aba: "sindicatos"}); }}]);
+      if (!r || !(r.linhas || []).length) return [T(q ? "Não achei convenção ou sindicato com “" + q + "”. Confira o nome na aba Convenções." : "Não encontrei dados de convenção" + (g ? " para " + g.nome : "") + "."), abrirDP];
+      var out = [{tipo: "cab", texto: r.titulo}], dst = destaqueConv(t, r);
+      if (dst) out.push({tipo: "md", texto: dst});
+      out.push({tipo: "linhas", titulo: "Convenção · " + r.linhas.length, linhas: r.linhas.slice(0, 12).map(function (l) { return Object.assign({mod: "dp"}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }), nota: ""});
+      if (r.resumo) out.push({tipo: "rodape", texto: r.resumo});
+      out.push(abrirDP);
+      return out;
+    });
+  }
+
+  /* ---------- ausências de analistas (Cartela do DP) ---------- */
+  function ausencias(p) {
+    if (!podeMod("dp")) return Promise.resolve([T("As ausências ficam na Cartela do DP, e você não tem acesso a esse relatório: é de outro departamento.")]);
+    var per = p.per || {de: hoje(), ate: addDias(hoje(), 30)};
+    return modulo("dp").then(function (a) {
+      var r = a && a.consultar("ausencias", {de: ymd(per.de), ate: ymd(per.ate), analista: p.analista});
+      if (!r) return [T("Não consegui consultar as ausências agora.")];
+      if (!r.linhas.length) return [T("Nenhuma ausência de analista registrada " + (p.analista ? "para " + p.analista + " " : "") + rotPeriodo(per) + ". 👍")];
+      return [{tipo: "cab", texto: "Ausências de analistas · " + rotPeriodo(per) + (p.analista ? " · " + p.analista : "")}, {tipo: "md", texto: "**" + r.total + " ausência" + (r.total === 1 ? "" : "s") + "**" + (r.linhas.some(function (l) { return l.tom === "warn"; }) ? " — " + r.linhas.filter(function (l) { return l.tom === "warn"; }).length + " sem cobertura definida" : "")},
+        {tipo: "linhas", titulo: "Cartela · " + r.total, linhas: r.linhas.slice(0, 10).map(function (l) { return Object.assign({mod: "dp"}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }), nota: ""}];
     });
   }
 
@@ -2476,6 +2640,7 @@
     {k: "sazonal", rot: "Chapéu da época (Natal, São João, Carnaval)", tipo: "bool", padrao: true, ao: function () { acKey = ""; atualizarAcessorios(); }},
     {k: "acSetor", rot: "Acessório do setor (capacete no DP, óculos no Fiscal, gravata no Contábil)", tipo: "bool", padrao: true, ao: function () { acKey = ""; atualizarAcessorios(); }},
     {k: "sons", rot: "Sons em 8 bits", tipo: "bool"},
+    {rot: "Modo discreto: mascote parado, sem frases nem sons", tipo: "botao", ao: function (b) { salvarPref({parado: true, frases: false, seguir: false, pegadas: false, sons: false}); b.textContent = "Modo discreto ligado"; }},
     {rot: "Brincar de esconde-esconde", tipo: "botao", ao: function () { comecarEsconde(); }}
   ]});
 
@@ -2490,7 +2655,7 @@
   function gravarAv(a) { gravarLS(AV, a); }
   function emFoco() { return (+lerPref().focoAte || 0) > Date.now(); }
   function opt(k) { return lerPref()["av_" + k] !== false; }
-  function algumAviso() { return ["resumo", "sexta", "prazos", "lembretes", "cliente"].some(opt); }
+  function algumAviso() { return ["resumo", "segunda", "sexta", "prazos", "lembretes", "cliente"].some(opt); }
   function diasUteisDepois(d, n) {
     var fer = feriadosEntre(d, addDias(d, n * 2 + 15)), c = new Date(d), k = 0;
     while (k < n) { c = addDias(c, 1); if (c.getDay() % 6 && !fer[ymd(c)]) k++; }
@@ -2649,6 +2814,17 @@
         }
         avisar("Resumo da semana: " + ficou.length + " pendente(s), " + segunda.length + " para " + SEM[seg.getDay()] + ".", bl);
       }
+      if (opt("segunda") && agora.getDay() === 1 && agora.getHours() >= 8 && !av.segunda) {
+        av.segunda = 1;
+        var h0 = hoje(), sexta = addDias(h0, 4), itensS = [], blS = [{tipo: "cab", texto: "Semana de " + dm(h0) + " a " + dm(sexta)}];
+        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(h0), ate: ymd(sexta), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") itensS.push(Object.assign({mod: m}, l)); }); });
+        blS.push(T(itensS.length ? itensS.length + " prazo(s) nesta semana" + (s.meu ? " na sua carteira" : "") + "." : "Nenhum prazo pendente nesta semana. 🎉"));
+        if (itensS.length) blS.push(linhasBloco("Prazos da semana", itensS));
+        var nAus = 0;
+        if (carregados.dp && podeMod("dp") && !(carregados.dp.exemplo && carregados.dp.exemplo())) { var au = carregados.dp.consultar("ausencias", {de: ymd(h0), ate: ymd(sexta)}); if (au && au.linhas.length) { nAus = au.linhas.length; blS.push(linhasBloco("Ausências na equipe", au.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }))); } }
+        if (carregados.cardapio && carregados.cardapio.consultar) { try { var cd = carregados.cardapio.consultar("cardapio", {de: ymd(h0), ate: ymd(sexta)}); var cdl = cd && cd.linhas ? cd.linhas.filter(function (l) { return !/ainda não cadastrado/.test(l.sub || ""); }) : []; if (cdl.length) blS.push(linhasBloco("Cardápio da semana", cdl.map(function (l) { return Object.assign({mod: "cardapio"}, l); }), 5)); } catch (e) {} }
+        avisar("Semana de " + dm(h0) + ": " + itensS.length + " prazo(s)" + (nAus ? ", " + nAus + " ausência(s)" : "") + ".", blS);
+      }
       // pendências do cliente que saíram de "aguardando" desde a última checagem
       if (opt("cliente") && av.pend) {
         var sairam = [];
@@ -2716,6 +2892,7 @@
   });
   CFG.push({sec: "Avisos", itens: [
     {k: "av_resumo", rot: "Resumo do dia na primeira abertura", tipo: "bool", padrao: true},
+    {k: "av_segunda", rot: "Resumo da semana na segunda de manhã (prazos, ausências e cardápio)", tipo: "bool", padrao: true},
     {k: "av_sexta", rot: "Resumo da semana na sexta à tarde", tipo: "bool", padrao: true},
     {k: "av_prazos", rot: "Avisar prazos chegando (2 dias úteis)", tipo: "bool", padrao: true},
     {k: "av_lembretes", rot: "Lembretes do DP no horário", tipo: "bool", padrao: true},
