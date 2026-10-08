@@ -541,8 +541,14 @@
     sair: sair,
     trocarSenha: dialogoSenha,
     onMudar: function (cb) { if (typeof cb === "function") ouvintesMudar.push(cb); },
-    perfis: function (ids) {
-      var r = {}; return Promise.all((ids || []).filter(Boolean).map(function (id) { return BACKEND.ler("auth_usuarios/" + id).then(function (u) { r[id] = {name: u ? u.nome : ""}; }, function () { r[id] = {name: ""}; }); })).then(function () { return r; });
+    perfis: function (ids, fallback) {
+      var r = {}, lista = (ids || []).filter(Boolean);
+      return Promise.all(lista.map(function (id) { return BACKEND.ler("auth_usuarios/" + id).then(function (u) { r[id] = {name: u ? u.nome : ""}; }, function () { r[id] = {name: ""}; }); })).then(function () {
+        var falta = lista.filter(function (id) { return !r[id].name; });
+        if (!falta.length || typeof fallback !== "function") return r;
+        // registros antigos guardam o id da conta claude.ai: resolve por lá
+        return Promise.resolve(fallback(falta)).then(function (ps) { falta.forEach(function (id) { if (ps && ps[id] && ps[id].name) r[id] = {name: ps[id].name}; }); return r; }, function () { return r; });
+      });
     },
     montarUsuarios: montarUsuarios,
     _backend: BACKEND

@@ -493,6 +493,7 @@
     try { await trackSave(fn); return true; }
     catch (e) {
       if (e?.code === 'invalid_argument') { state.readOnly = true; toast('Você não tem permissão para editar esta lista.'); render(); if (state.activeModule === 'dp') applyDpReadOnly(); }
+      else if (e?.code === 'sem_permissao') { toast(e.message || 'Você não tem permissão para alterar isto.'); }
       else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido. Exclua registros antigos para continuar.');
       else toast('Não foi possível salvar. Tente de novo em instantes.');
       return false;
@@ -509,10 +510,27 @@
   // "Uso do banco" é fixo do Hub: aparece junto das ferramentas sem ser gravado no banco.
   const USO_TOOL = { id:'uso-banco', name:'Uso do banco', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Mede quanto do banco de dados do artefato está em uso.', tags:['banco','armazenamento','limite'], moduleKey:'uso', virtual:true, favorite:false, newTab:false, order:9999, uses:0 };
   const USUARIOS_TOOL = { id:'usuarios-acesso', name:'Usuários', url:'', icon:'', category:'Atalhos', color:'#C2000C', description:'Aprova cadastros e define o nível de acesso de cada pessoa em cada módulo.', tags:['login','acesso','senha','permissões'], moduleKey:'usuarios', virtual:true, favorite:false, newTab:false, order:9998, uses:0 };
+  // ---------- níveis de acesso (auth.js): sem auth.js tudo funciona como antes ----------
+  const MODS_ACESSO = ['dp', 'contabil', 'fiscal', 'portal', 'cardapio'];
+  const AUTH = () => window.__auth || null;
+  const nivelMod = (m) => AUTH() ? AUTH().nivel(m) : 'coord';
+  const podeVerMod = (m) => !AUTH() || AUTH().podeVer(m);
+  const soAdmin = (m) => m === 'uso' || m === 'usuarios';
+  const podeAbrirModulo = (m) => soAdmin(m) ? (!AUTH() || AUTH().ehAdmin()) : !MODS_ACESSO.includes(m) || podeVerMod(m);
+  // Quem gerencia a lista de ferramentas: administrador e coordenação do DP (que é quem abre o Hub como painel).
+  const podeGerirFerramentas = () => !AUTH() || nivelMod('dp') === 'coord';
+  // Analista do DP só edita as empresas em que é o responsável (ou o cobre numa ausência).
+  const podeEmpresaDp = (e) => {
+    const n = nivelMod('dp');
+    if (n === 'coord') return true;
+    if (n !== 'analista' || !e) return false;
+    const a = norm(AUTH().analista('dp'));
+    return !!a && (norm(e.responsavel) === a || norm(respEf(e)) === a);
+  };
   const toolsComUso = () => {
     let l = state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
-    if (window.__auth?.ehAdmin() && !l.some(t => t.moduleKey === 'usuarios')) l = [...l, USUARIOS_TOOL];
-    return l;
+    if (AUTH()?.ehAdmin() && !l.some(t => t.moduleKey === 'usuarios')) l = [...l, USUARIOS_TOOL];
+    return AUTH() ? l.filter(t => !t.moduleKey || podeAbrirModulo(t.moduleKey)) : l;
   };
   function visibleTools() {
     return toolsComUso()
@@ -536,7 +554,7 @@
   function renderFerramentas() {
     const list = visibleTools();
     const container = $('#ferramentas-tools');
-    const ro = state.readOnly;
+    const ro = state.readOnly || !podeGerirFerramentas();
     const draggable = !ro && !state.toolsQuery;
 
     if (!state.toolsLoaded) { container.innerHTML = ''; return; }
@@ -583,7 +601,7 @@
   }
   const findTool = (id) => state.tools.find(t => t.id === id);
 
-  function recordUse(t) { t.uses += 1; t.lastUsed = Date.now(); if (!state.readOnly) persist(() => toolsStore.saveOne(t)); }
+  function recordUse(t) { t.uses += 1; t.lastUsed = Date.now(); if (!state.readOnly && podeGerirFerramentas()) persist(() => toolsStore.saveOne(t)); }
 
   const dlgFerramenta = $('#dlg-ferramenta');
   const formFerramenta = $('#form-ferramenta');
@@ -645,6 +663,7 @@
 
   function openModule(key) {
     document.activeElement?.blur();
+    if (!podeAbrirModulo(key)) { toast('Você não tem acesso a este módulo.'); return; }
     closeRail();
     if (!FRAMES[key]) closeFrames();
     if (key === 'dp') openDpModule();
@@ -706,8 +725,9 @@
     const tools = [...toolsComUso()].sort((a, b) => (b.favorite - a.favorite) || (a.order - b.order));
     const qa = state.toolsLoaded ? (tools.length ? `<div class="qa-dock">${tools.map(toolTile).join('')}</div>` : '<div class="empty-mini">Nenhuma ferramenta cadastrada.</div>') : '<div class="empty-mini">Carregando…</div>';
 
-    // Nome de quem está usando, para a saudação (carrega uma vez).
-    if (userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
+    // Nome de quem está usando, para a saudação (carrega uma vez). Com login do Hub, vale o nome da conta do Hub.
+    if (AUTH() && state.meNome === undefined) { state.meNome = String(AUTH().usuario()?.nome || '').trim().split(/\s+/)[0] || ''; }
+    if (!AUTH() && userNs && state.meId && state.meNome === undefined) { state.meNome = ''; userNs.profiles([state.meId]).then(ps => { const n = String(ps?.[state.meId]?.name || '').trim().split(/\s+/)[0] || ''; if (n) { state.meNome = n; if (!state.activeModule) renderHome(); } }).catch(() => {}); }
     const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
     root.innerHTML = `<section class="home-hero">
         <div class="hh-tx"><span class="hh-eyebrow"><i></i>Control Hub · ControlTax</span><h1>${saud}${state.meNome ? ', ' + escapeHtml(state.meNome) : ''}</h1><p>${escapeHtml(dataLonga.charAt(0).toUpperCase() + dataLonga.slice(1))}${hol ? ' · <b>' + escapeHtml(hol) + '</b>' : ''}</p></div>
@@ -800,6 +820,7 @@
   }
   function applyRoute(r) {
     const parts = String(r || '').split('/');
+    if (['dp', ...Object.keys(FRAMES), 'uso', 'usuarios'].includes(parts[0]) && !podeAbrirModulo(parts[0])) { renderHome(); return; }
     if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
     closeFrames();
     if (parts[0] === 'uso') { openUsoModule(); return; }
@@ -1290,10 +1311,10 @@
   }
 
   function applyDpReadOnly() {
-    const ro = state.readOnly;
-    $('#view-dp').classList.toggle('ro', ro);
-    $('#dlg-dp-detail').classList.toggle('ro', ro);
-    $('#dlg-dp-gerais').classList.toggle('ro', ro);
+    const ro = state.readOnly, soAnalista = state.dpNivel === 'analista';
+    $('#view-dp').classList.toggle('ro', ro || soAnalista);
+    $('#dlg-dp-detail').classList.toggle('ro', ro || (soAnalista && !!dpAtual && !podeEmpresaDp(dpAtual)));
+    $('#dlg-dp-gerais').classList.toggle('ro', ro || soAnalista);
   }
 
   function irAgenda({ dia = '', tipo = '', mes } = {}) {
@@ -2066,11 +2087,14 @@
   });
 
   // ---------- nomes de quem fez (resolvidos na hora, nunca gravados) ----------
+  // Autoria: id da conta do Hub (login próprio); sem ele, o id da conta claude.ai (registros antigos).
+  const autorId = () => AUTH()?.usuario()?.id || state.meId || '';
+  const perfisDe = (ids) => AUTH() ? AUTH().perfis(ids, (l) => userNs ? userNs.profiles(l) : Promise.resolve({})) : userNs.profiles(ids);
   async function fillNames(root) {
     const els = $$('[data-uid]', root).filter(el => el.dataset.uid);
-    if (!els.length || !userNs) return;
+    if (!els.length || (!userNs && !AUTH())) return;
     let ps = {};
-    try { ps = await userNs.profiles([...new Set(els.map(el => el.dataset.uid))]); } catch { return; }
+    try { ps = await perfisDe([...new Set(els.map(el => el.dataset.uid))]); } catch { return; }
     els.forEach(el => {
       const n = ps[el.dataset.uid]?.name || '';
       el.textContent = n || 'Alguém da equipe';
@@ -2148,15 +2172,16 @@
     $$('[data-field]', dlgDetail).forEach(i => { i.value = ''; });
     renderDetail();
     setDtab(tab || 'dados');
-    const ro = state.readOnly;
+    const ro = state.readOnly || (state.dpNivel === 'analista' && !draft && !podeEmpresaDp(empresa));
     $('#dp-ro-note').hidden = !ro;
+    dlgDetail.classList.toggle('ro', ro);
     MAIN_FIELDS.forEach(([id]) => { $('#' + id).disabled = ro; });
     if (!dlgDetail.open) dlgDetail.showModal();
     dlgDetail.querySelector('.dlg-body').scrollTop = 0;
     syncRoute();
   }
   function logHist(text) {
-    dpAtual.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: text, autor: state.meId || '' });
+    dpAtual.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: text, autor: autorId() });
     if (dpAtual.historico.length > 200) dpAtual.historico.length = 200;
   }
   function saveEmpresaFields(fields, histText) {
@@ -2342,7 +2367,7 @@
     if (add) {
       const wrap = add.closest('[data-add-wrap]');
       const raw = collectRow(wrap, sec);
-      if (sec === 'historico') { raw.data = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }); raw.autor = state.meId || ''; }
+      if (sec === 'historico') { raw.data = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }); raw.autor = autorId(); }
       const row = normalizeDpRow(raw, cfg.fields);
       if (!row) { toast('Preencha ao menos um campo.'); return true; }
       if (sec === 'estabelecimentos') completaEstab(row);
@@ -2628,7 +2653,7 @@
     };
   }
   const normalizeSinds = (v) => (Array.isArray(v) ? v : []).map(normalizeSind).filter(Boolean);
-  const histSind = (s, texto) => { s.hist.unshift({ em: new Date().toISOString(), texto, autor: state.meId || '' }); s.hist = s.hist.slice(0, 60); };
+  const histSind = (s, texto) => { s.hist.unshift({ em: new Date().toISOString(), texto, autor: autorId() }); s.hist = s.hist.slice(0, 60); };
   async function salvarSinds(itens) {
     state.dpSind = normalizeSinds(itens);
     renderDpActiveView();
@@ -3017,7 +3042,7 @@
     });
   }
   function marcaHist(e, texto) {
-    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: texto, autor: state.meId || '' });
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: texto, autor: autorId() });
     if (e.historico.length > 200) e.historico.length = 200;
     e.updatedAt = Date.now();
   }
@@ -4075,7 +4100,7 @@
   function renderConvencoes() {
     const ro = state.readOnly, q = state.dpConvQuery;
     // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
-    if (!state.prefs.convAuto && userNs && state.meId) {
+    if (!AUTH() && !state.prefs.convAuto && userNs && state.meId) {
       state.prefs.convAuto = true; savePrefs();
       if (!state.dpCarteira) userNs.profiles([state.meId]).then(ps => {
         const n = norm(ps?.[state.meId]?.name || ''); if (!n) return;
@@ -4525,7 +4550,7 @@
   async function salvarCob(mut, logTxt) {
     if (state.readOnly) return false;
     mut(state.dpCob);
-    if (logTxt) state.dpCob.log.unshift({ id: uid(), em: new Date().toISOString(), texto: logTxt, autor: state.meId || '' });
+    if (logTxt) state.dpCob.log.unshift({ id: uid(), em: new Date().toISOString(), texto: logTxt, autor: autorId() });
     state.dpCob.log = state.dpCob.log.slice(0, 300);
     renderDpActiveView();
     const snap = JSON.parse(JSON.stringify(state.dpCob));
@@ -4709,7 +4734,7 @@
     }
     const quando = new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
     pares.forEach(([e, n]) => {
-      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${n || '—'}`, autor: state.meId || '' });
+      e.historico.unshift({ id: uid(), data: quando, alteracao: `Responsável: ${e.responsavel || '—'} → ${n || '—'}`, autor: autorId() });
       if (e.historico.length > 200) e.historico.length = 200;
       e.responsavel = n; e.updatedAt = Date.now();
     });
@@ -4729,7 +4754,7 @@
     if (!e || state.readOnly) return;
     const novo = nome ? canonResp(nome) : '';
     if ((e.reserva || '') === novo) return;
-    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva || '—'} → ${novo || '—'}`, autor: state.meId || '' });
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva || '—'} → ${novo || '—'}`, autor: autorId() });
     if (e.historico.length > 200) e.historico.length = 200;
     e.reserva = novo; e.updatedAt = Date.now();
     renderDpActiveView();
@@ -4860,7 +4885,7 @@
     if (conflito) { toast(`${analista} já tem uma ausência de ${fmtYmdBR(conflito.inicio)} a ${fmtYmdBR(conflito.fim)}. Edite essa em vez de criar outra.`); return; }
     const porEmpresa = {};
     $$('[data-aus-emp]', dlgAus).forEach(s => { if (s.value) porEmpresa[s.dataset.ausEmp] = canonResp(s.value); });
-    const novo = normalizeAus({ id: ausEditId || uid(), analista, motivo: f.motivo.value, inicio, fim, padrao: f.padrao.value ? canonResp(f.padrao.value) : '', porEmpresa, obs: f.obs.value.trim(), criadoEm: Date.now(), autor: state.meId || '' });
+    const novo = normalizeAus({ id: ausEditId || uid(), analista, motivo: f.motivo.value, inicio, fim, padrao: f.padrao.value ? canonResp(f.padrao.value) : '', porEmpresa, obs: f.obs.value.trim(), criadoEm: Date.now(), autor: autorId() });
     const antigo = ausEditId ? state.dpCob.ausencias.find(x => x.id === ausEditId) : null;
     if (antigo) { novo.criadoEm = antigo.criadoEm; novo.autor = antigo.autor; }
     const r = resumoCobertura(novo);
@@ -4950,7 +4975,7 @@
     const doNome = (n) => norm(n) === norm(nome);
     const comReserva = state.dpEmpresas.filter(e => doNome(e.reserva));
     comReserva.forEach(e => {
-      e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva} → — (analista excluído)`, autor: state.meId || '' });
+      e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' }), alteracao: `Reserva: ${e.reserva} → — (analista excluído)`, autor: autorId() });
       if (e.historico.length > 200) e.historico.length = 200;
       e.reserva = ''; e.updatedAt = Date.now();
     });
@@ -5201,7 +5226,7 @@
   }
   async function impRegistrar(r) {
     if (state.readOnly) return;
-    const agora = Date.now(), autor = state.meId || '';
+    const agora = Date.now(), autor = autorId();
     // Baixar o mesmo arquivo de novo não vira outro registro.
     if (state.dpImports.some(x => x.arquivo === r.arquivo && x.autor === autor && x.linhas === r.linhas && Math.abs(x.total - r.total) < 0.005 && agora - x.em < 10 * 60 * 1000)) return;
     const e = (r.empId && findDpEmpresa(r.empId)) || null;
@@ -5430,13 +5455,50 @@
     tryPendingEmp();
   }
 
+  // Barreira de escrita do DP e das ferramentas, conforme o nível de acesso. Devolve uma cópia do banco que recusa gravações sem permissão.
+  function motivoNegado(path, op, data) {
+    if (!AUTH()) return '';
+    if (path.startsWith('data/users/')) return '';
+    const n = nivelMod('dp');
+    if (path.startsWith('dp_empresas/')) {
+      if (n === 'coord') return '';
+      if (n !== 'analista') return 'Seu acesso ao DP é só de consulta.';
+      const e = findDpEmpresa(path.split('/')[1]);
+      if (!e || op === 'delete') return 'Só a coordenação cadastra e exclui empresas.';
+      if (!podeEmpresaDp(e)) return 'Você só altera as empresas da sua carteira.';
+      if (data && Object.prototype.hasOwnProperty.call(data, 'responsavel') && norm(data.responsavel) !== norm(e.responsavel)) return 'Só a coordenação troca o responsável de uma empresa.';
+      return '';
+    }
+    if (path.startsWith('dp_config/')) return n === 'coord' ? '' : 'Só a coordenação altera as configurações do DP.';
+    if (path.startsWith('tools/')) {
+      return podeGerirFerramentas() ? '' : 'Só a coordenação altera a lista de ferramentas.';
+    }
+    return '';
+  }
+  function guardarDb(raw) {
+    if (!AUTH()) return raw;
+    const negar = (msg) => Promise.reject(Object.assign(new Error(msg), { code: 'sem_permissao' }));
+    return new Proxy({}, {
+      get(_, p) {
+        if (p === 'doc') return (path) => {
+          const ref = raw.doc(path);
+          return new Proxy({}, { get(__, k) {
+            if (k === 'set' || k === 'update' || k === 'delete') return (...a) => { const m = motivoNegado(path, k, a[0]); return m ? negar(m) : ref[k](...a); };
+            const v = ref[k]; return typeof v === 'function' ? v.bind(ref) : v;
+          } });
+        };
+        const v = raw[p]; return typeof v === 'function' ? v.bind(raw) : v;
+      },
+      has(_, p) { return p in raw; },
+    });
+  }
   async function startShared() {
     render();
     const [dbNs, dl, user] = await Promise.all([window.claude.use('db'), window.claude.use('downloads'), window.claude.use('user')]);
     downloads = dl;
     userNs = user;
     if (!dbNs) { startLocal(); return; }
-    db = dbNs;
+    db = guardarDb(dbNs);
     toolsStore = toolsDbStore;
     dpStore = dpDbStore;
     geraisStore = geraisDb;
@@ -5444,6 +5506,9 @@
       state.meId = await user.id();
       if ((await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
     }
+    state.dpNivel = nivelMod('dp');
+    if (state.dpNivel === 'consulta' || state.dpNivel === null) state.readOnly = true;
+    if (state.dpNivel === 'analista' && !state.dpCarteira) state.dpCarteira = AUTH().analista('dp') || '';
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {
@@ -5546,6 +5611,8 @@
     if (state.readOnly) return { erro: 'Você pode consultar o DP, mas não tem permissão para editar.' };
     const e0 = findDpEmpresa(p.id);
     if (!e0) return { erro: 'Não achei essa empresa no DP.' };
+    if (!podeEmpresaDp(e0)) return { erro: `Você só altera as empresas da sua carteira: “${e0.nome}” é de ${e0.responsavel || 'outra pessoa'}.` };
+    if (tipo === 'transferir' && nivelMod('dp') !== 'coord') return { erro: 'Só a coordenação troca o responsável de uma empresa.' };
     const id = e0.id;
     // Grava os campos da empresa pelo registro mais novo (o banco pode ter trazido outra versão desde o cartão).
     const gravar = async (campos) => {
@@ -5555,7 +5622,7 @@
       if (!(await persist(() => dpStore.updateFields(x.id, { responsavel: x.responsavel, historico: x.historico, updatedAt: x.updatedAt })))) throw new Error('falhou');
     };
     const quando = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-    const nota = (x, texto) => { const h = [{ id: uid(), data: quando(), alteracao: texto, autor: state.meId || '' }, ...x.historico]; return h.slice(0, 200); };
+    const nota = (x, texto) => { const h = [{ id: uid(), data: quando(), alteracao: texto, autor: autorId() }, ...x.historico]; return h.slice(0, 200); };
     const clone = (h) => h.map(r => ({ ...r }));
     const antes = { responsavel: e0.responsavel || '', historico: clone(e0.historico) };
     if (tipo === 'transferir') {
@@ -5584,6 +5651,7 @@
   }
   function dpAcaoAusencia(p) {
     if (state.readOnly) return { erro: 'Você pode consultar o DP, mas não tem permissão para editar.' };
+    if (nivelMod('dp') !== 'coord') return { erro: 'Só a coordenação registra ausências na Cartela.' };
     const analista = dpAnalistaPorNome(p.analista);
     if (!analista) return { erro: p.analista ? `Não conheço o analista “${p.analista}” no DP.` : 'Qual analista vai se ausentar?' };
     const inicio = toYmd(p.inicio), fim = toYmd(p.fim || p.inicio);
@@ -5598,7 +5666,7 @@
     }
     const conflito = state.dpCob.ausencias.find(x => norm(x.analista) === norm(analista) && x.inicio <= fim && x.fim >= inicio);
     if (conflito) return { erro: `${analista} já tem uma ausência de ${fmtYmdBR(conflito.inicio)} a ${fmtYmdBR(conflito.fim)}. Edite essa na Cartela em vez de criar outra.` };
-    const novo = normalizeAus({ id: uid(), analista, motivo, inicio, fim, padrao, porEmpresa: {}, obs: String(p.obs || '').slice(0, 200), criadoEm: Date.now(), autor: state.meId || '' });
+    const novo = normalizeAus({ id: uid(), analista, motivo, inicio, fim, padrao, porEmpresa: {}, obs: String(p.obs || '').slice(0, 200), criadoEm: Date.now(), autor: autorId() });
     const r = resumoCobertura(novo), resumo = `${analista} · ${motivo} · ${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}`;
     const avisos = [];
     if (r.sem && r.emps) avisos.push(`${r.sem} de ${r.emps} empresa(s) ficam sem cobertura. Dá para definir quem cobre cada uma na Cartela.`);
@@ -5710,7 +5778,7 @@
       const data = parseYmd(p.data) ? p.data : ymd(addDays(hoje(), 0));
       const hora = /^\d{2}:\d{2}$/.test(p.hora || '') ? p.hora : '';
       const rep = REPS[p.rep] ? p.rep : 'nao';
-      const l = normalizeMeu({ texto, data, hora, rep, empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: state.meId || '', atualizadoEm: Date.now() });
+      const l = normalizeMeu({ texto, data, hora, rep, empresaId: p.id && findDpEmpresa(p.id) ? p.id : '', autor: autorId(), atualizadoEm: Date.now() });
       const emp = l.empresaId ? findDpEmpresa(l.empresaId) : null;
       return {
         titulo: 'Criar lembrete só seu', empresa: emp ? emp.nome : '',
@@ -5726,16 +5794,18 @@
     abrirModulo: (k) => openModule(k),
     inicio: () => goHome(),
     quadros: () => $$('.portal-frame'),
-    api(k) { if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    api(k) { if (!podeVerMod(k)) return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
     // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
     carregar(k) {
-      if (k !== 'dp' && !FRAMES[k]) return Promise.resolve(null);
+      if (!podeVerMod(k) || (k !== 'dp' && !FRAMES[k])) return Promise.resolve(null);
       if (k !== 'dp') preloadFrame(k);
       return new Promise((ok) => { const t0 = Date.now(); const tick = () => { const a = window.__hubApi.api(k); if ((a && a.pronto()) || Date.now() - t0 > 20000) return ok(a); setTimeout(tick, 250); }; tick(); });
     },
-    modulos: () => ['dp', ...Object.keys(FRAMES)],
+    modulos: () => ['dp', ...Object.keys(FRAMES)].filter(podeVerMod),
+    nivel: (m) => nivelMod(m),
   };
-  carregarScriptExt('assistente.js?v=12').catch(() => {});
+  // O assistente só entra depois do login (ele usa o nome e o nível de acesso da pessoa).
+  (window.__auth ? window.__auth.aguardar() : Promise.resolve()).then(() => carregarScriptExt('assistente.js?v=13')).catch(() => {});
 
   loadPrefs();
   applyTheme();

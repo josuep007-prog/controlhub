@@ -3760,7 +3760,40 @@
   /* ---------- gravações: "salvando…" e o que não foi salvo ---------- */
   // Toda escrita no banco passa por aqui; o que falhar (sem conexão, banco cheio…) fica guardado para tentar de novo.
   var gravacoes = {pendentes:0, falhas:[]}, tSalv = null;
-  var FALHA_ESPERADA = {invalid_argument:1, not_found:1, declined:1};
+  var FALHA_ESPERADA = {invalid_argument:1, not_found:1, declined:1, sem_permissao:1};
+  /* ---------- níveis de acesso (login do Hub, auth.js) ---------- */
+  // O módulo só funciona aberto pelo Hub; sem o login ele volta para a tela inicial.
+  function authP(){ try{ var P = window.parent; return (P && P !== window && P.__auth) || window.__auth || null; }catch(e){ return null; } }
+  if(!authP()){ try{ location.replace("index.html"); }catch(e){} }
+  // Faixa de aviso para quem não é coordenação.
+  function avisoAcesso(){
+    var A = authP(); if(!A) return; var n = A.nivel("portal"); if(n === "coord") return;
+    var d = document.createElement("div"); d.setAttribute("role", "status");
+    d.style.cssText = "position:sticky;top:0;z-index:50;background:#FBEBDD;color:#101820;border-bottom:1px solid #B5530C;padding:6px 16px;font:600 12.5px 'IBM Plex Sans',system-ui,sans-serif";
+    d.textContent = n === "analista" ? "Você altera só as empresas e frentes em que é o analista. O resto é só consulta." : "Modo consulta: você pode ver tudo, mas não alterar o Portal do Cliente.";
+    (document.body || document.documentElement).insertBefore(d, (document.body || document.documentElement).firstChild);
+  }
+  document.addEventListener("DOMContentLoaded", avisoAcesso);
+  // Devolve o motivo de recusar a gravação (vazio = pode). A tela do Portal não esconde botões, então esta barreira é a que vale.
+  function motivoNegadoPortal(col, id, op, data){
+    var A = authP(); if(!A) return "";
+    var n = A.nivel("portal"); if(n === "coord") return "";
+    if(n !== "analista") return "Seu acesso ao Portal do Cliente é só de consulta.";
+    if(col === "historico") return "";
+    var eu = normBusca(A.analista("portal")); if(!eu) return "Seu usuário ainda não está ligado a um nome de analista no Portal. Peça ao administrador.";
+    var meu = function(empresaId, setores){ return state.setores.some(function(s){ return s.empresaId === empresaId && (!setores || !setores.length || setores.indexOf(s.setor) !== -1) && normBusca(s.analistaNome) === eu; }); };
+    if(col === "empresaSetores"){ var d = state.setores.filter(function(x){ return x.id === id; })[0]; return d && normBusca(d.analistaNome) === eu ? "" : "Você só altera as frentes em que é o analista."; }
+    if(col === "contatos"){ var c = state.contatos.filter(function(x){ return x.id === id; })[0] || data || {}; return meu(c.empresaId, c.setores) ? "" : "Você só altera contatos das empresas em que é o analista."; }
+    if(col === "empresas") return meu(id) ? "" : "Você só altera empresas em que é o analista.";
+    if(col === "funcionarios"){ var f = state.funcionarios.filter(function(x){ return x.id === id; })[0]; return f && normBusca(f.nome) === eu ? "" : "Só a coordenação altera a equipe."; }
+    return "Só a coordenação altera isto.";
+  }
+  var tInicioP = Date.now(), tAvisoP = 0;
+  function recusarPortal(msg){
+    // Gravações automáticas do começo (criar documentos que faltam) não merecem aviso; as da pessoa, sim.
+    if(Date.now() - tInicioP > 6000 && Date.now() - tAvisoP > 4000){ tAvisoP = Date.now(); try{ mostrarToast(msg + " Nada foi salvo; recarregue a página para ver o que está salvo."); }catch(e){} }
+    var err = new Error(msg); err.code = "sem_permissao"; var pr = Promise.reject(err); pr.catch(function(){}); return pr;
+  }
   function acompanharGravacao(fn){
     gravacoes.pendentes++; atualizarSalvamento();
     var p; try{ p = Promise.resolve(fn()); }catch(e){ p = Promise.reject(e); }
@@ -3783,10 +3816,10 @@
         has:function(_, p){ return p in t; }
       });
     };
-    var gravar = function(t, p){ return function(){ var a = arguments; return acompanharGravacao(function(){ return t[p].apply(t, a); }); }; };
-    var doc = function(ref){ return envolve(ref, {update:gravar(ref, "update"), set:gravar(ref, "set"), "delete":gravar(ref, "delete")}); };
-    var col = function(c){ return envolve(c, {doc:function(id){ return doc(c.doc(id)); }, add:gravar(c, "add")}); };
-    return envolve(db, {collection:function(n){ return col(db.collection(n)); }});
+    var gravar = function(t, p, nome, id){ return function(){ var a = arguments, neg = motivoNegadoPortal(nome, id, p, a[0]); if(neg) return recusarPortal(neg); return acompanharGravacao(function(){ return t[p].apply(t, a); }); }; };
+    var doc = function(ref, nome, id){ return envolve(ref, {update:gravar(ref, "update", nome, id), set:gravar(ref, "set", nome, id), "delete":gravar(ref, "delete", nome, id)}); };
+    var col = function(c, nome){ return envolve(c, {doc:function(id){ return doc(c.doc(id), nome, id); }, add:gravar(c, "add", nome, "")}); };
+    return envolve(db, {collection:function(n){ return col(db.collection(n), n); }});
   }
   function atualizarSalvamento(){
     var el = document.getElementById("salvamento"); if(!el) return;
@@ -6506,8 +6539,9 @@
   var userRef = null, meuId = null, nomesPessoas = {};
   function nomesDe(ids){
     ids = ids.filter(function(x, i){ return x && ids.indexOf(x) === i; });
-    if(!userRef || !ids.length) return Promise.resolve({});
-    return userRef.profiles(ids).then(function(ps){
+    var A = authP();
+    if((!userRef && !A) || !ids.length) return Promise.resolve({});
+    return (A ? A.perfis(ids, function(l){ return userRef ? userRef.profiles(l) : Promise.resolve({}); }) : userRef.profiles(ids)).then(function(ps){
       var out = {};
       ids.forEach(function(id){ out[id] = (ps[id] && ps[id].name) || "Alguém"; });
       return out;
@@ -7555,8 +7589,8 @@
   usarCap("user").then(function(u){
     userRef = u;
     if(u) u.id().then(function(id){
-      meuId = id;
-      nomesDe([id]).then(function(n){ nomeEu = n[id] && n[id] !== "Alguém" ? n[id] : ""; if(nomeEu && ui.view === "dashboard") renderAgenda(); });
+      meuId = authP() ? ((authP().usuario() || {}).id || id) : id;
+      nomesDe([meuId]).then(function(n){ nomeEu = n[meuId] && n[meuId] !== "Alguém" ? n[meuId] : ""; if(nomeEu && ui.view === "dashboard") renderAgenda(); });
     });
   });
   usarCap("downloads").then(function(d){

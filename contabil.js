@@ -192,6 +192,7 @@ function docEmp(id){ return "ctb_emp/b" + balde(id, 8); }
 function docComp(comp, id){ return "ctb_comp/" + comp + "~" + balde(id, 4); }
 function docAno(ano, id){ return "ctb_ano/" + ano + "~" + balde(id, 2); }
 function gravarMapas(itens){
+  var neg = motivoNegado(itens); if(neg){ toast(neg); var xn = new Error(neg); xn.ctb = true; xn.code = "sem_permissao"; return Promise.reject(xn); }
   var col = itens.length ? itens[0][0].split("/")[0] : "";
   if(col && !S.carregou[col]){ toast("Aguarde: os dados ainda estão carregando."); var x = new Error("carregando"); x.ctb = true; return Promise.reject(x); }
   var porDoc = {};
@@ -222,6 +223,12 @@ function salvarCfg(cfg){
   return gravar(banco.doc("ctb_config/cfg").set(cfg));
 }
 
+/* ============ níveis de acesso (login do Hub, auth.js) ============ */
+// O módulo só funciona aberto pelo Hub; sem o login ele volta para a tela inicial.
+function AUTH(){ try{ var P = window.parent; return (P && P !== window && P.__auth) || window.__auth || null; }catch(e){ return null; } }
+if(!AUTH()){ try{ location.replace("index.html"); }catch(e){} }
+function nivelAcesso(){ var a = AUTH(); return a ? a.nivel("contabil") : "coord"; }
+
 /* ============ identidade e permissões ============ */
 // "Você": o analista da carteira que está usando. Descoberto pelo nome da conta; dá para escolher à mão.
 function analistas(){
@@ -241,14 +248,29 @@ function casarNome(nomeConta){
   return pts ? melhor : "";
 }
 function minha(e){ return !!S.eu && (norm(e.analista) === norm(S.eu) || norm(e.apoio) === norm(S.eu)); }
-function podeMarcar(e){ return S.coord || minha(e); }
+function podeMarcar(e){
+  if(AUTH()){ var n = nivelAcesso(); if(n === "coord") return true; if(n === "analista") return minha(e); return false; }
+  return S.coord || minha(e);
+}
+// Barreira de escrita: confere o nível de acesso antes de gravar (a tela já esconde o que a pessoa não pode, isto é a segunda trava).
+function motivoNegado(itens){
+  if(!AUTH()) return "";
+  var n = nivelAcesso(); if(n === "coord") return "";
+  if(n !== "analista") return "Seu acesso ao Contábil é só de consulta.";
+  for(var i = 0; i < itens.length; i++){
+    var col = itens[i][0].split("/")[0], e = S.empresas[itens[i][1]];
+    if(col === "ctb_comp" || col === "ctb_emp" || col === "ctb_ano"){ if(!e || !minha(e)) return "Você só altera as empresas da sua carteira."; }
+    else return "Só a coordenação altera as configurações.";
+  }
+  return "";
+}
 function nomeDe(id){ return (S.nomes[id] || "").split(" ")[0] || ""; }
 function buscarNomes(ids){
-  if(!S.userNs) return;
+  var A = AUTH(); if(!S.userNs && !A) return;
   var falta = ids.filter(function(i){ return i && !(i in S.nomes); });
   if(!falta.length) return;
   falta.forEach(function(i){ S.nomes[i] = ""; });
-  S.userNs.profiles(falta).then(function(ps){ falta.forEach(function(i){ S.nomes[i] = (ps && ps[i] && ps[i].name) || ""; }); }).catch(function(){});
+  (A ? A.perfis(falta, function(l){ return S.userNs ? S.userNs.profiles(l) : Promise.resolve({}); }) : S.userNs.profiles(falta)).then(function(ps){ falta.forEach(function(i){ S.nomes[i] = (ps && ps[i] && ps[i].name) || ""; }); }).catch(function(){});
 }
 
 /* ============ empresas ============ */
@@ -549,9 +571,10 @@ function renderEu(){
   var html = '<option value="">' + (as.length ? "Escolha…" : "—") + '</option>' + as.map(function(a){ return '<option' + (a === atual ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("");
   if(sel.innerHTML !== html) sel.innerHTML = html;
   sel.value = atual;
+  sel.disabled = !!S.euTravado; sel.title = S.euTravado ? "Definido pelo seu acesso (nome de analista ligado ao seu usuário)" : "";
   $("#coordTag").hidden = !S.coord;
 }
-$("#euSel").onchange = function(){ S.eu = this.value; salvarPrefs({eu:S.eu}); S.fx.ana = S.eu || ""; renderTudo(true); };
+$("#euSel").onchange = function(){ if(S.euTravado){ this.value = S.eu; return; } S.eu = this.value; salvarPrefs({eu:S.eu}); S.fx.ana = S.eu || ""; renderTudo(true); };
 function opcoesAnalista(sel, valor, rotuloTodos){
   var html = '<option value="">' + (rotuloTodos || "Todos os analistas") + '</option>' + analistas().map(function(a){ return '<option' + (a === valor ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("");
   if(sel.innerHTML !== html) sel.innerHTML = html;
@@ -1440,7 +1463,7 @@ $("#impLer").onclick = function(){
       }).then(function(){
         box.innerHTML = '<div class="aviso"><div><b>Importação concluída.</b> ' + n + ' empresa' + (n === 1 ? '' : 's') + ' nova' + (n === 1 ? '' : 's') + ' e ' + a + ' atualizada' + (a === 1 ? '' : 's') + (feito ? '; ' + feito.a.nMarcas + ' etapas de fechamento marcadas como concluídas' : '') + '. <button type="button" class="linkish" data-ir="fechamento">Ver o fechamento</button> · <button type="button" class="linkish" data-ir="carteira">Ver a carteira</button></div></div>';
         $("#impArq").value = ""; $("#impLer").disabled = true;
-        if(!S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.eu; renderTudo(); } }
+        if(!AUTH() && !S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.eu; renderTudo(); } }
       }, function(){ box.innerHTML = '<div class="aviso erro"><div>A importação não foi salva por inteiro. Tente de novo: o que já foi gravado não é duplicado.</div></div>'; });
     };
     if($("#impCancelar")) $("#impCancelar").onclick = function(){ planoImp = null; box.hidden = true; };
@@ -1585,7 +1608,7 @@ function ligarBanco(){
     var m = {};
     snap.docs.forEach(function(d){ S.existe.docs["ctb_emp/" + d.id] = true; var x = d.data() || {}; Object.keys(x).forEach(function(k){ if(x[k] && typeof x[k] === "object") m[k] = normEmp(x[k], k); }); });
     S.empresas = m; S.carregou.empresas = S.carregou.ctb_emp = true;
-    if(!S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; }
+    if(!AUTH() && !S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; }
     renderTudo();
   }, erroBanco);
   banco.collection("ctb_comp").onSnapshot(function(snap){
@@ -1771,21 +1794,24 @@ window.__assistente = {
 (function iniciar(){
   var p = lerPrefs();
   if(p.eu) S.eu = p.eu;
+  var A = AUTH();
+  if(A){ var niv = A.nivel("contabil"); S.coord = niv === "coord"; if(niv === "analista"){ S.eu = A.analista("contabil"); S.euTravado = true; } else if(niv !== "coord"){ S.eu = ""; } }
   if(p.fxModo === "mes" || p.fxModo === "ate") S.fx.modo = p.fxModo;
   S.fx.ana = S.eu || "";
   usarCap("db").catch(function(){ return null; }).then(function(db){
     if(db){ banco = bancoReal(db); }
-    else { banco = bancoLocal(); semBanco = true; $("#semBanco").hidden = false; S.coord = true; }
+    else { banco = bancoLocal(); semBanco = true; $("#semBanco").hidden = false; S.coord = !A || A.nivel("contabil") === "coord"; }
     ligarBanco();
     return usarCap("user").catch(function(){ return null; });
   }).then(function(u){
-    if(!u){ if(!semBanco) S.coord = false; renderTudo(); return; }
+    if(A){ S.userNs = u; renderTudo(); if(!u) return; }
+    else if(!u){ if(!semBanco) S.coord = false; renderTudo(); return; }
     S.userNs = u;
-    Promise.resolve(u.id ? u.id() : "").catch(function(){ return ""; }).then(function(i){ S.meId = i || ""; });
-    Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ S.coord = !!ok || semBanco; renderTudo(); });
+    Promise.resolve(u.id ? u.id() : "").catch(function(){ return ""; }).then(function(i){ S.meId = A ? ((A.usuario() || {}).id || "") : (i || ""); });
+    if(!A) Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ S.coord = !!ok || semBanco; renderTudo(); });
     Promise.resolve(u.name ? u.name() : "").catch(function(){ return ""; }).then(function(n){
       S.nomeConta = n || "";
-      if(!S.eu && S.carregou.empresas){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; renderTudo(); }
+      if(!A && !S.eu && S.carregou.empresas){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; renderTudo(); }
     });
   });
   var v = ["painel","fechamento","carteira","prazos","cadastro"].indexOf(p.view) !== -1 ? p.view : "painel";

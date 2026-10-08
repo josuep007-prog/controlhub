@@ -188,6 +188,10 @@ window.__assistente = {
   }
 };
 
+// Níveis de acesso (login do Hub): só a coordenação edita o cardápio; o módulo só funciona aberto pelo Hub.
+function AUTH(){ try{ var P = window.parent; return (P && P !== window && P.__auth) || window.__auth || null; }catch(e){ return null; } }
+if(!AUTH()){ try{ location.replace("index.html"); }catch(e){} }
+
 // Aberto dentro do Control Hub, usa a conexão da página principal (ela só aceita objetos criados lá).
 function noPai(){ try{ return window.parent !== window && window.parent.claude && window.parent.claude.use ? window.parent : null; }catch(e){ return null; } }
 function usarCap(n){
@@ -211,6 +215,7 @@ function bancoReal(raw){
   if (!db){ setStatus("Entre na sua conta do Claude para ver o cardápio.", true); return; }
   var user = await usarCap("user");
   canWrite = !user || user.can("data.write") !== false;
+  var A = AUTH(); if(A) canWrite = A.nivel("cardapio") === "coord";
   db.collection("cardapio_dias").onSnapshot(function(snap){
     var m = {}; snap.docs.forEach(function(d){ m[d.id] = d.data(); });
     data = m; loaded = true; setStatus("");

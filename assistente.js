@@ -253,6 +253,7 @@
     {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
     {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
+    {t: "Login e níveis de acesso", k: "login senha entrar sair acesso nivel niveis permissao coordenador analista consulta administrador usuario cadastro trocar senha esqueci", a: "O Hub tem login próprio, separado da conta do Claude. Quem ainda não tem conta cria uma na tela de entrada e espera o administrador liberar. Cada pessoa tem um nível por módulo: Coordenador (edita tudo no módulo), Analista (edita só a própria carteira, pelo nome de analista ligado ao usuário) e Consulta (só vê). Sem nível, o módulo some do Hub. Para trocar a senha ou sair, clique no seu avatar (canto da tela inicial ou barra lateral). Esqueceu a senha? Peça ao administrador uma senha provisória: você será obrigado a trocá-la ao entrar. O administrador gerencia tudo em Usuários."},
     {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
     {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
     {t: "Apelidos de empresas", k: "apelido apelidos nome curto padaria", a: "Diga “a padaria do centro é a Panificadora Silva” e eu guardo o apelido (com confirmação) para toda a equipe usar nas próximas perguntas."},
@@ -349,14 +350,21 @@
   /* ============ resposta ============ */
   var ctx = {intent: "", mods: [], analista: "", per: null, empresa: null};
   var euNome = null;
+  function AUTH() { return window.__auth || null; }
   function quemSou() {
     if (euNome !== null) return Promise.resolve(euNome);
+    if (AUTH() && AUTH().usuario()) { euNome = AUTH().usuario().nome || ""; return Promise.resolve(euNome); }
     try {
       if (!window.claude || !window.claude.use) { euNome = ""; return Promise.resolve(""); }
       return window.claude.use("user").then(function (u) { return u && u.name ? u.name() : ""; }).catch(function () { return ""; }).then(function (n) { euNome = n || ""; return euNome; });
     } catch (e) { euNome = ""; return Promise.resolve(""); }
   }
   function casarEu(nomes) {
+    // com login do Hub, vale o nome de analista ligado à pessoa em algum módulo
+    if (AUTH() && AUTH().usuario()) {
+      var lig = ["dp", "contabil", "fiscal", "portal"].map(function (m) { return AUTH().analista(m); }).filter(Boolean);
+      for (var q = 0; q < lig.length; q++) { var achou = nomes.filter(function (n) { return norm(n) === norm(lig[q]); })[0]; if (achou) return achou; }
+    }
     var t = norm(euNome || "").split(" ").filter(Boolean), melhor = "", pts = 0;
     nomes.forEach(function (n) { var a = norm(n).split(" "); if (a[0] !== t[0]) return; var p = a.filter(function (x) { return t.indexOf(x) !== -1; }).length; if (p > pts) { pts = p; melhor = n; } });
     return melhor;
@@ -659,7 +667,8 @@
         if (!ns || typeof ns !== "function") return null;
         return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { iaLimites = l || null; if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
       }).catch(function () {});
-      window.claude.use("user").then(function (u) {
+      if (AUTH()) { var adm = AUTH().ehAdmin(), algum = ["dp", "contabil", "fiscal", "portal", "cardapio"].some(function (m) { return AUTH().nivel(m) === "coord"; }); ehCoord = adm; podeVerTudo = adm || algum; }
+      else window.claude.use("user").then(function (u) {
         if (!u) return;
         try { var ce = u.canEdit ? u.canEdit() : false; Promise.resolve(ce).then(function (v) { ehCoord = !!v; podeVerTudo = !!v; }); } catch (e) {}
       }).catch(function () {});
@@ -970,6 +979,7 @@
     var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial", p = lerPref();
     return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio) e Cardápio (refeitório).\n" +
       "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "), " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
+      "Módulos que esta pessoa pode usar: " + H.modulos().map(function (k) { return MODN[k]; }).join(", ") + (AUTH() ? ". Ela não tem acesso aos outros: se pedirem algo deles, diga que o acesso não foi liberado e sugira falar com o administrador. " : ". ") + (AUTH() && AUTH().usuario() && !AUTH().ehAdmin() ? "Os níveis são Coordenador (edita tudo no módulo), Analista (edita só a própria carteira) e Consulta (só vê): se uma ação for recusada por permissão, explique isso com simpatia.\n" : "\n") +
       "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
       "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
       "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
@@ -2650,7 +2660,8 @@
   aoConfirmar = function (pl) { aoConfirmarAntes(pl); if (/dados de exemplo/i.test(pl.aviso || "")) return; registrarNoDia("tax_acoes", {titulo: pl.titulo || "", empresa: pl.empresa || "", linha: ((pl.linhas || [])[0] || "").slice(0, 200), quem: meuId, em: new Date().toISOString()}); };
   function iniciarEquipe() {
     try {
-      if (window.claude && window.claude.use) window.claude.use("user").then(function (u) { userNs = u || null; if (u && u.id) Promise.resolve(u.id()).then(function (i) { meuId = i || ""; }, function () {}); }).catch(function () {});
+      if (AUTH() && AUTH().usuario()) meuId = AUTH().usuario().id;
+      if (window.claude && window.claude.use) window.claude.use("user").then(function (u) { userNs = u || null; if (!AUTH() && u && u.id) Promise.resolve(u.id()).then(function (i) { meuId = i || ""; }, function () {}); }).catch(function () {});
     } catch (e) {}
     usarDb().then(function (db) {
       if (!db) return;
@@ -2703,7 +2714,8 @@
         if (nao.length) bl.push(linhasBloco("Não entendidas (sugestão: criar na base de ajuda)", nao.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.dia.split("-").reverse().join("/")}; })));
         if (ruins.length) bl.push(linhasBloco("Respostas que não ajudaram", ruins.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.r, tom: "warn"}; })));
         var ids = ac.map(function (x) { return x.quem; }).filter(Boolean);
-        var nomes = userNs && userNs.profiles && ids.length ? Promise.resolve(userNs.profiles(ids.filter(function (v, i, a) { return a.indexOf(v) === i; }))).catch(function () { return {}; }) : Promise.resolve({});
+        var unicos = ids.filter(function (v, i, a) { return a.indexOf(v) === i; });
+        var nomes = !unicos.length ? Promise.resolve({}) : AUTH() ? AUTH().perfis(unicos, function (l) { return userNs && userNs.profiles ? userNs.profiles(l) : Promise.resolve({}); }).catch(function () { return {}; }) : userNs && userNs.profiles ? Promise.resolve(userNs.profiles(unicos)).catch(function () { return {}; }) : Promise.resolve({});
         return nomes.then(function (ps) {
           if (ac.length) bl.push(linhasBloco("Alterações feitas pelo assistente", ac.slice().sort(function (a, b) { return a.em < b.em ? 1 : -1; }).slice(0, 60).map(function (x) { var n = x.quem && ps && ps[x.quem] && ps[x.quem].name || "alguém"; return {t: (x.empresa ? x.empresa + ": " : "") + (x.linha || x.titulo), sub: x.titulo + " · " + n + " · " + new Date(x.em).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"})}; })));
           return bl;
@@ -2711,7 +2723,7 @@
       });
     });
   }
-  COMANDOS_EXTRA.painel = function () { return ehCoord ? painelCoordenacao(30) : Promise.resolve([T("O painel do assistente é da coordenação (editores do Hub).")]); }; COMANDOS_EXTRA.painel.rot = "Painel do assistente (coordenação)";
+  COMANDOS_EXTRA.painel = function () { return ehCoord ? painelCoordenacao(30) : Promise.resolve([T("O painel do assistente é só do administrador.")]); }; COMANDOS_EXTRA.painel.rot = "Painel do assistente (coordenação)";
   CFG.push({sec: "Equipe (coordenação)", so: function () { return ehCoord; }, itens: [
     {rot: "Limite de perguntas à IA por pessoa/dia (0 = sem limite):", tipo: "texto", max: 4, valor: function () { return String(cfgEquipe.limiteDia || 0); }, salvar: function (v) { salvarCfgEquipe("limiteDia", Math.max(0, parseInt(v, 10) || 0)); }},
     {rot: "Instruções para a IA (tom, regras, termos internos):", tipo: "area", max: 1500, valor: function () { return cfgEquipe.instrucoes || ""; }, salvar: function (v) { salvarCfgEquipe("instrucoes", String(v).trim().slice(0, 1500)); }},

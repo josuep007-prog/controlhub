@@ -219,6 +219,7 @@ function docEmp(id){ return "fis_emp/b" + balde(id, 8); }
 function docComp(comp, id){ return "fis_comp/" + comp + "~" + balde(id, 4); }
 function gravarMapas(itens){
   if(S.exemplo) return Promise.resolve();
+  var neg = motivoNegado(itens); if(neg){ toast(neg); var xn = new Error(neg); xn.fis = true; xn.code = "sem_permissao"; return Promise.reject(xn); }
   var col = itens.length ? itens[0][0].split("/")[0] : "";
   if(col && !S.carregou[col]){ toast("Aguarde: os dados ainda estão carregando."); var x = new Error("carregando"); x.fis = true; return Promise.reject(x); }
   var porDoc = {};
@@ -250,8 +251,14 @@ function aplicarFonte(){
   S.exemplo = S.carregou.fis_emp && vazia && !S.forcarReal;
   if(S.exemplo){ if(!S.demo) S.demo = gerarExemplo(); S.empresas = S.demo.emp; S.comps = S.demo.comp; S.cfg = S.demo.cfg; }
   else { S.empresas = S.R.emp; S.comps = S.R.comp; S.cfg = S.R.cfg || normCfg(null); }
-  if(S.carregou.fis_emp && S.eu && analistas().indexOf(S.eu) === -1){ S.eu = ""; ["ag", "em", "fx"].forEach(function(v){ S[v].ana = ""; }); }
+  if(S.carregou.fis_emp && S.eu && !S.euTravado && analistas().indexOf(S.eu) === -1){ S.eu = ""; ["ag", "em", "fx"].forEach(function(v){ S[v].ana = ""; }); }
 }
+
+/* ============ níveis de acesso (login do Hub, auth.js) ============ */
+// O módulo só funciona aberto pelo Hub; sem o login ele volta para a tela inicial.
+function AUTH(){ try{ var P = window.parent; return (P && P !== window && P.__auth) || window.__auth || null; }catch(e){ return null; } }
+if(!AUTH()){ try{ location.replace("index.html"); }catch(e){} }
+function nivelAcesso(){ var a = AUTH(); return a ? a.nivel("fiscal") : "coord"; }
 
 /* ============ identidade e permissões ============ */
 function analistas(){
@@ -271,15 +278,30 @@ function casarNome(nomeConta){
   return pts ? melhor : "";
 }
 function minha(e){ return !!S.eu && norm(e.analista) === norm(S.eu); }
-function podeMarcar(e){ return S.exemplo || S.coord || minha(e); }
+function podeMarcar(e){
+  if(AUTH()){ var n = nivelAcesso(); if(n === "coord") return true; if(n === "analista") return S.exemplo || minha(e); return false; }
+  return S.exemplo || S.coord || minha(e);
+}
+// Barreira de escrita: confere o nível de acesso antes de gravar (a tela já esconde o que a pessoa não pode, isto é a segunda trava).
+function motivoNegado(itens){
+  if(!AUTH() || S.exemplo) return "";
+  var n = nivelAcesso(); if(n === "coord") return "";
+  if(n !== "analista") return "Seu acesso ao Fiscal é só de consulta.";
+  for(var i = 0; i < itens.length; i++){
+    var col = itens[i][0].split("/")[0], e = S.empresas[itens[i][1]];
+    if(col === "fis_comp" || col === "fis_emp"){ if(!e || !minha(e)) return "Você só altera as empresas da sua carteira."; }
+    else return "Só a coordenação altera as configurações.";
+  }
+  return "";
+}
 function quemSou(){ return S.exemplo ? "demo:" + (S.eu || "Você") : (S.meId || ""); }
 function nomeDe(id){ if(String(id).indexOf("demo:") === 0) return id.slice(5).split(" ")[0]; return (S.nomes[id] || "").split(" ")[0] || ""; }
 function buscarNomes(ids){
-  if(!S.userNs) return;
+  var A = AUTH(); if(!S.userNs && !A) return;
   var falta = ids.filter(function(i){ return i && i.indexOf("demo:") !== 0 && !(i in S.nomes); });
   if(!falta.length) return;
   falta.forEach(function(i){ S.nomes[i] = ""; });
-  S.userNs.profiles(falta).then(function(ps){ falta.forEach(function(i){ S.nomes[i] = (ps && ps[i] && ps[i].name) || ""; }); renderTudo(); }).catch(function(){});
+  (A ? A.perfis(falta, function(l){ return S.userNs ? S.userNs.profiles(l) : Promise.resolve({}); }) : S.userNs.profiles(falta)).then(function(ps){ falta.forEach(function(i){ S.nomes[i] = (ps && ps[i] && ps[i].name) || ""; }); renderTudo(); }).catch(function(){});
 }
 function iniciais(n){ var p = String(n || "?").trim().split(/\s+/); return ((p[0] || "?").charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : "")).toUpperCase(); }
 var CORES_AV = ["#2a78d6", "#0F7A55", "#B5651D", "#6A4FA0", "#B03A48", "#2E8B8B", "#7A6A10", "#4A5DB0"];
@@ -608,9 +630,10 @@ function renderEu(){
   var html = '<option value="">' + (as.length ? "Escolha…" : "—") + '</option>' + as.map(function(a){ return '<option' + (a === atual ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("");
   if(sel.innerHTML !== html) sel.innerHTML = html;
   sel.value = atual;
+  sel.disabled = !!S.euTravado; sel.title = S.euTravado ? "Definido pelo seu acesso (nome de analista ligado ao seu usuário)" : "";
   $("#coordTag").hidden = !S.coord || S.exemplo;
 }
-$("#euSel").onchange = function(){ S.eu = this.value; if(!S.exemplo) salvarPrefs({eu:S.eu}); S.fx.ana = S.ag.ana = S.em.ana = S.eu || ""; renderTudo(true); };
+$("#euSel").onchange = function(){ if(S.euTravado){ this.value = S.eu; return; } S.eu = this.value; if(!S.exemplo) salvarPrefs({eu:S.eu}); S.fx.ana = S.ag.ana = S.em.ana = S.eu || ""; renderTudo(true); };
 function opcoesAnalista(sel, valor){
   var html = '<option value="">Todos os analistas</option>' + analistas().map(function(a){ return '<option' + (a === valor ? " selected" : "") + '>' + esc(a) + '</option>'; }).join("");
   if(sel.innerHTML !== html) sel.innerHTML = html;
@@ -1014,7 +1037,7 @@ function abrirFicha(id, aba){
   if(!e && !(S.coord || S.exemplo)){ toast("Só a coordenação cadastra empresas."); return; }
   fichaId = e ? e.id : null; fichaAba = e && aba ? aba : "dados";
   var x = e || normEmp({}, "");
-  var pode = S.exemplo || S.coord || (e && minha(e)), dis = pode ? "" : " disabled";
+  var pode = e ? podeMarcar(e) : (S.exemplo || S.coord), dis = pode ? "" : " disabled";
   var opt = function(lista, v, vazio){ return '<option value="">' + vazio + '</option>' + lista.map(function(o){ return '<option value="' + o.k + '"' + (o.k === v ? " selected" : "") + '>' + esc(o.l) + '</option>'; }).join(""); };
   var d = $("#dlgFicha");
   d.innerHTML = '<div class="dlg-head"><h2>' + esc(e ? e.nome : "Nova empresa") + '</h2>' + (e ? regPill(e.regime) : '') + '<button type="button" class="x" id="fFechar" aria-label="Fechar">✕</button></div>' +
@@ -1334,7 +1357,7 @@ function ligarBanco(){
     snap.docs.forEach(function(d){ S.existe.docs["fis_emp/" + d.id] = true; var x = d.data() || {}; Object.keys(x).forEach(function(k){ if(x[k] && typeof x[k] === "object") m[k] = normEmp(x[k], k); }); });
     S.R.emp = m; S.carregou.fis_emp = true; S.carregou.empresas = S.carregou.fis_comp;
     aplicarFonte();
-    if(!S.eu && S.nomeConta && !S.exemplo){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.ag.ana = S.em.ana = S.eu; } }
+    if(!AUTH() && !S.eu && S.nomeConta && !S.exemplo){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.ag.ana = S.em.ana = S.eu; } }
     renderTudo();
   }, erroBanco);
   banco.collection("fis_comp").onSnapshot(function(snap){
@@ -1505,21 +1528,24 @@ window.__assistente = {
 (function iniciar(){
   var p = lerPrefs();
   if(p.eu) S.eu = p.eu;
+  var A = AUTH();
+  if(A){ var niv = A.nivel("fiscal"); S.coord = niv === "coord"; if(niv === "analista"){ S.eu = A.analista("fiscal"); S.euTravado = true; } else if(niv !== "coord"){ S.eu = ""; } }
   if(p.emModo === "lista" || p.emModo === "cartoes") S.em.modo = p.emModo;
   S.fx.ana = S.ag.ana = S.em.ana = S.eu || "";
   usarCap("db").catch(function(){ return null; }).then(function(db){
     if(db){ banco = bancoReal(db); }
-    else { banco = bancoLocal(); semBanco = true; $("#semBanco").hidden = false; S.coord = true; }
+    else { banco = bancoLocal(); semBanco = true; $("#semBanco").hidden = false; S.coord = !A || A.nivel("fiscal") === "coord"; }
     ligarBanco();
     return usarCap("user").catch(function(){ return null; });
   }).then(function(u){
-    if(!u){ if(!semBanco) S.coord = false; renderTudo(); return; }
+    if(A){ S.userNs = u; renderTudo(); if(!u) return; }
+    else if(!u){ if(!semBanco) S.coord = false; renderTudo(); return; }
     S.userNs = u;
-    Promise.resolve(u.id ? u.id() : "").catch(function(){ return ""; }).then(function(i){ S.meId = i || ""; });
-    Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ S.coord = !!ok || semBanco; renderTudo(); });
+    Promise.resolve(u.id ? u.id() : "").catch(function(){ return ""; }).then(function(i){ S.meId = A ? ((A.usuario() || {}).id || "") : (i || ""); });
+    if(!A) Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ S.coord = !!ok || semBanco; renderTudo(); });
     Promise.resolve(u.name ? u.name() : "").catch(function(){ return ""; }).then(function(n){
       S.nomeConta = n || "";
-      if(!S.eu && S.carregou.empresas && !S.exemplo){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.ag.ana = S.em.ana = S.eu; } renderTudo(); }
+      if(!A && !S.eu && S.carregou.empresas && !S.exemplo){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.ag.ana = S.em.ana = S.eu; } renderTudo(); }
     });
   });
   var v = VIEWS.indexOf(p.view) !== -1 ? p.view : "painel";
