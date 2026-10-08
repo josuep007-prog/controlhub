@@ -470,7 +470,8 @@
     MODS.forEach(function (m) { niveis[m] = n.admin ? "coord" : (n.niveis[m] || ""); });
     COM_ANALISTA.forEach(function (m) { if (!n.admin && niveis[m] === "analista") an[m] = String(n.analista[m]).trim(); });
     n.ocupado = true; n.erro = ""; desenharAdmin();
-    criarConta(f, {admin: !!n.admin, niveis: niveis, analista: an, trocarSenha: !!n.trocar, por: atual.id}).then(function () {
+    criarConta(f, {admin: !!n.admin, niveis: niveis, analista: an, trocarSenha: !!n.trocar, por: atual.id}).then(function (r) {
+      admin.prov[r.id] = n.senha;
       admin.criado = {nome: String(n.nome).trim(), login: norm(n.login), senha: n.senha, trocar: !!n.trocar};
       admin.novo = null; admin.aba = "ativos"; desenharAdmin();
     }).catch(function (e) { n.ocupado = false; n.erro = e && e.amigavel ? e.message : "Não consegui criar o usuário agora. Tente de novo."; if (!(e && e.amigavel)) console.error(e); desenharAdmin(); });
@@ -483,7 +484,7 @@
     var bot = u.status === "pendente" ? '<button type="button" class="ax-btn prim" data-ac="aprovar">Aprovar e salvar</button><button type="button" class="ax-btn perigo" data-ac="recusar">Recusar cadastro</button>'
       : '<button type="button" class="ax-btn prim" data-ac="salvar"' + (e.sujo ? "" : " disabled") + '>Salvar</button>' +
         (u.status === "bloqueado" ? '<button type="button" class="ax-btn" data-ac="desbloquear">Desbloquear</button>' : (eu ? "" : '<button type="button" class="ax-btn perigo" data-ac="bloquear">Bloquear</button>')) +
-        '<button type="button" class="ax-btn" data-ac="senha">Redefinir senha</button>' + (eu ? "" : '<button type="button" class="ax-btn perigo" data-ac="excluir">Excluir</button>');
+        '<button type="button" class="ax-btn" data-ac="copiar" title="Copia o usuário e a senha para mandar à pessoa">Copiar acesso</button><button type="button" class="ax-btn" data-ac="senha">Redefinir senha</button>' + (eu ? "" : '<button type="button" class="ax-btn perigo" data-ac="excluir">Excluir</button>');
     var idf = function (k, rot, tipo, extra) { return '<div class="au-mod"><label>' + rot + '</label><input data-f="' + k + '" type="' + tipo + '" value="' + esc(e[k]) + '" aria-label="' + rot + '" autocomplete="off" ' + (extra || "") + '></div>'; };
     var ident = '<div class="au-mods">' + idf("nome", "Nome", "text", 'maxlength="80"') + idf("email", "E-mail", "email") + idf("login", "Usuário (para entrar)", "text", 'autocapitalize="none" spellcheck="false"') + '</div>';
     return '<div class="au-u' + (u.status === "pendente" ? " pend" : "") + '" data-id="' + esc(u.id) + '"><div class="au-cab"><b>' + esc(u.nome) + '</b><span>' + esc(u.login) + ' · ' + esc(u.email || "") + '</span>' + tags + '<span>Cadastro ' + fmtData(u.criadoEm) + ' · último acesso ' + fmtData(u.ultimoAcesso) + '</span></div>' + ident +
@@ -519,6 +520,14 @@
       el.innerHTML = itens.length ? itens.map(function (x) { var por = x.por && x.por !== x.uid && nome[x.por] ? " · por " + esc(nome[x.por]) : ""; return '<div><time>' + fmtData(Date.parse(x.em)) + '</time><span><b>' + esc(nome[x.uid] || x.nomeAntigo || "(conta removida)") + '</b> ' + esc(ROT[x.tipo] || x.tipo) + por + '</span></div>'; }).join("") : '<div class="au-vazio">Sem acessos registrados nos últimos 7 dias.</div>';
     });
   }
+  // copia texto: tenta a área de transferência e cai para um campo temporário (iframes às vezes bloqueiam a primeira)
+  function copiarTexto(t) {
+    var velho = function () { try { var a = doc.createElement("textarea"); a.value = t; a.style.cssText = "position:fixed;opacity:0;top:0"; doc.body.appendChild(a); a.select(); var ok = doc.execCommand("copy"); a.remove(); return ok; } catch (e) { return false; } };
+    try { return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return velho(); }); } catch (e) { return Promise.resolve(velho()); }
+  }
+  function textoAcesso(u, senha) {
+    return "Control Hub\nUsuário: " + u.login + (senha ? "\nSenha: " + senha + (u.trocarSenha !== false ? "\n(você vai criar uma senha nova no primeiro acesso)" : "") : "");
+  }
   function msgCard(card, txt, ok) { var m = card && card.querySelector("[data-msg]"); if (m) { m.textContent = txt; m.className = "ax-erro" + (ok ? " ax-ok" : ""); m.style.margin = "0"; } }
   function salvarAcesso(u, extra) {
     var e = dadosEdit(u), niveis = {}, an = {};
@@ -546,6 +555,11 @@
   function acaoAdmin(ac, id, card) {
     var u = admin.lista.filter(function (x) { return x.id === id; })[0]; if (!u) return;
     var por = atual.id, e = dadosEdit(u);
+    if (ac === "copiar") {
+      var sen = admin.prov[id];
+      copiarTexto(textoAcesso(u, sen)).then(function (ok) { msgCard(card, !ok ? "Não consegui copiar. Selecione e copie à mão." : sen ? "Copiado: usuário e senha." : "Copiado o usuário. A senha não fica guardada: para mandar uma, use Redefinir senha.", ok); });
+      return;
+    }
     function erroGenerico(err) { if (err && err.amigavel) { msgCard(card, err.message); return; } console.error(err); msgCard(card, "Não consegui salvar agora. Tente de novo."); }
     if (ac === "aprovar" || ac === "salvar") {
       if (u.admin && !e.admin && nAdminsAtivos(u.id) === 0) { msgCard(card, "Precisa existir pelo menos um administrador ativo."); return; }
@@ -590,10 +604,10 @@
           else if (a === "cancelar") { admin.novo = null; desenharAdmin(); }
           else if (a === "gerar" && admin.novo) { admin.novo.senha = senhaProvisoria(); var sn = raiz.querySelector("#au-nv-senha"); if (sn) sn.value = admin.novo.senha; }
           else if (a === "fechar") { admin.criado = null; desenharAdmin(); }
-          else if (a === "copiar" && admin.criado) { var c = admin.criado, t = "Control Hub\nUsuário: " + c.login + "\nSenha: " + c.senha, ok2 = function () { nv.textContent = "Copiado"; }; try { navigator.clipboard.writeText(t).then(ok2, function () { nv.textContent = "Selecione e copie"; }); } catch (e) { nv.textContent = "Selecione e copie"; } }
+          else if (a === "copiar" && admin.criado) { var c = admin.criado; copiarTexto(textoAcesso({login: c.login, trocarSenha: c.trocar}, c.senha)).then(function (ok2) { nv.textContent = ok2 ? "Copiado" : "Selecione e copie"; }); }
           return;
         }
-        var cp = ev.target.closest("[data-copia]"); if (cp) { var t = admin.prov[cp.getAttribute("data-copia")]; var ok = function () { cp.textContent = "Copiado"; }; try { navigator.clipboard.writeText(t).then(ok, function () { cp.textContent = "Selecione e copie"; }); } catch (e) { cp.textContent = "Selecione e copie"; } return; }
+        var cp = ev.target.closest("[data-copia]"); if (cp) { var cid = cp.getAttribute("data-copia"), cu = admin.lista.filter(function (x) { return x.id === cid; })[0]; copiarTexto(textoAcesso(cu || {login: ""}, admin.prov[cid])).then(function (ok) { cp.textContent = ok ? "Copiado" : "Selecione e copie"; }); return; }
         var b = ev.target.closest("[data-ac]"), card = ev.target.closest(".au-u"); if (b && card) acaoAdmin(b.getAttribute("data-ac"), card.getAttribute("data-id"), card);
       });
       raiz.addEventListener("submit", function (ev) { if (ev.target.closest(".au-novo")) { ev.preventDefault(); criarNovo(); } });
