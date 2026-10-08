@@ -425,7 +425,7 @@
   }
   function dadosEdit(u) {
     var r = admin.rasc[u.id]; if (r) return r;
-    r = admin.rasc[u.id] = {admin: !!u.admin, niveis: Object.assign(nivelVazio(), u.niveis || {}), analista: Object.assign({}, u.analista || {}), sujo: false};
+    r = admin.rasc[u.id] = {nome: u.nome || "", email: u.email || "", login: u.login || "", admin: !!u.admin, niveis: Object.assign(nivelVazio(), u.niveis || {}), analista: Object.assign({}, u.analista || {}), sujo: false};
     return r;
   }
   function carregarAnalistas() {
@@ -484,7 +484,9 @@
       : '<button type="button" class="ax-btn prim" data-ac="salvar"' + (e.sujo ? "" : " disabled") + '>Salvar</button>' +
         (u.status === "bloqueado" ? '<button type="button" class="ax-btn" data-ac="desbloquear">Desbloquear</button>' : (eu ? "" : '<button type="button" class="ax-btn perigo" data-ac="bloquear">Bloquear</button>')) +
         '<button type="button" class="ax-btn" data-ac="senha">Redefinir senha</button>' + (eu ? "" : '<button type="button" class="ax-btn perigo" data-ac="excluir">Excluir</button>');
-    return '<div class="au-u' + (u.status === "pendente" ? " pend" : "") + '" data-id="' + esc(u.id) + '"><div class="au-cab"><b>' + esc(u.nome) + '</b><span>' + esc(u.login) + ' · ' + esc(u.email || "") + '</span>' + tags + '<span>Cadastro ' + fmtData(u.criadoEm) + ' · último acesso ' + fmtData(u.ultimoAcesso) + '</span></div>' +
+    var idf = function (k, rot, tipo, extra) { return '<div class="au-mod"><label>' + rot + '</label><input data-f="' + k + '" type="' + tipo + '" value="' + esc(e[k]) + '" aria-label="' + rot + '" autocomplete="off" ' + (extra || "") + '></div>'; };
+    var ident = '<div class="au-mods">' + idf("nome", "Nome", "text", 'maxlength="80"') + idf("email", "E-mail", "email") + idf("login", "Usuário (para entrar)", "text", 'autocapitalize="none" spellcheck="false"') + '</div>';
+    return '<div class="au-u' + (u.status === "pendente" ? " pend" : "") + '" data-id="' + esc(u.id) + '"><div class="au-cab"><b>' + esc(u.nome) + '</b><span>' + esc(u.login) + ' · ' + esc(u.email || "") + '</span>' + tags + '<span>Cadastro ' + fmtData(u.criadoEm) + ' · último acesso ' + fmtData(u.ultimoAcesso) + '</span></div>' + ident +
       '<label class="ax-chk" style="margin:0"><input type="checkbox" data-adm' + (e.admin ? " checked" : "") + (eu && nAdminsAtivos(u.id) === 0 ? " disabled" : "") + '> Administrador (acesso total e gerencia usuários)</label>' +
       '<div class="au-mods">' + mods + '</div>' + prov + '<div class="au-bot">' + bot + '<span class="ax-erro" style="margin:0" data-msg role="status"></span></div></div>';
   }
@@ -512,7 +514,7 @@
     Promise.all(dias.map(function (k) { return BACKEND.ler("auth_log/" + k).then(function (x) { return Object.keys((x && x.itens) || {}).map(function (id) { return x.itens[id]; }); }, function () { return []; }); })).then(function (r) {
       var itens = [].concat.apply([], r).sort(function (a, b) { return a.em < b.em ? 1 : -1; }).slice(0, 120), nome = {};
       admin.lista.forEach(function (u) { nome[u.id] = u.nome; });
-      var ROT = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)", criado_admin: "teve a conta criada pelo administrador"};
+      var ROT = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)", criado_admin: "teve a conta criada pelo administrador", dados_alterados: "teve nome, e-mail ou usuário corrigido"};
       var el = doc.getElementById("au-log"); if (!el) return;
       el.innerHTML = itens.length ? itens.map(function (x) { var por = x.por && x.por !== x.uid && nome[x.por] ? " · por " + esc(nome[x.por]) : ""; return '<div><time>' + fmtData(Date.parse(x.em)) + '</time><span><b>' + esc(nome[x.uid] || x.nomeAntigo || "(conta removida)") + '</b> ' + esc(ROT[x.tipo] || x.tipo) + por + '</span></div>'; }).join("") : '<div class="au-vazio">Sem acessos registrados nos últimos 7 dias.</div>';
     });
@@ -525,17 +527,36 @@
     var up = Object.assign({admin: !!e.admin, niveis: niveis, analista: an}, extra || {});
     return BACKEND.atualizar("auth_usuarios/" + u.id, up).then(function () { delete admin.rasc[u.id]; });
   }
+  // corrige nome, e-mail e usuário de uma conta; mexe nas chaves de login para o acesso continuar único
+  function salvarIdentidade(u, e) {
+    var nome = String(e.nome).trim().slice(0, 80), email = norm(e.email), login = norm(e.login);
+    if (nome === u.nome && email === norm(u.email || "") && login === u.login) return Promise.resolve(false);
+    var msg = validarCadastro({nome: nome, email: email, login: login, senha: "x1x1x1x1", confirma: "x1x1x1x1"}); if (msg) return Promise.reject(erro(msg));
+    return Promise.all([chaveLogin(login), chaveLogin(email)]).then(function (ks) {
+      var antigas = u.chaves || [];
+      return Promise.all(ks.map(function (k) { return antigas.indexOf(k) !== -1 ? null : BACKEND.ler("auth_logins/" + k); })).then(function (rs) {
+        if (rs[0] && rs[0].id !== u.id) throw erro("Esse usuário já está em uso. Escolha outro.");
+        if (rs[1] && rs[1].id !== u.id) throw erro("Já existe uma conta com esse e-mail.");
+        return Promise.all(ks.filter(function (k) { return antigas.indexOf(k) === -1; }).map(function (k) { return BACKEND.gravar("auth_logins/" + k, {id: u.id}); }));
+      }).then(function () { return BACKEND.atualizar("auth_usuarios/" + u.id, {nome: nome, email: email, login: login, chaves: ks}); })
+        .then(function () { return Promise.all(antigas.filter(function (k) { return ks.indexOf(k) === -1; }).map(function (k) { return BACKEND.apagar("auth_logins/" + k); })); })
+        .then(function () { return true; });
+    });
+  }
   function acaoAdmin(ac, id, card) {
     var u = admin.lista.filter(function (x) { return x.id === id; })[0]; if (!u) return;
     var por = atual.id, e = dadosEdit(u);
-    function erroGenerico(err) { console.error(err); msgCard(card, "Não consegui salvar agora. Tente de novo."); }
+    function erroGenerico(err) { if (err && err.amigavel) { msgCard(card, err.message); return; } console.error(err); msgCard(card, "Não consegui salvar agora. Tente de novo."); }
     if (ac === "aprovar" || ac === "salvar") {
       if (u.admin && !e.admin && nAdminsAtivos(u.id) === 0) { msgCard(card, "Precisa existir pelo menos um administrador ativo."); return; }
       var temModulo = e.admin || MODS.some(function (m) { return e.niveis[m]; });
       if (ac === "aprovar" && !temModulo) { msgCard(card, "Escolha pelo menos um módulo antes de aprovar."); return; }
       var semNome = !e.admin && COM_ANALISTA.some(function (m) { return e.niveis[m] === "analista" && !String(e.analista[m] || "").trim(); });
       if (semNome) { msgCard(card, "Para o nível Analista, informe o nome do analista naquele módulo."); return; }
-      salvarAcesso(u, ac === "aprovar" ? {status: "ativo", aprovadoPor: por, aprovadoEm: agora()} : {}).then(function () { BACKEND.registrar(ac === "aprovar" ? "aprovado" : "acesso_alterado", id, por); }).catch(erroGenerico);
+      salvarIdentidade(u, e).then(function (mudou) {
+        if (mudou) BACKEND.registrar("dados_alterados", id, por, {antes: u.login});
+        return salvarAcesso(u, ac === "aprovar" ? {status: "ativo", aprovadoPor: por, aprovadoEm: agora()} : {});
+      }).then(function () { BACKEND.registrar(ac === "aprovar" ? "aprovado" : "acesso_alterado", id, por); }).catch(erroGenerico);
     } else if (ac === "bloquear" || ac === "desbloquear") {
       if (ac === "bloquear" && u.admin && nAdminsAtivos(u.id) === 0) { msgCard(card, "Não dá para bloquear o único administrador."); return; }
       BACKEND.atualizar("auth_usuarios/" + id, ac === "bloquear" ? {status: "bloqueado", sv: (u.sv || 1) + 1} : {status: "ativo", falhas: 0, bloqueadoAte: 0}).then(function () { BACKEND.registrar(ac === "bloquear" ? "bloqueado" : "desbloqueado", id, por); }).catch(erroGenerico);
@@ -554,7 +575,7 @@
     injetarCss(); admin.raiz = raiz; if (admin.off) admin.off();
     admin.off = BACKEND.ouvirColecao("auth_usuarios", function (l) {
       admin.lista = l;
-      var ae = doc.activeElement; if (ae && ae.closest && ae.closest(".au-novo") && ae.tagName === "INPUT" && ae.type !== "checkbox") return; // não atrapalha quem está digitando o novo usuário
+      var ae = doc.activeElement; if (ae && ae.tagName === "INPUT" && ae.type !== "checkbox" && admin.raiz && admin.raiz.contains(ae)) return; // não atrapalha quem está digitando
       desenharAdmin();
     });
     carregarAnalistas();
@@ -577,7 +598,13 @@
       });
       raiz.addEventListener("submit", function (ev) { if (ev.target.closest(".au-novo")) { ev.preventDefault(); criarNovo(); } });
       raiz.addEventListener("input", function (ev) {
-        var t = ev.target, n = admin.novo; if (!n || !t.closest(".au-novo")) return;
+        var t = ev.target, n = admin.novo, cd = t.closest(".au-u:not(.au-novo)");
+        if (cd && t.hasAttribute("data-f")) {
+          var uu = admin.lista.filter(function (x) { return x.id === cd.getAttribute("data-id"); })[0]; if (!uu) return;
+          var ee = dadosEdit(uu); ee[t.getAttribute("data-f")] = t.value; ee.sujo = true;
+          var sv = cd.querySelector("[data-ac=salvar]"); if (sv) sv.disabled = false; return;
+        }
+        if (!n || !t.closest(".au-novo")) return;
         if (t.hasAttribute("data-nv")) n[t.getAttribute("data-nv")] = t.value;
         else if (t.hasAttribute("data-a")) n.analista[t.getAttribute("data-a")] = t.value;
       });
@@ -591,7 +618,7 @@
           if (t.hasAttribute("data-nvc") || t.hasAttribute("data-n")) setTimeout(desenharAdmin, 0);
           return;
         }
-        var card = ev.target.closest(".au-u"); if (!card) return;
+        var card = ev.target.closest(".au-u"); if (!card || ev.target.hasAttribute("data-f")) return;
         var u = admin.lista.filter(function (x) { return x.id === card.getAttribute("data-id"); })[0]; if (!u) return; var e = dadosEdit(u);
         if (ev.target.hasAttribute("data-adm")) e.admin = ev.target.checked;
         else if (ev.target.hasAttribute("data-n")) e.niveis[ev.target.getAttribute("data-n")] = ev.target.value;
