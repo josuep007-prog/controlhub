@@ -252,6 +252,7 @@
     {t: "Impedimentos no Portal", m: "portal", k: "impedimento impedimentos bloqueio portal empresa", a: "Na aba Impedimentos ficam as empresas, setores e pessoas travados, com o motivo, desde quando e de quem se aguarda retorno.", ir: {m: "portal", aba: "impedimentos"}},
     {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
+    {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
     {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
     {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
     {t: "Apelidos de empresas", k: "apelido apelidos nome curto padaria", a: "Diga “a padaria do centro é a Panificadora Silva” e eu guardo o apelido (com confirmação) para toda a equipe usar nas próximas perguntas."},
@@ -413,7 +414,7 @@
     var navega = RX.navegar.test(t);
     var intent = "";
 
-    var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per) : null;
+    var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per, anaMatch) : null;
     if (pedido) return prepararAcao(pedido, texto);
     var gl = buscarGlossario(t);
     if (gl && (/^(o que (e|eh|sao|significa)|significad|o que quer dizer|que e|qual o significado|define|definicao)/.test(t) || t.split(" ").length <= 3)) {
@@ -432,7 +433,7 @@
     else if (RX.vencimentos.test(t)) intent = "vencimentos";
     else if (RX.carteira.test(t)) intent = "carteira";
     else if (RX.empresa.test(t)) intent = "empresa";
-    if (!intent && (anaMatch.length || per || mods.length) && ctx.intent && ctx.intent !== "empresa") intent = ctx.intent;      // "e do Bruno?", "e amanhã?"
+    if (!intent && (anaMatch.length || per || mods.length) && ctx.intent && ctx.intent !== "empresa" && ["saudacao", "obrigado", "quem", "ajuda"].indexOf(ctx.intent) === -1) intent = ctx.intent;      // "e do Bruno?", "e amanhã?"
     if (!intent && anaMatch.length) intent = "carteira";
     if (!intent) { var aj = buscarAjuda(t, mods); if (aj) intent = "ajuda"; }
 
@@ -487,7 +488,17 @@
     });
     return {item: melhor, pts: pts, empate: empate};
   }
-  function detectarAcao(t, texto, emps, mods, per) {
+  // Em que módulo agir quando a empresa existe em mais de um: o citado na frase, o que está aberto ou, se só há um, ele; senão pergunta.
+  function alvoModulo(mods, e) {
+    var ok = ["dp", "fiscal", "contabil"], refs = Object.keys(e.g.refs).filter(function (m) { return ok.indexOf(m) !== -1; });
+    var ex = (mods || []).filter(function (m) { return ok.indexOf(m) !== -1; });
+    if (ex.length === 1) return {mod: ex[0]};
+    var cand = ex.length ? ex : refs;
+    if (cand.length === 1) return {mod: cand[0]};
+    var at = H.ativo(); if (cand.indexOf(at) !== -1) return {mod: at};
+    return cand.length ? {ambig: cand} : {mod: "dp"};
+  }
+  function detectarAcao(t, texto, emps, mods, per, anaMatch) {
     var tt = limpo(t);
     // lembrete pessoal (DP): não precisa de empresa
     if (/\b(me lembr\w*|lembra (de|pra|para) |(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete)\b/.test(t)) {
@@ -498,7 +509,44 @@
         .replace(/\bna (segunda|terça|quarta|quinta|sexta)\b/ig, "").replace(/\s+/g, " ").replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "");
       return {tipo: "lembrete", mod: "dp", texto: txt, data: per ? ymd(per.de) : ymd(hoje()), hora: h, emp: emps.length ? emps[0] : null};
     }
+    // ---- DP: ausência de analista (férias, afastamento, licença) com cobertura; não precisa de empresa ----
+    var anas = anaMatch || [], dts = [], rxd = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g, md;
+    while ((md = rxd.exec(t))) if (+md[1] >= 1 && +md[1] <= 31 && +md[2] >= 1 && +md[2] <= 12) dts.push(md);
+    var mAus = /\b(ferias|afastament\w*|licenca|atestado|ausenc\w*)\b/.exec(t);
+    if (anas.length && mAus && !/\b(mostr\w*|ver|veja|lista\w*|consult\w*|quais|quem|qual)\b/.test(t) && (dts.length >= 2 || /\b(registr\w*|cadastr\w*|lanc\w*|marc\w*|coloc\w*|poe|anot\w*|agend\w*|cri(a|e|ar)|adicion\w*|programa\w*)\b/.test(t))) {
+      var toks = t.split(" "), ausente = "", cobre = "";
+      var iNome = function (n) { var f = norm(n).split(" ")[0]; return toks.indexOf(f); };
+      if (anas.length === 1) ausente = anas[0];
+      else if (anas.length === 2) {
+        var cue = -1; toks.forEach(function (w, q) { if (cue < 0 && /^(cobre|cobrindo|cobertura|cobrir|substitui\w*|substituto|substituta|lugar)$/.test(w)) cue = q; });
+        var i0 = iNome(anas[0]), i1 = iNome(anas[1]);
+        if (cue >= 0 && i0 >= 0 && i1 >= 0 && Math.abs(i0 - cue) !== Math.abs(i1 - cue)) { if (Math.abs(i0 - cue) < Math.abs(i1 - cue)) { cobre = anas[0]; ausente = anas[1]; } else { cobre = anas[1]; ausente = anas[0]; } }
+      }
+      if (!ausente) return {tipo: "pergunta", texto: anas.length > 1 ? "Quem vai se ausentar e quem cobre? Por exemplo: “registra férias da Maria de 10/11 a 25/11, o Bruno cobre”." : "Qual analista vai se ausentar?"};
+      var h0 = hoje(), mkD = function (m, minD) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : h0.getFullYear(), d = new Date(y, +m[2] - 1, +m[1]); if (!m[3] && minD && d < minD) d = new Date(y + 1, +m[2] - 1, +m[1]); return d; };
+      var ini = "", fim = "";
+      if (dts.length) { var d1 = mkD(dts[0], addDias(h0, -60)), d2 = dts.length > 1 ? mkD(dts[1], d1) : d1; ini = ymd(d1); fim = ymd(d2); }
+      var mot = /^ferias/.test(mAus[1]) ? "ferias" : /^(afastament|atestado)/.test(mAus[1]) ? "afastamento" : /^licenca/.test(mAus[1]) ? "licenca" : "";
+      return {tipo: "ausencia", mod: "dp", params: {analista: ausente, motivo: mot, inicio: ini, fim: fim, para: cobre}};
+    }
     if (!emps.length) return null;
+    // ---- DP, Fiscal ou Contábil: passar a empresa para outro analista ----
+    if (anas.length === 1 && /\b(passa|passe|passar|transfere|transfira|transferir|muda|mude|mudar|troca|troque|trocar|coloca|coloque|poe|ponha|atribui|atribua)\b/.test(t) && !/\b(lembrete|etapa|pendencia|entrega|obrigacao)\b/.test(t)
+        && new RegExp("\\b(para|pra|pro|ao|carteira d[oa]|responsavel d[oa])\\s+(?:o |a )?" + norm(anas[0]).split(" ")[0] + "\\b").test(t)) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var alT = alvoModulo(mods, emps[0]);
+      if (alT.ambig) return {tipo: "ambigua_mod", emp: emps[0], mods: alT.ambig, texto: texto};
+      return {tipo: "transferir", mod: alT.mod, emp: emps[0], params: {para: anas[0]}};
+    }
+    // ---- anotar na ficha / no histórico da empresa ----
+    if (/\b(anot\w*|registr\w*|adicion\w*|escrev\w*|poe|coloc\w*|deix\w*)\b/.test(t) && /\b(historico|ficha|observacao|observacoes|nota(?! fiscal))\b/.test(t)) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var alO = alvoModulo(mods, emps[0]);
+      if (alO.ambig) return {tipo: "ambigua_mod", emp: emps[0], mods: alO.ambig, texto: texto};
+      var tx2 = "", ic2 = texto.indexOf(":"), mq = /\bque\s+([\s\S]+)$/i.exec(texto);
+      if (ic2 >= 0) tx2 = texto.slice(ic2 + 1); else if (mq) tx2 = mq[1];
+      return {tipo: "observacao", mod: alO.mod, emp: emps[0], texto: tx2.replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "")};
+    }
     var verbo = /\b(marc\w*|conclu\w*|finaliz\w*|fech\w*|dar? baixa|baixa|registr\w*|lanc\w*|anot\w*|cobr\w*|desmarc\w*|reabr\w*|desfaz\w*|retific\w*|entreg\w*|receb\w*|chegou|chegaram|mandou|enviou|enviei|transmiti\w*|termin\w*|inici\w*|comec\w*|coloca\w*|poe|bota)\b/.test(t);
     if (!verbo) return null;
     if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
@@ -555,6 +603,7 @@
   }
   var pendente = null;
   function prepararAcao(pd, texto) {
+    if (pd.tipo === "pergunta") return Promise.resolve([T(pd.texto)]);
     if (pd.tipo === "ambigua") {
       return Promise.resolve([T("Achei mais de uma empresa parecida. Qual delas?"), CH(pd.emps.map(function (x) { return {rot: x.g.nome, enviar: substituirEmpresa(texto, x.g.nome)}; }))]);
     }
@@ -644,6 +693,7 @@
   function pedidoDe(i, emp) {
     var pd = {tipo: i.tipo, mod: i.modulo || "", status: STATUS_IA[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : [],
       params: {imposto: "", valor: i.valor, para: i.para, rep: i.repetir, dia: i.data, principal: i.principal, guarnicao: i.guarnicao, salada: i.salada, sobremesa: i.sobremesa, feriado: i.feriado, setor: i.setor}};
+    if (i.tipo === "ausencia") { pd.mod = "dp"; pd.mods = ["dp"]; pd.params.analista = i.analista; pd.params.inicio = i.inicio; pd.params.fim = i.fim; pd.params.motivo = i.motivo; return {pd: pd}; }
     if (i.tipo === "cardapio" || i.tipo === "lembrete") { if (i.tipo === "lembrete" && emp) pd.emp = emp; return {pd: pd}; }
     if (!emp) return {erro: "Diga a empresa."};
     pd.emp = emp;
@@ -843,8 +893,8 @@
         execute: function (i) { cartoes.push({tipo: "grafico", titulo: i.titulo, unidade: i.unidade || "", itens: (i.itens || []).slice(0, 12)}); return "Gráfico exibido abaixo da resposta."; }},
       {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
         execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
-      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (só coordenação: para = analista), observacao (anota texto na ficha), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
-        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
+      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (Fiscal/Contábil: só coordenação; no DP qualquer editor; para = analista), observacao (anota texto na ficha; no DP vai para o histórico da empresa), ausencia (só DP: analista, motivo ferias/afastamento/licenca, inicio e fim AAAA-MM-DD, para = quem cobre; sem empresa), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete", "ausencia"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil", "dp"]}, analista: {type: "string"}, inicio: {type: "string"}, fim: {type: "string"}, motivo: {type: "string", enum: ["ferias", "afastamento", "licenca"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () {
             var emp = null;

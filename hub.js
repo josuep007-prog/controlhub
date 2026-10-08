@@ -5516,6 +5516,83 @@
 
   // ---------- ponte com o assistente (assistente.js) ----------
   // Cada módulo responde com linhas simples {t, sub, data, tom, abrir}; o DP responde daqui.
+  // ---------- ações do assistente no DP: trocar responsável, anotar no histórico e registrar ausência ----------
+  // Sempre devolvem um plano (nada grava antes de executar()); respeitam o modo somente leitura e têm desfazer.
+  const MOTIVO_AUS_ASSIST = { ferias: 'Férias', afastamento: 'Afastamento', atestado: 'Afastamento', licenca: 'Licença' };
+  function dpAnalistaPorNome(nome) {
+    const n = norm(String(nome || '').trim()); if (!n) return '';
+    const todos = dpResponsaveis();
+    return todos.find(r => norm(r) === n) || todos.find(r => norm(r).split(' ')[0] === n.split(' ')[0]) || '';
+  }
+  function dpAcaoEmpresa(tipo, p) {
+    if (state.readOnly) return { erro: 'Você pode consultar o DP, mas não tem permissão para editar.' };
+    const e0 = findDpEmpresa(p.id);
+    if (!e0) return { erro: 'Não achei essa empresa no DP.' };
+    const id = e0.id;
+    // Grava os campos da empresa pelo registro mais novo (o banco pode ter trazido outra versão desde o cartão).
+    const gravar = async (campos) => {
+      const x = findDpEmpresa(id); if (!x) throw new Error('empresa não encontrada');
+      Object.assign(x, campos(x)); x.updatedAt = Date.now();
+      renderDpActiveView();
+      if (!(await persist(() => dpStore.updateFields(x.id, { responsavel: x.responsavel, historico: x.historico, updatedAt: x.updatedAt })))) throw new Error('falhou');
+    };
+    const quando = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    const nota = (x, texto) => { const h = [{ id: uid(), data: quando(), alteracao: texto, autor: state.meId || '' }, ...x.historico]; return h.slice(0, 200); };
+    const clone = (h) => h.map(r => ({ ...r }));
+    const antes = { responsavel: e0.responsavel || '', historico: clone(e0.historico) };
+    if (tipo === 'transferir') {
+      if (state.dpCtSim) return { erro: 'A Cartela está em modo simulação. Aplique ou descarte a simulação antes.' };
+      const pedido = String(p.para || '').trim();
+      if (!pedido) return { erro: 'Para qual analista passo a empresa?' };
+      const alvo = dpAnalistaPorNome(pedido);
+      if (!alvo) return { erro: `Não conheço o analista “${pedido}” no DP.` };
+      if (norm(alvo) === norm(e0.responsavel)) return { erro: `“${e0.nome}” já é de ${alvo}.` };
+      return {
+        titulo: 'Trocar o responsável no DP', empresa: e0.nome,
+        linhas: [`Responsável: ${e0.responsavel || 'sem responsável'} → ${alvo}`], aviso: 'É uma troca definitiva. Para ausência com data de volta, peça para registrar a ausência.',
+        executar: async () => { await gravar(x => ({ responsavel: alvo, historico: nota(x, `Responsável: ${x.responsavel || '—'} → ${alvo}`) })); return `Pronto: agora é de ${alvo}.`; },
+        desfazer: async () => { await gravar(() => ({ responsavel: antes.responsavel, historico: antes.historico })); },
+      };
+    }
+    // observacao: nota no histórico da empresa (aba Histórico)
+    const texto = String(p.texto || '').trim().slice(0, 300);
+    if (!texto) return { erro: 'Qual nota devo anotar no histórico?' };
+    return {
+      titulo: 'Anotar no histórico da empresa', empresa: e0.nome,
+      linhas: [`“${texto}”`, 'Fica na aba Histórico da empresa, no DP'], aviso: '',
+      executar: async () => { await gravar(x => ({ responsavel: x.responsavel, historico: nota(x, texto) })); return 'Nota anotada no histórico.'; },
+      desfazer: async () => { await gravar(x => ({ responsavel: x.responsavel, historico: x.historico.filter(r => !(r.alteracao === texto && !antes.historico.some(a => a.id === r.id))) })); },
+    };
+  }
+  function dpAcaoAusencia(p) {
+    if (state.readOnly) return { erro: 'Você pode consultar o DP, mas não tem permissão para editar.' };
+    const analista = dpAnalistaPorNome(p.analista);
+    if (!analista) return { erro: p.analista ? `Não conheço o analista “${p.analista}” no DP.` : 'Qual analista vai se ausentar?' };
+    const inicio = toYmd(p.inicio), fim = toYmd(p.fim || p.inicio);
+    if (!parseYmd(inicio)) return { erro: 'A partir de que dia? (ex.: de 10/11 a 25/11)' };
+    if (!parseYmd(fim) || fim < inicio) return { erro: 'A data final não pode ser anterior à inicial.' };
+    const motivo = MOTIVOS_AUS.includes(p.motivo) ? p.motivo : (MOTIVO_AUS_ASSIST[norm(p.motivo || '')] || 'Outro');
+    let padrao = '';
+    if (String(p.para || '').trim()) {
+      padrao = dpAnalistaPorNome(p.para);
+      if (!padrao) return { erro: `Não conheço o analista “${p.para}” para cobrir.` };
+      if (norm(padrao) === norm(analista)) return { erro: 'Quem cobre precisa ser outra pessoa.' };
+    }
+    const conflito = state.dpCob.ausencias.find(x => norm(x.analista) === norm(analista) && x.inicio <= fim && x.fim >= inicio);
+    if (conflito) return { erro: `${analista} já tem uma ausência de ${fmtYmdBR(conflito.inicio)} a ${fmtYmdBR(conflito.fim)}. Edite essa na Cartela em vez de criar outra.` };
+    const novo = normalizeAus({ id: uid(), analista, motivo, inicio, fim, padrao, porEmpresa: {}, obs: String(p.obs || '').slice(0, 200), criadoEm: Date.now(), autor: state.meId || '' });
+    const r = resumoCobertura(novo), resumo = `${analista} · ${motivo} · ${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}`;
+    const avisos = [];
+    if (r.sem && r.emps) avisos.push(`${r.sem} de ${r.emps} empresa(s) ficam sem cobertura. Dá para definir quem cobre cada uma na Cartela.`);
+    const b = padrao && state.dpCob.ausencias.find(x => norm(x.analista) === norm(padrao) && x.inicio <= fim && x.fim >= inicio);
+    if (b) avisos.push(`${padrao} também estará ausente de ${fmtYmdBR(b.inicio)} a ${fmtYmdBR(b.fim)}.`);
+    return {
+      titulo: 'Registrar ausência na Cartela', empresa: '',
+      linhas: [`${analista} · ${motivo}`, `${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}`, padrao ? `Quem cobre: ${padrao} (${r.emps} empresa(s))` : 'Sem cobertura definida'], aviso: avisos.join(' '),
+      executar: async () => { if (!(await salvarCob(c => { c.ausencias.push(novo); }, `Registrou ausência: ${resumo}`))) throw new Error('falhou'); return 'Ausência registrada.'; },
+      desfazer: async () => { await salvarCob(c => { c.ausencias = c.ausencias.filter(x => x.id !== novo.id); }, `Desfez a ausência: ${resumo}`); },
+    };
+  }
   const dpAssist = {
     modulo: 'dp', nome: 'Departamento Pessoal',
     abas: [['painel', 'Painel'], ['agenda', 'Agenda'], ['empresas', 'Empresas'], ['funcionarios', 'Funcionários'], ['sindicatos', 'Convenções'], ['cartela', 'Cartela de clientes'], ['ferramentas', 'Ferramentas']],
@@ -5606,6 +5683,8 @@
     vocab: () => ({ etapas: [], obrigacoes: [] }),
     // Ações do DP: lembrete pessoal (só o próprio usuário vê). Nada grava até executar().
     acao(tipo, p = {}) {
+      if (tipo === 'transferir' || tipo === 'observacao') return dpAcaoEmpresa(tipo, p);
+      if (tipo === 'ausencia') return dpAcaoAusencia(p);
       if (tipo !== 'lembrete') return { erro: 'Ainda não sei fazer isso no DP.' };
       if (!podeCriarMeu()) return { erro: state.meusOff || 'Você não tem permissão para criar lembretes aqui.' };
       const texto = String(p.texto || '').trim().slice(0, 200);
