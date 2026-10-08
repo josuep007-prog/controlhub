@@ -60,8 +60,11 @@
   function chaveLogin(ident) { return sha256hex("login:" + norm(ident)); }
   function igualConst(a, b) { if (a.length !== b.length) return false; var r = 0; for (var i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; }
   function senhaProvisoria() {
-    var abc = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789", r = crypto.getRandomValues(new Uint8Array(10)), s = "";
-    for (var i = 0; i < r.length; i++) s += abc.charAt(r[i] % abc.length);
+    var abc = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789", s;
+    do { // garante letra e número, para a senha passar na mesma regra das senhas escolhidas
+      var r = crypto.getRandomValues(new Uint8Array(10)); s = "";
+      for (var i = 0; i < r.length; i++) s += abc.charAt(r[i] % abc.length);
+    } while (validarSenha(s));
     return s;
   }
   function validarSenha(s) {
@@ -169,21 +172,23 @@
     if (f.senha !== f.confirma) return "As senhas não são iguais.";
     return "";
   }
-  function criarConta(f) {
+  // extra: conta criada por um administrador ({admin, niveis, analista, trocarSenha, por}); sem ele é o cadastro da própria pessoa
+  function criarConta(f, extra) {
     var msg = validarCadastro(f); if (msg) return Promise.reject(erro(msg));
     var login = norm(f.login), email = norm(f.email), id = novoId();
     return Promise.all([chaveLogin(login), chaveLogin(email)]).then(function (ks) {
       return Promise.all([BACKEND.ler("auth_logins/" + ks[0]), BACKEND.ler("auth_logins/" + ks[1]), BACKEND.listar("auth_usuarios")]).then(function (r) {
         if (r[0]) throw erro("Esse usuário já está em uso. Escolha outro.");
         if (r[1]) throw erro("Já existe uma conta com esse e-mail.");
-        var primeiro = r[2].length === 0, sal = novoSal();
+        var primeiro = !extra && r[2].length === 0, sal = novoSal();
         return hashSenha(f.senha, sal, ITER).then(function (h) {
-          var u = {login: login, email: email, nome: String(f.nome).trim().slice(0, 80), hash: h, salt: sal, iter: ITER, status: primeiro ? "ativo" : "pendente", admin: primeiro,
-            niveis: primeiro ? {dp: "coord", contabil: "coord", fiscal: "coord", portal: "coord", cardapio: "coord"} : nivelVazio(), analista: {}, trocarSenha: false, falhas: 0, bloqueadoAte: 0, sv: 1,
+          var u = {login: login, email: email, nome: String(f.nome).trim().slice(0, 80), hash: h, salt: sal, iter: ITER, status: primeiro || extra ? "ativo" : "pendente", admin: extra ? !!extra.admin : primeiro,
+            niveis: extra ? Object.assign(nivelVazio(), extra.niveis) : primeiro ? {dp: "coord", contabil: "coord", fiscal: "coord", portal: "coord", cardapio: "coord"} : nivelVazio(), analista: extra ? clone(extra.analista || {}) : {}, trocarSenha: extra ? !!extra.trocarSenha : false, falhas: 0, bloqueadoAte: 0, sv: 1,
             criadoEm: agora(), ultimoAcesso: 0, chaves: [ks[0], ks[1]]};
+          if (extra) { u.aprovadoPor = extra.por; u.aprovadoEm = agora(); }
           return BACKEND.gravar("auth_usuarios/" + id, u).then(function () {
             return Promise.all([BACKEND.gravar("auth_logins/" + ks[0], {id: id}), BACKEND.gravar("auth_logins/" + ks[1], {id: id})]);
-          }).then(function () { BACKEND.registrar(primeiro ? "primeiro_admin" : "cadastro", id, id); return {id: id, primeiro: primeiro}; });
+          }).then(function () { BACKEND.registrar(extra ? "criado_admin" : primeiro ? "primeiro_admin" : "cadastro", id, extra ? extra.por : id); return {id: id, primeiro: primeiro}; });
         });
       });
     });
@@ -412,7 +417,8 @@
   }
 
   /* ============ tela de administração de usuários ============ */
-  var admin = {aba: "pendentes", lista: [], rasc: {}, prov: {}, off: null, raiz: null, analistas: {}, logDias: null};
+  var admin = {aba: "pendentes", lista: [], rasc: {}, prov: {}, off: null, raiz: null, analistas: {}, logDias: null, novo: null, criado: null};
+  function rascunhoNovo() { return {nome: "", email: "", login: "", senha: senhaProvisoria(), trocar: true, admin: false, niveis: nivelVazio(), analista: {}, erro: "", ocupado: false}; }
   function opcoesNivel(mod) {
     var ops = mod === "cardapio" ? [["", "Sem acesso"], ["consulta", "Consulta"], ["coord", "Coordenador"]] : [["", "Sem acesso"], ["consulta", "Consulta"], ["analista", "Analista"], ["coord", "Coordenador"]];
     return ops;
@@ -430,14 +436,49 @@
     });
   }
   function nAdminsAtivos(excecao) { return admin.lista.filter(function (u) { return u.admin && u.status === "ativo" && u.id !== excecao; }).length; }
-  function cardUsuario(u) {
-    var e = dadosEdit(u), eu = atual && atual.id === u.id;
-    var tags = '<span class="au-tag ' + (u.status === "pendente" ? "pend" : u.status === "bloqueado" ? "blq" : "") + '">' + (u.status === "pendente" ? "Aguardando liberação" : u.status === "bloqueado" ? "Bloqueado" : "Ativo") + '</span>' + (u.admin ? '<span class="au-tag adm">Administrador</span>' : "") + (eu ? '<span class="au-tag">você</span>' : "");
-    var mods = MODS.map(function (m) {
+  function blocoModulos(e) {
+    return MODS.map(function (m) {
       var sel = '<select data-n="' + m + '" aria-label="Nível em ' + esc(MODN[m]) + '"' + (e.admin ? " disabled" : "") + '>' + opcoesNivel(m).map(function (o) { return '<option value="' + o[0] + '"' + ((e.admin ? "coord" : e.niveis[m]) === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select>';
       var an = COM_ANALISTA.indexOf(m) !== -1 && !e.admin && e.niveis[m] === "analista" ? '<input data-a="' + m + '" list="au-dl-' + m + '" value="' + esc(e.analista[m] || "") + '" placeholder="Nome do analista em ' + esc(MODN[m]) + '" aria-label="Nome do analista em ' + esc(MODN[m]) + '">' : "";
       return '<div class="au-mod"><label>' + esc(MODN[m]) + '</label>' + sel + an + '</div>';
     }).join("");
+  }
+  function formNovo() {
+    var n = admin.novo;
+    if (!n) return '<div><button type="button" class="ax-btn prim" data-novo="abrir" style="width:auto">＋ Novo usuário</button></div>';
+    var f = function (k, rot, tipo, extra) { return '<div class="au-mod"><label for="au-nv-' + k + '">' + rot + '</label><input id="au-nv-' + k + '" data-nv="' + k + '" type="' + tipo + '" value="' + esc(n[k]) + '" ' + (extra || "") + '></div>'; };
+    return '<form class="au-u au-novo" novalidate autocomplete="off"><div class="au-cab"><b>Novo usuário</b><span>A conta já nasce ativa, sem precisar de aprovação.</span></div>' +
+      '<div class="au-mods">' + f("nome", "Nome", "text", 'autocomplete="off" maxlength="80"') + f("email", "E-mail", "email", 'autocomplete="off"') + f("login", "Usuário (para entrar)", "text", 'autocomplete="off" autocapitalize="none" spellcheck="false"') +
+      '<div class="au-mod"><label for="au-nv-senha">Senha inicial</label><div style="display:flex;gap:6px"><input id="au-nv-senha" data-nv="senha" type="text" value="' + esc(n.senha) + '" autocomplete="off" spellcheck="false" style="font-family:\'IBM Plex Mono\',monospace"><button type="button" class="ax-btn" data-novo="gerar" style="white-space:nowrap;padding:6px 10px">Gerar</button></div></div></div>' +
+      '<label class="ax-chk" style="margin:0"><input type="checkbox" data-nvc="trocar"' + (n.trocar ? " checked" : "") + '> Exigir que a pessoa troque a senha no primeiro acesso</label>' +
+      '<label class="ax-chk" style="margin:0"><input type="checkbox" data-nvc="admin"' + (n.admin ? " checked" : "") + '> Administrador (acesso total e gerencia usuários)</label>' +
+      '<div class="au-mods">' + blocoModulos(n) + '</div>' +
+      '<div class="au-bot"><button type="submit" class="ax-btn prim" data-novo="criar"' + (n.ocupado ? " disabled" : "") + '>' + (n.ocupado ? "Criando…" : "Criar usuário") + '</button><button type="button" class="ax-btn" data-novo="cancelar">Cancelar</button><span class="ax-erro" style="margin:0" role="alert">' + esc(n.erro) + '</span></div></form>';
+  }
+  function avisoCriado() {
+    var c = admin.criado; if (!c) return "";
+    return '<div class="au-prov"><span><b>' + esc(c.nome) + '</b> foi criado(a). Passe estes dados (a senha só aparece agora' + (c.trocar ? "; será pedida a troca no primeiro acesso" : "") + '):</span><code>' + esc(c.login) + ' / ' + esc(c.senha) + '</code><button type="button" class="ax-btn" data-novo="copiar">Copiar</button><button type="button" class="ax-btn" data-novo="fechar">Fechar</button></div>';
+  }
+  function criarNovo() {
+    var n = admin.novo; if (!n || n.ocupado) return;
+    var f = {nome: n.nome, email: String(n.email).trim(), login: n.login, senha: n.senha, confirma: n.senha};
+    var msg = validarCadastro(f);
+    if (!msg && !n.admin && !MODS.some(function (m) { return n.niveis[m]; })) msg = "Escolha pelo menos um módulo (ou marque Administrador).";
+    if (!msg && !n.admin && COM_ANALISTA.some(function (m) { return n.niveis[m] === "analista" && !String(n.analista[m] || "").trim(); })) msg = "Para o nível Analista, informe o nome do analista naquele módulo.";
+    if (msg) { n.erro = msg; desenharAdmin(); return; }
+    var niveis = {}, an = {};
+    MODS.forEach(function (m) { niveis[m] = n.admin ? "coord" : (n.niveis[m] || ""); });
+    COM_ANALISTA.forEach(function (m) { if (!n.admin && niveis[m] === "analista") an[m] = String(n.analista[m]).trim(); });
+    n.ocupado = true; n.erro = ""; desenharAdmin();
+    criarConta(f, {admin: !!n.admin, niveis: niveis, analista: an, trocarSenha: !!n.trocar, por: atual.id}).then(function () {
+      admin.criado = {nome: String(n.nome).trim(), login: norm(n.login), senha: n.senha, trocar: !!n.trocar};
+      admin.novo = null; admin.aba = "ativos"; desenharAdmin();
+    }).catch(function (e) { n.ocupado = false; n.erro = e && e.amigavel ? e.message : "Não consegui criar o usuário agora. Tente de novo."; if (!(e && e.amigavel)) console.error(e); desenharAdmin(); });
+  }
+  function cardUsuario(u) {
+    var e = dadosEdit(u), eu = atual && atual.id === u.id;
+    var tags = '<span class="au-tag ' + (u.status === "pendente" ? "pend" : u.status === "bloqueado" ? "blq" : "") + '">' + (u.status === "pendente" ? "Aguardando liberação" : u.status === "bloqueado" ? "Bloqueado" : "Ativo") + '</span>' + (u.admin ? '<span class="au-tag adm">Administrador</span>' : "") + (eu ? '<span class="au-tag">você</span>' : "");
+    var mods = blocoModulos(e);
     var prov = admin.prov[u.id] ? '<div class="au-prov"><span>Senha provisória (mostrada só agora):</span><code>' + esc(admin.prov[u.id]) + '</code><button type="button" class="ax-btn" data-copia="' + esc(u.id) + '">Copiar</button></div>' : "";
     var bot = u.status === "pendente" ? '<button type="button" class="ax-btn prim" data-ac="aprovar">Aprovar e salvar</button><button type="button" class="ax-btn perigo" data-ac="recusar">Recusar cadastro</button>'
       : '<button type="button" class="ax-btn prim" data-ac="salvar"' + (e.sujo ? "" : " disabled") + '>Salvar</button>' +
@@ -459,10 +500,11 @@
       corpo = l.length ? '<div class="au-lista">' + l.slice().sort(function (a, b) { return norm(a.nome) < norm(b.nome) ? -1 : 1; }).map(cardUsuario).join("") + '</div>' : '<div class="au-vazio">' + (admin.aba === "pendentes" ? "Nenhum cadastro aguardando liberação." : admin.aba === "ativos" ? "Nenhum usuário ativo." : "Nenhum usuário bloqueado.") + '</div>';
     }
     var dls = COM_ANALISTA.map(function (m) { return '<datalist id="au-dl-' + m + '">' + (admin.analistas[m] || []).map(function (n) { return '<option value="' + esc(n) + '">'; }).join("") + '</datalist>'; }).join("");
-    var foco = doc.activeElement && raiz.contains(doc.activeElement) ? doc.activeElement.getAttribute("data-n") || doc.activeElement.getAttribute("data-a") : null;
+    var ae = doc.activeElement && raiz.contains(doc.activeElement) ? doc.activeElement : null, noNovo = !!(ae && ae.closest(".au-novo"));
+    var foco = ae ? ae.getAttribute("data-n") || ae.getAttribute("data-a") : null;
     raiz.innerHTML = '<div class="au"><p style="margin:0;color:var(--ink-3,#5F6D77)">Cada pessoa tem um nível por módulo. <b>Coordenador</b> edita tudo no módulo, <b>Analista</b> edita só a própria carteira (use o nome que aparece nas listas de analistas), <b>Consulta</b> só vê. Sem nível, o módulo fica escondido.</p>' +
-      '<div class="au-abas" role="group" aria-label="Filtro">' + abas.map(function (a) { return '<button type="button" data-aba="' + a[0] + '" aria-pressed="' + (admin.aba === a[0]) + '">' + a[1] + (a[2] != null ? " (" + a[2] + ")" : "") + '</button>'; }).join("") + '</div>' + corpo + dls + '</div>';
-    if (foco) { var f = raiz.querySelector('[data-n="' + foco + '"],[data-a="' + foco + '"]'); if (f) f.focus(); }
+      avisoCriado() + formNovo() + '<div class="au-abas" role="group" aria-label="Filtro">' + abas.map(function (a) { return '<button type="button" data-aba="' + a[0] + '" aria-pressed="' + (admin.aba === a[0]) + '">' + a[1] + (a[2] != null ? " (" + a[2] + ")" : "") + '</button>'; }).join("") + '</div>' + corpo + dls + '</div>';
+    if (foco) { var pre = noNovo ? ".au-novo " : ".au-lista ", f = raiz.querySelector(pre + '[data-n="' + foco + '"],' + pre + '[data-a="' + foco + '"]'); if (f) f.focus(); }
     if (admin.aba === "acessos") carregarLog();
   }
   function carregarLog() {
@@ -470,7 +512,7 @@
     Promise.all(dias.map(function (k) { return BACKEND.ler("auth_log/" + k).then(function (x) { return Object.keys((x && x.itens) || {}).map(function (id) { return x.itens[id]; }); }, function () { return []; }); })).then(function (r) {
       var itens = [].concat.apply([], r).sort(function (a, b) { return a.em < b.em ? 1 : -1; }).slice(0, 120), nome = {};
       admin.lista.forEach(function (u) { nome[u.id] = u.nome; });
-      var ROT = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)"};
+      var ROT = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)", criado_admin: "teve a conta criada pelo administrador"};
       var el = doc.getElementById("au-log"); if (!el) return;
       el.innerHTML = itens.length ? itens.map(function (x) { var por = x.por && x.por !== x.uid && nome[x.por] ? " · por " + esc(nome[x.por]) : ""; return '<div><time>' + fmtData(Date.parse(x.em)) + '</time><span><b>' + esc(nome[x.uid] || x.nomeAntigo || "(conta removida)") + '</b> ' + esc(ROT[x.tipo] || x.tipo) + por + '</span></div>'; }).join("") : '<div class="au-vazio">Sem acessos registrados nos últimos 7 dias.</div>';
     });
@@ -510,16 +552,45 @@
   function montarUsuarios(raiz) {
     if (!atual || !atual.admin) { raiz.innerHTML = '<div class="au-vazio">Só o administrador acessa esta tela.</div>'; return; }
     injetarCss(); admin.raiz = raiz; if (admin.off) admin.off();
-    admin.off = BACKEND.ouvirColecao("auth_usuarios", function (l) { admin.lista = l; if (!admin.prov._ocupado) desenharAdmin(); });
+    admin.off = BACKEND.ouvirColecao("auth_usuarios", function (l) {
+      admin.lista = l;
+      var ae = doc.activeElement; if (ae && ae.closest && ae.closest(".au-novo") && ae.tagName === "INPUT" && ae.type !== "checkbox") return; // não atrapalha quem está digitando o novo usuário
+      desenharAdmin();
+    });
     carregarAnalistas();
     if (!raiz.__ax) {
       raiz.__ax = true;
       raiz.addEventListener("click", function (ev) {
         var ab = ev.target.closest("[data-aba]"); if (ab) { admin.aba = ab.getAttribute("data-aba"); desenharAdmin(); return; }
+        var nv = ev.target.closest("[data-novo]");
+        if (nv) {
+          var a = nv.getAttribute("data-novo");
+          if (a === "abrir") { admin.novo = rascunhoNovo(); admin.criado = null; desenharAdmin(); var i = raiz.querySelector("#au-nv-nome"); if (i) i.focus(); }
+          else if (a === "cancelar") { admin.novo = null; desenharAdmin(); }
+          else if (a === "gerar" && admin.novo) { admin.novo.senha = senhaProvisoria(); var sn = raiz.querySelector("#au-nv-senha"); if (sn) sn.value = admin.novo.senha; }
+          else if (a === "fechar") { admin.criado = null; desenharAdmin(); }
+          else if (a === "copiar" && admin.criado) { var c = admin.criado, t = "Control Hub\nUsuário: " + c.login + "\nSenha: " + c.senha, ok2 = function () { nv.textContent = "Copiado"; }; try { navigator.clipboard.writeText(t).then(ok2, function () { nv.textContent = "Selecione e copie"; }); } catch (e) { nv.textContent = "Selecione e copie"; } }
+          return;
+        }
         var cp = ev.target.closest("[data-copia]"); if (cp) { var t = admin.prov[cp.getAttribute("data-copia")]; var ok = function () { cp.textContent = "Copiado"; }; try { navigator.clipboard.writeText(t).then(ok, function () { cp.textContent = "Selecione e copie"; }); } catch (e) { cp.textContent = "Selecione e copie"; } return; }
         var b = ev.target.closest("[data-ac]"), card = ev.target.closest(".au-u"); if (b && card) acaoAdmin(b.getAttribute("data-ac"), card.getAttribute("data-id"), card);
       });
+      raiz.addEventListener("submit", function (ev) { if (ev.target.closest(".au-novo")) { ev.preventDefault(); criarNovo(); } });
+      raiz.addEventListener("input", function (ev) {
+        var t = ev.target, n = admin.novo; if (!n || !t.closest(".au-novo")) return;
+        if (t.hasAttribute("data-nv")) n[t.getAttribute("data-nv")] = t.value;
+        else if (t.hasAttribute("data-a")) n.analista[t.getAttribute("data-a")] = t.value;
+      });
       raiz.addEventListener("change", function (ev) {
+        var t = ev.target, n = admin.novo;
+        if (n && t.closest(".au-novo")) {
+          if (t.hasAttribute("data-nvc")) n[t.getAttribute("data-nvc")] = t.checked;
+          else if (t.hasAttribute("data-n")) n.niveis[t.getAttribute("data-n")] = t.value;
+          else if (t.hasAttribute("data-nv")) n[t.getAttribute("data-nv")] = t.value;
+          else if (t.hasAttribute("data-a")) n.analista[t.getAttribute("data-a")] = t.value;
+          if (t.hasAttribute("data-nvc") || t.hasAttribute("data-n")) setTimeout(desenharAdmin, 0);
+          return;
+        }
         var card = ev.target.closest(".au-u"); if (!card) return;
         var u = admin.lista.filter(function (x) { return x.id === card.getAttribute("data-id"); })[0]; if (!u) return; var e = dadosEdit(u);
         if (ev.target.hasAttribute("data-adm")) e.admin = ev.target.checked;
