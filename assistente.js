@@ -1,6 +1,6 @@
 /* Tax, o assistente do Control Hub: mascote que passeia pela tela + conversa.
    Carregado pelo index.html (window.__hubApi). Cada módulo responde por window.__assistente (ver fiscal.html etc.).
-   O entendimento das frases é feito aqui mesmo, por regras do domínio (sem IA e sem custo). */
+   As respostas vêm da IA (capability "sample"); as regras do domínio só entram quando a pessoa pede. */
 (function () {
   "use strict";
   var H = window.__hubApi;
@@ -412,18 +412,25 @@
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
     var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
+    // Toda resposta vem da IA. Sem IA (ou no limite do dia) a pessoa vê o motivo e escolhe: tentar de novo ou, só se quiser, as regras simples.
+    var semIA = function (motivo) {
+      var r = [T(motivo + " As respostas do assistente dependem da IA."), CH([{rot: "Tentar de novo", enviar: texto, forcarIA: true}, {rot: "Responder pelas regras (sem IA)", enviar: texto, forcarRegras: true}])];
+      r.semIA = true; return r;
+    };
+    if (op.forcarRegras) return Promise.all([quemSou(), depsPronto()]).then(function () { return porRegras("Respondido pelas regras do assistente, sem IA."); });
+    if (op.forcarIA && !iaOk) iniciarIA();
     return Promise.all([iaPronta, quemSou(), depsPronto()]).then(function () {
-      if (!iaOk) return op.imagens && op.imagens.length ? [T("Para ler imagens eu preciso da IA, que não está disponível agora.")] : porRegras("");
+      if (!iaOk) return op.imagens && op.imagens.length ? [T("Para ler imagens eu preciso da IA, que não está disponível agora.")] : semIA(iaAviso || "A IA não está disponível agora.");
       var lim = +cfgEquipe.limiteDia || 0;
-      if (lim && usoHoje() >= lim && !op.forcarIA) return porRegras("Limite de " + lim + " perguntas à IA por dia atingido (definido pela coordenação): respondendo pelas regras.");
-      var viaIA = function () { return perguntarIA(op.oculto || texto, op).then(function (bl) { return bl || porRegras(iaAviso); }); };
-      if (lerPref().economia && !op.forcarIA && !(op.imagens && op.imagens.length)) {
-        return carregarTodos().then(function () { return entender(texto, t); }).then(function (bl) {
-          if (!bl || bl.naoEntendi) return viaIA();
-          return bl.concat([{tipo: "rodape", texto: "Modo economia: respondido sem IA."}, CH([{rot: "Perguntar à IA", enviar: texto, forcarIA: true}])]);
+      if (lim && usoHoje() >= lim && !op.forcarIA) return semIA("O limite de " + lim + " perguntas por dia à IA, definido pela coordenação, foi atingido.");
+      var viaIA = function (tentativa) {
+        return perguntarIA(op.oculto || texto, op).then(function (bl) {
+          if (bl) return bl;
+          if (!tentativa && iaFalha && ["not_granted", "tools_unavailable", "rate_limited"].indexOf(iaFalha) === -1) return viaIA(1);   // falha passageira: tenta mais uma vez
+          return semIA(iaAviso || "A IA não respondeu agora.");
         });
-      }
-      return viaIA();
+      };
+      return viaIA(0);
     });
   }
 
@@ -985,7 +992,7 @@
     ].concat(FERRAMENTAS_EXTRA.map(function (fn) { return fn(cartoes); }));
   }
   var FERRAMENTAS_EXTRA = [];
-  var conversa = lerConversa(), iaAviso = "", bolhaAtual = null;
+  var conversa = lerConversa(), iaAviso = "", iaFalha = "", bolhaAtual = null;
   function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && Date.now() - c.t < 3 * 864e5 && Array.isArray(c.c) ? c.c : []; }
   function guardarConversa() { gravarLS("tx-conv-v1", {t: Date.now(), c: conversa.slice(-12)}); }
   // Última linha "» a | b | c" = próximas perguntas sugeridas pela IA (viram botões).
@@ -1010,11 +1017,11 @@
       (cfgEquipe.instrucoes ? "\nInstruções da coordenação: " + String(cfgEquipe.instrucoes).slice(0, 1500) + "\n" : "") +
       "Termine SEMPRE com uma última linha começando com » e 2 ou 3 próximas perguntas ou pedidos curtos que a pessoa provavelmente fará, separados por | (ex.: » Abrir a agenda | E amanhã?).";
   }
-  // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder: aí entram as regras.
+  // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder (o motivo fica em iaAviso/iaFalha).
   function perguntarIA(texto, op) {
     op = op || {};
     if (iaOcupada) return Promise.resolve([T("Ainda estou pensando na pergunta anterior.")]);
-    iaOcupada = true; pensando(true);
+    iaOcupada = true; iaFalha = ""; iaAviso = ""; pensando(true);
     var extras = [], tmp = null, proprio = false, dots = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>';
     if (bolhaAtual && bolhaAtual.isConnected) tmp = bolhaAtual;
     else if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; msgs.appendChild(tmp); proprio = true; }
@@ -1043,11 +1050,11 @@
         fimBolha(true); iaOcupada = false;
         conversa.pop();
         var cod = e && e.code;
-        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; atualizarSub(); iaAviso = "Sem autorização para usar a IA: respondendo pelas regras do assistente."; return null; }
+        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; atualizarSub(); iaAviso = "Sem autorização para usar a IA."; iaFalha = cod; return null; }
         if (cod === "images_unavailable" || cod === "image_rejected") return [T(cod === "image_rejected" ? "Não consegui ler essa imagem (tipo ou tamanho não aceito)." : "Esta tela não consegue enviar imagens para a IA.")];
-        if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora: respondendo pelas regras."; return null; }
+        if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora."; iaFalha = cod; return null; }
         if (e && e.text) return [{tipo: "md", texto: separarSeguintes(e.text).texto, acoes: true, pergunta: texto}].concat(extras);
-        iaAviso = "A IA não respondeu: respondendo pelas regras."; return null;
+        iaAviso = "A IA não respondeu."; iaFalha = cod || "erro"; return null;
       });
   }
   // Markdown da IA: **negrito**, *itálico*, `código`, títulos, listas e tabelas (todo o resto vira texto).
@@ -1684,7 +1691,6 @@
     {sec: "Conversa", itens: [
       {k: "nome", rot: "Nome do assistente", tipo: "texto", ph: "Tax", ao: function () { atualizarNome(); }},
       {k: "iniciante", rot: "Modo iniciante: explica os termos e o porquê de cada passo", tipo: "bool"},
-      {k: "economia", rot: "Modo economia: perguntas simples respondidas sem IA", tipo: "bool"},
       {k: "lerVoz", rot: "Ler as respostas em voz alta", tipo: "bool"},
       {k: "fonteGrande", rot: "Letra maior no chat", tipo: "bool", ao: aplicarVisualPainel},
       {k: "contraste", rot: "Alto contraste no chat", tipo: "bool", ao: aplicarVisualPainel},
@@ -1981,7 +1987,7 @@
       d = doc.createElement("div"); d.className = "tx-chips";
       b.itens.forEach(function (c) {
         var x = doc.createElement("button"); x.type = "button"; x.className = "tx-chip"; x.textContent = c.rot;
-        x.onclick = function () { if (c.enviar) enviar(c.enviar, {forcarIA: c.forcarIA, oculto: c.oculto}); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
+        x.onclick = function () { if (c.enviar) enviar(c.enviar, {forcarIA: c.forcarIA, forcarRegras: c.forcarRegras, oculto: c.oculto}); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
         d.appendChild(x);
       });
       return d;
@@ -2077,7 +2083,7 @@
     var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar(); bolhaAtual = pensa;
     var temModulos = apisCarregadas().length >= H.modulos().length;
     var lento = setTimeout(function () { if (!temModulos && !iaOk) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
-    responder(txt, {forcarIA: op.forcarIA, oculto: op.oculto, imagens: imgs}).then(function (bl) {
+    responder(txt, {forcarIA: op.forcarIA, forcarRegras: op.forcarRegras, oculto: op.oculto, imagens: imgs}).then(function (bl) {
       clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl);
       if (bl && bl.naoEntendi) registrarPergunta(txt, "nao_entendi");
       aoResponder(bl);
