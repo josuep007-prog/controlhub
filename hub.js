@@ -573,7 +573,7 @@
         ${stretch}
         ${ro || fixo ? '' : `<button type="button" class="icon-btn card-fav ${t.favorite?'on':''}" data-action="fav" data-id="${escapeHtml(t.id)}" aria-label="${t.favorite ? 'Tirar dos favoritos' : 'Favoritar'}" aria-pressed="${t.favorite}">${ic('star', 'ic-sm')}</button>`}
         ${ro || fixo ? '' : `<button type="button" class="icon-btn card-edit" data-action="edit" data-id="${escapeHtml(t.id)}" aria-label="Editar ${escapeHtml(t.name)}">${ic('edit', 'ic-sm')}</button>`}
-        <div class="card-icon">${toolIcon(t)}</div>
+        <div class="card-icon">${toolIcon(t)}${badgePendentes(t)}</div>
         <div class="card-title" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</div>
       </div>`;
     }).join('');
@@ -709,8 +709,13 @@
 
   // ---------- início: Hoje ----------
   const cardHtml = (titulo, sub, body, acoes = '') => `<section class="pn-card"><div class="pn-card-head"><h3>${titulo}</h3>${sub ? `<span class="sub">${sub}</span>` : ''}${acoes}</div><div class="pn-card-body">${body}</div></section>`;
+  // Bolinha com o número de cadastros aguardando liberação, só para o administrador, no item "Usuários".
+  function badgePendentes(t) {
+    const n = t.virtual && t.moduleKey === 'usuarios' ? (AUTH()?.pendentes?.() || 0) : 0;
+    return n > 0 ? `<span class="au-badge" title="${n} cadastro(s) aguardando liberação" aria-label="${n} cadastro(s) aguardando liberação">${n}</span>` : '';
+  }
   function toolTile(t) {
-    const inner = `<div class="card-icon" style="--accent:${t.color}">${toolIcon(t)}</div><span>${escapeHtml(t.name)}</span>`;
+    const inner = `<div class="card-icon" style="--accent:${t.color}">${toolIcon(t)}${badgePendentes(t)}</div><span>${escapeHtml(t.name)}</span>`;
     if (t.moduleKey) return `<button type="button" class="qa-tile" data-action="module" data-module="${escapeHtml(t.moduleKey)}" data-id="${escapeHtml(t.id)}">${inner}</button>`;
     if (t.url) return `<a class="qa-tile" data-action="open" data-id="${escapeHtml(t.id)}" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(hostOf(t.url))}">${inner}</a>`;
     return `<button type="button" class="qa-tile" data-action="edit" data-id="${escapeHtml(t.id)}" title="Sem link: clique para configurar"${state.readOnly ? ' disabled' : ''}>${inner}</button>`;
@@ -5816,6 +5821,7 @@
   state.dpFuncModo = state.prefs.dpFuncModo === 'lista' ? 'lista' : 'tempo';
   // O Hub só começa depois do login (auth.js). Sem auth.js, abre direto.
   const iniciarApp = () => {
+    AUTH()?.onPendentes?.(() => { renderFerramentas(); if (!state.activeModule && !state.frameModule) renderHome(); });
     if (HOSTED) startShared(); else startLocal();
     const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
     if (rotaInicial) applyRoute(rotaInicial); else renderHome();
