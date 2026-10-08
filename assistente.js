@@ -37,6 +37,22 @@
   function contarUso() { var n = usoHoje() + 1; gravarLS(USO, {dia: ymd(hoje()), n: n}); gravarLS("tx-uso-tot", (+lerLS("tx-uso-tot", 0) || 0) + 1); return n; }
   // Configuração da equipe (banco do Hub, editada pela coordenação; ver lote "equipe").
   var cfgEquipe = {limiteDia: 0, instrucoes: ""};
+  // Departamentos: a coordenação liga a separação e diz, pessoa a pessoa, quais relatórios cada uma vê (ver o bloco "departamentos" mais abaixo).
+  var DEPTOS = {dp: "Departamento Pessoal", contabil: "Contábil", fiscal: "Fiscal", portal: "Portal do Cliente"}, DEP_ORD = ["dp", "contabil", "fiscal", "portal"];
+  var cfgDep = {ativo: null}, minhaLinha = null, depsFeito = false, depsRes = null;
+  var depsP = new Promise(function (ok) { depsRes = ok; });
+  function depsOk() { if (!depsFeito) { depsFeito = true; depsRes(); } }
+  setTimeout(depsOk, 4000);
+  function depsPronto() { return depsP; }
+  // Com o login do Hub, o acesso por módulo vem do nível de cada pessoa (auth.js); a separação por departamento antiga só vale sem login.
+  function depAtivo() { return !window.__auth && cfgDep.ativo === true; }
+  function minhasDeps() { var l = minhaLinha && Array.isArray(minhaLinha.deps) ? minhaLinha.deps : []; return DEP_ORD.filter(function (d) { return l.indexOf(d) !== -1; }); }
+  // O assistente consulta este módulo para esta pessoa? (cardápio é de todos; a coordenação vê tudo; sem a separação ligada, todos veem tudo.)
+  function podeMod(k) { if (window.__auth) return window.__auth.podeVer(k); if (k === "cardapio" || !depAtivo() || ehCoord) return true; return minhasDeps().indexOf(k) !== -1; }
+  // Departamentos do relatório padrão: os da pessoa; a coordenação sem departamento marcado vê todos.
+  function depsDoRelatorio() { var m = minhasDeps(); return m.length ? m : (ehCoord ? DEP_ORD.slice() : []); }
+  function semDepartamento() { return depAtivo() && !ehCoord && !minhasDeps().length; }
+  var TXT_SEM_DEP = "Seu usuário ainda não está ligado a nenhum departamento, então não mostro relatórios de DP, Fiscal, Contábil ou Portal. Peça à coordenação para liberar (⚙ → Equipe → Relatórios por departamento).";
   function copiarTexto(t) {
     try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return copiarVelho(t); }); } catch (e) {}
     return Promise.resolve(copiarVelho(t));
@@ -148,7 +164,8 @@
     });
     return inicioCarga;
   }
-  function modulo(k) {
+  function modulo(k, livre) {
+    if (!livre && !podeMod(k)) return Promise.resolve(null);
     if (carregados[k]) return Promise.resolve(carregados[k]);
     return H.carregar(k).then(function (a) { carregados[k] = a; cache.indice = null; return a; });
   }
@@ -254,6 +271,7 @@
     {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
     {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
     {t: "Login e níveis de acesso", k: "login senha entrar sair acesso nivel niveis permissao coordenador analista consulta administrador usuario cadastro trocar senha esqueci", a: "O Hub tem login próprio, separado da conta do Claude. Quem ainda não tem conta cria uma na tela de entrada e espera o administrador liberar. Cada pessoa tem um nível por módulo: Coordenador (edita tudo no módulo), Analista (edita só a própria carteira, pelo nome de analista ligado ao usuário) e Consulta (só vê). Sem nível, o módulo some do Hub. Para trocar a senha ou sair, clique no seu avatar (canto da tela inicial ou barra lateral). Esqueceu a senha? Peça ao administrador uma senha provisória: você será obrigado a trocá-la ao entrar. O administrador gerencia tudo em Usuários."},
+    {t: "Relatórios por departamento", k: "departamento departamentos relatorio relatorios resumo permissao acesso ver coordenacao liberar equipe separar setor", a: "Quando a coordenação liga a separação por departamento (⚙ → Equipe → Relatórios por departamento), cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela: um resumo do dia separado para cada departamento, e as consultas, fichas, carga e IA limitadas a eles. Cardápio e lembretes pessoais continuam para todos. A coordenação (editores do Hub) vê tudo e pode pedir /resumo fiscal, /resumo dp, /resumo contabil, /resumo portal ou /resumo todos. Se a sua tela estiver vazia, é porque falta a coordenação liberar o seu departamento. Isso organiza o que o assistente mostra: quem tem acesso ao Hub ainda consegue abrir os módulos pelas telas."},
     {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
     {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
     {t: "Apelidos de empresas", k: "apelido apelidos nome curto padaria", a: "Diga “a padaria do centro é a Panificadora Silva” e eu guardo o apelido (com confirmação) para toda a equipe usar nas próximas perguntas."},
@@ -394,7 +412,7 @@
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
     var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
-    return Promise.all([iaPronta, quemSou()]).then(function () {
+    return Promise.all([iaPronta, quemSou(), depsPronto()]).then(function () {
       if (!iaOk) return op.imagens && op.imagens.length ? [T("Para ler imagens eu preciso da IA, que não está disponível agora.")] : porRegras("");
       var lim = +cfgEquipe.limiteDia || 0;
       if (lim && usoHoje() >= lim && !op.forcarIA) return porRegras("Limite de " + lim + " perguntas à IA por dia atingido (definido pela coordenação): respondendo pelas regras.");
@@ -639,7 +657,8 @@
       mod = escolherModulo(pd, cand);
       if (mod === "?") return Promise.resolve({blocos: [T("“" + e.g.nome + "” está no Fiscal e no Contábil. Em qual deles?"), CH(cand.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]});
     }
-    return modulo(mod).then(function (a) {
+    if (pd.tipo !== "lembrete" && !podeMod(mod)) { var msgD = "Você não tem acesso ao " + MODN[mod] + " pelo assistente: é de outro departamento."; return Promise.resolve({blocos: [T(msgD)], erro: msgD}); }
+    return modulo(mod, pd.tipo === "lembrete").then(function (a) {
       if (!a || !a.acao) return {blocos: [T("Ainda não consigo fazer isso no " + MODN[mod] + ".")]};
       var id = e ? e.g.refs[mod] : "";
       if (e && !id && pd.tipo !== "lembrete") return {blocos: [T("“" + e.g.nome + "” não está no " + MODN[mod] + ".")]};
@@ -743,7 +762,7 @@
     return carregarTodos().then(function () {
       var por = {};
       ["fiscal", "contabil", "dp", "portal"].forEach(function (m) {
-        var a = carregados[m]; if (!a) return;
+        var a = carregados[m]; if (!a || !podeMod(m)) return;
         var r = a.consultar("carteira", {}); if (!r) return;
         r.linhas.forEach(function (l) { var d = l.dados; if (!d || !d.analista || /^\(sem/.test(d.analista)) return; var k = norm(d.analista).split(" ").slice(0, 2).join(" "); var q = por[k] = por[k] || {analista: d.analista, modulos: {}, pontos: 0}; q.modulos[MODN[m]] = Object.assign({}, d, {analista: undefined}); q.pontos += (d.atrasadas || 0) * 3 + (d.aguardandoCliente || 0) + (d.empresas || 0) * 0.15 + (d.frentes || 0) * 0.3; });
       });
@@ -753,7 +772,7 @@
   function listarTudo() {
     return carregarTodos().then(function () {
       var out = [];
-      Object.keys(carregados).forEach(function (m) { var a = carregados[m]; if (!a || !a.listar) return; if (a.exemplo && a.exemplo() && indice().empresas.length > 0 && apisCarregadas().some(function (b) { return b !== a && b.listar && b.listar().length; })) { /* exemplo convive com real: marca */ } a.listar().forEach(function (x) { out.push(Object.assign({modulo: m, exemplo: !!(a.exemplo && a.exemplo())}, x)); }); });
+      Object.keys(carregados).forEach(function (m) { var a = carregados[m]; if (!a || !a.listar || !podeMod(m)) return; if (a.exemplo && a.exemplo() && indice().empresas.length > 0 && apisCarregadas().some(function (b) { return b !== a && b.listar && b.listar().length; })) { /* exemplo convive com real: marca */ } a.listar().forEach(function (x) { out.push(Object.assign({modulo: m, exemplo: !!(a.exemplo && a.exemplo())}, x)); }); });
       return out;
     });
   }
@@ -836,7 +855,7 @@
         inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao)"}}, required: ["modulo", "tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () { return modulo(i.modulo); }).then(function (a) {
-            if (!a) return "Módulo indisponível.";
+            if (!a) return podeMod(i.modulo) ? "Módulo indisponível." : "Esta pessoa não tem acesso ao relatório de " + (DEPTOS[i.modulo] || i.modulo) + ": é de outro departamento. Explique isso a ela e não use outras fontes para responder.";
             var p = {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || "", comp: i.competencia || ""};
             if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; p.id = f.g.refs[i.modulo]; if (!p.id) return "“" + f.g.nome + "” não está no " + MODN[i.modulo] + "."; }
             var r = a.consultar(i.tipo, p);
@@ -987,6 +1006,7 @@
       "Para mostrar uma tela use abrir. Para termos do setor (siglas, obrigações) use glossario; para como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise. " +
       "Se pedirem rascunho de e-mail ou WhatsApp para cliente, escreva o texto pronto, cordial e objetivo, assinado “Equipe ControlTax”, só com dados que você consultou. Se pedirem para explicar ao cliente, use linguagem simples, sem siglas soltas. " +
       (p.iniciante ? "A pessoa é nova no setor: explique os termos e o porquê de cada passo, com calma. " : "") +
+      (depAtivo() && !ehCoord ? "\nEsta pessoa só tem acesso aos departamentos: " + (minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") || "nenhum") + ". Não responda sobre dados de outros departamentos.\n" : "") +
       (cfgEquipe.instrucoes ? "\nInstruções da coordenação: " + String(cfgEquipe.instrucoes).slice(0, 1500) + "\n" : "") +
       "Termine SEMPRE com uma última linha começando com » e 2 ou 3 próximas perguntas ou pedidos curtos que a pessoa provavelmente fará, separados por | (ex.: » Abrir a agenda | E amanhã?).";
   }
@@ -1072,7 +1092,8 @@
 
   /* ---------- consultas ---------- */
   var TIT_PADRAO = {vencimentos: "vencimentos", atrasos: "atrasos", cliente: "pendencias", carteira: "carteira", cardapio: "cardapio"};
-  function modulosPara(p) {
+  function modulosPara(p) { return modulosParaTodos(p).filter(podeMod); }
+  function modulosParaTodos(p) {
     if (p.intent === "cardapio") return ["cardapio"];
     if (p.mods.length) return p.mods;
     if (p.intent === "cliente") return ["contabil", "fiscal"];
@@ -1080,6 +1101,9 @@
     return ["dp", "contabil", "fiscal", "portal"];
   }
   function consulta(p) {
+    if (semDepartamento() && p.intent !== "cardapio") return Promise.resolve([T(TXT_SEM_DEP)]);
+    var proibidos = (p.mods || []).filter(function (k) { return !podeMod(k); });
+    if (proibidos.length && !(p.mods || []).some(podeMod)) return Promise.resolve([T("Você não tem acesso ao relatório de " + proibidos.map(function (k) { return DEPTOS[k] || MODN[k]; }).join(" nem de ") + ": ele é de outro departamento." + (minhasDeps().length ? " Os seus: " + minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") + "." : ""))]);
     var per = p.per;
     if (!per) per = p.intent === "cardapio" ? {de: hoje(), ate: hoje()} : p.intent === "vencimentos" ? {de: hoje(), ate: addDias(hoje(), 7)} : {de: hoje(), ate: hoje()};
     var tipo = TIT_PADRAO[p.intent], mods = modulosPara(p);
@@ -1112,7 +1136,9 @@
     if (!emps.length) return Promise.resolve([T("Qual empresa? Diga o nome ou o CNPJ."), ]);
     var topo = emps[0], pares = emps.filter(function (x) { return topo.s - x.s < 0.1; });
     if (pares.length > 1 && topo.s < 1.5) return Promise.resolve([T("Achei mais de uma empresa parecida. Qual delas?"), CH(pares.slice(0, 6).map(function (x) { return {rot: x.g.nome, enviar: (RX.navegar.test(p.t) ? "abrir " : "") + x.g.nome + (x.g.cnpj ? " " + x.g.cnpj : "")}; }))]);
-    var g = topo.g, ks = Object.keys(g.refs), abrir = RX.navegar.test(p.t);
+    var g = topo.g, ks = Object.keys(g.refs).filter(podeMod), abrir = RX.navegar.test(p.t);
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    if (!ks.length) return Promise.resolve([T("“" + g.nome + "” não está em nenhum dos seus departamentos, então não mostro a ficha por aqui.")]);
     var vistos = ks.map(function (k) { return modulo(k).then(function (a) { return a ? {k: k, a: a, r: a.consultar("empresa", {id: g.refs[k]})} : {k: k}; }).catch(function () { return {k: k}; }); });
     return Promise.all(vistos).then(function (res) {
       var out = [{tipo: "cab", texto: g.nome + (g.cnpj ? " · " + g.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : "")}], chips = [];
@@ -1686,7 +1712,7 @@
     return Promise.resolve([{tipo: "ajuda", titulo: "Comandos (respondidos sem IA)", texto: COMANDOS.concat(Object.keys(COMANDOS_EXTRA).map(function (k) { return ["/" + k, "", COMANDOS_EXTRA[k].rot || ""]; })).map(function (x) { return x[0] + " · " + x[2]; }).join("\n")}]);
   }
   var COMANDOS_EXTRA = {};
-  function porRegrasDireto(frase) { return carregarTodos().then(quemSou).then(function () { return entender(frase, norm(frase)); }); }
+  function porRegrasDireto(frase) { return depsPronto().then(carregarTodos).then(quemSou).then(function () { return entender(frase, norm(frase)); }); }
   function limparConversa() {
     conversa = []; guardarConversa(); gravarLS(HIST, []);
     if (msgs) { msgs.innerHTML = ""; boasVindas(false); }
@@ -2466,11 +2492,16 @@
   }
   // Fotografia do momento: vencimentos, atrasos, pendências do cliente e pontos de atenção.
   function situacao() {
-    return carregarTodos().then(quemSou).then(function () {
+    return depsPronto().then(carregarTodos).then(quemSou).then(function () {
       var h = hoje(), ate2 = diasUteisDepois(h, 2), meu = euNome ? casarEu(indice().analistas) : "";
       var s = {meu: meu, vencHoje: [], prox: [], atrasos: {}, pend: {}, lembretes: [], feriados: [], atencao: [], exemplo: []};
       ["dp", "contabil", "fiscal", "portal"].forEach(function (m) {
         var a = carregados[m]; if (!a) return;
+        if (!podeMod(m)) {
+          // Outro departamento: só os lembretes pessoais (privados de quem está logado) entram.
+          if (m === "dp") { try { var lb0 = a.consultar("lembretes", {de: ymd(h), ate: ymd(h)}); (lb0 && lb0.linhas || []).forEach(function (l) { if (l.dados && !l.dados.feito) s.lembretes.push(Object.assign({mod: "dp"}, l)); }); } catch (e) {} }
+          return;
+        }
         if (a.exemplo && a.exemplo()) { s.exemplo.push(m); return; }
         try {
           var v = a.consultar("vencimentos", {de: ymd(h), ate: ymd(ate2), analista: meu}) || {linhas: []};
@@ -2499,14 +2530,45 @@
   }
   function totalAtrasos(s) { return Object.keys(s.atrasos).reduce(function (t, k) { return t + (s.atrasos[k] || 0); }, 0); }
   function linhasBloco(titulo, ls, max) { return {tipo: "linhas", titulo: titulo + " · " + ls.length, linhas: ls.slice(0, max || 6), todas: ls, nota: ""}; }
-  function mudancas(s, ant) {
+  function mudancas(s, ant, mods) {
     if (!ant) return "";
-    var ps = Object.keys(s.atrasos).filter(function (k) { return ant.atrasos && ant.atrasos[k] != null && ant.atrasos[k] !== s.atrasos[k]; }).map(function (k) { var d = s.atrasos[k] - ant.atrasos[k]; return MODN[k] + " " + ant.atrasos[k] + " → " + s.atrasos[k] + " (" + (d > 0 ? "+" : "") + d + ")"; });
+    var ps = Object.keys(s.atrasos).filter(function (k) { return (!mods || mods.indexOf(k) !== -1) && ant.atrasos && ant.atrasos[k] != null && ant.atrasos[k] !== s.atrasos[k]; }).map(function (k) { var d = s.atrasos[k] - ant.atrasos[k]; return MODN[k] + " " + ant.atrasos[k] + " → " + s.atrasos[k] + " (" + (d > 0 ? "+" : "") + d + ")"; });
     return ps.length ? "Desde a sua última visita (" + dm(new Date(ant.t)) + "), atrasos: " + ps.join(" · ") + "." : "";
   }
   function snapDe(s) { return {t: Date.now(), atrasos: s.atrasos}; }
   // Resumo do dia (também em /resumo). Devolve {blocos, curto}.
-  function montarResumo(s, tipo) {
+  function montarResumo(s, tipo, deps) { return deps || depAtivo() ? montarResumoDeptos(s, tipo, deps) : montarResumoGeral(s, tipo); }
+  // Um relatório separado para cada departamento (só os da pessoa; a coordenação escolhe ou vê todos), mais um bloco "Geral".
+  function montarResumoDeptos(s, tipo, deps) {
+    var h = new Date(), saud = h.getHours() < 12 ? "Bom dia" : h.getHours() < 18 ? "Boa tarde" : "Boa noite", av = lerAv(), bl = [], totV = 0, totA = 0;
+    deps = deps || depsDoRelatorio();
+    var oi = saud + (euNome ? ", " + euNome.split(" ")[0] : "") + "! ";
+    bl.push({tipo: "cab", texto: (tipo === "sexta" ? "Resumo da semana · " : "Resumo do dia · ") + SEM[h.getDay()] + ", " + dm(h) + (s.meu ? " · carteira de " + s.meu : "")});
+    bl.push(T(deps.length ? oi + (deps.length > 1 ? "Um relatório para cada departamento:" : "Relatório do departamento " + DEPTOS[deps[0]] + ":") : oi + TXT_SEM_DEP));
+    deps.forEach(function (d) {
+      var vh = s.vencHoje.filter(function (l) { return l.mod === d; }), px = s.prox.filter(function (l) { return l.mod === d; }), nAt = s.atrasos[d] || 0, partes = [];
+      bl.push({tipo: "cab", texto: DEPTOS[d]});
+      if (s.exemplo.indexOf(d) !== -1) { bl.push({tipo: "rodape", texto: "Sem avisos: este departamento está com dados de exemplo."}); return; }
+      totV += vh.length; totA += nAt;
+      partes.push(vh.length ? vh.length + (vh.length === 1 ? " prazo vence hoje" : " prazos vencem hoje") : "nada vence hoje");
+      if (px.length) partes.push(px.length + " nos próximos 2 dias úteis");
+      partes.push(nAt ? nAt + " atraso(s)" : "nenhum atraso");
+      bl.push(T(partes.join(", ") + "."));
+      if (vh.length) bl.push(linhasBloco("Vence hoje", vh));
+      if (px.length) bl.push(linhasBloco("Próximos 2 dias úteis", px));
+      var mud = mudancas(s, av.snapAnt, [d]); if (mud) bl.push({tipo: "rodape", texto: mud});
+      var at = s.atencao.filter(function (l) { return l.mod === d; }); if (at.length) bl.push(linhasBloco("Atenção", at));
+    });
+    var ge = s.feriados.map(function (f) { return Object.assign({}, f, {t: "Feriado: " + f.t, sub: "os prazos que caem nele mudam de dia"}); }).concat(s.lembretes, s.atencao.filter(function (l) { return l.mod === "cardapio"; }));
+    if (deps.length > 1 && s.divergencias && s.divergencias.length) ge.push({t: s.divergencias.length + " divergência(s) de cadastro entre os setores", sub: s.divergencias.slice(0, 2).map(function (x) { return x.t; }).join(" · "), tom: "warn", mod: s.divergencias[0].mod, abrir: s.divergencias[0].abrir});
+    if (ge.length) { bl.push({tipo: "cab", texto: "Geral"}); bl.push(linhasBloco("Para todos", ge)); }
+    var chips = [{rot: "O que vence esta semana", enviar: "/semana"}, {rot: "Quem está atrasado", enviar: "/atrasos"}];
+    if (ehCoord || minhasDeps().length > 1) DEP_ORD.filter(function (d) { return podeMod(d) && deps.indexOf(d) === -1; }).forEach(function (d) { chips.push({rot: "Resumo de " + DEPTOS[d], enviar: "/resumo " + d}); });
+    chips.push({rot: "Silenciar avisos por 1h", acao: function () { focar(); return Promise.resolve([T("Ok, fico quieto por 1 hora. 🤫")]); }});
+    bl.push(CH(chips));
+    return {blocos: bl, curto: saud + "! " + (deps.length ? (totV ? totV + " vence(m) hoje" : "Nada vence hoje") + (totA ? ", " + totA + " atraso(s)" : "") + ". Clique em mim." : "Peça à coordenação para ligar você a um departamento.")};
+  }
+  function montarResumoGeral(s, tipo) {
     var h = new Date(), saud = h.getHours() < 12 ? "Bom dia" : h.getHours() < 18 ? "Boa tarde" : "Boa noite", av = lerAv();
     var bl = [{tipo: "cab", texto: (tipo === "sexta" ? "Resumo da semana · " : "Resumo do dia · ") + SEM[h.getDay()] + ", " + dm(h) + (s.meu ? " · carteira de " + s.meu : "")}];
     var nAt = totalAtrasos(s), partes = [];
@@ -2533,7 +2595,7 @@
     var h = hoje(); if (h.getDate() > 6) return [];
     var comp = ymd(new Date(h.getFullYear(), h.getMonth() - 1, 1)).slice(0, 7), out = [];
     ["fiscal", "contabil"].forEach(function (m) {
-      var a = carregados[m]; if (!a || (a.exemplo && a.exemplo())) return;
+      var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return;
       var r = a.consultar("competencia", {comp: comp}); if (!r || !r.resumo || !r.resumo.length) return;
       out.push({tipo: "grafico", titulo: MODN[m] + ": % fechado de " + MESES[+comp.slice(5) - 1] + " por analista", unidade: "%", itens: r.resumo.filter(function (q) { return q.empresas; }).map(function (q) { return {rotulo: q.analista, valor: Math.round(q.fechadas / q.empresas * 100)}; }).sort(function (a2, b2) { return b2.valor - a2.valor; })});
     });
@@ -2565,11 +2627,20 @@
       if (opt("sexta") && agora.getDay() === 5 && agora.getHours() >= 15 && !av.sexta) {
         av.sexta = 1;
         var seg = diasUteisDepois(hoje(), 1), carregadas = [];
-        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(addDias(hoje(), -4)), ate: ymd(seg), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") carregadas.push(Object.assign({mod: m}, l)); }); });
+        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(addDias(hoje(), -4)), ate: ymd(seg), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") carregadas.push(Object.assign({mod: m}, l)); }); });
         var ficou = carregadas.filter(function (l) { return l.data <= ymd(hoje()); }), segunda = carregadas.filter(function (l) { return l.data > ymd(hoje()); });
         var bl = [{tipo: "cab", texto: "Resumo da semana"}, T(ficou.length || segunda.length ? "Antes do fim de semana: " + ficou.length + " item(ns) da semana ainda pendente(s) e " + segunda.length + " vencendo no próximo dia útil (" + SEM[seg.getDay()] + ")." : "Semana limpa: nada pendente e nada vencendo no próximo dia útil. Bom descanso! 🎉")];
-        if (ficou.length) bl.push(linhasBloco("Ficou pendente na semana", ficou));
-        if (segunda.length) bl.push(linhasBloco("Vence no próximo dia útil", segunda));
+        if (depAtivo()) depsDoRelatorio().forEach(function (d) {
+          var fa = ficou.filter(function (l) { return l.mod === d; }), sg = segunda.filter(function (l) { return l.mod === d; });
+          bl.push({tipo: "cab", texto: DEPTOS[d]});
+          if (fa.length) bl.push(linhasBloco("Ficou pendente na semana", fa));
+          if (sg.length) bl.push(linhasBloco("Vence no próximo dia útil", sg));
+          if (!fa.length && !sg.length) bl.push(T("Nada pendente nem vencendo no próximo dia útil."));
+        });
+        else {
+          if (ficou.length) bl.push(linhasBloco("Ficou pendente na semana", ficou));
+          if (segunda.length) bl.push(linhasBloco("Vence no próximo dia útil", segunda));
+        }
         avisar("Resumo da semana: " + ficou.length + " pendente(s), " + segunda.length + " para " + SEM[seg.getDay()] + ".", bl);
       }
       // pendências do cliente que saíram de "aguardando" desde a última checagem
@@ -2612,7 +2683,16 @@
     if (!ag.length) return [T("Nenhum agendamento. Peça, por exemplo: “amanhã às 9h me lembre de conferir a agenda e abra o Fiscal”.")];
     return [T("Seus agendamentos (neste navegador):"), CH(ag.map(function (x) { var d = new Date(x.quando); return {rot: "✕ " + dm(d) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + " · " + x.texto, acao: function () { gravarLS(AG, lerLS(AG, []).filter(function (y) { return y.id !== x.id; })); return Promise.resolve([T("Agendamento cancelado: " + x.texto)]); }}; }))];
   }
-  COMANDOS_EXTRA.resumo = function () { return situacao().then(function (s) { var r = montarResumo(s, "dia"); return r.blocos.concat(notaDoMes()); }); }; COMANDOS_EXTRA.resumo.rot = "Resumo do dia (prazos, atrasos e pontos de atenção)";
+  COMANDOS_EXTRA.resumo = function (resto) {
+    var t = norm(resto || ""), deps = null;
+    if (t) {
+      if (/^(todos|todas|tudo|geral)$/.test(t)) deps = DEP_ORD.slice();
+      else deps = detectarModulos(t).filter(function (k) { return DEP_ORD.indexOf(k) !== -1; });
+      if (!deps.length) return Promise.resolve([T("Qual departamento? Use /resumo dp, /resumo fiscal, /resumo contabil, /resumo portal ou /resumo todos.")]);
+      var nao = deps.filter(function (d) { return !podeMod(d); });
+      if (nao.length) return Promise.resolve([T("Você não tem acesso ao relatório de " + nao.map(function (d) { return DEPTOS[d]; }).join(" nem de ") + ": é de outro departamento." + (minhasDeps().length ? " Os seus: " + minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") + "." : ""))]);
+    }
+    return situacao().then(function (s) { var r = montarResumo(s, "dia", deps); return r.blocos.concat(depAtivo() && !deps ? [] : notaDoMes()); }); }; COMANDOS_EXTRA.resumo.rot = "Resumo do dia (prazos, atrasos e pontos de atenção); /resumo fiscal, dp, contabil, portal ou todos";
   COMANDOS_EXTRA.foco = function () { if (emFoco()) { salvarPref({focoAte: 0}); return Promise.resolve([T("Modo foco desligado: volto a avisar.")]); } focar(); return Promise.resolve([T("Modo foco por 1 hora: guardo os avisos e mostro quando você abrir a conversa.")]); }; COMANDOS_EXTRA.foco.rot = "Silenciar os avisos por 1 hora (ou religar)";
   COMANDOS_EXTRA.agendados = function () { return Promise.resolve(agendamentosBlocos()); }; COMANDOS_EXTRA.agendados.rot = "Ver e cancelar agendamentos";
   FERRAMENTAS_EXTRA.push(function (cartoes) {
@@ -2664,10 +2744,97 @@
       if (window.claude && window.claude.use) window.claude.use("user").then(function (u) { userNs = u || null; if (!AUTH() && u && u.id) Promise.resolve(u.id()).then(function (i) { meuId = i || ""; }, function () {}); }).catch(function () {});
     } catch (e) {}
     usarDb().then(function (db) {
-      if (!db) return;
+      if (!db) { depsOk(); return; }
+      iniciarDeps(db);
       try { db.doc("tax_config/geral").onSnapshot(function (d) { var x = d && d.exists !== false && d.data ? d.data() || {} : {}; cfgEquipe = {limiteDia: Math.max(0, +x.limiteDia || 0), instrucoes: String(x.instrucoes || "").slice(0, 1500)}; }, function () {}); } catch (e) {}
       try { db.collection("tax_ajuda").onSnapshot(function (snap) { ajudaEquipe = snap.docs.map(function (d) { var x = d.data() || {}; return {id: d.id, t: String(x.t || ""), k: String(x.k || ""), a: String(x.a || ""), equipe: true}; }).filter(function (x) { return x.t && x.a; }); }, function () {}); } catch (e) {}
     });
+  }
+
+  /* ---- departamentos: chave geral (tax_config/deptos {ativo}) e uma linha por pessoa (tax_deptos/<id> {nome, deps}) ---- */
+  // Quem abre o assistente aparece na lista da coordenação (sem departamento até ser marcado). Isto organiza o que o assistente mostra;
+  // não é uma trava de segurança: o banco do Hub é compartilhado e quem tem acesso ao artefato ainda abre os módulos pelas telas.
+  function iniciarDeps(db) {
+    var gotCfg = false, gotMe = false, gotCoord = false;
+    var chk = function () { if (gotCfg && gotMe && gotCoord) depsOk(); };
+    try { db.doc("tax_config/deptos").onSnapshot(function (d) { var x = d && d.exists !== false && d.data ? d.data() || {} : {}; cfgDep.ativo = x.ativo === true; gotCfg = true; chk(); }, function () { gotCfg = true; chk(); }); } catch (e) { gotCfg = true; chk(); }
+    var uP = window.claude && window.claude.use ? window.claude.use("user") : Promise.resolve(null);
+    uP.then(function (u) {
+      if (!u) { gotMe = gotCoord = true; chk(); return; }
+      userNs = u;
+      Promise.resolve(u.canEdit ? u.canEdit() : false).then(function (v) { ehCoord = !!v; podeVerTudo = !!v; }, function () {}).then(function () { gotCoord = true; chk(); });
+      return Promise.resolve(u.id ? u.id() : "").then(function (i) {
+        meuId = i || meuId;
+        if (!meuId) { gotMe = true; chk(); return; }
+        var ref = db.doc("tax_deptos/" + meuId), registrou = false;
+        ref.onSnapshot(function (d) {
+          var ex = !!(d && d.exists !== false && d.data && d.data());
+          minhaLinha = ex ? d.data() || {} : null; gotMe = true; chk();
+          if (!ex && !registrou) { registrou = true; quemSou().then(function (nome) { return ref.set({nome: nome || "", deps: [], em: new Date().toISOString()}); }).catch(function () {}); }
+        }, function () { gotMe = true; chk(); });
+      });
+    }).catch(function () { gotMe = gotCoord = true; chk(); });
+  }
+  function sugerirDeps(nome) {
+    var t = norm(nome || "").split(" ").filter(Boolean), out = [];
+    if (!t.length) return out;
+    DEP_ORD.forEach(function (d) {
+      var a = carregados[d]; if (!a || !a.analistas || (a.exemplo && a.exemplo())) return;
+      if (a.analistas().some(function (n) { var q = norm(n).split(" ").filter(Boolean); return q[0] === t[0] && (q.length < 2 || t.length < 2 || q.slice(1).some(function (x) { return t.indexOf(x) !== -1; })); })) out.push(d);
+    });
+    return out;
+  }
+  function gravarDepsPessoa(id, nome, deps) {
+    return usarDb().then(function (db) { if (!db) throw new Error("sem banco"); return db.doc("tax_deptos/" + id).set({nome: nome || "", deps: deps, em: new Date().toISOString()}); })
+      .then(function () { balao("Departamentos salvos.", 1500); return true; }, function () { balao("Não consegui salvar (sem permissão?).", 2500); return false; });
+  }
+  function salvarDepAtivo(v) {
+    return usarDb().then(function (db) { if (!db) throw new Error("sem banco"); return db.doc("tax_config/deptos").set({ativo: !!v, em: new Date().toISOString()}); })
+      .then(function () { balao(v ? "Relatórios separados por departamento." : "Relatórios de volta para todos.", 2200); return true; }, function () { balao("Não consegui salvar (sem permissão?).", 2500); return false; });
+  }
+  // Editor da coordenação: liga/desliga a separação e marca os departamentos de cada pessoa.
+  function editorDeptos() {
+    var d = doc.createElement("div"); d.className = "tx-conf";
+    var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = "Relatórios por departamento"; d.appendChild(h);
+    var lb = doc.createElement("label"); lb.className = "tx-conf-l";
+    var c = doc.createElement("input"); c.type = "checkbox"; c.checked = depAtivo();
+    c.onchange = function () { var v = c.checked; salvarDepAtivo(v).then(function (ok) { if (!ok) c.checked = !v; }); };
+    lb.appendChild(c); lb.appendChild(doc.createTextNode(" Separar os relatórios por departamento")); d.appendChild(lb);
+    var av = doc.createElement("div"); av.className = "tx-conf-av";
+    av.textContent = "Ligado: cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela (um resumo do dia para cada departamento). Quem não tiver departamento marcado não vê relatórios. Os editores do Hub veem tudo. Cardápio e lembretes pessoais são de todos. Isto organiza o que o assistente mostra: quem tem acesso ao Hub ainda abre os módulos pelas telas.";
+    d.appendChild(av);
+    var lista = doc.createElement("div"); d.appendChild(lista);
+    var carregando = doc.createElement("div"); carregando.className = "tx-conf-l"; carregando.textContent = "Carregando as pessoas…"; lista.appendChild(carregando);
+    usarDb().then(function (db) {
+      if (!db) throw new Error("sem banco");
+      return db.collection("tax_deptos").get();
+    }).then(function (snap) {
+      var pessoas = snap.docs.map(function (x) { var v = x.data() || {}; return {id: x.id, nome: String(v.nome || ""), deps: Array.isArray(v.deps) ? v.deps.filter(function (k) { return DEP_ORD.indexOf(k) !== -1; }) : []}; });
+      var ids = pessoas.filter(function (p) { return !p.nome; }).map(function (p) { return p.id; });
+      var nomes = userNs && userNs.profiles && ids.length ? Promise.resolve(userNs.profiles(ids)).catch(function () { return {}; }) : Promise.resolve({});
+      return nomes.then(function (ps) {
+        pessoas.forEach(function (p) { if (!p.nome && ps && ps[p.id] && ps[p.id].name) p.nome = ps[p.id].name; });
+        pessoas.sort(function (a, b) { return (a.nome || "~").localeCompare(b.nome || "~", "pt-BR"); });
+        lista.textContent = "";
+        if (!pessoas.length) { var v0 = doc.createElement("div"); v0.className = "tx-conf-l"; v0.textContent = "Ainda ninguém abriu o assistente. As pessoas aparecem aqui na primeira vez que o abrirem."; lista.appendChild(v0); return; }
+        var sem = pessoas.filter(function (p) { return !p.deps.length; }).length;
+        var cab = doc.createElement("div"); cab.className = "tx-conf-l"; cab.textContent = pessoas.length + " pessoa(s)" + (sem ? " · " + sem + " ainda sem departamento" : ""); lista.appendChild(cab);
+        pessoas.forEach(function (p) {
+          var row = doc.createElement("div"); row.className = "tx-conf-l"; row.style.cssText = "display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px";
+          var nm = doc.createElement("b"); nm.textContent = (p.nome || "Pessoa sem nome") + (p.id === meuId ? " (você)" : ""); nm.style.minWidth = "9em"; row.appendChild(nm);
+          var caixas = {};
+          var salvar = function () { gravarDepsPessoa(p.id, p.nome, DEP_ORD.filter(function (k) { return caixas[k].checked; })); };
+          DEP_ORD.forEach(function (k) {
+            var l2 = doc.createElement("label"); var i2 = doc.createElement("input"); i2.type = "checkbox"; i2.checked = p.deps.indexOf(k) !== -1; i2.onchange = salvar; caixas[k] = i2;
+            l2.appendChild(i2); l2.appendChild(doc.createTextNode(" " + DEPTOS[k])); row.appendChild(l2);
+          });
+          var sug = !p.deps.length ? sugerirDeps(p.nome) : [];
+          if (sug.length) { var bs = botaoMini("Usar sugestão: " + sug.map(function (k) { return DEPTOS[k]; }).join(" + "), "Marca os departamentos em que o nome aparece como analista", function () { sug.forEach(function (k) { caixas[k].checked = true; }); salvar(); bs.remove(); }); row.appendChild(bs); }
+          lista.appendChild(row);
+        });
+      });
+    }).catch(function () { lista.textContent = ""; var e1 = doc.createElement("div"); e1.className = "tx-conf-av"; e1.textContent = "Não consegui ler a lista (sem banco ou sem permissão)."; lista.appendChild(e1); });
+    return d;
   }
   function salvarCfgEquipe(campo, valor) {
     return usarDb().then(function (db) {
@@ -2728,6 +2895,7 @@
     {rot: "Limite de perguntas à IA por pessoa/dia (0 = sem limite):", tipo: "texto", max: 4, valor: function () { return String(cfgEquipe.limiteDia || 0); }, salvar: function (v) { salvarCfgEquipe("limiteDia", Math.max(0, parseInt(v, 10) || 0)); }},
     {rot: "Instruções para a IA (tom, regras, termos internos):", tipo: "area", max: 1500, valor: function () { return cfgEquipe.instrucoes || ""; }, salvar: function (v) { salvarCfgEquipe("instrucoes", String(v).trim().slice(0, 1500)); }},
     {rot: "Editar a base de ajuda da equipe", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Perguntas e respostas da equipe (entram na ajuda do assistente e da IA):")], true); var m = msgs.lastChild; m.appendChild(editorAjuda()); rolar(); }},
+    {rot: "Relatórios por departamento: quem vê o quê", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Separação dos relatórios por departamento (só a coordenação vê isto):")], true); var m = msgs.lastChild; m.appendChild(editorDeptos()); rolar(); }},
     {rot: "Abrir o painel do assistente", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/painel"); painelCoordenacao(30).then(function (bl) { addBot(bl); }); }}
   ]});
 
