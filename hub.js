@@ -508,7 +508,12 @@
   }
   // "Uso do banco" é fixo do Hub: aparece junto das ferramentas sem ser gravado no banco.
   const USO_TOOL = { id:'uso-banco', name:'Uso do banco', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Mede quanto do banco de dados do artefato está em uso.', tags:['banco','armazenamento','limite'], moduleKey:'uso', virtual:true, favorite:false, newTab:false, order:9999, uses:0 };
-  const toolsComUso = () => state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
+  const USUARIOS_TOOL = { id:'usuarios-acesso', name:'Usuários', url:'', icon:'', category:'Atalhos', color:'#C2000C', description:'Aprova cadastros e define o nível de acesso de cada pessoa em cada módulo.', tags:['login','acesso','senha','permissões'], moduleKey:'usuarios', virtual:true, favorite:false, newTab:false, order:9998, uses:0 };
+  const toolsComUso = () => {
+    let l = state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
+    if (window.__auth?.ehAdmin() && !l.some(t => t.moduleKey === 'usuarios')) l = [...l, USUARIOS_TOOL];
+    return l;
+  };
   function visibleTools() {
     return toolsComUso()
       .filter(t => matchesToolQuery(t, state.toolsQuery))
@@ -568,6 +573,7 @@
   const norm2 = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   function toolIcon(t) {
     if (t.virtual && t.moduleKey === 'uso') return ic('banco');
+    if (t.virtual && t.moduleKey === 'usuarios') return ic('user');
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
     if (t.id === 'zappy' && t.icon === '💬') return `<img class="brand-img" src="${ZAPPY_LOGO}" alt="" width="26" height="26">`;
@@ -643,6 +649,7 @@
     if (!FRAMES[key]) closeFrames();
     if (key === 'dp') openDpModule();
     else if (key === 'uso') openUsoModule();
+    else if (key === 'usuarios') { if (window.__auth?.ehAdmin()) openUsuariosModule(); else toast('Só o administrador acessa a tela de usuários.'); }
     else if (FRAMES[key]) openFrame(key);
   }
 
@@ -783,11 +790,11 @@
   const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
-    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
+    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : '';
   }
   function syncRoute() {
     const r = currentRoute();
-    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : '';
+    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : '';
     savePrefs();
     try { const h = r ? '#' + r : ''; if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch {}
   }
@@ -796,6 +803,7 @@
     if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
     closeFrames();
     if (parts[0] === 'uso') { openUsoModule(); return; }
+    if (parts[0] === 'usuarios') { if (window.__auth?.ehAdmin()) openUsuariosModule(); return; }
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
     if (parts[1] === 'ferramentas') state.dpFerr = FERRAMENTAS_DP.some(f => f.id === parts[2]) ? parts[2] : '';
@@ -5349,6 +5357,16 @@
     fillNames(root);
   }
 
+  function openUsuariosModule() {
+    document.activeElement?.blur();
+    $('#view-home').hidden = true;
+    state.activeModule = 'usuarios';
+    syncShell(); closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-usuarios'; });
+    renderFerramentas(); syncRoute();
+    window.scrollTo(0, 0);
+    window.__auth.montarUsuarios($('#usuarios-root'));
+  }
   function openUsoModule() {
     document.activeElement?.blur();
     $('#view-home').hidden = true;
@@ -5717,7 +5735,7 @@
     },
     modulos: () => ['dp', ...Object.keys(FRAMES)],
   };
-  carregarScriptExt('assistente.js?v=11').catch(() => {});
+  carregarScriptExt('assistente.js?v=12').catch(() => {});
 
   loadPrefs();
   applyTheme();
@@ -5726,7 +5744,11 @@
   state.dpAgAnalista = typeof state.prefs.dpAgAnalista === 'string' ? state.prefs.dpAgAnalista : '';
   state.dpEmpModo = state.prefs.dpEmpModo === 'lista' ? 'lista' : 'cards';
   state.dpFuncModo = state.prefs.dpFuncModo === 'lista' ? 'lista' : 'tempo';
-  if (HOSTED) startShared(); else startLocal();
-  const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
-  if (rotaInicial) applyRoute(rotaInicial); else renderHome();
+  // O Hub só começa depois do login (auth.js). Sem auth.js, abre direto.
+  const iniciarApp = () => {
+    if (HOSTED) startShared(); else startLocal();
+    const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
+    if (rotaInicial) applyRoute(rotaInicial); else renderHome();
+  };
+  if (window.__auth) window.__auth.aguardar().then(iniciarApp); else iniciarApp();
 })();
