@@ -461,7 +461,7 @@
       var viaIA = function (tentativa) {
         return perguntarIA(op.oculto || texto, op).then(function (bl) {
           if (bl) return bl;
-          if (!tentativa && iaFalha && ["not_granted", "tools_unavailable", "rate_limited"].indexOf(iaFalha) === -1) return viaIA(1);   // falha passageira: tenta mais uma vez
+          if (!tentativa && iaFalha && ["not_granted", "tools_unavailable", "rate_limited", "invalid_request", "prompt_too_large", "empty_completion", "refused", "sampling_disabled", "session_expired"].indexOf(iaFalha) === -1) return viaIA(1);   // falha passageira: tenta mais uma vez
           return semIA(iaAviso || "A IA não respondeu agora.");
         });
       };
@@ -1094,6 +1094,27 @@
       (cfgEquipe.instrucoes ? "\nInstruções da coordenação: " + String(cfgEquipe.instrucoes).slice(0, 1500) + "\n" : "") +
       "Termine SEMPRE com uma última linha começando com » e 2 ou 3 próximas perguntas ou pedidos curtos que a pessoa provavelmente fará, separados por | (ex.: » Abrir a agenda | E amanhã?).";
   }
+  // A plataforma aceita descrição de até 1 KB por ferramenta e um número máximo de ferramentas por chamada.
+  // O que passar disso vai para o guia no texto das regras, e o excesso de ferramentas menos usadas é retirado.
+  var bytesTxt = function (t) { try { return new TextEncoder().encode(String(t)).length; } catch (e) { return String(t).length * 2; } };
+  function prepararFerramentas(lista) {
+    var guia = [];
+    var tools = lista.map(function (t) {
+      if (bytesTxt(t.description) <= 900) return t;
+      guia.push("• " + t.name + ": " + t.description);
+      var curto = t.description.split(/(?<=[.:])\s/)[0];
+      while (bytesTxt(curto) > 300) curto = curto.slice(0, Math.floor(curto.length * 0.8));
+      return Object.assign({}, t, {description: curto.replace(/[\s:,;]+$/, "") + ". Veja o guia detalhado desta ferramenta nas instruções."});
+    });
+    var max = iaLimites && iaLimites.tools && +iaLimites.tools.maxCount || 0;
+    if (max && tools.length > max) {
+      ["grafico", "glossario", "analistas", "mostrar_na_tela", "guardar_apelido", "agendar", "conferir_cadastros", "carga_analistas", "calcular"].forEach(function (n) {
+        if (tools.length > max) tools = tools.filter(function (t) { return t.name !== n; });
+      });
+      if (tools.length > max) tools = tools.slice(0, max);
+    }
+    return {tools: tools, guia: guia.join("\n")};
+  }
   // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder (o motivo fica em iaAviso/iaFalha).
   function perguntarIA(texto, op) {
     op = op || {};
@@ -1108,9 +1129,10 @@
     conversa.push({role: "user", content: texto + (imgs ? "\n(Anexei " + imgs.length + " imagem(ns) nesta mensagem: leia e use o que estiver nelas.)" : "")});
     if (conversa.length > 12) conversa = conversa.slice(-12);
     while (conversa.length && conversa[0].role !== "user") conversa.shift();
-    var regras = regrasIA();
+    var ferr = prepararFerramentas(ferramentasIA(extras));
+    var regras = regrasIA() + (ferr.guia ? "\n\nGuia detalhado das ferramentas (a lista de ferramentas traz só o resumo):\n" + ferr.guia : "");
     var turnos = conversa.map(function (m, i) { return {role: m.role, content: i === 0 ? regras + "\n\n" + m.content : m.content}; });
-    var opts = {tools: ferramentasIA(extras), modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(String(u.text || "").replace(/\n?[ \t]*»[^\n]*$/, "")); rolar(); }};
+    var opts = {tools: ferr.tools, modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(String(u.text || "").replace(/\n?[ \t]*»[^\n]*$/, "")); rolar(); }};
     if (imgs) opts.images = imgs;
     contarUso(); atualizarSub();
     registrarPergunta(texto, "ia");
@@ -1131,7 +1153,7 @@
         if (cod === "images_unavailable" || cod === "image_rejected") return [T(cod === "image_rejected" ? "Não consegui ler essa imagem (tipo ou tamanho não aceito)." : "Esta tela não consegue enviar imagens para a IA.")];
         if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora."; iaFalha = cod; return null; }
         if (e && e.text) return [{tipo: "md", texto: separarSeguintes(e.text).texto, acoes: true, pergunta: texto}].concat(extras);
-        iaAviso = "A IA não respondeu."; iaFalha = cod || "erro"; return null;
+        iaAviso = "A IA não respondeu" + (cod ? " (erro: " + cod + ")" : "") + "."; iaFalha = cod || "erro"; try { console.error("IA do assistente:", e); } catch (x) {} return null;
       });
   }
   // Markdown da IA: **negrito**, *itálico*, `código`, títulos, listas e tabelas (todo o resto vira texto).

@@ -5899,7 +5899,7 @@
     nivel: (m) => nivelMod(m),
   };
   // O assistente só entra depois do login (ele usa o nome e o nível de acesso da pessoa).
-  (window.__auth ? window.__auth.aguardar() : Promise.resolve()).then(() => carregarScriptExt('assistente.js?v=15')).catch(() => {});
+  (window.__auth ? window.__auth.aguardar() : Promise.resolve()).then(() => carregarScriptExt('assistente.js?v=16')).catch(() => {});
 
   loadPrefs();
   applyTheme();
