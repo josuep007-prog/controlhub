@@ -87,7 +87,7 @@
       ler: function (path) {
         return db().then(function (d) {
           if (!d) { var v = locAll()[path]; return v ? clone(v) : null; }
-          return d.doc(path).get().then(function (s) { return s && s.exists ? s.data() : null; });
+          return d.doc(path).get().then(function (s) { return s && s.exists ? clone(s.data()) : null; });
         });
       },
       gravar: function (path, data) {
@@ -111,7 +111,7 @@
       listar: function (col) {
         return db().then(function (d) {
           if (!d) return snapColecao(col, locAll()).map(function (x) { return Object.assign({id: x.id}, x.data()); });
-          return d.collection(col).get().then(function (s) { return s.docs.map(function (x) { return Object.assign({id: x.id}, x.data()); }); });
+          return d.collection(col).get().then(function (s) { return s.docs.map(function (x) { return Object.assign({id: x.id}, clone(x.data())); }); });
         });
       },
       ouvirDoc: function (path, cb) {
@@ -119,7 +119,7 @@
         db().then(function (d) {
           if (morto) return;
           if (!d) { var f = function () { var v = locAll()[path]; cb(v ? clone(v) : null); }; ouvintes.push(f); f(); off = function () { ouvintes = ouvintes.filter(function (x) { return x !== f; }); }; return; }
-          off = d.doc(path).onSnapshot(function (s) { cb(s && s.exists ? s.data() : null); }, function () {});
+          off = d.doc(path).onSnapshot(function (s) { cb(s && s.exists ? clone(s.data()) : null); }, function () {});
         });
         return function () { morto = true; try { off(); } catch (e) {} };
       },
@@ -128,7 +128,7 @@
         db().then(function (d) {
           if (morto) return;
           if (!d) { var f = function () { cb(snapColecao(col, locAll()).map(function (x) { return Object.assign({id: x.id}, x.data()); })); }; ouvintes.push(f); f(); off = function () { ouvintes = ouvintes.filter(function (x) { return x !== f; }); }; return; }
-          off = d.collection(col).onSnapshot(function (s) { cb(s.docs.map(function (x) { return Object.assign({id: x.id}, x.data()); })); }, function () {});
+          off = d.collection(col).onSnapshot(function (s) { cb(s.docs.map(function (x) { return Object.assign({id: x.id}, clone(x.data())); })); }, function () {});
         });
         return function () { morto = true; try { off(); } catch (e) {} };
       },
@@ -300,7 +300,7 @@
           .then(function (r) { return entrarConta(pegar("ax-login"), pegar("ax-senha"), false); }).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Criar conta"); mostrarErro(e.amigavel ? e.message : "Não consegui criar a conta agora. Tente de novo."); if (!e.amigavel) console.error(e); });
       } else {
         ocupado(bt, true, "Entrando…");
-        entrarConta(pegar("ax-ident"), pegar("ax-senha"), doc.getElementById("ax-manter").checked).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui entrar agora. Tente de novo."); if (!e.amigavel) console.error(e); });
+        entrarConta(pegar("ax-ident"), pegar("ax-senha"), doc.getElementById("ax-manter").checked).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui entrar agora. Tente de novo. (" + String((e && e.message) || e).slice(0, 80) + ")"); if (!e.amigavel) console.error(e); });
       }
     };
   }
