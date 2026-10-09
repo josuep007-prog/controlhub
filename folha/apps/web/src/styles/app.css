@@ -161,6 +161,11 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .campo input, .campo select, .campo textarea { font-weight: 400; width: 100%; }
 .campo.largo { grid-column: 1 / -1; }
 .campo .erro-campo { color: var(--brand-red); font-weight: 500; }
+.campo .nota-txt { font-weight: 500; font-size: 10.5px; color: var(--ink-3); }
+.campo .nota-txt.media { color: var(--ambar); }
+.campo .nota-txt.baixa { color: var(--brand-red); }
+.campo.nota-media input, .campo.nota-media select { border-color: var(--ambar); background: var(--ambar-soft); }
+.campo.nota-baixa input, .campo.nota-baixa select { border-color: var(--brand-red); background: var(--brand-red-soft); }
 .chk { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
 .form-sec { border-top: 1px solid var(--rule); padding: 14px 18px; }
 .form-sec:first-child { border-top: none; }
@@ -215,6 +220,19 @@ dialog.dlg::backdrop { background: rgba(8, 13, 17, 0.55); }
 .outros-item b { font: 700 14px "Archivo", sans-serif; }
 .outros-item span { font-size: 12px; color: var(--ink-3); }
 .outros-item:hover { border-color: var(--blue-deep); background: var(--surface); }
+
+/* ===== admissão: caminhos de entrada ===== */
+.passos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; padding: 16px; }
+.passo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; border: 1px solid var(--rule); background: var(--surface-2); }
+.passo b { font: 700 14px "Archivo", sans-serif; }
+.passo p { margin: 0 0 6px; color: var(--ink-2); font-size: 12.5px; }
+.soltar { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 18px; text-align: center; cursor: pointer; border: 2px dashed var(--rule-strong); background: var(--surface-2); color: var(--ink-2); }
+.soltar b { color: var(--ink); font: 700 15px "Archivo", sans-serif; }
+.soltar:hover, .soltar.sobre { border-color: var(--setor); background: var(--ambar-soft); }
+.lista-doc { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; }
+.girando { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--verde); border-top-color: transparent; border-radius: 50% !important; animation: gira 0.8s linear infinite; vertical-align: -2px; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .girando { animation: none; } }
 
 /* ===== relatórios (tela e impressão) ===== */
 .rel-papel { background: #fff; color: #111; padding: 24px; box-shadow: var(--shadow-1); border: 1px solid var(--rule); font-size: 11.5px; }

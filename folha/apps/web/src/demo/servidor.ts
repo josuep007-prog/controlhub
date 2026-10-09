@@ -15,6 +15,7 @@ import {
   type TabelasLegais as Tabelas,
 } from "@folha/calculo";
 import { z, ZodError } from "zod";
+import { FORMATO_JSON_EXTRACAO, INSTRUCOES_EXTRACAO, RespostaExtracaoSchema, montarRascunhoDeExtracao } from "../../../api/src/admissao-regras";
 import { competenciaPadrao, dadosExemplo } from "../../../api/src/dados-exemplo";
 import { EmpresaBody, FuncionarioBody, mensagemValidacao, opcional, RubricaBody, SindicatoBody } from "../../../api/src/esquemas";
 import { CAMPOS_EMP, CAMPOS_FUNC, filtrar, planejarImportacao, type TipoImportacao } from "../../../api/src/servicos/importacao-regras";
@@ -308,7 +309,7 @@ function calculosComItens(empresaId: string, comp: string, tipo: string): Calcul
 const Comp = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Competência inválida (AAAA-MM)");
 const Tipo = z.enum(["mensal", "adiantamento"]);
 
-type Rota = (p: { m: RegExpMatchArray; q: URLSearchParams; corpo: unknown; usuario: string }) => unknown;
+type Rota = (p: { m: RegExpMatchArray; q: URLSearchParams; corpo: unknown; usuario: string }) => unknown | Promise<unknown>;
 const rotas: [string, RegExp, Rota][] = [];
 const rota = (metodo: string, padrao: string, fn: Rota) =>
   rotas.push([metodo, new RegExp(`^${padrao.replace(/:(\w+)/g, "([^/]+)")}$`), fn]);
@@ -572,6 +573,69 @@ rota("GET", "/api/relatorios", ({ q }) => {
   };
 });
 
+// ---------- admissão: leitura de documentos pelo Claude do próprio visualizador ----------
+interface Sample {
+  limits(): Promise<{ images?: { maxCount: number } }>;
+  json<T>(entrada: string, opcoes: { images?: Blob[]; modelTier?: string; cache?: boolean }): Promise<T>;
+}
+const MENSAGEM_SAMPLE: Record<string, string> = {
+  not_granted: "Você não permitiu que esta página use o Claude. Libere e tente de novo.",
+  rate_limited: "Muitas chamadas ao Claude agora. Espere um pouco e tente de novo.",
+  image_rejected: "O Claude não aceitou uma das imagens. Tente outro arquivo ou uma foto mais nítida.",
+  refused: "O Claude se recusou a ler estes arquivos.",
+  invalid_json: "O Claude respondeu fora do formato esperado. Tente de novo.",
+  prompt_too_large: "Os arquivos de texto são grandes demais. Envie menos conteúdo.",
+  images_unavailable: "Este visualizador não permite enviar imagens ao Claude.",
+  session_expired: "Sua sessão expirou. Entre de novo no claude.ai.",
+};
+const CorpoExtrair = z.object({
+  empresaId: z.string(),
+  arquivos: z.array(z.object({ nome: z.string(), tipo: z.string(), base64: z.string().optional(), texto: z.string().optional() })).min(1, "Envie pelo menos um documento."),
+});
+const base64ParaBlob = (b64: string, tipo: string) => {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: tipo });
+};
+rota("POST", "/api/admissao/extrair", async ({ corpo, usuario }) => {
+  const b = CorpoExtrair.parse(corpo);
+  const e = empresa(b.empresaId);
+  const claude = (window as unknown as { claude?: { use(n: string): Promise<Sample | null> } }).claude;
+  const sample = await claude?.use("sample");
+  if (!sample) throw new ErroDemo("A leitura de documentos precisa do Claude, que não está disponível neste ambiente. Abra o artefato no claude.ai.");
+  const limites = await sample.limits().catch(() => ({}) as { images?: { maxCount: number } });
+  const imagens = b.arquivos.filter((a) => a.tipo.startsWith("image/") && a.base64);
+  const textos = b.arquivos.filter((a) => a.tipo === "text/plain" && a.texto);
+  if (b.arquivos.some((a) => a.tipo === "application/pdf")) throw new ErroDemo("Neste ambiente o PDF precisa virar imagem antes de ser enviado.");
+  if (imagens.length && !limites.images) throw new ErroDemo(MENSAGEM_SAMPLE.images_unavailable!);
+  if (limites.images && imagens.length > limites.images.maxCount) throw new ErroDemo(`O Claude lê até ${limites.images.maxCount} imagens por vez. Envie menos arquivos.`);
+
+  const ordem = imagens.map((a, i) => `Imagem ${i + 1}: arquivo "${a.nome}"`).join("\n");
+  const blocos = textos.map((a) => `Conteúdo do arquivo "${a.nome}":\n${a.texto}`).join("\n\n");
+  const entrada = [
+    INSTRUCOES_EXTRACAO,
+    `A empresa contratante é ${e.razaoSocial} (CNPJ ${e.cnpj}); esses dados não são do funcionário.`,
+    ordem && `As imagens enviadas junto, na ordem:\n${ordem}`,
+    blocos,
+    FORMATO_JSON_EXTRACAO,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let json: unknown;
+  try {
+    json = await sample.json(entrada, { images: imagens.map((a) => base64ParaBlob(a.base64!, a.tipo)), modelTier: "default", cache: false });
+  } catch (erro) {
+    throw new ErroDemo(MENSAGEM_SAMPLE[(erro as { code?: string }).code ?? ""] ?? "O Claude não conseguiu ler os arquivos. Tente de novo.");
+  }
+  const lido = RespostaExtracaoSchema.safeParse(json);
+  if (!lido.success) throw new ErroDemo("O Claude respondeu fora do formato esperado. Tente de novo.");
+  const rascunho = montarRascunhoDeExtracao(lido.data);
+  auditar(usuario, "ler_documentos", "empresa", e.id, { arquivos: b.arquivos.map((a) => a.nome), pendencias: rascunho.pendencias.length });
+  return rascunho;
+});
+
 // ---------- importação ----------
 const CorpoImport = z.object({
   tipo: z.enum(["funcionarios", "empresas"]),
@@ -648,7 +712,7 @@ export async function chamarDemo(metodo: string, url: string, corpo: unknown, us
     const achou = m === metodo ? u.pathname.match(re) : null;
     if (!achou) continue;
     try {
-      const r = fn({ m: achou, q: u.searchParams, corpo, usuario });
+      const r = await fn({ m: achou, q: u.searchParams, corpo, usuario });
       if (metodo !== "GET") salvar();
       // Cópia profunda: a tela nunca segura referência ao "banco".
       return JSON.parse(JSON.stringify(r ?? null));

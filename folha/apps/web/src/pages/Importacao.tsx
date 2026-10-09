@@ -3,27 +3,15 @@ import { useState } from "react";
 import { api, type Previa } from "../api";
 import { SeletorEmpresa } from "../components/ui";
 import { useEstado } from "../estado";
+import { lerPlanilha } from "../xlsx";
 import { brl } from "../fmt";
 
 type Tipo = "funcionarios" | "empresas";
 
-/** Lê a primeira planilha; o cabeçalho é a primeira linha com 3+ células preenchidas. */
+/** Lê a planilha e descarta as linhas totalmente vazias. */
 async function lerArquivo(arquivo: File): Promise<Record<string, unknown>[]> {
-  // No artefato a SheetJS vem do cdnjs (window.XLSX); na versão instalada, carrega sob demanda.
-  const XLSX = import.meta.env.VITE_DEMO === "1" ? (window as unknown as { XLSX: typeof import("xlsx") }).XLSX : await import("xlsx");
-  const buf = await arquivo.arrayBuffer();
-  const wb = arquivo.name.toLowerCase().endsWith(".csv")
-    ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true })
-    : XLSX.read(buf, { cellDates: false });
-  const ws = wb.Sheets[wb.SheetNames[0]!]!;
-  const matriz = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: true });
-  const iCab = matriz.findIndex((l) => l.filter((c) => String(c).trim()).length >= 3);
-  if (iCab < 0) return [];
-  const cab = matriz[iCab]!.map((c) => String(c).trim());
-  return matriz
-    .slice(iCab + 1)
-    .filter((l) => l.some((c) => String(c).trim()))
-    .map((l) => Object.fromEntries(cab.flatMap((h, i) => (h ? [[h, l[i]]] : []))));
+  const { linhas } = await lerPlanilha(arquivo);
+  return linhas.filter((l) => Object.values(l).some((v) => String(v ?? "").trim()));
 }
 
 const mostrar = (campo: string, v: unknown) => (v == null ? "—" : campo === "salario" ? brl(String(v)) : String(v));

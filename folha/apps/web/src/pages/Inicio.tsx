@@ -99,7 +99,7 @@ export function Inicio() {
         <p>O que você vai fazer agora? Competência de {compLonga(competencia)}.</p>
       </div>
       <nav className="dock" aria-label="Rotinas da folha">
-        <Link to="/funcionarios/novo" className="dock-btn" style={{ "--c": "var(--verde)" } as React.CSSProperties}>
+        <Link to="/admissao" className="dock-btn" style={{ "--c": "var(--verde)" } as React.CSSProperties}>
           {ICONES.admissao}
           <b>Admissão</b>
           <small>{admissaoStatus}</small>

@@ -31,6 +31,8 @@ DATABASE_URL=postgres://usuario:senha@host/folha npm start   # tela + API em :33
 | `PGLITE_DIR` | Pasta do PGlite. Padrão: `folha/.data/pglite`. |
 | `PORT` / `HOST` | Endereço do servidor. Padrão: `127.0.0.1:3333`. |
 | `SEM_EXEMPLOS=1` | Não grava dados de exemplo em banco vazio. |
+| `ANTHROPIC_API_KEY` | Chave da API do Claude, usada só na leitura de documentos da admissão. Sem ela, o resto do sistema funciona normalmente. |
+| `ADMISSAO_MODELO` | Modelo que lê os documentos. Padrão `claude-opus-5-5`; dá para trocar por um mais barato (ex.: `claude-sonnet-5-5`) depois de comparar a qualidade nos documentos de vocês. |
 
 ### Testes
 
@@ -54,11 +56,28 @@ folha/
 
 A entrada é uma tela com poucos botões grandes, só com o que é rotina: **Admissão, Rescisão, Férias, Folha e Afastamentos**. O botão **Outros** reúne todo o resto (empresas, funcionários, rubricas, importação do Domínio e tabelas legais). Admissão e Folha já funcionam. Rescisão, Férias e Afastamentos aparecem como "Em breve", com a descrição do que vão cobrir, e entram na fase 1. Dentro de cada seção o topo mostra só as abas dela, com o atalho "‹ Início".
 
+### Admissão: duas formas de começar
+
+As duas terminam no mesmo lugar: um **rascunho para conferir**. Nada é gravado sozinho.
+
+1. **Ficha em Excel padrão.** O sistema gera a ficha da empresa (com o CNPJ no título e uma aba de instruções). O cliente preenche uma linha por funcionário e devolve; a analista importa. O sistema confere CPF, datas e valores, recusa a ficha de outra empresa e separa as linhas **prontas** das que têm **pendência**. As prontas podem ser gravadas em lote; as demais abrem na ficha para ajuste.
+2. **Documentos soltos.** A analista solta fotos (RG, CNH, carteira de trabalho, comprovantes), PDF, Word, planilha ou uma ficha fora do padrão. O Claude lê, e o resultado entra na ficha de admissão como rascunho. Cada campo mostra **de qual arquivo veio** e a **confiança** (amarelo = confira, vermelho = dúvida ou erro). Datas conflitantes entre documentos, CPF ou PIS com dígito inválido e documentos ilegíveis são apontados. O botão "confere" tira a marca de um campo; editar o campo também tira. Dados que o cadastro ainda não tem (RG, nome da mãe) aparecem à parte, para uso no eSocial.
+
+Formatos aceitos nos documentos: JPG, PNG, WebP, GIF, PDF, Word (.docx), planilhas (.xlsx, .xls, .csv) e .txt. Não são lidos: foto HEIC do iPhone (converter para JPG) e Word antigo (.doc). Até 12 arquivos de **um** funcionário por vez; PDF até 20 MB.
+
+**Antes de usar com cliente de verdade:**
+
+- Os arquivos são enviados à API da Anthropic para leitura (nada fica guardado por este sistema; a auditoria registra só os nomes dos arquivos). Eles têm CPF, endereço e dados bancários: confirme o contrato com a Anthropic, a base legal e a autorização do cliente (LGPD).
+- A leitura **erra**: letra manuscrita ruim, foto torta e documento cortado dão dúvida. Por isso a conferência é obrigatória e o sistema marca o que está duvidoso. Meça a qualidade com uma amostra de documentos reais antes de confiar.
+- O custo é por leitura e depende do modelo e do número de páginas.
+- Os rascunhos ficam só na aba do navegador, até serem gravados ou descartados.
+- Esta parte foi testada com a resposta do Claude simulada. A leitura de verdade só se confirma no primeiro teste com a chave real e documentos de vocês.
+
 ### O que está pronto
 
 - **Painel da competência:** situação de cada empresa (aberta, em lançamento, calculada, fechada) e cálculo em lote.
 - **Empresas:** regime, FPAS, RAT/FAP, terceiros, sindicato, responsável e código no Domínio.
-- **Funcionários:** lista e ficha de admissão completa, com CPF validado e matrícula sequencial.
+- **Funcionários:** lista, ficha e admissão completa (ficha em Excel, documentos ou em branco), com CPF validado e matrícula sequencial.
 - **Rubricas:** os "eventos" do Domínio, com incidências de INSS, FGTS, IRRF e DSR. As rubricas do sistema ficam protegidas.
 - **Lançamentos:** grade funcionário × rubrica para horas extras, faltas, adicional noturno, comissões etc.
 - **Cálculo:**
@@ -112,6 +131,7 @@ O Hub (`../index.html`) lê os blocos de ferramentas do banco compartilhado. Qua
 
 ## Observações técnicas
 
+- A leitura de documentos usa o Claude pelo servidor (`apps/api/src/servicos/extracao.ts`, saída estruturada com esquema). No artefato de demonstração ela usa o Claude do próprio visualizador (capacidade `sample`), e o PDF é convertido em imagens no navegador porque essa capacidade só recebe imagens. As regras (campos, ficha em Excel, normalização e conferência) ficam em `apps/api/src/admissao-regras.ts`, usadas pelos dois lados.
 - A planilha é lida no navegador com SheetJS 0.18.5 (a mesma versão do `contabil.html`), carregado só na tela de importação. Antes de produção, trocar pela versão atual distribuída pelo próprio SheetJS.
 - Migrations do banco ficam em `apps/api/drizzle/`. Depois de alterar `apps/api/src/db/schema.ts`, rode `npm run db:generate -w @folha/api`.
 - Todo dinheiro é `numeric(14,2)` no banco e `decimal.js` no cálculo.

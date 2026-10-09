@@ -248,3 +248,5 @@ export interface Auditoria {
   entidadeId: string | null;
   detalhe: unknown;
 }
+
+export type { Nota, Rascunho } from "./regras";

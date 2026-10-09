@@ -5,10 +5,12 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import type { Db } from "./db/index.js";
 import { usuarios } from "./db/schema.js";
+import { rotasAdmissao } from "./rotas/admissao.js";
 import { rotasCadastros } from "./rotas/cadastros.js";
 import { rotasFolha } from "./rotas/folha.js";
 import { rotasImportacao } from "./rotas/importacao.js";
 import { mensagemValidacao } from "./esquemas.js";
+import { criarExtratorClaude, type Extrator } from "./servicos/extracao.js";
 import { ErroNegocio } from "./util.js";
 
 declare module "fastify" {
@@ -18,7 +20,7 @@ declare module "fastify" {
   }
 }
 
-export async function criarApp(db: Db, opcoes: { pastaWeb?: string; logger?: boolean } = {}) {
+export async function criarApp(db: Db, opcoes: { pastaWeb?: string; logger?: boolean; extrator?: Extrator } = {}) {
   const app = Fastify({ logger: opcoes.logger ?? false, bodyLimit: 20 * 1024 * 1024 });
 
   app.decorateRequest("usuario", "");
@@ -45,6 +47,7 @@ export async function criarApp(db: Db, opcoes: { pastaWeb?: string; logger?: boo
   rotasCadastros(app, db);
   rotasFolha(app, db);
   rotasImportacao(app, db);
+  rotasAdmissao(app, db, opcoes.extrator ?? criarExtratorClaude());
 
   // Em produção a API também serve o front-end compilado (apps/web/dist).
   if (opcoes.pastaWeb && existsSync(opcoes.pastaWeb)) {

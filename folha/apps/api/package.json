@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "@electric-sql/pglite": "^0.5.8",
     "@fastify/static": "^10.1.5",
     "@folha/calculo": "*",

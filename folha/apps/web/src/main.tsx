@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Layout } from "./components/Layout";
 import { ProvedorEstado } from "./estado";
+import { Admissao } from "./pages/Admissao";
 import { Calculo } from "./pages/Calculo";
 import { Afastamentos, Ferias, Rescisao } from "./pages/EmBreve";
 import { Empresas } from "./pages/Empresas";
@@ -26,13 +27,13 @@ const rota = <P extends string>(path: P, component: () => React.ReactNode) =>
 
 const arvore = raiz.addChildren([
   rota("/", Inicio),
+  rota("/admissao", Admissao),
   rota("/painel", Painel),
   rota("/rescisao", Rescisao),
   rota("/ferias", Ferias),
   rota("/afastamentos", Afastamentos),
   rota("/empresas", Empresas),
   rota("/funcionarios", Funcionarios),
-  rota("/funcionarios/novo", FichaFuncionario),
   rota("/funcionarios/$id", FichaFuncionario),
   rota("/lancamentos", Lancamentos),
   rota("/calculo", Calculo),

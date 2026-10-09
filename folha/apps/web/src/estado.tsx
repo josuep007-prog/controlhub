@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, definirUsuario, type Usuario } from "./api";
+import type { Rascunho } from "./regras";
 
 /** Estado global da tela: competência em trabalho, usuário e avisos (toasts). */
 
@@ -31,7 +32,26 @@ interface Toast {
   erro?: boolean;
 }
 
+/** Admissão em conferência: o que foi lido da ficha ou dos documentos e ainda não foi gravado. */
+export interface RascunhoLocal extends Rascunho {
+  id: string;
+  empresaId: string;
+}
+
+const CHAVE_RASCUNHOS = "folha-rascunhos-v1";
+const lerRascunhos = (): RascunhoLocal[] => {
+  try {
+    return JSON.parse(sessionStorage.getItem(CHAVE_RASCUNHOS) ?? "[]") as RascunhoLocal[];
+  } catch {
+    return [];
+  }
+};
+
 interface Estado {
+  rascunhos: RascunhoLocal[];
+  adicionarRascunhos: (r: (Rascunho & { empresaId: string })[]) => RascunhoLocal[];
+  atualizarRascunho: (id: string, mudanca: Partial<RascunhoLocal>) => void;
+  removerRascunho: (id: string) => void;
   competencia: string;
   setCompetencia: (c: string) => void;
   usuarios: Usuario[];
@@ -46,6 +66,7 @@ export function ProvedorEstado({ children }: { children: ReactNode }) {
   const [competencia, setComp] = useState(() => ler("folha-competencia") || competenciaPadrao());
   const [usuarioId, setUid] = useState(() => ler("folha-usuario"));
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [rascunhos, setRascunhos] = useState<RascunhoLocal[]>(lerRascunhos);
   const { data: usuarios = [] } = useQuery({ queryKey: ["usuarios"], queryFn: () => api.get<Usuario[]>("/api/usuarios") });
 
   const usuario = usuarios.find((u) => u.id === usuarioId) ?? usuarios[0] ?? null;
@@ -61,8 +82,25 @@ export function ProvedorEstado({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), erro ? 6000 : 3200);
   }, []);
 
+  useEffect(() => {
+    // Fica só nesta aba do navegador e some quando ela fecha (tem CPF e dados pessoais).
+    try {
+      sessionStorage.setItem(CHAVE_RASCUNHOS, JSON.stringify(rascunhos));
+    } catch {
+      /* sem armazenamento: segue em memória */
+    }
+  }, [rascunhos]);
+
   const valor = useMemo<Estado>(
     () => ({
+      rascunhos,
+      adicionarRascunhos: (novos) => {
+        const prontos = novos.map((r) => ({ ...r, id: crypto.randomUUID?.() ?? `r-${Date.now()}-${Math.random().toString(36).slice(2)}` }));
+        setRascunhos((atual) => [...atual, ...prontos]);
+        return prontos;
+      },
+      atualizarRascunho: (id, mudanca) => setRascunhos((atual) => atual.map((r) => (r.id === id ? { ...r, ...mudanca } : r))),
+      removerRascunho: (id) => setRascunhos((atual) => atual.filter((r) => r.id !== id)),
       competencia,
       setCompetencia: (c) => {
         setComp(c);
@@ -77,7 +115,7 @@ export function ProvedorEstado({ children }: { children: ReactNode }) {
       },
       avisar,
     }),
-    [competencia, usuarios, usuario, avisar],
+    [competencia, usuarios, usuario, avisar, rascunhos],
   );
 
   return (

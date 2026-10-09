@@ -28,7 +28,7 @@ export function Funcionarios() {
       <div className="titulo">
         <h1>Funcionários</h1>
         <div className="acoes">
-          <Link className="btn setor" to="/funcionarios/novo" search={{ empresa: busca.empresa }}>
+          <Link className="btn setor" to="/admissao" search={{ empresa: busca.empresa }}>
             + Admissão
           </Link>
         </div>

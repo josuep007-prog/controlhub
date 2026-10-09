@@ -29,7 +29,7 @@ const SECOES = {
 } as const;
 
 function secaoDe(caminho: string): keyof typeof SECOES | null {
-  if (caminho === "/funcionarios/novo") return null; // admissão: tela de trabalho própria
+  if (caminho === "/admissao") return null; // admissão: tela de trabalho própria
   for (const [chave, sec] of Object.entries(SECOES)) {
     if (sec.abas.some((a) => caminho === a.to || caminho.startsWith(`${a.to}/`))) return chave as keyof typeof SECOES;
   }

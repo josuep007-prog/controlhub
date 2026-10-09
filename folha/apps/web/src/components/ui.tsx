@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, type ReactNode } from "react";
-import { api, type Empresa } from "../api";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { api, type Empresa, type Nota } from "../api";
 
 export function Dialogo({ aberto, titulo, onFechar, children, largura }: {
   aberto: boolean;
@@ -33,11 +33,31 @@ export function Dialogo({ aberto, titulo, onFechar, children, largura }: {
   );
 }
 
-export function Campo({ rotulo, children, largo, erro }: { rotulo: string; children: ReactNode; largo?: boolean; erro?: string }) {
+/** Origem e confiança de cada campo de uma admissão em conferência (vazio nas telas comuns). */
+export const NotasCtx = createContext<{ notas: Record<string, Nota>; confirmar?: (chave: string) => void }>({ notas: {} });
+
+const TEXTO_CONFIANCA = { alta: "", media: " · confira", baixa: " · confiança baixa, confira" } as const;
+
+export function Campo({ rotulo, children, largo, erro, campo }: { rotulo: string; children: ReactNode; largo?: boolean; erro?: string; campo?: string }) {
+  const { notas, confirmar } = useContext(NotasCtx);
+  const nota = notas[campo ?? ""];
+  const nivel = nota?.confianca ?? "alta";
   return (
-    <label className={`campo${largo ? " largo" : ""}`}>
+    <label className={`campo${largo ? " largo" : ""}${nota ? ` nota-${nivel}` : ""}`}>
       {rotulo}
       {children}
+      {nota && (
+        <span className={`nota-txt ${nivel}`}>
+          lido de {nota.origem}
+          {TEXTO_CONFIANCA[nivel]}{" "}
+          {confirmar && nivel !== "alta" && (
+            <button type="button" className="linkish" onClick={() => confirmar(campo!)}>
+              confere
+            </button>
+          )}
+        </span>
+      )}
+      {nota?.aviso && <span className="erro-campo">{nota.aviso}</span>}
       {erro && <span className="erro-campo">{erro}</span>}
     </label>
   );
