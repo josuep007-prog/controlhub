@@ -5,10 +5,12 @@ import { createRoot } from "react-dom/client";
 import { Layout } from "./components/Layout";
 import { ProvedorEstado } from "./estado";
 import { Calculo } from "./pages/Calculo";
+import { Afastamentos, Ferias, Rescisao } from "./pages/EmBreve";
 import { Empresas } from "./pages/Empresas";
 import { FichaFuncionario } from "./pages/FichaFuncionario";
 import { Funcionarios } from "./pages/Funcionarios";
 import { Importacao } from "./pages/Importacao";
+import { Inicio } from "./pages/Inicio";
 import { Lancamentos } from "./pages/Lancamentos";
 import { Painel } from "./pages/Painel";
 import { Relatorios } from "./pages/Relatorios";
@@ -23,7 +25,11 @@ const rota = <P extends string>(path: P, component: () => React.ReactNode) =>
   createRoute({ getParentRoute: () => raiz, path, component, validateSearch: validarBusca });
 
 const arvore = raiz.addChildren([
-  rota("/", Painel),
+  rota("/", Inicio),
+  rota("/painel", Painel),
+  rota("/rescisao", Rescisao),
+  rota("/ferias", Ferias),
+  rota("/afastamentos", Afastamentos),
   rota("/empresas", Empresas),
   rota("/funcionarios", Funcionarios),
   rota("/funcionarios/novo", FichaFuncionario),

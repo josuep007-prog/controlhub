@@ -79,6 +79,8 @@ input[type="checkbox"] { width: 15px; height: 15px; padding: 0; margin: 0; accen
   color: var(--masthead-ink-2); font: 600 13px "Archivo", sans-serif; text-decoration: none; white-space: nowrap;
 }
 .navtabs a:hover { color: var(--masthead-ink); }
+.navtabs a.voltar { color: var(--masthead-ink); margin-right: 14px; padding-right: 14px; border-right: 1px solid #2a3740; }
+.navtabs .secao { display: flex; align-items: center; margin-right: 16px; font: 700 11px "IBM Plex Sans", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: var(--setor); }
 .navtabs a.on { color: #fff; border-bottom-color: var(--masthead-ink); }
 .mh-dir { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .mh-dir select { background: var(--masthead-2); color: var(--masthead-ink); border-color: transparent; font-size: 12px; padding: 4px 6px; }
@@ -187,6 +189,32 @@ dialog.dlg::backdrop { background: rgba(8, 13, 17, 0.55); }
 .itens-calc { padding: 6px 16px 14px 40px; }
 .itens-calc table { max-width: 760px; }
 .carregando { padding: 30px; text-align: center; color: var(--ink-3); }
+
+/* ===== tela inicial: botões das rotinas ===== */
+.inicio { display: flex; flex-direction: column; align-items: center; gap: 30px; padding-block: 36px 10px; }
+.inicio-topo { text-align: center; }
+.inicio-topo h1 { font-size: 28px; }
+.inicio-topo p { margin: 6px 0 0; color: var(--ink-3); font-size: 14px; }
+.dock { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 186px)); justify-content: center; gap: 16px; width: 100%; }
+.dock-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; min-height: 176px; padding: 16px 14px;
+  background: var(--surface); color: var(--ink); text-decoration: none; text-align: left; cursor: pointer;
+  border: 1px solid var(--rule); border-top: 4px solid var(--c); box-shadow: var(--shadow-1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.dock-btn svg { width: 38px; height: 38px; color: var(--c); margin-bottom: 8px; flex: none; }
+.dock-btn b { font: 700 18px "Archivo", sans-serif; letter-spacing: -0.015em; }
+.dock-btn small { font-size: 12px; line-height: 1.45; color: var(--ink-3); }
+@media (max-width: 600px) { .dock { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } .dock-btn { min-height: 160px; } }
+.dock-btn:hover, .dock-btn:focus-visible { transform: translateY(-5px); box-shadow: var(--shadow-2); }
+.dock-btn.outros { --c: var(--ink-3); background: transparent; border-style: dashed; border-top-style: dashed; box-shadow: none; font: inherit; }
+.dock-btn.outros:hover { background: var(--surface); box-shadow: var(--shadow-1); }
+@media (prefers-reduced-motion: reduce) { .dock-btn { transition: none; } .dock-btn:hover, .dock-btn:focus-visible { transform: none; } }
+.outros-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; padding: 16px 18px 20px; }
+.outros-item { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border: 1px solid var(--rule); background: var(--surface-2); color: var(--ink); text-decoration: none; }
+.outros-item b { font: 700 14px "Archivo", sans-serif; }
+.outros-item span { font-size: 12px; color: var(--ink-3); }
+.outros-item:hover { border-color: var(--blue-deep); background: var(--surface); }
 
 /* ===== relatórios (tela e impressão) ===== */
 .rel-papel { background: #fff; color: #111; padding: 24px; box-shadow: var(--shadow-1); border: 1px solid var(--rule); font-size: 11.5px; }

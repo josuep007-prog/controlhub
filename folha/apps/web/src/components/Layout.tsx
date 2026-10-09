@@ -1,21 +1,40 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { DEMO } from "../api";
 import { useEstado } from "../estado";
 import { compLonga, compShift } from "../fmt";
 
-const ABAS = [
-  { to: "/", rotulo: "Painel" },
-  { to: "/empresas", rotulo: "Empresas" },
-  { to: "/funcionarios", rotulo: "Funcionários" },
-  { to: "/lancamentos", rotulo: "Lançamentos" },
-  { to: "/calculo", rotulo: "Cálculo" },
-  { to: "/relatorios", rotulo: "Relatórios" },
-  { to: "/rubricas", rotulo: "Rubricas" },
-  { to: "/importacao", rotulo: "Importar" },
-  { to: "/tabelas", rotulo: "Tabelas" },
-] as const;
+/** Abas de cada seção. A tela inicial não mostra abas: os botões grandes fazem esse papel. */
+const SECOES = {
+  folha: {
+    rotulo: "Folha",
+    abas: [
+      { to: "/painel", rotulo: "Painel" },
+      { to: "/lancamentos", rotulo: "Lançamentos" },
+      { to: "/calculo", rotulo: "Cálculo" },
+      { to: "/relatorios", rotulo: "Relatórios" },
+    ],
+  },
+  outros: {
+    rotulo: "Outros",
+    abas: [
+      { to: "/empresas", rotulo: "Empresas" },
+      { to: "/funcionarios", rotulo: "Funcionários" },
+      { to: "/rubricas", rotulo: "Rubricas" },
+      { to: "/importacao", rotulo: "Importar" },
+      { to: "/tabelas", rotulo: "Tabelas" },
+    ],
+  },
+} as const;
+
+function secaoDe(caminho: string): keyof typeof SECOES | null {
+  if (caminho === "/funcionarios/novo") return null; // admissão: tela de trabalho própria
+  for (const [chave, sec] of Object.entries(SECOES)) {
+    if (sec.abas.some((a) => caminho === a.to || caminho.startsWith(`${a.to}/`))) return chave as keyof typeof SECOES;
+  }
+  return null;
+}
 
 function useTema() {
   const [tema, setTema] = useState(() => document.documentElement.getAttribute("data-theme") ?? "");
@@ -75,6 +94,8 @@ function FaixaDemo() {
 export function Layout() {
   const { competencia, setCompetencia, usuarios, usuario, setUsuarioId } = useEstado();
   const { escuro, alternar } = useTema();
+  const caminho = useRouterState({ select: (st) => st.location.pathname });
+  const secao = secaoDe(caminho);
   return (
     <>
       <header className="masthead">
@@ -86,12 +107,19 @@ export function Layout() {
             </span>
             <span className="brand-tag">Folha de Pagamento</span>
           </Link>
-          <nav className="navtabs" aria-label="Seções">
-            {ABAS.map((a) => (
-              <Link key={a.to} to={a.to} activeProps={{ className: "on" }} activeOptions={{ exact: a.to === "/" }}>
-                {a.rotulo}
+          <nav className="navtabs" aria-label="Navegação">
+            {caminho !== "/" && (
+              <Link to="/" className="voltar">
+                ‹ Início
               </Link>
-            ))}
+            )}
+            {secao && <span className="secao">{SECOES[secao].rotulo}</span>}
+            {secao &&
+              SECOES[secao].abas.map((a) => (
+                <Link key={a.to} to={a.to} activeProps={{ className: "on" }}>
+                  {a.rotulo}
+                </Link>
+              ))}
           </nav>
           <div className="mh-dir">
             <div className="compnav" title="Competência em trabalho">

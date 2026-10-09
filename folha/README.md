@@ -50,6 +50,10 @@ folha/
 └── apps/web           React + Vite. Mesma identidade visual do Control Hub.
 ```
 
+### Como a tela se organiza
+
+A entrada é uma tela com poucos botões grandes, só com o que é rotina: **Admissão, Rescisão, Férias, Folha e Afastamentos**. O botão **Outros** reúne todo o resto (empresas, funcionários, rubricas, importação do Domínio e tabelas legais). Admissão e Folha já funcionam. Rescisão, Férias e Afastamentos aparecem como "Em breve", com a descrição do que vão cobrir, e entram na fase 1. Dentro de cada seção o topo mostra só as abas dela, com o atalho "‹ Início".
+
 ### O que está pronto
 
 - **Painel da competência:** situação de cada empresa (aberta, em lançamento, calculada, fechada) e cálculo em lote.
