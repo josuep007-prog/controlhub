@@ -60,8 +60,14 @@ input[type="checkbox"] { width: 15px; height: 15px; padding: 0; margin: 0; accen
 .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 22px; }
 @media (max-width: 700px) { .wrap { padding-inline: 16px; } }
 
+/* faixa da demonstração */
+.demo-faixa { background: var(--ambar-soft); color: var(--ink); border-bottom: 1px solid var(--rule-strong); font-size: 12.5px; }
+.demo-faixa .wrap { display: flex; gap: 6px 14px; align-items: center; flex-wrap: wrap; padding-block: 7px; }
+.demo-faixa b { color: var(--ambar); }
+.demo-faixa .acoes { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
 /* masthead */
-.masthead { background: var(--masthead); border-bottom: 3px solid var(--setor); position: sticky; top: 0; z-index: 20; }
+.masthead { background: var(--masthead); border-bottom: 3px solid var(--setor); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; }
 .mh-in { display: flex; align-items: stretch; gap: 26px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; padding-block: 10px; text-decoration: none; }
 .wordmark { font: 700 19px/1 "Archivo", sans-serif; letter-spacing: -0.02em; color: var(--masthead-ink); }

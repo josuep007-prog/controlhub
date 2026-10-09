@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Layout } from "./components/Layout";
@@ -15,6 +15,7 @@ import { Relatorios } from "./pages/Relatorios";
 import { Rubricas } from "./pages/Rubricas";
 import { Tabelas } from "./pages/Tabelas";
 import "./styles/app.css";
+import { DEMO } from "./api";
 import { validarBusca } from "./busca";
 
 const raiz = createRootRoute({ component: Layout });
@@ -35,7 +36,12 @@ const arvore = raiz.addChildren([
   rota("/tabelas", Tabelas),
 ]);
 
-export const router = createRouter({ routeTree: arvore, defaultPreload: "intent" });
+export const router = createRouter({
+  routeTree: arvore,
+  defaultPreload: "intent",
+  // No artefato a navegação fica dentro da página (a moldura não aceita mudar o endereço).
+  history: DEMO ? createMemoryHistory({ initialEntries: ["/"] }) : undefined,
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

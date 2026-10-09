@@ -98,6 +98,10 @@ Com esses arquivos ajustamos os apelidos em `apps/api/src/servicos/importacao.ts
 | 3 | eSocial (tabelas S-1000…, não periódicos S-2200/2299, periódicos S-1200/1210/1299) com certificado A1, conferência de DCTFWeb e FGTS Digital |
 | 4 | Hospedagem com backup e perfis de acesso, integração com Portal do Cliente/Onvio, Gestta e Control Hub |
 
+## Demonstração (artefato)
+
+`npm run build:artefato -w @folha/web` gera uma página única (`apps/web/dist-artefato/folha-controltax.html`) para publicar como artefato no claude.ai. Nessa versão a API roda no próprio navegador (`apps/web/src/demo/servidor.ts`). Ela usa o mesmo motor de cálculo, as mesmas validações (`apps/api/src/esquemas.ts`), as mesmas regras de importação (`apps/api/src/servicos/importacao-regras.ts`) e os mesmos dados de exemplo (`apps/api/src/dados-exemplo.ts`) da versão instalada. Os dados ficam só no navegador de quem abre, e a impressão em PDF fica desativada, porque a moldura do artefato não permite imprimir.
+
 ## Ligação com o Control Hub
 
 O Hub (`../index.html`) lê os blocos de ferramentas do banco compartilhado. Quando a Folha estiver publicada num endereço fixo, basta cadastrar no Hub uma ferramenta "Folha de Pagamento" com esse endereço. Não é preciso alterar código.

@@ -9,7 +9,8 @@ type Tipo = "funcionarios" | "empresas";
 
 /** Lê a primeira planilha; o cabeçalho é a primeira linha com 3+ células preenchidas. */
 async function lerArquivo(arquivo: File): Promise<Record<string, unknown>[]> {
-  const XLSX = await import("xlsx"); // carregado só quando alguém importa
+  // No artefato a SheetJS vem do cdnjs (window.XLSX); na versão instalada, carrega sob demanda.
+  const XLSX = import.meta.env.VITE_DEMO === "1" ? (window as unknown as { XLSX: typeof import("xlsx") }).XLSX : await import("xlsx");
   const buf = await arquivo.arrayBuffer();
   const wb = arquivo.name.toLowerCase().endsWith(".csv")
     ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", raw: true })

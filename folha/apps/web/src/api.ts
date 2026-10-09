@@ -1,5 +1,8 @@
 /** Cliente da API. Todas as chamadas levam o usuário escolhido no cabeçalho x-usuario. */
 
+/** Versão de demonstração (artefato): sem servidor, a "API" roda no próprio navegador. */
+export const DEMO = import.meta.env.VITE_DEMO === "1";
+
 let usuarioAtual = "";
 export const definirUsuario = (id: string) => {
   usuarioAtual = id;
@@ -8,6 +11,15 @@ export const definirUsuario = (id: string) => {
 export class ErroApi extends Error {}
 
 async function chamar<T>(metodo: string, url: string, corpo?: unknown): Promise<T> {
+  // Condição literal para o build normal descartar o código da demonstração.
+  if (import.meta.env.VITE_DEMO === "1") {
+    const { chamarDemo } = await import("./demo/servidor");
+    try {
+      return (await chamarDemo(metodo, url, corpo, usuarioAtual)) as T;
+    } catch (e) {
+      throw new ErroApi((e as Error).message);
+    }
+  }
   const r = await fetch(url, {
     method: metodo,
     headers: { "x-usuario": usuarioAtual, ...(corpo !== undefined ? { "content-type": "application/json" } : {}) },

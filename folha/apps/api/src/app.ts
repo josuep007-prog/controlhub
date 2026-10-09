@@ -8,6 +8,7 @@ import { usuarios } from "./db/schema.js";
 import { rotasCadastros } from "./rotas/cadastros.js";
 import { rotasFolha } from "./rotas/folha.js";
 import { rotasImportacao } from "./rotas/importacao.js";
+import { mensagemValidacao } from "./esquemas.js";
 import { ErroNegocio } from "./util.js";
 
 declare module "fastify" {
@@ -32,8 +33,7 @@ export async function criarApp(db: Db, opcoes: { pastaWeb?: string; logger?: boo
 
   app.setErrorHandler((erro, _req, reply) => {
     if (erro instanceof ZodError) {
-      const msg = erro.issues.map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message)).join("; ");
-      return reply.status(400).send({ erro: msg });
+      return reply.status(400).send({ erro: mensagemValidacao(erro) });
     }
     if (erro instanceof ErroNegocio) return reply.status(erro.status).send({ erro: erro.message });
     const e = erro as { statusCode?: number; message?: string };

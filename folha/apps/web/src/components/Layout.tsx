@@ -1,5 +1,7 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { DEMO } from "../api";
 import { useEstado } from "../estado";
 import { compLonga, compShift } from "../fmt";
 
@@ -28,6 +30,46 @@ function useTema() {
   }, [tema]);
   const escuro = tema ? tema === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   return { escuro, alternar: () => setTema(escuro ? "light" : "dark") };
+}
+
+/** Faixa da versão de demonstração: avisa que os dados são fictícios e permite recomeçar. */
+function FaixaDemo() {
+  const qc = useQueryClient();
+  const { avisar } = useEstado();
+  const [confirmando, setConfirmando] = useState(false);
+  const restaurar = async () => {
+    const { restaurarExemplo } = await import("../demo/servidor");
+    restaurarExemplo();
+    setConfirmando(false);
+    await qc.invalidateQueries();
+    avisar("Dados de exemplo restaurados");
+  };
+  return (
+    <div className="demo-faixa">
+      <div className="wrap">
+        <span>
+          <b>Demonstração</b> com empresas e funcionários fictícios. O que você altera fica só neste navegador.
+        </span>
+        <span className="acoes">
+          {confirmando ? (
+            <>
+              <span>Apagar suas alterações e voltar ao exemplo?</span>
+              <button className="fbtn" onClick={() => setConfirmando(false)}>
+                Cancelar
+              </button>
+              <button className="btn" onClick={restaurar}>
+                Restaurar
+              </button>
+            </>
+          ) : (
+            <button className="fbtn" onClick={() => setConfirmando(true)}>
+              Restaurar dados de exemplo
+            </button>
+          )}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function Layout() {
@@ -74,6 +116,7 @@ export function Layout() {
           </div>
         </div>
       </header>
+      {DEMO && <FaixaDemo />}
       <main className="wrap">
         <Outlet />
       </main>

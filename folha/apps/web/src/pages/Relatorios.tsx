@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, type Calculo, type Relatorio } from "../api";
+import { api, DEMO, type Calculo, type Relatorio } from "../api";
 import { useBusca, type Busca } from "../busca";
 import { Carregando, Erro, SeletorEmpresa } from "../components/ui";
 import { useEstado } from "../estado";
@@ -307,9 +307,13 @@ export function Relatorios() {
         <h1>Relatórios</h1>
         <small>{compLonga(competencia)}</small>
         <div className="acoes">
-          <button className="btn" disabled={!r?.calculos.length} onClick={() => window.print()}>
-            Imprimir / salvar PDF
-          </button>
+          {DEMO ? (
+            <span className="note">Na versão instalada, o botão Imprimir gera o PDF destes relatórios.</span>
+          ) : (
+            <button className="btn" disabled={!r?.calculos.length} onClick={() => window.print()}>
+              Imprimir / salvar PDF
+            </button>
+          )}
         </div>
       </div>
       <section className="panel nao-imprime">
