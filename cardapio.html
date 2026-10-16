@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><script src="tema.js"></script><link rel="stylesheet" href="cardapio.css"></head><body>
+<title>Cardápio do Mês</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+
+<div class="masthead"><div class="wrap">
+  <div>
+    <div class="wordmark"><span class="wm-a">Control</span> <span class="wm-b">Hub</span></div>
+    <div class="brand-tag"><i></i>Painel interno · ControlTax</div>
+  </div>
+  <div class="crumb">Refeitório / Cardápio</div>
+</div></div>
+
+<main class="wrap">
+  <div class="head">
+    <div>
+      <div class="eyebrow"><i></i>Refeitório · Almoço</div>
+      <h1 id="title">Cardápio</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="nav">
+      <div class="seg" role="group" aria-label="Navegar entre semanas">
+        <button class="chip" id="prev" type="button" aria-label="Semana anterior">‹</button>
+        <button class="chip" id="today" type="button">Hoje</button>
+        <button class="chip" id="next" type="button" aria-label="Próxima semana">›</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status">Carregando cardápio…</div>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+
+  <div class="legend">
+    <span>Cardápio sujeito a alteração sem aviso.</span>
+  </div>
+
+  <section class="week" id="grid" aria-label="Cardápio da semana"></section>
+</main>
+
+<script src="cardapio.js"></script>
+
+</body></html>

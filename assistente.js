@@ -1,0 +1,3622 @@
+/* Tax, o assistente do Control Hub: mascote que passeia pela tela + conversa.
+   Carregado pelo index.html (window.__hubApi). Cada módulo responde por window.__assistente (ver fiscal.html etc.).
+   As respostas vêm da IA (capability "sample"); as regras do domínio só entram quando a pessoa pede. */
+(function () {
+  "use strict";
+  var H = window.__hubApi;
+  if (!H || window.__assistenteHub) return;
+  var doc = document;
+  var MODN = {dp: "DP", contabil: "Contábil", fiscal: "Fiscal", portal: "Portal do Cliente", cardapio: "Cardápio"};
+
+  /* ============ utilidades ============ */
+  function $(s, r) { return (r || doc).querySelector(s); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function norm(s) { return String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9\/\-\s]/g, " ").replace(/\s+/g, " ").trim(); }
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function ymd(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function hoje() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function addDias(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function dm(d) { return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1); }
+  var SEM = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+  var MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  var MESES_N = MESES.map(norm);
+  var reduzido = function () { return window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches; };
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  var PREF = "tx-prefs-v1";
+  function lerPref() { try { return JSON.parse(localStorage.getItem(PREF) || "{}"); } catch (e) { return {}; } }
+  function salvarPref(o) { try { localStorage.setItem(PREF, JSON.stringify(Object.assign(lerPref(), o))); } catch (e) {} }
+  function lerLS(k, def) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
+  function gravarLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function nomeTax() { return String(lerPref().nome || "Tax").trim().slice(0, 20) || "Tax"; }
+  // Quem pode ver tudo (coordenação/editores do artefato): sem isso, CPFs aparecem mascarados nas respostas.
+  var podeVerTudo = false, ehCoord = false;
+  function mascarar(s) { return podeVerTudo ? String(s == null ? "" : s) : String(s == null ? "" : s).replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "***.***.***-**"); }
+  // Uso da IA por dia (neste navegador).
+  var USO = "tx-uso-v1";
+  function usoHoje() { var u = lerLS(USO, {}); return u.dia === ymd(hoje()) ? +u.n || 0 : 0; }
+  function contarUso() { var n = usoHoje() + 1; gravarLS(USO, {dia: ymd(hoje()), n: n}); gravarLS("tx-uso-tot", (+lerLS("tx-uso-tot", 0) || 0) + 1); try { mostrarUso(); } catch (e) {} return n; }
+  function mostrarUso() {
+    var l = doc.getElementById("tx-uso-l"); if (!l) return;
+    var lim = +cfgEquipe.limiteDia || 0, n = usoHoje();
+    l.textContent = iaOk ? "Perguntas à IA hoje: " + n + (lim ? " de " + lim : "") + (lim && n >= lim ? " (limite atingido)" : "") : "";
+    l.classList.toggle("tx-uso-alto", !!lim && n >= lim * 0.8);
+  }
+  // Configuração da equipe (banco do Hub, editada pela coordenação; ver lote "equipe").
+  var cfgEquipe = {limiteDia: 0, instrucoes: ""};
+  // Departamentos: a coordenação liga a separação e diz, pessoa a pessoa, quais relatórios cada uma vê (ver o bloco "departamentos" mais abaixo).
+  var DEPTOS = {dp: "Departamento Pessoal", contabil: "Contábil", fiscal: "Fiscal", portal: "Portal do Cliente"}, DEP_ORD = ["dp", "contabil", "fiscal", "portal"];
+  var cfgDep = {ativo: null}, minhaLinha = null, depsFeito = false, depsRes = null;
+  var depsP = new Promise(function (ok) { depsRes = ok; });
+  function depsOk() { if (!depsFeito) { depsFeito = true; depsRes(); } }
+  setTimeout(depsOk, 4000);
+  function depsPronto() { return depsP; }
+  // Com o login do Hub, o acesso por módulo vem do nível de cada pessoa (auth.js); a separação por departamento antiga só vale sem login.
+  function depAtivo() { return !window.__auth && cfgDep.ativo === true; }
+  function minhasDeps() { var l = minhaLinha && Array.isArray(minhaLinha.deps) ? minhaLinha.deps : []; return DEP_ORD.filter(function (d) { return l.indexOf(d) !== -1; }); }
+  // O assistente consulta este módulo para esta pessoa? (cardápio é de todos; a coordenação vê tudo; sem a separação ligada, todos veem tudo.)
+  function podeMod(k) { if (window.__auth) return window.__auth.podeVer(k); if (k === "cardapio" || !depAtivo() || ehCoord) return true; return minhasDeps().indexOf(k) !== -1; }
+  // Departamentos do relatório padrão: os da pessoa; a coordenação sem departamento marcado vê todos.
+  function depsDoRelatorio() { var m = minhasDeps(); return m.length ? m : (ehCoord ? DEP_ORD.slice() : []); }
+  function semDepartamento() { return depAtivo() && !ehCoord && !minhasDeps().length; }
+  var TXT_SEM_DEP = "Seu usuário ainda não está ligado a nenhum departamento, então não mostro relatórios de DP, Fiscal, Contábil ou Portal. Peça à coordenação para liberar (⚙ → Equipe → Relatórios por departamento).";
+  function copiarTexto(t) {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { return true; }, function () { return copiarVelho(t); }); } catch (e) {}
+    return Promise.resolve(copiarVelho(t));
+  }
+  function copiarVelho(t) { try { var a = doc.createElement("textarea"); a.value = t; a.style.cssText = "position:fixed;left:-9999px"; doc.body.appendChild(a); a.select(); var ok = doc.execCommand("copy"); a.remove(); return ok; } catch (e) { return false; } }
+  var dlNs = null;
+  function usarDownloads() { if (dlNs !== null) return Promise.resolve(dlNs); try { return window.claude && window.claude.use ? window.claude.use("downloads").then(function (d) { dlNs = d || false; return dlNs; }, function () { dlNs = false; return false; }) : Promise.resolve(false); } catch (e) { return Promise.resolve(false); } }
+  function salvarArquivo(nome, blob) {
+    return usarDownloads().then(function (d) {
+      if (d) return d.save({filename: nome, data: blob}).then(function () { return true; }, function () { return false; });
+      try { var a = doc.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; doc.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500); return true; } catch (e) { return false; }
+    });
+  }
+  // Planilha de uma lista de linhas {t, sub, data, mod}: .xlsx quando o leitor de planilhas já está carregado no Hub, senão .csv (abre no Excel).
+  function exportarLinhas(titulo, linhas) {
+    var cab = ["Item", "Detalhe", "Data", "Módulo"];
+    var rows = linhas.map(function (l) { return [mascarar(l.t), mascarar(l.sub || ""), l.data ? l.data.split("-").reverse().join("/") : "", MODN[l.mod] || ""]; });
+    var nome = (norm(titulo).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lista").slice(0, 60) + "-" + ymd(hoje());
+    if (window.XLSX && window.XLSX.utils) {
+      try {
+        var ws = XLSX.utils.aoa_to_sheet([cab].concat(rows)), wb = XLSX.utils.book_new();
+        ws["!cols"] = [{wch: 48}, {wch: 60}, {wch: 12}, {wch: 16}];
+        XLSX.utils.book_append_sheet(wb, ws, "Lista");
+        var buf = XLSX.write(wb, {type: "array", bookType: "xlsx"});
+        return salvarArquivo(nome + ".xlsx", new Blob([buf], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      } catch (e) {}
+    }
+    var csv = "﻿" + [cab].concat(rows).map(function (r) { return r.map(function (c) { c = String(c); return /[;"\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(";"); }).join("\r\n");
+    return salvarArquivo(nome + ".csv", new Blob([csv], {type: "text/csv;charset=utf-8"}));
+  }
+
+  /* ============ períodos ============ */
+  function mesInteiro(y, m) { return {de: new Date(y, m, 1), ate: new Date(y, m + 1, 0)}; }
+  function rotPeriodo(p) {
+    var h = hoje(), n = Math.round((p.de - h) / 864e5);
+    if (+p.de === +p.ate) return n === 0 ? "hoje" : n === 1 ? "amanhã" : n === -1 ? "ontem" : SEM[p.de.getDay()] + ", " + dm(p.de);
+    return "de " + dm(p.de) + " a " + dm(p.ate);
+  }
+  // Datas ditas de jeito livre: "dia 10 do mês que vem", "dia 5 de março", "daqui a 3 dias úteis", "sexta que vem", "fim do mês que vem".
+  var DIA_SEM_N = {domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6};
+  var RX_DSEM = /\b(?:(proxima|proximo|essa|esta|nesta|nessa|na|no|para|pra|ate) )?(domingo|segunda|terca|quarta|quinta|sexta|sabado)(?: feira)?( que vem| passada)?\b/;
+  function diaNoMes(y, mo, d) { var u = new Date(y, mo + 1, 0).getDate(); return new Date(y, mo, Math.min(d, u)); }
+  function periodoLivre(t, h) {
+    var m, d;
+    if ((m = /\bdia (\d{1,2}) (?:do|de) (?:mes que vem|proximo mes|mes seguinte)\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { d = diaNoMes(h.getFullYear(), h.getMonth() + 1, +m[1]); return {de: d, ate: d}; }
+    if ((m = /\b(?:fim|final|ultimo dia) do mes que vem\b/.exec(t))) { d = diaNoMes(h.getFullYear(), h.getMonth() + 2, 0); return {de: d, ate: d}; }
+    if (/\bultimo dia (util )?do mes\b/.test(t)) { d = diaNoMes(h.getFullYear(), h.getMonth() + 1, 0); if (/util/.test(t)) while (d.getDay() % 6 === 0) d = addDias(d, -1); return {de: d, ate: d}; }
+    for (var i = 0; i < 12; i++) if ((m = new RegExp("\\bdia (\\d{1,2}) de " + MESES_N[i] + "\\b").exec(t)) && +m[1] >= 1 && +m[1] <= 31) {
+      d = diaNoMes(h.getFullYear(), i, +m[1]); if (d < h && (h - d) / 864e5 > 200) d = diaNoMes(h.getFullYear() + 1, i, +m[1]);
+      return {de: d, ate: d};
+    }
+    if ((m = /\b(nos proximos |proximos )?(?:daqui a |daqui |em |dentro de )?(\d{1,3}) dias? uteis\b/.exec(t))) { d = diasUteisDepois(h, +m[2]); return m[1] ? {de: h, ate: d} : {de: d, ate: d}; }
+    if ((m = /\b(?:daqui a|dentro de) (\d{1,3}) dias?\b/.exec(t))) { d = addDias(h, +m[1]); return {de: d, ate: d}; }
+    if ((m = /\b(?:daqui a|em|dentro de) (\d{1,2}) semanas?\b/.exec(t))) { d = addDias(h, 7 * +m[1]); return {de: d, ate: d}; }
+    if (/\bproximo dia util\b/.test(t)) { d = diasUteisDepois(h, 1); return {de: d, ate: d}; }
+    if ((m = RX_DSEM.exec(t)) && !/\b(domingo|segunda|terca|quarta|quinta|sexta|sabado)( feira)? (via|parcela|parte|opcao|etapa|vez|rodada|fase|guia|linha|coluna|tentativa)\b/.test(t)) {
+      var wd = DIA_SEM_N[m[2]], prox = /proxim|que vem/.test(m[0]), delta;
+      if (/\b(semana que vem|proxima semana|semana seguinte)\b/.test(t)) { var seg = addDias(h, ((8 - h.getDay()) % 7) || 7); d = addDias(seg, wd === 0 ? 6 : wd - 1); return {de: d, ate: d}; }
+      if (/passada/.test(m[0])) delta = -(((h.getDay() - wd + 7) % 7) || 7);
+      else { delta = (wd - h.getDay() + 7) % 7; if (delta === 0 && prox) delta = 7; }
+      d = addDias(h, delta);
+      return m[1] === "ate" ? {de: h, ate: d} : {de: d, ate: d};
+    }
+    return null;
+  }
+  // Devolve {de, ate} ou null quando a frase não fala de datas.
+  function periodo(t) {
+    var h = hoje(), m, r;
+    if ((m = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/.exec(t))) {
+      var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : h.getFullYear(), d = new Date(y, +m[2] - 1, +m[1]);
+      if (!isNaN(d)) return {de: d, ate: d};
+    }
+    var r2 = periodoLivre(t, h); if (r2) return r2;
+    if ((m = /\bdia (\d{1,2})\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { var d2 = new Date(h.getFullYear(), h.getMonth(), +m[1]); return {de: d2, ate: d2}; }
+    if (/\bdepois de amanha\b/.test(t)) return {de: addDias(h, 2), ate: addDias(h, 2)};
+    if (/\bamanha\b/.test(t)) return {de: addDias(h, 1), ate: addDias(h, 1)};
+    if (/\bontem\b/.test(t)) return {de: addDias(h, -1), ate: addDias(h, -1)};
+    if (/\b(semana que vem|proxima semana|semana seguinte)\b/.test(t)) { var seg = addDias(h, ((8 - h.getDay()) % 7) || 7); return {de: seg, ate: addDias(seg, 6)}; }
+    if ((m = /\b(?:proximos|proximas|em|nos proximos) (\d{1,3}) dias?\b/.exec(t))) return {de: h, ate: addDias(h, +m[1])};
+    if (/\bproximos dias\b/.test(t)) return {de: h, ate: addDias(h, 7)};
+    if (/\b(proxima quinzena|proximos 15 dias)\b/.test(t)) return {de: h, ate: addDias(h, 15)};
+    if (/\b(ate o )?fim do mes\b/.test(t)) return {de: h, ate: new Date(h.getFullYear(), h.getMonth() + 1, 0)};
+    if ((m = /\bate o dia (\d{1,2})\b/.exec(t)) && +m[1] >= 1 && +m[1] <= 31) { var lim = new Date(h.getFullYear(), h.getMonth(), +m[1]); if (lim < h) lim = new Date(h.getFullYear(), h.getMonth() + 1, +m[1]); return {de: h, ate: lim}; }
+    if (/\b(esta|essa|nesta|nessa) semana\b|\bsemana\b/.test(t)) return {de: h, ate: addDias(h, (7 - h.getDay()) % 7)};
+    if (/\b(mes que vem|proximo mes)\b/.test(t)) return mesInteiro(h.getFullYear(), h.getMonth() + 1);
+    for (var i = 0; i < 12; i++) if (new RegExp("\\b" + MESES_N[i] + "\\b").test(t)) { r = mesInteiro(h.getFullYear(), i); return r; }
+    if (/\b(este|esse|neste|nesse|no) mes\b|\bmes\b/.test(t)) return mesInteiro(h.getFullYear(), h.getMonth());
+    if (/\bhoje\b/.test(t)) return {de: h, ate: h};
+    return null;
+  }
+
+  /* ============ módulos e dados ============ */
+  var ALIAS_MOD = {
+    dp: ["dp", "pessoal", "folha", "departamento pessoal", "dep pessoal", "rh", "funcionarios", "ferias"],
+    contabil: ["contabil", "contabilidade", "balanco", "balancete"],
+    fiscal: ["fiscal", "fiscais", "obrigacoes acessorias"],
+    portal: ["portal", "portal do cliente", "onvio", "implantacao", "treinamento"],
+    cardapio: ["cardapio", "refeitorio", "almoco", "almocar", "marmita", "cozinha"]
+  };
+  function detectarModulos(t) {
+    var out = [];
+    Object.keys(ALIAS_MOD).forEach(function (k) { if (ALIAS_MOD[k].some(function (a) { return new RegExp("(^|\\s)" + a + "(\\s|$)").test(t); })) out.push(k); });
+    return out;
+  }
+  var ALIAS_ABA = {
+    painel: ["painel", "dashboard", "resumo geral"], agenda: ["agenda", "calendario"], empresas: ["empresas", "cartoes de empresas"], fechamento: ["fechamento"],
+    cadastro: ["cadastro", "importar", "importacao", "configuracao", "configuracoes"], carteira: ["carteira"], prazos: ["prazos", "vencimentos"],
+    funcionarios: ["funcionarios", "funcionario", "pessoas"], sindicatos: ["convencoes", "convencao", "sindicatos", "cct"], cartela: ["cartela", "cartela de clientes"],
+    ferramentas: ["ferramentas", "importador"], dashboard: ["hoje", "inicio do portal"], progresso: ["consulta"], foco: ["foco"], impedimentos: ["impedimentos", "bloqueios"], relatorios: ["relatorios", "relatorio"]
+  };
+  function detectarAba(t, api) {
+    if (!api || !api.abas) return "";
+    var melhor = "", pts = 0;
+    api.abas.forEach(function (a) {
+      var k = a[0], rot = norm(a[1]), p = 0;
+      if (new RegExp("(^|\\s)" + rot + "(\\s|$)").test(t)) p = 3;
+      (ALIAS_ABA[k] || []).forEach(function (al) { if (new RegExp("(^|\\s)" + al + "(\\s|$)").test(t)) p = Math.max(p, 2); });
+      if (p > pts) { pts = p; melhor = k; }
+    });
+    return melhor;
+  }
+
+  var cache = {indice: null, em: 0, n: 0};
+  var carregados = {};
+  function apisCarregadas() { return Object.keys(carregados).map(function (k) { return carregados[k]; }).filter(Boolean); }
+  var inicioCarga = null;
+  // Carrega (em segundo plano) todos os módulos, uma vez, para o assistente conhecer empresas e analistas.
+  function carregarTodos() {
+    if (inicioCarga) return inicioCarga;
+    var ks = H.modulos(), i = 0;
+    inicioCarga = new Promise(function (ok) {
+      (function prox() {
+        if (i >= ks.length) return ok();
+        var k = ks[i++];
+        H.carregar(k).then(function (a) { carregados[k] = a; cache.indice = null; }).catch(function () {}).then(function () { setTimeout(prox, 150); });
+      })();
+    });
+    return inicioCarga;
+  }
+  function modulo(k, livre) {
+    if (!livre && !podeMod(k)) return Promise.resolve(null);
+    if (carregados[k]) return Promise.resolve(carregados[k]);
+    return H.carregar(k).then(function (a) { carregados[k] = a; cache.indice = null; return a; });
+  }
+
+  var PALAVRAS_EMP = {ltda: 1, eireli: 1, epp: 1, cia: 1, sa: 1, me: 1, ss: 1, filial: 1, matriz: 1};
+  function tokensEmp(nome) { return norm(nome).split(" ").filter(function (w) { return w.length >= 3 && !PALAVRAS_EMP[w] && !/^\d+$/.test(w); }); }
+  function indice() {
+    var apis = apisCarregadas();
+    if (cache.indice && cache.n === apis.length && Date.now() - cache.t < 4000) return cache.indice;
+    var por = {}, lista = [], ana = {};
+    var reais = apis.some(function (a) { return !(a.exemplo && a.exemplo()) && a.empresas().length; });
+    apis.forEach(function (a) {
+      if (reais && a.exemplo && a.exemplo()) return;       // dados fictícios não entram quando há carteira real
+      a.empresas().forEach(function (e) {
+        var chave = e.cnpj && e.cnpj.length === 14 ? e.cnpj : norm(e.nome), g = por[chave];
+        if (!g) { g = por[chave] = {nome: e.nome, cnpj: e.cnpj || "", refs: {}, tok: tokensEmp(e.nome)}; lista.push(g); }
+        g.refs[a.modulo] = e.id;
+      });
+      a.analistas().forEach(function (n) { if (n) ana[norm(n)] = n; });
+    });
+    var df = {};
+    lista.forEach(function (g) { g.tok.forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
+    var N = lista.length + 1;
+    lista.forEach(function (g) { g.peso = g.tok.map(function (w) { return Math.log((N + 1) / (df[w] + 0.5)) + 1; }); g.total = g.peso.reduce(function (a, b) { return a + b; }, 0); });
+    cache.indice = {empresas: lista, analistas: Object.keys(ana).map(function (k) { return ana[k]; })};
+    cache.n = apis.length; cache.t = Date.now();
+    return cache.indice;
+  }
+  function casarAnalista(t, nomes) {
+    var toks = t.split(" "), achou = [];
+    nomes.forEach(function (n) {
+      var nn = norm(n), pr = nn.split(" ")[0];
+      if ((" " + t + " ").indexOf(" " + nn + " ") !== -1 || (pr.length >= 3 && toks.indexOf(pr) !== -1)) achou.push(n);
+    });
+    if (achou.length > 1) { var cheio = achou.filter(function (n) { return (" " + t + " ").indexOf(" " + norm(n) + " ") !== -1; }); if (cheio.length === 1) return [cheio[0]]; }
+    return achou;
+  }
+  // Distância de edição com corte (para erros de digitação: "contrutora" ≈ "construtora").
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    var ant = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) ant[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i]; var menor = i;
+      for (j = 1; j <= b.length; j++) { cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)); if (cur[j] < menor) menor = cur[j]; }
+      if (menor > max) return max + 1;
+      ant = cur;
+    }
+    return ant[b.length];
+  }
+  function parecido(a, b) {
+    if (a === b) return true;
+    var m = Math.min(a.length, b.length); if (m < 5) return false;
+    var i = 0; while (i < m && a.charAt(i) === b.charAt(i)) i++;
+    if (i >= 5 && i >= m - 2) return true;
+    if (a.charAt(0) !== b.charAt(0)) return false;
+    var lim = m >= 8 ? 2 : 1;
+    return lev(a, b, lim) <= lim;
+  }
+  // Empresas citadas na frase, da mais provável para a menos. `ignorar`: nomes de analistas já reconhecidos.
+  function casarEmpresas(t, ignorar) {
+    var ix = indice(), toks = t.split(" ").filter(Boolean), dig = (t.replace(/[^\d ]/g, "").match(/\d{8,14}/) || [])[0], out = [];
+    var tt0 = " " + t + " ";
+    ix.empresas.forEach(function (g) {
+      if (out.some(function (o) { return o.g === g; })) return;
+      if (dig && g.cnpj && g.cnpj.indexOf(dig) !== -1) { out.push({g: g, s: 2}); return; }
+      var soma = 0, n = 0;
+      g.tok.forEach(function (w, i) { if (ignorar[w]) return; if (toks.some(function (x) { return parecido(x, w); })) { soma += g.peso[i]; n++; } });
+      if (!n || !g.total) return;
+      var s = soma / g.total;
+      if (s >= 0.5 && (n >= 2 || g.tok.length <= 2 || s >= 0.7)) out.push({g: g, s: s});
+    });
+    out.sort(function (a, b) { return b.s - a.s; });
+    return out;
+  }
+
+  /* ============ base de ajuda ============ */
+  var AJUDA = [
+    {t: "Importar a carteira", m: "fiscal", k: "importar carteira planilha empresas cadastro xlsx fiscal", a: "No Fiscal, abra Cadastro e use “Importar carteira”. A planilha precisa das colunas Empresa, CNPJ, Regime, Atividade, Analista, IE, IM, Município e UF (há um botão para baixar o modelo). Empresas já cadastradas (mesmo CNPJ ou nome) são atualizadas, não duplicadas. Ao importar, os dados de exemplo saem.", ir: {m: "fiscal", aba: "cadastro"}},
+    {t: "Importar a carteira (Contábil)", m: "contabil", k: "importar carteira planilha contabil empresas xlsx", a: "No Contábil, abra Cadastro → “Importar carteira”. Aceita a planilha limpa (Empresa, CNPJ, Tributação, Analista, Situação…) e também a planilha antiga do setor. Empresas existentes são atualizadas.", ir: {m: "contabil", aba: "cadastro"}},
+    {t: "Dados de exemplo no Fiscal", m: "fiscal", k: "dados exemplo ficticios demo fiscal faixa nada gravado", a: "Enquanto o Fiscal não tem carteira no banco, ele mostra 40 empresas fictícias para você conhecer o módulo. Nada é gravado. Importe a carteira real (Cadastro) para começar de verdade.", ir: {m: "fiscal", aba: "painel"}},
+    {t: "Marcar o fechamento", m: "fiscal", k: "marcar fechamento etapa documentos escrituracao apuracao guia concluir tudo lote", a: "Em Fechamento, cada empresa tem quatro etapas: documentos recebidos, escrituração, apuração e guia enviada. Clique na etapa para mudar o status (pendente, em andamento, concluída ou não se aplica). “✓ Tudo” conclui a linha inteira, e dá para selecionar várias empresas e aplicar em lote.", ir: {m: "fiscal", aba: "fechamento"}},
+    {t: "Pendência do cliente", m: "fiscal", k: "pendencia cliente cobrar cobranca aguardando documento faltando", a: "Em Fechamento, a coluna “Pendência do cliente” registra o que falta o cliente mandar. Dentro do registro você marca “Cobrado de novo hoje” e “Recebido”. A empresa aparece como “aguardando cliente” enquanto a pendência existir, e a pendência some quando o fechamento é concluído.", ir: {m: "fiscal", aba: "fechamento"}},
+    {t: "Marcar entrega de obrigação", m: "fiscal", k: "marcar entrega obrigacao entregue agenda pgdas dctfweb efd reinf guia", a: "Na Agenda do Fiscal, clique num dia e marque a caixinha ao lado de cada empresa para registrar a entrega. Na ficha da empresa (aba Obrigações) dá para marcar como retificada ou não se aplica.", ir: {m: "fiscal", aba: "agenda"}},
+    {t: "Prazos do Fiscal", m: "fiscal", k: "prazo prazos dia vencimento catalogo conferir dia util feriado configurar", a: "O catálogo de obrigações fica em Cadastro → Obrigações e prazos (só a coordenação edita). Os dias padrão vêm marcados “conferir”: ICMS, DeSTDA e ISS mudam conforme o estado e o município. O cálculo considera dias úteis e feriados nacionais, carnaval, sexta-feira santa, Corpus Christi e os de Vitória/ES (N. Sra. da Penha e da Vitória); outros feriados locais não entram.", ir: {m: "fiscal", aba: "cadastro"}},
+    {t: "Saúde da empresa", m: "fiscal", k: "saude anel empresa percentual fiscal em dia", a: "O anel de cada empresa no Fiscal mostra a % de fechamentos e entregas em dia nos últimos 90 dias. Verde a partir de 90%, laranja de 70% a 89%, vermelho abaixo disso.", ir: {m: "fiscal", aba: "empresas"}},
+    {t: "Prazo interno do fechamento", m: "fiscal", k: "prazo interno fechamento atrasada dia 20 limite", a: "No Fiscal, o fechamento do mês fica atrasado depois do dia 20 do mês seguinte. Esse dia se muda em Cadastro (“Prazo interno do fechamento”).", ir: {m: "fiscal", aba: "cadastro"}},
+    {t: "Fechado até (Contábil)", m: "contabil", k: "fechado ate atraso meses contabil fechamento clique avancar falta informar", a: "No Contábil, cada célula diz até que mês a etapa está concluída. Clicar avança e marca de uma vez os meses que faltavam. “Falta informar” significa que a planilha antiga não tinha registro dessa etapa.", ir: {m: "contabil", aba: "fechamento"}},
+    {t: "Vencimentos de impostos (Contábil)", m: "contabil", k: "vencimento imposto das irpj guia apurado prazo contabil", a: "Na aba Prazos do Contábil aparecem os vencimentos de impostos por tributação. Marque, em cada vencimento, se o imposto foi apurado e se a guia foi enviada ao cliente. Os dias se configuram em Cadastro.", ir: {m: "contabil", aba: "prazos"}},
+    {t: "Agenda do DP", m: "dp", k: "agenda dp lembrete lembretes meus criar dia calendario", a: "Na Agenda do DP, o calendário junta prazos gerais, rotinas das empresas, datas-base e eventos de funcionários. Clique num dia para ver tudo dele; o “+” no dia cria um lembrete só seu (pode repetir). Os seus lembretes ficam numa área privada: só você vê.", ir: {m: "dp", aba: "agenda"}},
+    {t: "Prazos gerais do DP", m: "dp", k: "prazos gerais dp esocial fgts salario darf sugeridos", a: "Em Agenda → “Prazos gerais…” ficam as datas que valem para todas as empresas ativas (salários, eSocial, FGTS…). O botão “Adicionar prazos legais sugeridos” traz uma base para você conferir. Em cada empresa, desmarque o que ela não faz.", ir: {m: "dp", aba: "agenda"}},
+    {t: "Convenções coletivas", m: "dp", k: "convencao convencoes cct sindicato data base reajuste vigencia dominio importar", a: "A aba Convenções controla CCTs, vigência, data-base e reajuste. Importe a lista de sindicatos do Domínio (PDF), cadastre as convenções e o sistema liga tudo pelo CNPJ. Ele avisa convenção vencendo, aditivo pendente e reajuste ainda não aplicado.", ir: {m: "dp", aba: "sindicatos"}},
+    {t: "Passagem de bastão nas férias", m: "dp", k: "passagem bastao repasse ferias ausencia cobertura carteira resumo cobrir analista", a: "Diga “passagem de bastão da Carla” (ou use o botão na Cartela, em Ausências e coberturas) e eu monto o resumo da carteira dela para quem vai cobrir: atrasos de hoje, vencimentos no período da ausência, o que está aguardando o cliente e as últimas observações. Vem um texto pronto para copiar; nada é enviado."},
+    {t: "Anexar foto, PDF ou planilha", k: "anexar anexo foto imagem pdf planilha arquivo documento ler cardapio clipe camera arrastar colar registrar", a: "No chat, use o 📎 (ou 📷 no celular) para anexar uma foto, PDF, planilha ou texto; também dá para arrastar o arquivo para o chat ou colar uma imagem. A IA lê o que está no anexo, diz o que identificou e prepara o registro no módulo certo (por exemplo, o cardápio da semana de uma foto), sempre num cartão para você conferir e confirmar. O arquivo em si não fica guardado, só o que você confirmar. Se algo estiver ilegível, ela pergunta em vez de inventar."},
+    {t: "Cartela de clientes", m: "dp", k: "cartela clientes analista mover empresas ausencia ferias cobertura simular reserva", a: "Na Cartela você distribui as empresas entre os analistas: troque o responsável na linha, selecione várias para mover em lote ou arraste até o analista. Em “Ausências” registre férias e quem cobre; “Simular” testa mudanças sem salvar.", ir: {m: "dp", aba: "cartela"}},
+    {t: "Importador Domínio", m: "dp", k: "importador dominio rpa lancamentos rubricas txt arquivo", a: "Em DP → Ferramentas, o Importador Domínio gera o arquivo .txt de RPA e lançamentos de rubricas, com conferência linha a linha antes de baixar.", ir: {m: "dp", aba: "ferramentas"}},
+    {t: "Etapas do Portal do Cliente", m: "portal", k: "etapas portal habilitacao treinamento analista cadastro usuario cliente implantacao", a: "O Portal acompanha quatro etapas por setor: habilitação no Domínio, treinamento do analista, cadastro do usuário do cliente e treinamento dos clientes. Contato treinado já conta como habilitação concluída e usuário ativo.", ir: {m: "portal", aba: "dashboard"}},
+    {t: "Impedimentos no Portal", m: "portal", k: "impedimento impedimentos bloqueio portal empresa", a: "Na aba Impedimentos ficam as empresas, setores e pessoas travados, com o motivo, desde quando e de quem se aguarda retorno.", ir: {m: "portal", aba: "impedimentos"}},
+    {t: "Cardápio", m: "cardapio", k: "cardapio editar cadastrar dia semana feriado refeitorio", a: "O Cardápio mostra a semana atual e muda sozinho na virada do dia. Quem tem permissão de edição vê o botão para cadastrar ou editar cada dia e marcar feriados.", ir: {m: "cardapio", aba: ""}},
+    {t: "Ações pelo assistente", k: "acao acoes marcar concluir fechar pendencia lembrete lembra entrega etapa tax assistente confirmar desfazer", a: "Eu também faço: “marca a escrituração da Alfa como concluída”, “dá baixa no PGDAS-D da Beta”, “registra pendência na Alfa: extrato do Itaú”, “fecha a Beta” e “me lembra de ligar para o cliente amanhã às 14h”. Sempre mostro um cartão e só gravo depois do seu Confirmar (ou de um “sim”); dá para Desfazer em seguida. Respeito a permissão: só a coordenação ou o analista da carteira marca."},
+    {t: "Comparar analistas pelo chat", k: "comparar comparacao ranking quem tem mais atrasos sobrecarregado carga empresas por analista livre folgado equipe", a: "Pergunte, por exemplo: “quem tem mais atrasos?”, “quantas empresas por analista?”, “quem está mais sobrecarregado?” ou “quem está mais livre no Fiscal?”. Eu mostro o resultado em destaque e um gráfico com todos os analistas. Só entram os módulos a que você tem acesso."},
+    {t: "Datas ditas do seu jeito", k: "data datas periodo sexta que vem proximo mes dia 10 daqui a dias uteis fim do mes lembrete amanha semana", a: "Eu entendo datas como “sexta que vem”, “dia 10 do mês que vem”, “dia 5 de março”, “daqui a 3 dias úteis”, “próximo dia útil”, “fim do mês que vem” e “até sexta”. Vale para consultas e para lembretes (“me lembra sexta de ligar para o cliente”)."},
+    {t: "Convenções pelo chat", m: "dp", k: "convencao convencoes cct piso data base reajuste contribuicao patronal taxa negocial sindicato beneficios vigencia", a: "Pergunte, por exemplo: “qual o piso do Comerciários?”, “quando é a data-base do sindicato X?” ou “qual a contribuição patronal da Importbras?”. Mostro piso, reajuste, benefícios e contribuições da convenção vigente; a contribuição patronal é uma estimativa com os dados do cadastro (funcionários, tributação e capital social), então confira na convenção. Para marcar o reajuste como aplicado: “marca o reajuste do Comerciários como aplicado”."},
+    {t: "Ausências e resumo da segunda", m: "dp", k: "ausencias ferias afastamento analista equipe cobertura segunda resumo semana cardapio", a: "Pergunte “quem está de férias na equipe?” para ver as ausências de analistas na Cartela (com quem cobre). Na segunda de manhã, além do resumo do dia, eu mostro a semana: prazos, ausências e cardápio. Dá para desligar em Configurações → Avisos."},
+    {t: "Configurações do Hub e do assistente", k: "configuracoes configuracao configurar ajustes preferencias tema escuro claro mascote avisos equipe departamentos limite ia senha nivel acesso", a: "No módulo Configurações (na tela inicial ou na barra lateral) cada sistema tem a sua aba: Geral (tema, sua conta e atalhos), Departamento Pessoal (equipe, prazos gerais, convenções, backup), Contábil e Fiscal (início do controle, vencimentos e catálogo de obrigações), Portal do Cliente, Cardápio e Assistente (conversa, mascote, avisos e, para a coordenação, limite de IA, instruções, departamentos e ajuda da equipe). Só a coordenação altera as configurações de cada sistema."},
+    {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Também marco o reajuste de convenção como aplicado (“marca o reajuste do Comerciários como aplicado”). Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
+    {t: "Login e níveis de acesso", k: "login senha entrar sair acesso nivel niveis permissao coordenador analista consulta administrador usuario cadastro trocar senha esqueci", a: "O Hub tem login próprio, separado da conta do Claude. Quem ainda não tem conta cria uma na tela de entrada e espera o administrador liberar. Cada pessoa tem um nível por módulo: Coordenador (edita tudo no módulo), Analista (edita só a própria carteira, pelo nome de analista ligado ao usuário) e Consulta (só vê). Sem nível, o módulo some do Hub. Para trocar a senha ou sair, clique no seu avatar (canto da tela inicial ou barra lateral). Esqueceu a senha? Peça ao administrador uma senha provisória: você será obrigado a trocá-la ao entrar. O administrador gerencia tudo em Usuários."},
+    {t: "Relatórios por departamento", k: "departamento departamentos relatorio relatorios resumo permissao acesso ver coordenacao liberar equipe separar setor", a: "Quando a coordenação liga a separação por departamento (⚙ → Equipe → Relatórios por departamento), cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela: um resumo do dia separado para cada departamento, e as consultas, fichas, carga e IA limitadas a eles. Cardápio e lembretes pessoais continuam para todos. A coordenação (editores do Hub) vê tudo e pode pedir /resumo fiscal, /resumo dp, /resumo contabil, /resumo portal ou /resumo todos. Se a sua tela estiver vazia, é porque falta a coordenação liberar o seu departamento. Isso organiza o que o assistente mostra: quem tem acesso ao Hub ainda consegue abrir os módulos pelas telas."},
+    {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
+    {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
+    {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas. A última opção da busca manda o texto como pergunta para o assistente."},
+    {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
+    {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Eu ando pela tela como se o layout fosse chão e parede: caminho pelo topo dos cartões e botões, pulo degraus e caio quando o chão some. Clique num espaço vazio e eu vou até lá. Clicando em mim, abre a conversa; em “🎨 Visual” você troca o meu desenho. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
+  ];
+  // Glossário do setor (respondido sem IA; a IA também consulta).
+  var GLOSSARIO = {
+    "das": "DAS: Documento de Arrecadação do Simples Nacional, a guia mensal que paga os tributos do Simples. Vence no dia 20 do mês seguinte.",
+    "pgdas-d": "PGDAS-D: programa onde se apura o Simples Nacional do mês e se gera o DAS. Entregue até o dia 20 do mês seguinte.",
+    "defis": "DEFIS: Declaração de Informações Socioeconômicas e Fiscais, anual, das empresas do Simples Nacional (até 31 de março).",
+    "dctfweb": "DCTFWeb: declaração mensal dos débitos previdenciários e de terceiros (vindos do eSocial e da EFD-Reinf); gera a DARF de INSS.",
+    "dctf": "DCTF: Declaração de Débitos e Créditos Tributários Federais (IRPJ, CSLL, PIS, COFINS, IPI…) para empresas fora do Simples.",
+    "efd-reinf": "EFD-Reinf: escrituração das retenções e outras informações fiscais (serviços tomados com retenção, CPRB…); alimenta a DCTFWeb.",
+    "reinf": "EFD-Reinf: escrituração das retenções e outras informações fiscais (serviços tomados com retenção, CPRB…); alimenta a DCTFWeb.",
+    "efd icms ipi": "EFD ICMS/IPI (SPED Fiscal): escrituração mensal de entradas, saídas e apuração do ICMS e do IPI.",
+    "sped fiscal": "SPED Fiscal (EFD ICMS/IPI): escrituração mensal de entradas, saídas e apuração do ICMS e do IPI.",
+    "efd contribuicoes": "EFD-Contribuições: escrituração mensal do PIS e da COFINS (Lucro Presumido e Real).",
+    "sped": "SPED: Sistema Público de Escrituração Digital, o conjunto de arquivos digitais (ECD, ECF, EFD…) enviados à Receita.",
+    "ecd": "ECD: Escrituração Contábil Digital, os livros contábeis (Diário e Razão) em formato digital; anual.",
+    "ecf": "ECF: Escrituração Contábil Fiscal, anual, com a apuração do IRPJ e da CSLL (substituiu a DIPJ).",
+    "esocial": "eSocial: sistema que reúne as informações trabalhistas, previdenciárias e fiscais dos empregados (admissões, folha, afastamentos, desligamentos).",
+    "fgts digital": "FGTS Digital: plataforma do governo para apurar e emitir as guias do FGTS a partir das informações do eSocial.",
+    "fgts": "FGTS: Fundo de Garantia do Tempo de Serviço, 8% da remuneração depositados mensalmente pelo empregador (pelo FGTS Digital).",
+    "darf": "DARF: Documento de Arrecadação de Receitas Federais, a guia para pagar tributos federais.",
+    "dirf": "DIRF: declaração anual do imposto retido na fonte. Foi substituída pelo eSocial e pela EFD-Reinf a partir de 2025.",
+    "rais": "RAIS: relação anual de informações sociais; hoje substituída pelo eSocial para quem já o envia.",
+    "caged": "CAGED: cadastro de admitidos e desligados; hoje as informações vêm do eSocial.",
+    "icms": "ICMS: imposto estadual sobre circulação de mercadorias e alguns serviços (transporte, comunicação).",
+    "icms st": "ICMS-ST (substituição tributária): o ICMS de toda a cadeia é recolhido antecipadamente por um contribuinte (normalmente o fabricante ou importador).",
+    "difal": "DIFAL: diferencial de alíquota do ICMS em operações interestaduais para consumidor final.",
+    "iss": "ISS: Imposto Sobre Serviços, municipal; cada prefeitura define alíquotas, prazos e declarações.",
+    "ipi": "IPI: Imposto sobre Produtos Industrializados, federal, para indústrias e equiparadas.",
+    "pis": "PIS: contribuição federal sobre o faturamento (cumulativo no Presumido, não cumulativo no Real).",
+    "cofins": "COFINS: contribuição federal sobre o faturamento (cumulativa no Presumido, não cumulativa no Real).",
+    "irpj": "IRPJ: Imposto de Renda da Pessoa Jurídica, trimestral ou anual (Presumido e Real).",
+    "csll": "CSLL: Contribuição Social sobre o Lucro Líquido, apurada junto com o IRPJ.",
+    "simples nacional": "Simples Nacional: regime unificado para micro e pequenas empresas, com uma guia só (DAS) e limite de faturamento de R$ 4,8 milhões por ano.",
+    "lucro presumido": "Lucro Presumido: regime em que IRPJ e CSLL são calculados sobre uma margem de lucro presumida do faturamento.",
+    "lucro real": "Lucro Real: regime em que IRPJ e CSLL são calculados sobre o lucro contábil ajustado; obrigatório acima de R$ 78 milhões de faturamento e para algumas atividades.",
+    "mei": "MEI: Microempreendedor Individual, faturamento até R$ 81 mil por ano, paga um valor fixo mensal (DAS-MEI) e entrega a DASN-SIMEI anual.",
+    "destda": "DeSTDA: declaração mensal do ICMS-ST, DIFAL e antecipação para empresas do Simples Nacional.",
+    "gia": "GIA: Guia de Informação e Apuração do ICMS, declaração estadual (em alguns estados substituída pela EFD).",
+    "nfe": "NF-e: Nota Fiscal Eletrônica de produtos (modelo 55).",
+    "nfse": "NFS-e: Nota Fiscal de Serviços Eletrônica, emitida no padrão da prefeitura ou no padrão nacional.",
+    "cct": "CCT: Convenção Coletiva de Trabalho, acordo entre sindicatos patronal e de empregados com piso, reajuste e regras da categoria; tem vigência e data-base.",
+    "data-base": "Data-base: mês do ano em que a categoria negocia o reajuste salarial da convenção coletiva.",
+    "data base": "Data-base: mês do ano em que a categoria negocia o reajuste salarial da convenção coletiva.",
+    "periodo aquisitivo": "Período aquisitivo: os 12 meses de trabalho que dão direito a 30 dias de férias.",
+    "periodo concessivo": "Período concessivo: os 12 meses seguintes ao aquisitivo, dentro dos quais a empresa precisa conceder as férias; depois disso são devidas em dobro.",
+    "aviso previo": "Aviso prévio: 30 dias, mais 3 dias por ano completo trabalhado na empresa, até 90 dias (Lei 12.506/2011).",
+    "rpa": "RPA: Recibo de Pagamento a Autônomo, usado para pagar quem presta serviço sem vínculo (com retenção de INSS e IR quando cabíveis).",
+    "pro-labore": "Pró-labore: remuneração dos sócios pelo trabalho na empresa, com INSS de 11% do sócio e contribuição patronal conforme o regime.",
+    "competencia": "Competência: o mês a que os fatos se referem (ex.: a competência 09/2026 é fechada e paga em outubro).",
+    "escrituracao": "Escrituração: lançar e organizar os documentos (notas, extratos) nos livros fiscais ou contábeis.",
+    "apuracao": "Apuração: calcular quanto de imposto é devido no período a partir da escrituração.",
+    "balancete": "Balancete: relatório com os saldos das contas contábeis num período, usado para conferir o fechamento.",
+    "onvio": "Onvio: portal da Thomson Reuters (Domínio) onde o cliente acessa e envia documentos; acompanhado no módulo Portal do Cliente.",
+    "dominio": "Domínio: sistema contábil da Thomson Reuters usado pelo escritório (folha, escrita fiscal, contabilidade)."
+  };
+  function buscarGlossario(t) {
+    var tt = " " + norm(t).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ") + " ", melhor = "", tam = 0;
+    Object.keys(GLOSSARIO).forEach(function (k) { var kk = " " + k.replace(/-/g, " ") + " "; if (tt.indexOf(kk) !== -1 && k.length > tam) { melhor = k; tam = k.length; } });
+    return melhor ? GLOSSARIO[melhor] : "";
+  }
+  var VAZIAS = " como funciona funcionam faco fazer posso fazemos qual quais onde fica para pra isso esse essa esta uma uns que sobre tenho duvida quero saber preciso usar uso ";
+  function buscarAjuda(t, mods, minimo) {
+    var toks = t.split(" ").filter(function (w) { return w.length >= 3 && VAZIAS.indexOf(" " + w + " ") === -1; }), melhor = null, pts = 0;
+    AJUDA.concat(ajudaEquipe).forEach(function (e) {
+      var base = norm(e.k + " " + e.t).split(" "), p = 0;
+      toks.forEach(function (w) { if (base.indexOf(w) !== -1) p += 2; else if (base.some(function (b) { return parecido(w, b); })) p += 1; });
+      if (e.m && mods.indexOf(e.m) !== -1) p += 2;
+      if (p > pts) { pts = p; melhor = e; }
+    });
+    return pts >= (minimo || 3) ? melhor : null;
+  }
+
+  /* ============ intenções ============ */
+  var RX = {
+    saudacao: /^(oi|ola|ola tax|oi tax|e ai|eai|opa|hey|salve|bom dia|boa tarde|boa noite)( |$)/,
+    obrigado: /\b(obrigad|brigad|valeu|thanks)/,
+    quem: /\b(quem (e|eh) voce|quem es|o que voce (faz|sabe|pode)|pra que voce serve|para que voce serve|o que (eu )?posso (te )?(perguntar|pedir)|comandos|me ajuda|ajuda)\b/,
+    navegar: /(^| )(abr[aei]r?|abre|ir para|ir pra|vai para|vai pra|va para|leva|levar|mostr[ae]r?|mostra|quero ver|ver|navegar|entrar|acessar|acesse|volta|voltar)( |$)/,
+    cliente: /\b(aguard\w* (o |a )?(cliente|retorno|resposta)|pendencias? (do|de) clientes?|cobrar|cobranca|cliente (nao )?(mandou|enviou)|esperando (o )?cliente)\b/,
+    atrasos: /\b(atras|vencid|pendent|em aberto|falt|bloquead|impedi|problema|urgent|alerta|aviso|nao (foi|foram) (feito|entregue)|estourou)/,
+    cardapio: /\b(cardapio|almoc|comer\b|refeitorio|prato|sobremesa|marmita)/,
+    vencimentos: /\b(venc|prazo|entreg|agenda|compromiss|obrigac|calendario|guias?\b|o que (tem|temos|ha|rola)\b|vai ter\b)/,
+    carteira: /\b(carteira|quantas empresas|quantos clientes|quantas)\b/,
+    empresa: /\b(empresa|cliente|situacao|como (esta|ta|anda)|me fala|fala (da|do|sobre)|ficha|dados d[aeo]|informacoes)\b/,
+    conv: /\b(piso|pisos|data[ -]?base|database|reajuste|reajustes|convencao|convencoes|cct|ccts|contribuicao|contribuicoes|taxa negocial|sindicato|sindicatos)\b/,
+    convNao: /\b(pendente|pendentes|atrasad\w*|vencid\w*|vencendo|alerta\w*|aplicar|como)\b/,
+    ausencia: /\b(ferias|ausen\w*|afastad\w*|licenca|de folga)\b/,
+    ajuda: /^(como|onde|o que (e|significa|quer dizer)|para que serve|pra que serve|qual a diferenca|duvida|tenho uma duvida|passo a passo|tutorial)\b|\b(como (faco|faz|eu|se)|onde (fica|vejo|encontro|clico)|ensina)\b/,
+  };
+
+  /* ============ resposta ============ */
+  var ctx = {intent: "", mods: [], analista: "", per: null, empresa: null};
+  var euNome = null;
+  function AUTH() { return window.__auth || null; }
+  function quemSou() {
+    if (euNome !== null) return Promise.resolve(euNome);
+    if (AUTH() && AUTH().usuario()) { euNome = AUTH().usuario().nome || ""; return Promise.resolve(euNome); }
+    try {
+      if (!window.claude || !window.claude.use) { euNome = ""; return Promise.resolve(""); }
+      return window.claude.use("user").then(function (u) { return u && u.name ? u.name() : ""; }).catch(function () { return ""; }).then(function (n) { euNome = n || ""; return euNome; });
+    } catch (e) { euNome = ""; return Promise.resolve(""); }
+  }
+  function casarEu(nomes) {
+    // com login do Hub, vale o nome de analista ligado à pessoa em algum módulo
+    if (AUTH() && AUTH().usuario()) {
+      var lig = ["dp", "contabil", "fiscal", "portal"].map(function (m) { return AUTH().analista(m); }).filter(Boolean);
+      for (var q = 0; q < lig.length; q++) { var achou = nomes.filter(function (n) { return norm(n) === norm(lig[q]); })[0]; if (achou) return achou; }
+    }
+    var t = norm(euNome || "").split(" ").filter(Boolean), melhor = "", pts = 0;
+    nomes.forEach(function (n) { var a = norm(n).split(" "); if (a[0] !== t[0]) return; var p = a.filter(function (x) { return t.indexOf(x) !== -1; }).length; if (p > pts) { pts = p; melhor = n; } });
+    return melhor;
+  }
+
+  function nomesAbas(mod) { var a = carregados[mod]; return a && a.abas ? a.abas : []; }
+  var T = function (texto) { return {tipo: "texto", texto: texto}; };
+  var CH = function (itens) { return {tipo: "chips", itens: itens}; };
+  function sugestoes() {
+    var ativo = H.ativo();
+    var base = {
+      fiscal: ["Entregas da semana no Fiscal", "Empresas com atraso no Fiscal", "Abrir o fechamento do Fiscal", "Como importo a carteira?"],
+      contabil: ["Vencimentos do Contábil nesta semana", "Fechamento atrasado no Contábil", "Aguardando cliente no Contábil", "Abrir prazos do Contábil"],
+      dp: ["O que vence hoje no DP?", "Alertas do DP", "Abrir a cartela de clientes", "Como funciona a cartela?"],
+      portal: ["Impedimentos no Portal", "Treinamentos desta semana", "Abrir o Portal do Cliente", "Quais as etapas do portal?"],
+      cardapio: ["Cardápio de hoje", "Cardápio de amanhã", "Cardápio da semana"]
+    }[ativo];
+    return base || ["O que vence hoje?", "Quem está atrasado?", "Cardápio de hoje", "O que você sabe fazer?"];
+  }
+
+  // Entende a frase e devolve a lista de blocos da resposta.
+  // op: {forcarIA, imagens, oculto (texto que vai para a IA no lugar do digitado)}
+  // Abreviações de chat (“vc”, “hj”, “amnh”, “p/”) viram palavras inteiras antes de a frase ser entendida (pelas regras ou pela IA).
+  var ABREV = [["vc|vcs|vose", "você"], ["hj|oje", "hoje"], ["amnh|amnha|amh|amn|aman", "amanhã"], ["ontm", "ontem"], ["pq|pqe|porq", "por que"], ["tb|tbm|tmb", "também"],
+    ["q|qe", "que"], ["qdo|qnd|qndo", "quando"], ["qto|qt", "quanto"], ["qtos|qts", "quantos"], ["msm", "mesmo"], ["n|ñ|naum", "não"], ["mt|mto", "muito"], ["td|tdo", "tudo"], ["tds", "todos"], ["cmg", "comigo"],
+    ["pfv|pfvr|pf|plmds", "por favor"], ["dps|dpois", "depois"], ["dnv", "de novo"], ["nd", "nada"], ["oq", "o que"], ["ngm", "ninguém"], ["fz|fzr", "fazer"], ["tá|ta|tah", "está"],
+    ["rel|relat", "relatório"], ["pend|pends", "pendência"], ["func|funcs", "funcionário"], ["emp|empr", "empresa"], ["emps", "empresas"], ["cli|clt", "cliente"], ["docs", "documentos"], ["info|infos", "informação"],
+    ["prox|próx", "próximo"], ["sm", "semana"], ["fds", "fim de semana"], ["seg", "segunda"], ["qua", "quarta"], ["qui", "quinta"], ["sex", "sexta"], ["sab|sáb", "sábado"], ["hr|hrs", "hora"], ["ent", "entrega"], ["obrig", "obrigação"], ["venc|vencto", "vencimento"]];
+  var ABREV_RX = ABREV.map(function (x) { return [new RegExp("(^|[^A-Za-zÀ-ÿ0-9/])(?:" + x[0] + ")(?=$|[^A-Za-zÀ-ÿ0-9/])", "gi"), x[1]]; });
+  function expandirAbrev(texto) {
+    var o = String(texto).replace(/(^|\s)p\/(?=\s)/gi, "$1para").replace(/(^|\s)c\/(?=\s)/gi, "$1com").replace(/(^|\s)s\/(?=\s)/gi, "$1sem");
+    ABREV_RX.forEach(function (r) { o = o.replace(r[0], function (m, pre) { return pre + r[1]; }); });
+    return o;
+  }
+  function responder(texto, op) {
+    op = op || {};
+    texto = expandirAbrev(texto);
+    var t = norm(texto);
+    if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
+    if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
+    if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
+    var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
+    // Toda resposta vem da IA. Sem IA (ou no limite do dia) a pessoa vê o motivo e escolhe: tentar de novo ou, só se quiser, as regras simples.
+    var semIA = function (motivo) {
+      var r = [T(motivo + " As respostas do assistente dependem da IA."), CH([{rot: "Tentar de novo", enviar: texto, forcarIA: true}, {rot: "Responder pelas regras (sem IA)", enviar: texto, forcarRegras: true}])];
+      r.semIA = true; return r;
+    };
+    if (op.forcarRegras) return Promise.all([quemSou(), depsPronto()]).then(function () { return porRegras("Respondido pelas regras do assistente, sem IA."); });
+    if (op.forcarIA && !iaOk) iniciarIA();
+    return Promise.all([iaPronta, quemSou(), depsPronto()]).then(function () {
+      if (!iaOk) return (op.imagens && op.imagens.length) || (op.docs && op.docs.length) ? [T("Para ler fotos e arquivos eu preciso da IA, que não está disponível agora.")] : semIA(iaAviso || "A IA não está disponível agora.");
+      var lim = +cfgEquipe.limiteDia || 0;
+      if (lim && usoHoje() >= lim && !op.forcarIA) return semIA("O limite de " + lim + " perguntas por dia à IA, definido pela coordenação, foi atingido.");
+      var viaIA = function (tentativa) {
+        return perguntarIA(op.oculto || texto, op).then(function (bl) {
+          if (bl) return bl;
+          if (!tentativa && iaFalha && ["not_granted", "tools_unavailable", "rate_limited", "invalid_request", "prompt_too_large", "empty_completion", "refused", "sampling_disabled", "session_expired"].indexOf(iaFalha) === -1) return viaIA(1);   // falha passageira: tenta mais uma vez
+          return semIA(iaAviso || "A IA não respondeu agora.");
+        });
+      };
+      return viaIA(0);
+    });
+  }
+
+  // Perguntas que comparam analistas ("quem tem mais atrasos?", "empresas por analista", "quem está mais sobrecarregado?").
+  function ehComparacao(t) {
+    if (/\b(empresas?|clientes) por analista\b|\bquantas empresas (cada|por)\b|\bquantos clientes (cada|por)\b|\branking\b|\bsobrecarreg\w*|\bcarga (de trabalho )?(da equipe|dos analistas|de cada)\b|\bquem (esta|ta|anda) (mais )?(livre|folgad\w*|ocios\w*|disponivel)\b/.test(t)) return true;
+    return /\b(quem|analista|analistas|pessoa|equipe|time|colega|colegas|alguem)\b/.test(t) && /\b(mais|menos|maior|menor)\b/.test(t) && /\b(atras\w*|vencid\w*|ocupad\w*|carga|empresas|clientes|carteira|aguard\w*|pendenc\w*|livre|folgad\w*|ocios\w*)\b/.test(t) && !/\bempresas?\b.*\b(tem|com) mais\b.*\bfunc/.test(t);
+  }
+  // "marca X e me lembra sexta": separa o pedido em duas partes quando a segunda é um lembrete.
+  function dividirPedido(texto) {
+    var m = /^([\s\S]{8,}?)(?:\s*[,;]\s*|\s+e\s+(?:tamb[ée]m\s+)?)(me\s+lembr\w*[\s\S]*|cri(?:a|e)\w*\s+(?:um\s+)?lembrete[\s\S]*)$/i.exec(texto);
+    return m ? [m[1].trim(), m[2].trim()] : null;
+  }
+  function pedidoParcial(txt) {
+    var tt = norm(txt), ix = indice(), anaM = casarAnalista(tt, ix.analistas), ign = {};
+    anaM.forEach(function (n) { ign[norm(n).split(" ")[0]] = 1; });
+    return detectarAcao(tt, txt, casarEmpresas(tt, ign), detectarModulos(tt), periodo(tt), anaM);
+  }
+  function entender(texto, t) {
+    t = t.replace(/\bportal do cliente\b/g, "portal");
+    var ix = indice(), nomesAna = ix.analistas;
+    var anaMatch = casarAnalista(t, nomesAna);
+    var ignorar = {};
+    anaMatch.forEach(function (n) { ignorar[norm(n).split(" ")[0]] = 1; });
+    var emps = casarEmpresas(t, ignorar);
+    var mods = detectarModulos(t), per = periodo(t);
+    var euRef = /\b(minha|minhas|meu|meus|eu)\b/.test(t) && !anaMatch.length;
+    var analista = anaMatch.length === 1 ? anaMatch[0] : "";
+    if (euRef && euNome) analista = casarEu(nomesAna) || "";
+    var navega = RX.navegar.test(t);
+    var intent = "";
+
+    var duas = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? dividirPedido(texto) : null;
+    if (duas) {
+      var pa = pedidoParcial(duas[0]), pb = pedidoParcial(duas[1]);
+      if (pa && pb && pb.tipo === "lembrete" && ["pergunta", "ambigua", "ambigua_mod", "ambigua_ob", "lembrete"].indexOf(pa.tipo) === -1) {
+        if (!pb.texto) { var rotA = pa.rotulo || pa.texto || ""; pb.texto = ((pa.emp ? pa.emp.g.nome : "Conferir") + (rotA ? ": " + rotA : "")).slice(0, 120); }
+        return Promise.all([prepararAcao(pa, duas[0]), prepararAcao(pb, duas[1])]).then(function (r) { return [T("São dois pedidos: preparei um cartão para cada. Confirme os dois (ou só o que quiser).")].concat(r[0], r[1]); });
+      }
+    }
+    var pedido = (!/^(como|onde|qual|quais|quando|quem|o que|por que|porque|quanto)\b/.test(t) && texto.indexOf("?") === -1) ? detectarAcao(t, texto, emps, mods, per, anaMatch) : null;
+    if (pedido) return prepararAcao(pedido, texto);
+    var gl = buscarGlossario(t);
+    if (gl && (/^(o que (e|eh|sao|significa)|significad|o que quer dizer|que e|qual o significado|define|definicao)/.test(t) || t.split(" ").length <= 3)) {
+      return Promise.resolve([{tipo: "ajuda", titulo: "Glossário", texto: gl}]);
+    }
+
+    if (RX.saudacao.test(t) && t.split(" ").length <= 4) intent = "saudacao";
+    else if (RX.obrigado.test(t)) intent = "obrigado";
+    else if (RX.quem.test(t)) intent = "quem";
+    else if (RX.ajuda.test(t) && !emps.length) intent = "ajuda";
+    else if ((!emps.length || emps[0].s < 1) && /\btreinament\w*\b/.test(t) && !/\b(como|onde|configur\w*|cadastr\w*|marc\w*|agend(ar|e)|mudar|alterar)\b/.test(t)) { if (/\b(dp|pessoal|folha)\b/.test(t) && !/\bportal\b/.test(t)) mods = mods.filter(function (m) { return m !== "portal"; }); else if (!mods.length) mods = ["portal"]; intent = RX.atrasos.test(t) ? "atrasos" : "vencimentos"; }
+    else if (emps.length && RX.conv.test(t) && !RX.convNao.test(t) && (!anaMatch.length || emps[0].s >= 1)) intent = "convencao";
+    else if (emps.length && (!anaMatch.length || emps[0].s >= 1)) intent = "empresa";
+    else if (navega && (mods.length || /\b(inicio|home|tela inicial)\b/.test(t) || detectarAba(t, carregados[mods[0]]))) intent = "navegar";
+    else if (analista && !emps.length && /\b(por ?que|porque|motivo)\b/.test(t) && /\b(sobrecarreg\w*|carga|ocupad\w*|atras\w*|cheio|muito)\b/.test(t)) intent = "explicar";
+    else if (!emps.length && /\b(bastao|repasse)\b/.test(t)) intent = "bastao";
+    else if (!emps.length && /\b(subiu|subiram|aumentou|aumentaram|caiu|cairam|diminuiu|diminuiram|piorou|melhorou|evolucao|comparad\w*|em relacao)\b/.test(t) && RX.atrasos.test(t)) intent = "evolucao";
+    else if (/\b(rascunho|modelo|texto|escreve|escreva|redige|redija|monta|monte)\b/.test(t) && /\b(e ?mail|mensagem|zappy|zap)\b/.test(t)) intent = "email";
+    else if (!emps.length && ehComparacao(t)) intent = "comparar";
+    else if (!emps.length && RX.conv.test(t) && !RX.convNao.test(t)) intent = "convencao";
+    else if (!emps.length && RX.ausencia.test(t) && (/\b(analistas?|equipe|time|cobertura|cobrindo|cartela)\b/.test(t) || anaMatch.length)) intent = "ausencias";
+    else if (RX.cliente.test(t)) intent = "cliente";
+    else if (RX.cardapio.test(t)) intent = "cardapio";
+    else if (RX.atrasos.test(t)) intent = "atrasos";
+    else if (RX.vencimentos.test(t)) intent = "vencimentos";
+    else if (RX.carteira.test(t)) intent = "carteira";
+    else if (RX.empresa.test(t)) intent = "empresa";
+    if (!intent && (anaMatch.length || per || mods.length) && ctx.intent && ctx.intent !== "empresa" && ["saudacao", "obrigado", "quem", "ajuda"].indexOf(ctx.intent) === -1) intent = ctx.intent;      // "e do Bruno?", "e amanhã?"
+    if (!intent && anaMatch.length) intent = "carteira";
+    if (!intent) { var aj = buscarAjuda(t, mods); if (aj) intent = "ajuda"; }
+
+    if (anaMatch.length > 1 && !analista && intent !== "navegar") {
+      return Promise.resolve([T("Achei mais de um analista com esse nome. Qual deles?"), CH(anaMatch.slice(0, 6).map(function (n) { return {rot: n, enviar: trocarNome(texto, n)}; }))]);
+    }
+    if (euRef && !analista && /(minha|minhas|meu|meus)/.test(t) && ["atrasos", "vencimentos", "carteira", "cliente"].indexOf(intent) !== -1) {
+      return Promise.resolve([T("Não consegui descobrir qual analista é você. De quem você quer ver?"), CH(nomesAna.slice(0, 8).map(function (n) { return {rot: n, enviar: texto.replace(/minhas?|meus?/gi, "do") + " " + n}; }))]);
+    }
+    if (!mods.length && ctx.mods.length && (intent === ctx.intent) && !anaMatch.length && !per && !emps.length && /^(e|e o|e a|e no|e na)\b/.test(t)) mods = ctx.mods;
+    var p = {intent: intent, mods: mods, analista: analista, per: per, t: t, texto: texto};
+    ctx.intent = intent === "empresa" ? ctx.intent : intent || ctx.intent;
+    if (intent !== "saudacao" && intent !== "obrigado" && intent !== "quem" && intent !== "ajuda") { ctx.mods = mods; if (analista) ctx.analista = analista; if (per) ctx.per = per; }
+
+    switch (intent) {
+      case "saudacao": return Promise.resolve([T("Oi! Sou o Tax, o assistente do Hub. Pergunte sobre prazos, atrasos, empresas ou cardápio, ou peça para abrir uma tela."), CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))]);
+      case "obrigado": return Promise.resolve([T("Por nada! É só chamar. 🙂")]);
+      case "quem": return Promise.resolve(quem());
+      case "ajuda": return Promise.resolve(ajuda(p));
+      case "navegar": return navegar(p);
+      case "empresa": return empresa(p, emps);
+      case "vencimentos": case "atrasos": case "cliente": case "carteira": return consulta(p);
+      case "cardapio": return consulta(p);
+      case "comparar": return comparar(p);
+      case "explicar": return explicar(p);
+      case "bastao": return bastao(p);
+      case "evolucao": return evolucao(p);
+      case "email": return rascunhoEmail(p, emps);
+      case "convencao": return convencoes(p, emps);
+      case "ausencias": return ausencias(p);
+      default: return Promise.resolve(naoEntendi(p));
+    }
+  }
+
+  function trocarNome(texto, nome) {
+    var pr = norm(nome).split(" ")[0], ok = false;
+    var r = texto.split(/(\s+)/).map(function (w) { if (!ok && norm(w) === pr) { ok = true; return nome; } return w; }).join("");
+    return ok ? r : texto + " " + nome;
+  }
+
+  /* ============ ações (sempre com confirmação) ============ */
+  var STOP_ETAPA = {de: 1, do: 1, da: 1, dos: 1, das: 1, e: 1, ao: 1, em: 1, para: 1, ao: 1};
+  function limpo(t) { return " " + t.replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim() + " "; }
+  function melhorPorTokens(tt, itens, rotulos) {
+    // itens: lista; rotulos(i) -> lista de textos alternativos. Devolve {item, pts, empate}
+    var melhor = null, pts = 0, empate = [];
+    itens.forEach(function (it) {
+      var p = 0;
+      rotulos(it).forEach(function (r) {
+        var ws = limpo(norm(r)).trim().split(" ").filter(function (w) { return w && !STOP_ETAPA[w] && w.length >= 2; });
+        if (!ws.length) return;
+        var hits = ws.filter(function (w) { return tt.indexOf(" " + w + " ") !== -1 || (w.length >= 5 && tt.indexOf(" " + w.slice(0, 5)) !== -1); }).length;
+        if (!hits) return;
+        var q = hits / ws.length + (hits === ws.length ? 1 : 0) + (ws.length === 1 ? 0 : 0.1 * hits);
+        if (q > p) p = q;
+      });
+      if (p > pts + 1e-9) { pts = p; melhor = it; empate = [it]; }
+      else if (p && Math.abs(p - pts) < 1e-9) empate.push(it);
+    });
+    return {item: melhor, pts: pts, empate: empate};
+  }
+  // Em que módulo agir quando a empresa existe em mais de um: o citado na frase, o que está aberto ou, se só há um, ele; senão pergunta.
+  function alvoModulo(mods, e) {
+    var ok = ["dp", "fiscal", "contabil"], refs = Object.keys(e.g.refs).filter(function (m) { return ok.indexOf(m) !== -1; });
+    var ex = (mods || []).filter(function (m) { return ok.indexOf(m) !== -1; });
+    if (ex.length === 1) return {mod: ex[0]};
+    var cand = ex.length ? ex : refs;
+    if (cand.length === 1) return {mod: cand[0]};
+    var at = H.ativo(); if (cand.indexOf(at) !== -1) return {mod: at};
+    return cand.length ? {ambig: cand} : {mod: "dp"};
+  }
+  function detectarAcao(t, texto, emps, mods, per, anaMatch) {
+    var tt = limpo(t);
+    // lembrete pessoal (DP): não precisa de empresa
+    if (/\b(me lembr\w*|lembra (de|pra|para) |(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete)\b/.test(t)) {
+      var hora = (/\b(\d{1,2})\s?(?:h|:)\s?(\d{2})?\b/.exec(t) || []);
+      var h = hora[1] && +hora[1] <= 23 ? pad2(+hora[1]) + ":" + (hora[2] || "00") : "";
+      var txt = texto.replace(/^\s*(por favor[, ]*)?/i, "").replace(/\b(me )?lembr(a|e|ar)\b( de| que| para| pra)?/i, "").replace(/\b(cria\w*|novo|adiciona\w*|coloca\w*|anota\w*)( um| o)? lembrete( de| para| pra| que| sobre)?/i, "")
+        .replace(/(^|\s)(depois de amanh[ãa]|amanh[ãa]|hoje|ontem)(?=[\s,.;]|$)/ig, " ").replace(/\bdia \d{1,2} d[eo] (m[êe]s que vem|pr[óo]ximo m[êe]s|m[êe]s seguinte|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/ig, "").replace(/\bdia \d{1,2}\b/ig, "").replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, "").replace(/(^|\s)(às|as)\s+\d{1,2}(h|:)?\d{0,2}h?(?=\s|$)/ig, " ").replace(/(^|\s)\d{1,2}\s?h(\d{2})?(?=\s|$)/ig, " ")
+        .replace(/\bna (segunda|terça|quarta|quinta|sexta)\b/ig, "")
+        .replace(/(^|\s)(?:(pr[óo]xim[ao]|essa|esta|nesta|nessa|na|no|para|pra|at[ée]) )?(domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado)(?:[- ]feira)?( que vem| passada)?(?=[\s,.;]|$)/ig, function (mm, a, b, c, d) { return b || d || per || /feira/i.test(mm) ? " " : mm; })
+        .replace(/\bdia \d{1,2} d[eo] (m[êe]s que vem|pr[óo]ximo m[êe]s|m[êe]s seguinte)\b/ig, "").replace(/\b(daqui a|dentro de|em) \d{1,3} dias?( [úu]teis)?\b/ig, "").replace(/\b(fim|final|[úu]ltimo dia) d[oe] m[êe]s( que vem)?\b/ig, "").replace(/\bpr[óo]ximo dia [úu]til\b/ig, "").replace(/\s+/g, " ").replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "").replace(/^(de|para|pra|que)\s+/i, "");
+      return {tipo: "lembrete", mod: "dp", texto: txt, data: per ? ymd(per.de) : ymd(hoje()), hora: h, emp: emps.length ? emps[0] : null};
+    }
+    // ---- DP: ausência de analista (férias, afastamento, licença) com cobertura; não precisa de empresa ----
+    var anas = anaMatch || [], dts = [], rxd = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g, md;
+    while ((md = rxd.exec(t))) if (+md[1] >= 1 && +md[1] <= 31 && +md[2] >= 1 && +md[2] <= 12) dts.push(md);
+    var mAus = /\b(ferias|afastament\w*|licenca|atestado|ausenc\w*)\b/.exec(t);
+    if (anas.length && mAus && !/\b(mostr\w*|ver|veja|lista\w*|consult\w*|quais|quem|qual)\b/.test(t) && (dts.length >= 2 || /\b(registr\w*|cadastr\w*|lanc\w*|marc\w*|coloc\w*|poe|anot\w*|agend\w*|cri(a|e|ar)|adicion\w*|programa\w*)\b/.test(t))) {
+      var toks = t.split(" "), ausente = "", cobre = "";
+      var iNome = function (n) { var f = norm(n).split(" ")[0]; return toks.indexOf(f); };
+      if (anas.length === 1) ausente = anas[0];
+      else if (anas.length === 2) {
+        var cue = -1; toks.forEach(function (w, q) { if (cue < 0 && /^(cobre|cobrindo|cobertura|cobrir|substitui\w*|substituto|substituta|lugar)$/.test(w)) cue = q; });
+        var i0 = iNome(anas[0]), i1 = iNome(anas[1]);
+        if (cue >= 0 && i0 >= 0 && i1 >= 0 && Math.abs(i0 - cue) !== Math.abs(i1 - cue)) { if (Math.abs(i0 - cue) < Math.abs(i1 - cue)) { cobre = anas[0]; ausente = anas[1]; } else { cobre = anas[1]; ausente = anas[0]; } }
+      }
+      if (!ausente) return {tipo: "pergunta", texto: anas.length > 1 ? "Quem vai se ausentar e quem cobre? Por exemplo: “registra férias da Maria de 10/11 a 25/11, o Bruno cobre”." : "Qual analista vai se ausentar?"};
+      var h0 = hoje(), mkD = function (m, minD) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : h0.getFullYear(), d = new Date(y, +m[2] - 1, +m[1]); if (!m[3] && minD && d < minD) d = new Date(y + 1, +m[2] - 1, +m[1]); return d; };
+      var ini = "", fim = "";
+      if (dts.length) { var d1 = mkD(dts[0], addDias(h0, -60)), d2 = dts.length > 1 ? mkD(dts[1], d1) : d1; ini = ymd(d1); fim = ymd(d2); }
+      var mot = /^ferias/.test(mAus[1]) ? "ferias" : /^(afastament|atestado)/.test(mAus[1]) ? "afastamento" : /^licenca/.test(mAus[1]) ? "licenca" : "";
+      return {tipo: "ausencia", mod: "dp", params: {analista: ausente, motivo: mot, inicio: ini, fim: fim, para: cobre}};
+    }
+    // ---- DP: marcar o reajuste da data-base como aplicado (sindicato inteiro ou uma empresa) ----
+    if (/\breajuste\b/.test(t) && (/\b(marc\w*|registr\w*|lanc\w*|confirm\w*|anot\w*|baix\w*)\b/.test(t) || /\baplic(amos|ei|ou|aram)\b/.test(t)) && /\b(aplicad\w*|aplic(amos|ei|ou|aram)|feito|feita|lancad\w*|conclu\w*|na folha)\b/.test(t) && !/\b(desmarc\w*|nao)\b/.test(t)) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var mR = /\breajuste\b(?:\s+(?:salarial|da data base|da cct|da convencao))?\s+(?:d[aeo]s?\s+)?([\s\S]*?)(?=\s+(?:como|ja|foi|foram|aplicad\w*|feito|feita|conclu\w*|na folha|ok|para|pra)\b|$)/.exec(t), sq = mR ? mR[1].trim().replace(/^(como|ja|foi|foram|aplicad\w*|feito|feita|conclu\w*|na folha|ok|para|pra)\b[\s\S]*$/, "") : "";
+      if (!sq) { var mS = /\b(?:sindicato|convencao|cct)\s+([\s\S]+?)(?=\s+(?:como|ja|foi|aplicad\w*|feito|na folha)\b|$)/.exec(t); sq = mS ? mS[0].trim() : ""; }
+      if (emps.length && !/\b(sindicato|convencao|cct)\b/.test(sq)) sq = "";
+      if (!emps.length && !sq) return {tipo: "pergunta", texto: "De qual sindicato é o reajuste? Por exemplo: “marca o reajuste do Comerciários como aplicado”."};
+      return {tipo: "reajuste", mod: "dp", emp: emps.length ? emps[0] : null, params: {sindicato: sq}};
+    }
+    if (!emps.length) return null;
+    // ---- DP, Fiscal ou Contábil: passar a empresa para outro analista ----
+    if (anas.length === 1 && /\b(passa|passe|passar|transfere|transfira|transferir|muda|mude|mudar|troca|troque|trocar|coloca|coloque|poe|ponha|atribui|atribua)\b/.test(t) && !/\b(lembrete|etapa|pendencia|entrega|obrigacao)\b/.test(t)
+        && new RegExp("\\b(para|pra|pro|ao|carteira d[oa]|responsavel d[oa])\\s+(?:o |a )?" + norm(anas[0]).split(" ")[0] + "\\b").test(t)) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var alT = alvoModulo(mods, emps[0]);
+      if (alT.ambig) return {tipo: "ambigua_mod", emp: emps[0], mods: alT.ambig, texto: texto};
+      return {tipo: "transferir", mod: alT.mod, emp: emps[0], params: {para: anas[0]}};
+    }
+    // ---- anotar na ficha / no histórico da empresa ----
+    if (/\b(anot\w*|registr\w*|adicion\w*|escrev\w*|poe|coloc\w*|deix\w*)\b/.test(t) && (/\b(historico|ficha|observacao|observacoes|nota(?! fiscal))\b/.test(t) || (/\banot\w*\b/.test(t) && (texto.indexOf(":") >= 0 || /\banot\w*\b.*\bque\b/.test(t)) && !/\b(lembrete|etapa|pendencia|entrega|imposto)\b/.test(t)))) {
+      if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+      var alO = alvoModulo(mods, emps[0]);
+      if (alO.ambig) return {tipo: "ambigua_mod", emp: emps[0], mods: alO.ambig, texto: texto};
+      var tx2 = "", ic2 = texto.indexOf(":"), mq = /\bque\s+([\s\S]+)$/i.exec(texto);
+      if (ic2 >= 0) tx2 = texto.slice(ic2 + 1); else if (mq) tx2 = mq[1];
+      return {tipo: "observacao", mod: alO.mod, emp: emps[0], texto: tx2.replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "")};
+    }
+    var verbo = /\b(marc\w*|conclu\w*|finaliz\w*|fech\w*|dar? baixa|baixa|registr\w*|lanc\w*|anot\w*|cobr\w*|desmarc\w*|reabr\w*|desfaz\w*|retific\w*|entreg\w*|receb\w*|chegou|chegaram|mandou|enviou|enviei|transmiti\w*|termin\w*|inici\w*|comec\w*|coloca\w*|poe|bota)\b/.test(t);
+    if (!verbo) return null;
+    if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
+    var e = emps[0], modsEmp = Object.keys(e.g.refs);
+    var status = /\b(desmarc\w*|reabr\w*|desfaz\w*|volta\w*|pendente)\b/.test(t) ? "" : /\b(inici\w*|comec\w*|em andamento|andamento)\b/.test(t) ? "a" : /\bretific\w*\b/.test(t) ? "r" : "c";
+    var comp = per && ymd(per.de).slice(0, 7) === ymd(per.ate).slice(0, 7) && /\b(competencia|fechamento|de |do mes|em |mes)\b/.test(t) && !/\b(hoje|amanha|ontem|dia \d|domingo|segunda|terca|quarta|quinta|sexta|sabado|daqui|uteis|fim do|final do|ultimo dia|proximo dia)/.test(t) ? ymd(per.de).slice(0, 7) : "";
+    // pendência do cliente
+    var temPend = /\b(pendencia|pendente do cliente|aguardando|falta o cliente|cliente (nao )?(mandou|enviou)|cobrei|cobrado|cobranca|cobrar de novo)\b/.test(t) || /\bcliente\b.*\b(mandou|enviou|chegou)\b|\b(receb\w+|chegou|chegaram)\b.*\b(do|da) cliente\b/.test(t);
+    if (temPend) {
+      var modo = /\b(cobrei|cobrado|cobranca|cobrar de novo)\b/.test(t) ? "cobrado" : /\b(receb\w+|chegou|chegaram|mandou|enviou|resolvid\w+|resolveu)\b/.test(t) && !/\bnao\b/.test(t) ? "recebida" : "registrar";
+      var tx = "";
+      if (modo === "registrar") {
+        var i = texto.indexOf(":");
+        tx = i >= 0 ? texto.slice(i + 1) : texto.replace(/^.*?\b(pend[êe]ncia|falta(ndo)?|aguardando)( do cliente| d[oa] cliente)?( de| do| da| dos| das| o| a| os| as)?\b/i, "");
+        if (i < 0 && tx === texto) tx = "";
+        tx = tx.replace(/\b(na|no|da|do) [^,:;]*$/i, function (m) { return m; }).replace(/^[\s,:;.-]+|[\s,:;.-]+$/g, "");
+      }
+      return {tipo: "pendencia", modo: modo, texto: tx, emp: e, mods: mods, comp: comp};
+    }
+    // obrigação (Fiscal) e etapa (Fiscal/Contábil): usam o vocabulário dos módulos
+    var vf = carregados.fiscal && carregados.fiscal.vocab ? carregados.fiscal.vocab() : null, vc = carregados.contabil && carregados.contabil.vocab ? carregados.contabil.vocab() : null;
+    if (vf && modsEmp.indexOf("fiscal") !== -1 && vf.obrigacoes.length) {
+      var ob = melhorPorTokens(tt, vf.obrigacoes, function (o) { return [o.l]; });
+      if (ob.item && ob.pts >= 0.5 && !/\b(etapa|escrituracao|apuracao|fechamento)\b/.test(t)) {
+        if (ob.empate.length > 1) return {tipo: "ambigua_ob", emp: e, opcoes: ob.empate, texto: texto};
+        return {tipo: "entrega", mod: "fiscal", emp: e, ob: ob.item.k, rotulo: ob.item.l, status: status === "a" ? "c" : status, comp: comp};
+      }
+    }
+    var mods = mods.filter(function (m) { return m === "fiscal" || m === "contabil"; });
+    var cands = [];
+    if (vf && modsEmp.indexOf("fiscal") !== -1) cands.push(["fiscal", vf.etapas]);
+    if (vc && modsEmp.indexOf("contabil") !== -1) cands.push(["contabil", vc.etapas]);
+    var achados = [];
+    cands.forEach(function (c) {
+      if (mods.length && mods.indexOf(c[0]) === -1) return;
+      var r = melhorPorTokens(tt, c[1], function (x) { return [x.c, x.l]; });
+      if (r.item && r.pts >= 1 && r.empate.length === 1) achados.push({mod: c[0], et: r.item});
+    });
+    if (achados.length === 1) return {tipo: "etapa", mod: achados[0].mod, emp: e, etapa: achados[0].et.k, rotulo: achados[0].et.l, status: status, comp: comp};
+    if (achados.length > 1) return {tipo: "ambigua_mod", emp: e, mods: achados.map(function (a) { return a.mod; }), texto: texto};
+    // fechar a empresa
+    if (/\b(fech\w+|conclu\w+|finaliz\w+|termin\w+)\b/.test(t) && !/\b(mes|ano)\b.*\bcontab/.test(t)) return {tipo: "fechar", emp: e, mods: mods, comp: comp};
+    return null;
+  }
+  function escolherModulo(pedido, candidatos) {
+    // candidatos: módulos onde a empresa existe e que sabem agir
+    var sel = (pedido.mods || []).filter(function (m) { return m === "fiscal" || m === "contabil"; });
+    var c = candidatos.filter(function (m) { return !sel.length || sel.indexOf(m) !== -1; });
+    if (!c.length) c = candidatos;
+    if (c.length === 1) return c[0];
+    var ativo = H.ativo();
+    if (c.indexOf(ativo) !== -1) return ativo;
+    return c.length ? "?" : "";
+  }
+  var pendente = null;
+  function prepararAcao(pd, texto) {
+    if (pd.tipo === "pergunta") return Promise.resolve([T(pd.texto)]);
+    if (pd.tipo === "ambigua") {
+      return Promise.resolve([T("Achei mais de uma empresa parecida. Qual delas?"), CH(pd.emps.map(function (x) { return {rot: x.g.nome, enviar: substituirEmpresa(texto, x.g.nome)}; }))]);
+    }
+    if (pd.tipo === "ambigua_ob") {
+      return Promise.resolve([T("Qual obrigação você quer dizer?"), CH(pd.opcoes.slice(0, 6).map(function (o) { return {rot: o.l, enviar: texto + " " + o.l}; }))]);
+    }
+    if (pd.tipo === "ambigua_mod") {
+      return Promise.resolve([T("Essa empresa está em mais de um módulo. Em qual?"), CH(pd.mods.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]);
+    }
+    return montarPlano(pd, texto).then(function (r) {
+      if (r.blocos) return r.blocos;
+      return [{tipo: "confirma", plano: r.plano, mod: r.mod, titulo: r.plano.titulo}];
+    });
+  }
+  // Monta o plano de uma ação num módulo (nada grava). Devolve {plano, mod} ou {blocos} (pergunta/erro).
+  var SO_MOD = {lembrete: "dp", cardapio: "cardapio", etapa_portal: "portal", imposto: "contabil"};
+  var TIPO_PONTE = {etapa_portal: "etapa"};
+  function montarPlano(pd, texto) {
+    texto = texto || "";
+    var e = pd.emp, mod = pd.mod || SO_MOD[pd.tipo] || "";
+    if (SO_MOD[pd.tipo]) mod = SO_MOD[pd.tipo];
+    else if (!mod) {
+      var cand = Object.keys(e.g.refs).filter(function (m) { return m === "fiscal" || m === "contabil"; });
+      if (!cand.length) return Promise.resolve({blocos: [T("Só consigo fazer isso em empresas do Fiscal ou do Contábil, e “" + e.g.nome + "” não está em nenhum dos dois.")]});
+      mod = escolherModulo(pd, cand);
+      if (mod === "?") return Promise.resolve({blocos: [T("“" + e.g.nome + "” está no Fiscal e no Contábil. Em qual deles?"), CH(cand.map(function (m) { return {rot: MODN[m], enviar: texto + " no " + MODN[m]}; }))]});
+    }
+    if (pd.tipo !== "lembrete" && !podeMod(mod)) { var msgD = "Você não tem acesso ao " + MODN[mod] + " pelo assistente: é de outro departamento."; return Promise.resolve({blocos: [T(msgD)], erro: msgD}); }
+    return modulo(mod, pd.tipo === "lembrete").then(function (a) {
+      if (!a || !a.acao) return {blocos: [T("Ainda não consigo fazer isso no " + MODN[mod] + ".")]};
+      var id = e ? e.g.refs[mod] : "";
+      if (e && !id && pd.tipo !== "lembrete") return {blocos: [T("“" + e.g.nome + "” não está no " + MODN[mod] + ".")]};
+      var p = Object.assign({}, pd.params || {}, {id: id, etapa: pd.etapa, status: pd.status, ob: pd.ob, modo: pd.modo, texto: pd.texto, comp: pd.comp, data: pd.data, hora: pd.hora});
+      var plano = a.acao(TIPO_PONTE[pd.tipo] || pd.tipo, p);
+      if (!plano || plano.erro) return {blocos: [T(plano && plano.erro ? plano.erro : "Não consegui preparar essa ação.")], erro: plano && plano.erro ? plano.erro : "Não consegui preparar essa ação."};
+      return {plano: plano, mod: mod};
+    });
+  }
+  function substituirEmpresa(texto, nome) {
+    var q = norm(nome).split(" ").filter(function (w) { return w.length >= 3; });
+    var ws = texto.split(/(\s+)/), out = [], colocou = false;
+    ws.forEach(function (w) { if (q.some(function (x) { return norm(w).indexOf(x.slice(0, 5)) === 0 && norm(w).length >= 3; })) { if (!colocou) { out.push(nome); colocou = true; } } else out.push(w); });
+    return colocou ? out.join("").replace(/\s+/g, " ") : texto + " " + nome;
+  }
+
+
+  /* ============ IA opcional (capability "sample": gasta o plano de quem clicou) ============ */
+  var iaOk = false, iaNs = null, iaOcupada = false;
+  var iaPronta = Promise.resolve();
+  function iniciarIA() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      iaPronta = window.claude.use("sample").then(function (ns) {
+        if (!ns || typeof ns !== "function") return null;
+        return Promise.resolve(ns.limits ? ns.limits() : null).then(function (l) { iaLimites = l || null; if (l && l.tools) { iaNs = ns; iaOk = true; } }, function () {});
+      }).catch(function () {});
+      if (AUTH()) { var adm = AUTH().ehAdmin(), algum = ["dp", "contabil", "fiscal", "portal", "cardapio"].some(function (m) { return AUTH().nivel(m) === "coord"; }); ehCoord = adm; podeVerTudo = adm || algum; }
+      else window.claude.use("user").then(function (u) {
+        if (!u) return;
+        try { var ce = u.canEdit ? u.canEdit() : false; Promise.resolve(ce).then(function (v) { ehCoord = !!v; podeVerTudo = !!v; }); } catch (e) {}
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  var iaLimites = null;
+  // Quantas imagens / quais tipos a IA aceita nesta tela (null = não aceita).
+  function limitesImagem() { return iaOk && iaLimites && iaLimites.images ? iaLimites.images : null; }
+  function compacto(r, max) {
+    if (!r) return {total: 0, linhas: []};
+    var ls = (r.linhas || []).slice(0, max || 15).map(function (l) { var o = {t: mascarar(l.t), sub: mascarar(l.sub), data: l.data}; if (l.dados) o.dados = l.dados; return o; });
+    var o = {titulo: r.titulo, total: r.total, linhas: ls};
+    if (r.resumo) o.resumo = r.resumo;
+    return o;
+  }
+  function anexarLista(extras, mod, r, a) {
+    var tit = MODN[mod] + " · " + (r.titulo || "");
+    if (extras.some(function (x) { return x.tipo === "linhas" && x.titulo === tit; })) return;
+    extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: mod}, l); }),
+      mais: r.linhas.length > 8 && r.verTudo ? {rot: "Ver os " + r.total + " no " + MODN[mod], acao: function () { return abrirItem(mod, r.verTudo); }} : null});
+  }
+  // Acha a empresa pelo texto (nome ou CNPJ). Devolve {g} ou {erro}.
+  function acharEmpresa(txt) {
+    var es = casarEmpresas(norm(txt || ""), {});
+    if (!es.length) return {erro: "Não achei a empresa “" + txt + "”."};
+    if (es.length > 1 && es[1].s >= es[0].s * 0.92 && es[0].s < 2) return {erro: "Empresa ambígua: " + es.slice(0, 4).map(function (x) { return x.g.nome; }).join("; ") + ". Pergunte qual."};
+    return {g: es[0].g, x: es[0]};
+  }
+  var STATUS_IA = {concluida: "c", entregue: "c", retificada: "r", em_andamento: "a", pendente: ""};
+  // Converte os argumentos das ferramentas (preparar_acao / preparar_lote) num pedido para montarPlano.
+  function pedidoDe(i, emp) {
+    var pd = {tipo: i.tipo, mod: i.modulo || "", status: STATUS_IA[i.status || "concluida"], modo: i.modo, texto: i.texto, comp: i.competencia, data: i.data, hora: i.hora, mods: i.modulo ? [i.modulo] : [],
+      params: {imposto: "", valor: i.valor, para: i.para, rep: i.repetir, dia: i.data, principal: i.principal, guarnicao: i.guarnicao, salada: i.salada, sobremesa: i.sobremesa, feriado: i.feriado, setor: i.setor}};
+    if (i.tipo === "ausencia") { pd.mod = "dp"; pd.mods = ["dp"]; pd.params.analista = i.analista; pd.params.inicio = i.inicio; pd.params.fim = i.fim; pd.params.motivo = i.motivo; return {pd: pd}; }
+    if (i.tipo === "reajuste") { pd.mod = "dp"; pd.mods = ["dp"]; pd.params.sindicato = i.sindicato; if (emp) pd.emp = emp; return {pd: pd}; }
+    if (i.tipo === "cardapio" || i.tipo === "lembrete") { if (i.tipo === "lembrete" && emp) pd.emp = emp; return {pd: pd}; }
+    if (!emp) return {erro: "Diga a empresa."};
+    pd.emp = emp;
+    var tt = limpo(norm(i.etapa || i.obrigacao || i.imposto || "")), ok = false;
+    if (i.tipo === "etapa" || i.tipo === "entrega" || i.tipo === "imposto" || i.tipo === "etapa_portal") {
+      var mods = i.tipo === "imposto" ? ["contabil"] : i.tipo === "etapa_portal" ? ["portal"] : Object.keys(emp.g.refs);
+      if (pd.mod && i.tipo === "etapa") mods = [pd.mod];
+      var noMod = mods.filter(function (m) { return emp.g.refs[m]; });
+      if (!noMod.length) return {erro: "“" + emp.g.nome + "” não está no " + mods.map(function (m) { return MODN[m]; }).join(" nem no ") + "."};
+      mods.forEach(function (m) {
+        var a = carregados[m]; if (!a || !a.vocab || ok || !emp.g.refs[m]) return; var v = a.vocab();
+        var lista = i.tipo === "entrega" ? v.obrigacoes : i.tipo === "imposto" ? (v.impostos || []) : v.etapas; if (!lista || !lista.length) return;
+        var r = melhorPorTokens(tt, lista, function (x) { return [x.c || x.l, x.l]; });
+        if (r.item && r.pts >= 0.5) { ok = true; pd.mod = m; if (i.tipo === "entrega") pd.ob = r.item.k; else if (i.tipo === "imposto") pd.params.imposto = r.item.k; else pd.etapa = r.item.k; }
+      });
+      if (!ok) return {erro: "Não reconheci “" + (i.etapa || i.obrigacao || i.imposto || "") + "”" + (i.tipo === "etapa_portal" ? " (etapas do Portal: Habilitação no Domínio, Treinamento do analista)" : "") + "."};
+      if (i.tipo === "etapa_portal") pd.status = {c: "concluido", a: "andamento", "": "pendente", r: "concluido"}[pd.status];
+    }
+    return {pd: pd};
+  }
+  // Ações feitas pelo assistente nesta sessão (para "desfazer tudo da última hora").
+  var feitosSessao = [];
+  function cartaoLote(planos, falhas, titulo) {
+    var linhas = planos.map(function (x) { return (x.plano.empresa ? x.plano.empresa + ": " : "") + (x.plano.linhas || []).slice(0, /card[aá]pio/i.test(x.plano.titulo || "") ? 2 : 1).join(" — "); });
+    if (linhas.length > 25) linhas = linhas.slice(0, 25).concat(["… e mais " + (planos.length - 25)]);
+    return {tipo: "confirma", titulo: titulo, plano: {titulo: titulo + " (" + planos.length + ")", empresa: "", linhas: linhas, aviso: falhas.length ? falhas.length + " não entram: " + falhas.slice(0, 4).join(" · ") + (falhas.length > 4 ? "…" : "") : "",
+      executar: function () {
+        var ok = 0, erros = 0;
+        return planos.reduce(function (pr, x) { return pr.then(function () { return Promise.resolve().then(function () { return x.plano.executar(); }).then(function () { ok++; x.feito = true; }, function () { erros++; }); }); }, Promise.resolve())
+          .then(function () { return ok + " feita(s)" + (erros ? ", " + erros + " com erro" : "") + "."; });
+      },
+      desfazer: function () {
+        return planos.slice().reverse().reduce(function (pr, x) { return pr.then(function () { return x.feito && x.plano.desfazer ? Promise.resolve().then(function () { return x.plano.desfazer(); }).catch(function () {}) : null; }); }, Promise.resolve());
+      }}};
+  }
+  // Agrega a carteira de cada módulo por analista.
+  function cargaAnalistas() {
+    return carregarTodos().then(function () {
+      var por = {};
+      ["fiscal", "contabil", "dp", "portal"].forEach(function (m) {
+        var a = carregados[m]; if (!a || !podeMod(m)) return;
+        var r = a.consultar("carteira", {}); if (!r) return;
+        r.linhas.forEach(function (l) { var d = l.dados; if (!d || !d.analista || /^\(sem/.test(d.analista)) return; var k = norm(d.analista).split(" ").slice(0, 2).join(" "); var q = por[k] = por[k] || {analista: d.analista, modulos: {}, pontos: 0}; q.modulos[MODN[m]] = Object.assign({}, d, {analista: undefined}); q.pontos += (d.atrasadas || 0) * 3 + (d.aguardandoCliente || 0) + (d.empresas || 0) * 0.15 + (d.frentes || 0) * 0.3; });
+      });
+      return Object.keys(por).map(function (k) { var q = por[k]; q.pontos = Math.round(q.pontos * 10) / 10; return q; }).sort(function (a, b) { return b.pontos - a.pontos; });
+    });
+  }
+  function listarTudo() {
+    return carregarTodos().then(function () {
+      var out = [];
+      Object.keys(carregados).forEach(function (m) { var a = carregados[m]; if (!a || !a.listar || !podeMod(m)) return; if (a.exemplo && a.exemplo() && indice().empresas.length > 0 && apisCarregadas().some(function (b) { return b !== a && b.listar && b.listar().length; })) { /* exemplo convive com real: marca */ } a.listar().forEach(function (x) { out.push(Object.assign({modulo: m, exemplo: !!(a.exemplo && a.exemplo())}, x)); }); });
+      return out;
+    });
+  }
+  function contem(a, b) { return !b || norm(a).indexOf(norm(b)) !== -1; }
+  // Calendário simples para cálculos (feriados vêm do Fiscal quando carregado).
+  function feriadosEntre(de, ate) {
+    var a = carregados.fiscal; if (!a) return {};
+    var r = a.consultar("feriados", {de: ymd(de), ate: ymd(ate)}), m = {};
+    (r && r.linhas || []).forEach(function (l) { m[l.data] = 1; });
+    return m;
+  }
+  function calcular(i) {
+    var d = function (s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+    var aviso = " (estimativa: confira na legislação, na convenção e no sistema de folha)";
+    if (i.tipo === "aviso_previo") {
+      var a0 = d(i.admissao), a1 = d(i.desligamento) || hoje(); if (!a0) return "Informe a data de admissão (AAAA-MM-DD).";
+      var anos = a1.getFullYear() - a0.getFullYear(); if (a1.getMonth() < a0.getMonth() || (a1.getMonth() === a0.getMonth() && a1.getDate() < a0.getDate())) anos--;
+      anos = Math.max(0, anos);
+      var dias = Math.min(90, 30 + 3 * anos);
+      return {anosCompletos: anos, diasDeAviso: dias, regra: "30 dias + 3 por ano completo, até 90 (Lei 12.506/2011)", fimDoAvisoSeTrabalhadoDesde: i.desligamento ? ymd(addDias(a1, dias - 1)) : "", aviso: aviso};
+    }
+    if (i.tipo === "ferias_dias") {
+      var f = Math.max(0, +i.faltas || 0), dd = f <= 5 ? 30 : f <= 14 ? 24 : f <= 23 ? 18 : f <= 32 ? 12 : 0;
+      return {faltasInjustificadas: f, diasDeFerias: dd, regra: "CLT art. 130: até 5 faltas 30 dias; 6-14: 24; 15-23: 18; 24-32: 12; mais de 32: perde o direito", aviso: aviso};
+    }
+    if (i.tipo === "ferias_proporcionais") {
+      var p0 = d(i.inicio_periodo || i.admissao), p1 = d(i.data) || hoje(); if (!p0) return "Informe o início do período aquisitivo ou a admissão (AAAA-MM-DD).";
+      var meses = 0, c = new Date(p0);
+      while (meses < 12) { var prox = new Date(c); prox.setMonth(prox.getMonth() + 1); if (prox <= addDias(p1, 1)) { meses++; c = prox; } else { var resto = Math.round((p1 - c) / 864e5) + 1; if (resto >= 15) meses++; break; } }
+      return {avos: Math.min(12, meses) + "/12", diasProporcionais: Math.round(Math.min(12, meses) / 12 * 30 * 10) / 10, regra: "1/12 por mês trabalhado ou fração de 15 dias ou mais", aviso: aviso};
+    }
+    if (i.tipo === "dias_uteis") {
+      var x0 = d(i.de), x1 = d(i.ate); if (!x0 || !x1) return "Informe de e ate (AAAA-MM-DD).";
+      var fer = feriadosEntre(x0, x1), n = 0; for (var q = new Date(x0); q <= x1; q = addDias(q, 1)) if (q.getDay() % 6 && !fer[ymd(q)]) n++;
+      return {diasUteis: n, considera: carregados.fiscal ? "fins de semana e feriados nacionais e de Vitória/ES" : "só fins de semana (Fiscal não carregado)"};
+    }
+    if (i.tipo === "somar_dias_uteis") {
+      var b0 = d(i.data) || hoje(), n2 = +i.dias || 0, fer2 = feriadosEntre(b0, addDias(b0, n2 * 2 + 20)), cur = new Date(b0), k = 0;
+      while (k < n2) { cur = addDias(cur, 1); if (cur.getDay() % 6 && !fer2[ymd(cur)]) k++; }
+      return {data: ymd(cur), diaDaSemana: SEM[cur.getDay()]};
+    }
+    return "Tipo de cálculo desconhecido.";
+  }
+  var dbTax = null, dbTaxP = null;
+  function usarDb() {
+    if (!dbTaxP) dbTaxP = (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then(function (d) { dbTax = d || null; return dbTax; }, function () { return null; });
+    return dbTaxP;
+  }
+  function slug(t) { return norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x"; }
+
+  function divergencias(rows) {
+    var reais = rows.filter(function (x) { return !x.exemplo; }), out = [], porCnpj = {};
+    reais.forEach(function (x) {
+      if (!x.analista) out.push({t: "Sem analista: " + x.nome, sub: MODN[x.modulo], tom: "warn", mod: x.modulo, abrir: {empresa: x.id}});
+      if (!x.cnpj) out.push({t: "Sem CNPJ: " + x.nome, sub: MODN[x.modulo], tom: "", mod: x.modulo, abrir: {empresa: x.id}});
+      if (x.cnpj) (porCnpj[x.cnpj] = porCnpj[x.cnpj] || []).push(x);
+    });
+    var ativo = function (x) { var s = norm(x.situacao || "ativa"); return /^ativ/.test(s); };
+    Object.keys(porCnpj).forEach(function (c) {
+      var g = porCnpj[c]; if (g.length < 2) return;
+      var at = g.filter(ativo), in2 = g.filter(function (x) { return !ativo(x); });
+      if (at.length && in2.length) out.push({t: "Situação diferente: " + g[0].nome, sub: g.map(function (x) { return MODN[x.modulo] + ": " + (x.situacao || "ativa"); }).join(" · "), tom: "late", mod: in2[0].modulo, abrir: {empresa: in2[0].id}});
+      var nomes = {}; g.forEach(function (x) { nomes[norm(x.nome).replace(/\b(ltda|me|epp|eireli|s a|sa)\b/g, "").trim()] = x.nome; });
+      if (Object.keys(nomes).length > 1) out.push({t: "Nomes diferentes para o CNPJ " + c, sub: g.map(function (x) { return MODN[x.modulo] + ": " + x.nome; }).join(" · "), tom: "", mod: g[0].modulo, abrir: {empresa: g[0].id}});
+    });
+    return out;
+  }
+  function ferramentasIA(cartoes) {
+    var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
+    var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "convencao_busca", "contribuicao", "ausencias", "funcionarios", "lembretes", "uso"];
+    return [
+      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Só no DP também: convencao_busca (texto = nome do sindicato ou da convenção: piso, reajuste, data-base, vigência, benefícios e contribuição patronal), contribuicao (empresa: estimativa da contribuição patronal) e ausencias (férias/afastamentos de analistas no período, com cobertura). Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: vencimentos = agenda de treinamentos agendados (contatos e analistas) no período, atrasos = treinamentos atrasados e impedimentos, funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
+        inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao/contribuicao)"}, texto: {type: "string", description: "para convencao_busca: sindicato ou convenção"}}, required: ["modulo", "tipo"]},
+        execute: function (i) {
+          return carregarTodos().then(function () { return modulo(i.modulo); }).then(function (a) {
+            if (!a) return podeMod(i.modulo) ? "Módulo indisponível." : "Esta pessoa não tem acesso ao relatório de " + (DEPTOS[i.modulo] || i.modulo) + ": é de outro departamento. Explique isso a ela e não use outras fontes para responder.";
+            var p = {de: i.de || ymd(hoje()), ate: i.ate || i.de || ymd(hoje()), analista: i.analista || "", comp: i.competencia || "", q: i.texto || ""};
+            if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; p.id = f.g.refs[i.modulo]; if (!p.id) return "“" + f.g.nome + "” não está no " + MODN[i.modulo] + "."; }
+            var r = a.consultar(i.tipo, p);
+            if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a);
+            if (r && a.exemplo && a.exemplo()) r = Object.assign({}, r, {aviso: "dados de exemplo"});
+            return r ? compacto(r, 25) : "Esse módulo não tem esse tipo de consulta.";
+          });
+        }},
+      {name: "empresa", description: "Ficha completa de uma empresa (pelo nome ou CNPJ) em todos os módulos onde ela existe: DP, Contábil, Fiscal e Portal.",
+        inputSchema: {type: "object", properties: {consulta: {type: "string"}}, required: ["consulta"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var es = casarEmpresas(norm(i.consulta), {});
+            if (!es.length) return "Não achei empresa com esse nome/CNPJ.";
+            var g = es[0].g, out = {nome: g.nome, cnpj: g.cnpj, outrasParecidas: es.slice(1, 4).map(function (x) { return x.g.nome; }), modulos: {}};
+            return Promise.all(Object.keys(g.refs).map(function (m) { return modulo(m).then(function (a) { var r = a && a.consultar("empresa", {id: g.refs[m]}); if (r) { out.modulos[m] = compacto(r, 12); anexarLista(cartoes, m, {titulo: g.nome, total: r.total, linhas: r.linhas}, a); } }); })).then(function () { return out; });
+          });
+        }},
+      {name: "buscar_empresas", description: "Busca e filtra empresas em todos os módulos (combinando filtros): texto (nome, CNPJ parcial, IE, IM, município, grupo), analista, modulo, regime/tributação, municipio, uf, situacao, so_atrasadas, so_aguardando_cliente, sem_analista. Devolve a lista (até 40) e o total.",
+        inputSchema: {type: "object", properties: {texto: {type: "string"}, analista: {type: "string"}, modulo: {type: "string", enum: ["dp", "contabil", "fiscal"]}, regime: {type: "string"}, municipio: {type: "string"}, uf: {type: "string"}, situacao: {type: "string"}, so_atrasadas: {type: "boolean"}, so_aguardando_cliente: {type: "boolean"}, sem_analista: {type: "boolean"}}},
+        execute: function (i) {
+          return listarTudo().then(function (rows) {
+            var dig = String(i.texto || "").replace(/\D/g, "");
+            var f = rows.filter(function (x) {
+              if (i.modulo && x.modulo !== i.modulo) return false;
+              if (i.texto && !(contem(x.nome, i.texto) || (dig.length >= 4 && String(x.cnpj).indexOf(dig) !== -1) || contem(x.ie, i.texto) || contem(x.im, i.texto) || contem(x.municipio, i.texto) || contem(x.grupo, i.texto))) return false;
+              if (i.analista && !(contem(x.analista, i.analista) || contem(x.apoio, i.analista) || contem(x.analistaEfetivo, i.analista))) return false;
+              if (i.regime && !(contem(x.regime, i.regime) || contem(x.tributacao, i.regime))) return false;
+              if (i.municipio && !contem(x.municipio, i.municipio)) return false;
+              if (i.uf && norm(x.uf) !== norm(i.uf)) return false;
+              if (i.situacao && !contem(x.situacao, i.situacao)) return false;
+              if (i.so_atrasadas && !x.atraso) return false;
+              if (i.so_aguardando_cliente && !x.aguardandoCliente) return false;
+              if (i.sem_analista && x.analista) return false;
+              return true;
+            });
+            var linhas = f.map(function (x) { return {t: x.nome, sub: [MODN[x.modulo], x.analista || "sem analista", x.regime || x.tributacao, x.municipio ? x.municipio + (x.uf ? "/" + x.uf : "") : "", x.atraso ? "com atraso" : "", x.aguardandoCliente ? "aguardando cliente" : "", x.exemplo ? "exemplo" : ""].filter(Boolean).join(" · "), tom: x.atraso ? "late" : x.aguardandoCliente ? "warn" : "", mod: x.modulo, abrir: {empresa: x.id}}; });
+            if (linhas.length) cartoes.push({tipo: "linhas", titulo: "Empresas encontradas · " + linhas.length, linhas: linhas.slice(0, 8), todas: linhas, nota: ""});
+            return {total: f.length, empresas: f.slice(0, 40).map(function (x) { var o = {}; ["modulo", "nome", "cnpj", "analista", "regime", "tributacao", "municipio", "uf", "situacao", "atraso", "aguardandoCliente", "funcionarios", "exemplo"].forEach(function (k) { if (x[k] !== undefined && x[k] !== "") o[k] = x[k]; }); return o; })};
+          });
+        }},
+      {name: "carga_analistas", description: "Carga de trabalho de cada analista somando os módulos (empresas, atrasadas, aguardando cliente, frentes do Portal). Use para 'quem está mais sobrecarregado' e 'quem pode ajudar' (menor pontuação no mesmo módulo).",
+        inputSchema: {type: "object", properties: {}}, execute: function () { return cargaAnalistas(); }},
+      {name: "conferir_cadastros", description: "Procura divergências de cadastro entre os módulos: empresas sem analista, sem CNPJ, com situação diferente entre setores (ex.: inativa no DP e ativa no Contábil) ou com nomes diferentes para o mesmo CNPJ.",
+        inputSchema: {type: "object", properties: {}},
+        execute: function () {
+          return listarTudo().then(function (rows) {
+            var out = divergencias(rows);
+            if (out.length) cartoes.push({tipo: "linhas", titulo: "Divergências de cadastro · " + out.length, linhas: out.slice(0, 8), todas: out, nota: ""});
+            return {total: out.length, itens: out.slice(0, 40).map(function (l) { return l.t + " — " + l.sub; })};
+          });
+        }},
+      {name: "analistas", description: "Lista os analistas conhecidos (nomes completos).", inputSchema: {type: "object", properties: {}}, execute: function () { return carregarTodos().then(function () { return indice().analistas; }); }},
+      {name: "ajuda", description: "Busca na base de ajuda do Control Hub como usar uma função.", inputSchema: {type: "object", properties: {pergunta: {type: "string"}}, required: ["pergunta"]},
+        execute: function (i) { var e = buscarAjuda(norm(i.pergunta), [], 2); return e ? {titulo: e.t, texto: e.a} : "Sem entrada na base de ajuda."; }},
+      {name: "glossario", description: "Explica um termo, sigla ou obrigação do setor contábil/fiscal/DP (DAS, DCTFWeb, EFD-Reinf, CCT, período concessivo…).", inputSchema: {type: "object", properties: {termo: {type: "string"}}, required: ["termo"]},
+        execute: function (i) { return buscarGlossario(i.termo) || "Termo fora do glossário: explique com cuidado e diga que é uma explicação geral."; }},
+      {name: "calcular", description: "Cálculos de DP e de prazos (estimativas): aviso_previo (admissao, desligamento), ferias_dias (faltas), ferias_proporcionais (inicio_periodo ou admissao, data), dias_uteis (de, ate), somar_dias_uteis (data, dias). Datas AAAA-MM-DD.",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["aviso_previo", "ferias_dias", "ferias_proporcionais", "dias_uteis", "somar_dias_uteis"]}, admissao: {type: "string"}, desligamento: {type: "string"}, faltas: {type: "number"}, inicio_periodo: {type: "string"}, data: {type: "string"}, de: {type: "string"}, ate: {type: "string"}, dias: {type: "number"}}, required: ["tipo"]},
+        execute: function (i) { return carregarTodos().then(function () { return calcular(i); }); }},
+      {name: "grafico", description: "Mostra um gráfico de barras pequeno no chat (comparações, rankings, contagens). itens: [{rotulo, valor}] com no máximo 12.",
+        inputSchema: {type: "object", properties: {titulo: {type: "string"}, unidade: {type: "string"}, itens: {type: "array", items: {type: "object", properties: {rotulo: {type: "string"}, valor: {type: "number"}}, required: ["rotulo", "valor"]}}}, required: ["titulo", "itens"]},
+        execute: function (i) { cartoes.push({tipo: "grafico", titulo: i.titulo, unidade: i.unidade || "", itens: (i.itens || []).slice(0, 12)}); return "Gráfico exibido abaixo da resposta."; }},
+      {name: "abrir", description: "Abre um módulo (e uma aba) na tela do usuário.", inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, aba: {type: "string"}}, required: ["modulo"]},
+        execute: function (i) { return abrirItem(i.modulo, {aba: i.aba || "", manter: true}).then(function () { return "Aberto."; }); }},
+      {name: "preparar_acao", description: "Prepara UMA alteração para o usuário confirmar num cartão. NÃO grava nada: diga que falta clicar em Confirmar. tipo: etapa (etapa do fechamento Fiscal/Contábil; etapa + status; status pendente = reabrir), fechar (concluir todas as etapas), pendencia (modo registrar/recebida/cobrado; texto = o que falta o cliente mandar, pode incluir prazo e quem cobrar), entrega (obrigação do Fiscal; obrigacao + status), imposto (Contábil: imposto + valor apurado/guia/na/pendente), transferir (Fiscal/Contábil: só coordenação; no DP qualquer editor; para = analista), observacao (anota texto na ficha; no DP vai para o histórico da empresa), ausencia (só DP: analista, motivo ferias/afastamento/licenca, inicio e fim AAAA-MM-DD, para = quem cobre; sem empresa), reajuste (só DP: marca o reajuste da data-base do sindicato como aplicado; sindicato = nome do sindicato/convenção; com empresa marca só ela; não altera salários), etapa_portal (Portal: etapa Habilitação no Domínio ou Treinamento do analista, setor pessoal/contabil/fiscal, status), cardapio (data + principal, guarnicao, salada, sobremesa, ou feriado), lembrete (lembrete pessoal: texto, data, hora HH:MM, repetir nao/diaria/util/semanal/mensal/anual; empresa opcional).",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "pendencia", "entrega", "imposto", "transferir", "observacao", "etapa_portal", "cardapio", "lembrete", "ausencia", "reajuste"]}, empresa: {type: "string"}, modulo: {type: "string", enum: ["fiscal", "contabil", "dp"]}, analista: {type: "string"}, sindicato: {type: "string"}, inicio: {type: "string"}, fim: {type: "string"}, motivo: {type: "string", enum: ["ferias", "afastamento", "licenca"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string", enum: ["apurado", "guia", "na", "pendente"]}, status: {type: "string", enum: ["concluida", "em_andamento", "pendente", "entregue", "retificada"]}, modo: {type: "string", enum: ["registrar", "recebida", "cobrado"]}, texto: {type: "string"}, para: {type: "string"}, setor: {type: "string"}, data: {type: "string"}, hora: {type: "string"}, repetir: {type: "string", enum: ["nao", "diaria", "util", "semanal", "mensal", "anual"]}, competencia: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["tipo"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var emp = null;
+            if (i.empresa) { var f = acharEmpresa(i.empresa); if (f.erro) return f.erro; emp = f.x; }
+            var r = pedidoDe(i, emp); if (r.erro) return r.erro;
+            return montarPlano(r.pd, "").then(function (m) {
+              if (m.blocos) return m.erro || (m.blocos[0] && m.blocos[0].texto) || "Não consegui preparar.";
+              cartoes.push({tipo: "confirma", plano: m.plano, mod: m.mod, titulo: m.plano.titulo});
+              return "Cartão de confirmação preparado (" + m.plano.titulo + ": " + (m.plano.linhas || []).join("; ") + "). Nada foi gravado: o usuário precisa clicar em Confirmar.";
+            });
+          });
+        }},
+      {name: "preparar_cardapio_lote", description: "Prepara, num único cartão de confirmação, o cardápio de VÁRIOS dias lido de uma foto, PDF ou planilha anexada (semana ou mês). NÃO grava nada: diga que falta clicar em Confirmar. Cada item de dias: data AAAA-MM-DD (use o ano e o mês corretos pela data de hoje e pelo que está no documento), principal (prato principal, obrigatório), guarnicao, salada, sobremesa; para feriado/sem serviço use feriado (nome) sem principal. Só cadastre os dias que estiverem legíveis no documento e confirme com a pessoa o que não ficou claro.",
+        inputSchema: {type: "object", properties: {dias: {type: "array", items: {type: "object", properties: {data: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["data"]}}}, required: ["dias"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var dias = (i.dias || []).slice(0, 40), planos = [], falhas = [];
+            return dias.reduce(function (pr, d) {
+              return pr.then(function () {
+                var r = pedidoDe({tipo: "cardapio", data: d.data, principal: d.principal, guarnicao: d.guarnicao, salada: d.salada, sobremesa: d.sobremesa, feriado: d.feriado}, null);
+                if (r.erro) { falhas.push((d.data || "?") + ": " + r.erro); return null; }
+                return montarPlano(r.pd, "").then(function (m) {
+                  if (m.blocos) falhas.push((d.data || "?") + ": " + (m.erro || (m.blocos[0] && m.blocos[0].texto) || "não deu"));
+                  else planos.push(m);
+                });
+              });
+            }, Promise.resolve()).then(function () {
+              if (!planos.length) return "Nenhum dia pôde ser preparado: " + falhas.slice(0, 5).join("; ");
+              cartoes.push(cartaoLote(planos, falhas, "Cardápio lido do anexo"));
+              return "Cartão preparado com " + planos.length + " dia(s)" + (falhas.length ? "; " + falhas.length + " ficaram de fora (" + falhas.slice(0, 3).join("; ") + ")" : "") + ". Nada foi gravado: a pessoa precisa clicar em Confirmar.";
+            });
+          });
+        }},
+      {name: "preparar_lote", description: "Prepara a MESMA alteração para várias empresas de uma vez, num único cartão de confirmação (com prévia em lista e Desfazer). Informe empresas (lista de nomes) ou um filtro (analista, modulo, so_atrasadas, so_aguardando_cliente). Mesmos campos de preparar_acao (tipos etapa, fechar, entrega, imposto, pendencia cobrado/recebida, transferir, observacao). Máximo 60 empresas.",
+        inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "entrega", "imposto", "pendencia", "transferir", "observacao"]}, empresas: {type: "array", items: {type: "string"}}, filtro_analista: {type: "string"}, filtro_modulo: {type: "string", enum: ["fiscal", "contabil"]}, so_atrasadas: {type: "boolean"}, so_aguardando_cliente: {type: "boolean"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string"}, status: {type: "string"}, modo: {type: "string"}, texto: {type: "string"}, para: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
+        execute: function (i) {
+          return listarTudo().then(function (rows) {
+            var alvos = [];
+            if (i.empresas && i.empresas.length) {
+              var falt = [];
+              i.empresas.slice(0, 60).forEach(function (n) { var f = acharEmpresa(n); if (f.erro) falt.push(n); else alvos.push(f.x); });
+              if (!alvos.length) return "Não achei nenhuma dessas empresas.";
+            } else {
+              var mod = i.filtro_modulo || i.modulo || (i.tipo === "entrega" ? "fiscal" : i.tipo === "imposto" ? "contabil" : "");
+              if (!mod) return "Diga o módulo (fiscal ou contabil) ou a lista de empresas.";
+              var vistos = {};
+              rows.filter(function (x) { return x.modulo === mod && (!i.filtro_analista || contem(x.analista, i.filtro_analista)) && (!i.so_atrasadas || x.atraso) && (!i.so_aguardando_cliente || x.aguardandoCliente); }).forEach(function (x) {
+                var g = indice().empresas.filter(function (y) { return y.refs[mod] === x.id; })[0]; if (g && !vistos[g.nome]) { vistos[g.nome] = 1; alvos.push({g: g, s: 1}); }
+              });
+              if (!alvos.length) return "Nenhuma empresa nesse filtro.";
+              if (!i.modulo) i.modulo = mod;
+            }
+            alvos = alvos.slice(0, 60);
+            var planos = [], falhas = [];
+            return alvos.reduce(function (pr, emp) {
+              return pr.then(function () {
+                var r = pedidoDe(i, emp); if (r.erro) { falhas.push(emp.g.nome + ": " + r.erro); return; }
+                return montarPlano(r.pd, "").then(function (m) { if (m.plano) planos.push(m); else falhas.push(emp.g.nome + ": " + (m.erro || "não dá")); });
+              });
+            }, Promise.resolve()).then(function () {
+              if (!planos.length) return "Nenhuma alteração possível: " + falhas.slice(0, 5).join("; ");
+              cartoes.push(cartaoLote(planos, falhas, "Alteração em lote"));
+              return "Cartão em lote preparado com " + planos.length + " empresa(s)" + (falhas.length ? "; " + falhas.length + " ficaram de fora (" + falhas.slice(0, 3).join("; ") + ")" : "") + ". Nada foi gravado: o usuário precisa confirmar.";
+            });
+          });
+        }},
+    ].concat(FERRAMENTAS_EXTRA.map(function (fn) { return fn(cartoes); }));
+  }
+  var FERRAMENTAS_EXTRA = [];
+  var conversa = lerConversa(), iaAviso = "", iaFalha = "", bolhaAtual = null;
+  function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && Date.now() - c.t < 3 * 864e5 && Array.isArray(c.c) ? c.c : []; }
+  function guardarConversa() { gravarLS("tx-conv-v1", {t: Date.now(), c: conversa.slice(-12)}); }
+  // Última linha "» a | b | c" = próximas perguntas sugeridas pela IA (viram botões).
+  function separarSeguintes(txt) {
+    var m = /\n?[ \t]*»[ \t]*([^\n]*)\s*$/.exec(txt || "");
+    if (!m) return {texto: txt, seg: []};
+    return {texto: txt.slice(0, m.index).trim(), seg: m[1].split("|").map(function (s) { return s.trim(); }).filter(function (s) { return s && s.length <= 80; }).slice(0, 3)};
+  }
+  function regrasIA() {
+    var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial", p = lerPref();
+    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio e agenda de treinamentos dos clientes e dos analistas) e Cardápio (refeitório).\n" +
+      "Anexos (foto, PDF, planilha ou texto que a pessoa colou ou mandou): 1) diga em uma ou duas linhas o que identificou (tipo de documento e os dados principais); 2) registre no módulo certo usando SÓ as ferramentas de preparação, que mostram um cartão para a pessoa confirmar: cardápio (semana ou mês) → preparar_cardapio_lote; documento ou comprovante de uma empresa → preparar_acao tipo observacao com um resumo curto; documento que o cliente mandou → preparar_acao tipo pendencia com modo recebida; ausência/férias → preparar_acao tipo ausencia; qualquer outra coisa → resuma e pergunte onde registrar. 3) NUNCA invente dado que não esteja legível no anexo: o que estiver ilegível ou ambíguo, pergunte; não preencha campos em branco por suposição. 4) Para datas sem ano, use o ano e o mês de hoje (ou o seguinte, se o documento indicar). Os arquivos não ficam guardados: só o que for registrado pelos cartões.\n" +
+      "Treinamentos: pergunta sobre treinamentos (de hoje, da semana, atrasados) é do módulo portal, nunca do dp. Use consultar com modulo=portal: tipo vencimentos = treinamentos agendados no período (contatos de clientes e analistas); atrasos = treinamentos atrasados e impedimentos; semTreinamento = contatos ainda sem treinamento. Só use o dp para treinamentos se a pessoa disser DP/pessoal. Se a pessoa citar um módulo pelo nome (“no portal do cliente”, “no fiscal”), consulte exatamente esse módulo.\n" +
+      "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "), " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
+      "Quando a pergunta for genérica (\"como estamos?\", \"o que tenho pra hoje?\"), responda priorizando os módulos em que esta pessoa é coordenadora ou analista, e cite os demais só se pedirem. " + "Módulos que esta pessoa pode usar: " + H.modulos().map(function (k) { return MODN[k]; }).join(", ") + (AUTH() ? ". Ela não tem acesso aos outros: se pedirem algo deles, diga que o acesso não foi liberado e sugira falar com o administrador. " : ". ") + (AUTH() && AUTH().usuario() && !AUTH().ehAdmin() ? "Os níveis são Coordenador (edita tudo no módulo), Analista (edita só a própria carteira) e Consulta (só vê): se uma ação for recusada por permissão, explique isso com simpatia.\n" : "\n") +
+      "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
+      "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
+      "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
+      "Para comparar meses ou ver tendência, consulte competencia de cada mês; para números lado a lado use grafico; para filtros combinados use buscar_empresas; para carga da equipe use carga_analistas. " +
+      "Para mostrar uma tela use abrir. Para termos do setor (siglas, obrigações) use glossario; para como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise. " +
+      "Se pedirem rascunho de e-mail ou WhatsApp para cliente, escreva o texto pronto, cordial e objetivo, assinado “Equipe ControlTax”, só com dados que você consultou. Se pedirem para explicar ao cliente, use linguagem simples, sem siglas soltas. " +
+      (p.iniciante ? "A pessoa é nova no setor: explique os termos e o porquê de cada passo, com calma. " : "") +
+      (depAtivo() && !ehCoord ? "\nEsta pessoa só tem acesso aos departamentos: " + (minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") || "nenhum") + ". Não responda sobre dados de outros departamentos.\n" : "") +
+      (cfgEquipe.instrucoes ? "\nInstruções da coordenação: " + String(cfgEquipe.instrucoes).slice(0, 1500) + "\n" : "") +
+      "Termine SEMPRE com uma última linha começando com » e 2 ou 3 próximas perguntas ou pedidos curtos que a pessoa provavelmente fará, separados por | (ex.: » Abrir a agenda | E amanhã?).";
+  }
+  // A plataforma aceita descrição de até 1 KB por ferramenta e um número máximo de ferramentas por chamada.
+  // O que passar disso vai para o guia no texto das regras, e o excesso de ferramentas menos usadas é retirado.
+  var bytesTxt = function (t) { try { return new TextEncoder().encode(String(t)).length; } catch (e) { return String(t).length * 2; } };
+  function prepararFerramentas(lista) {
+    var guia = [];
+    var tools = lista.map(function (t) {
+      if (bytesTxt(t.description) <= 900) return t;
+      guia.push("• " + t.name + ": " + t.description);
+      var mc = /^[\s\S]*?[.:](?=\s)/.exec(t.description), curto = mc ? mc[0] : t.description;
+      while (bytesTxt(curto) > 300) curto = curto.slice(0, Math.floor(curto.length * 0.8));
+      return Object.assign({}, t, {description: curto.replace(/[\s:,;]+$/, "") + ". Veja o guia detalhado desta ferramenta nas instruções."});
+    });
+    var max = iaLimites && iaLimites.tools && +iaLimites.tools.maxCount || 0;
+    if (max && tools.length > max) {
+      ["grafico", "glossario", "analistas", "mostrar_na_tela", "agendar", "conferir_cadastros", "carga_analistas", "calcular"].forEach(function (n) {
+        if (tools.length > max) tools = tools.filter(function (t) { return t.name !== n; });
+      });
+      if (tools.length > max) tools = tools.slice(0, max);
+    }
+    return {tools: tools, guia: guia.join("\n")};
+  }
+  // Responde tudo pela IA (capability "sample", plano de quem usa). Devolve null quando a IA não pôde responder (o motivo fica em iaAviso/iaFalha).
+  function perguntarIA(texto, op) {
+    op = op || {};
+    if (iaOcupada) return Promise.resolve([T("Ainda estou pensando na pergunta anterior.")]);
+    iaOcupada = true; iaFalha = ""; iaAviso = ""; pensando(true);
+    var extras = [], tmp = null, proprio = false, dots = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>';
+    if (bolhaAtual && bolhaAtual.isConnected) tmp = bolhaAtual;
+    else if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; msgs.appendChild(tmp); proprio = true; }
+    if (tmp) { tmp.innerHTML = dots; rolar(); }
+    var fimBolha = function (falhou) { pensando(false); if (!tmp) return; if (proprio) tmp.remove(); else if (falhou) tmp.innerHTML = dots; };
+    var imgs = op.imagens && op.imagens.length ? op.imagens : null, dcs = op.docs && op.docs.length ? op.docs : null;
+    var notaAnx = (imgs ? "\n(Anexei " + imgs.length + " imagem(ns) nesta mensagem: leia e use o que estiver nelas.)" : "") + (dcs ? "\n(Anexei " + dcs.length + " arquivo(s): " + dcs.map(function (d) { return d.nome; }).join(", ") + ".)" : "");
+    var corpoAnx = dcs ? dcs.map(function (d) { return "\n\n[ARQUIVO ANEXADO: " + d.nome + (d.ocr ? " (texto lido por OCR de imagem, pode ter erros de leitura: não invente o que estiver duvidoso)" : "") + (d.truncado ? " (só o começo)" : "") + "]\n" + d.texto + "\n[FIM DO ARQUIVO]"; }).join("") : "";
+    conversa.push({role: "user", content: texto + notaAnx + corpoAnx});
+    var idxAnx = dcs ? conversa.length - 1 : -1;
+    if (conversa.length > 12) conversa = conversa.slice(-12);
+    while (conversa.length && conversa[0].role !== "user") conversa.shift();
+    var ferr = prepararFerramentas(ferramentasIA(extras));
+    var regras = regrasIA() + (ferr.guia ? "\n\nGuia detalhado das ferramentas (a lista de ferramentas traz só o resumo):\n" + ferr.guia : "");
+    var turnos = conversa.map(function (m, i) { return {role: m.role, content: i === 0 ? regras + "\n\n" + m.content : m.content}; });
+    var opts = {tools: ferr.tools, modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(String(u.text || "").replace(/\n?[ \t]*»[^\n]*$/, "")); rolar(); }};
+    if (imgs) opts.images = imgs;
+    contarUso(); atualizarSub();
+    registrarPergunta(texto, "ia");
+    return iaNs(turnos, opts)
+      .then(function (r) {
+        fimBolha(false); iaOcupada = false;
+        var bruto = (r && r.text || "").trim() || "Pronto.", s = separarSeguintes(bruto), txt = s.texto || "Pronto.";
+        if (idxAnx >= 0 && conversa[idxAnx]) conversa[idxAnx].content = texto + notaAnx + "\n(o conteúdo do arquivo já foi lido na resposta acima)";
+        conversa.push({role: "assistant", content: txt}); guardarConversa();
+        var out = [{tipo: "md", texto: txt, acoes: true, pergunta: texto}].concat(extras);
+        if (s.seg.length) out.push(CH(s.seg.map(function (x) { return {rot: x, enviar: x}; })));
+        return out;
+      })
+      .catch(function (e) {
+        fimBolha(true); iaOcupada = false;
+        conversa.pop();
+        var cod = e && e.code;
+        if (cod === "not_granted" || cod === "tools_unavailable") { iaOk = false; atualizarSub(); iaAviso = "Sem autorização para usar a IA."; iaFalha = cod; return null; }
+        if (cod === "images_unavailable" || cod === "image_rejected") return [T(cod === "image_rejected" ? "Não consegui ler essa imagem (tipo ou tamanho não aceito)." : "Esta tela não consegue enviar imagens para a IA.")];
+        if (cod === "rate_limited") { iaAviso = "A IA está ocupada agora."; iaFalha = cod; return null; }
+        if (e && e.text) return [{tipo: "md", texto: separarSeguintes(e.text).texto, acoes: true, pergunta: texto}].concat(extras);
+        iaAviso = "A IA não respondeu" + (cod ? " (erro: " + cod + ")" : "") + "."; iaFalha = cod || "erro"; try { console.error("IA do assistente:", e); } catch (x) {} return null;
+      });
+  }
+  // Markdown da IA: **negrito**, *itálico*, `código`, títulos, listas e tabelas (todo o resto vira texto).
+  function mdHtml(t) {
+    var ls = String(t || "").split("\n"), out = [], i = 0;
+    function inl(s) { return mascarar(esc(s)).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<i>$2</i>").replace(/`([^`]+)`/g, "<b>$1</b>"); }
+    function cels(l) { return l.trim().replace(/^\||\|$/g, "").split("|").map(function (c) { return c.trim(); }); }
+    while (i < ls.length) {
+      var l = ls[i];
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < ls.length && /^\s*\|?\s*:?-{2,}/.test(ls[i + 1])) {
+        var cab = cels(l), rows = []; i += 2;
+        while (i < ls.length && /^\s*\|.*\|\s*$/.test(ls[i])) { rows.push(cels(ls[i])); i++; }
+        out.push('<span class="tx-tab"><table><thead><tr>' + cab.map(function (c) { return "<th>" + inl(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+          rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + inl(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></span>");
+        continue;
+      }
+      if (/^#{1,4}\s+/.test(l)) out.push("<b>" + inl(l.replace(/^#+\s+/, "")) + "</b>");
+      else if (/^\s*[-*•]\s+/.test(l)) out.push("• " + inl(l.replace(/^\s*[-*•]\s+/, "")));
+      else out.push(inl(l));
+      i++;
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n");
+  }
+
+  function quem() {
+    return [T("Eu consigo:\n• responder o que vence, o que está atrasado e quem está aguardando o cliente (DP, Contábil, Fiscal e Portal);\n• mostrar a situação de uma empresa pelo nome ou CNPJ;\n• ver a carteira de um analista;\n• dizer o cardápio do dia;\n• abrir qualquer tela (“abrir a agenda do Fiscal”);\n• tirar dúvidas de como usar."),
+      CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))];
+  }
+  // As três entradas da ajuda que mais se parecem com a frase (para oferecer como opção).
+  function proximasAjudas(t) {
+    var toks = t.split(" ").filter(function (w) { return w.length >= 3 && VAZIAS.indexOf(" " + w + " ") === -1; });
+    if (!toks.length) return [];
+    return AJUDA.concat(ajudaEquipe).map(function (e) {
+      var base = norm(e.k + " " + e.t).split(" "), pt = 0;
+      toks.forEach(function (w) { if (base.indexOf(w) !== -1) pt += 2; else if (base.some(function (b) { return parecido(w, b); })) pt += 1; });
+      return {e: e, pt: pt};
+    }).filter(function (x) { return x.pt >= 1; }).sort(function (a, b) { return b.pt - a.pt; }).slice(0, 3).map(function (x) { return x.e; });
+  }
+  var VOC = "vencimento vencimentos vence vencem atraso atrasos atrasado atrasados alerta alertas carteira empresas empresa clientes ferias afastamento licenca ausencia ausencias convencao convencoes sindicato sindicatos piso reajuste pendencia pendencias fechamento fechar entrega entregas imposto impostos cardapio lembrete lembretes sobrecarregado sobrecarga comparar historico resumo analista analistas semana amanha hoje ontem proximo funcionarios cobranca rascunho email mensagem observacao anotar guia obrigacoes".split(" ");
+  function corrigirFrase(t) {
+    var voc = {}; VOC.forEach(function (w) { voc[w] = 1; });
+    indice().analistas.forEach(function (n) { norm(n).split(" ").forEach(function (w) { if (w.length >= 3) voc[w] = 1; }); });
+    indice().empresas.forEach(function (g) { g.tok.forEach(function (w) { if (w.length >= 4) voc[w] = 1; }); });
+    AJUDA.concat(ajudaEquipe).forEach(function (e) { norm(e.k).split(" ").forEach(function (w) { if (w.length >= 4) voc[w] = 1; }); });
+    var lista = Object.keys(voc), mudou = false;
+    var out = t.split(" ").map(function (w) {
+      if (w.length < 4 || voc[w] || /\d/.test(w) || VAZIAS.indexOf(" " + w + " ") !== -1 || STOP_COR.indexOf(" " + w + " ") !== -1) return w;
+      var lim = w.length >= 8 ? 2 : 1, melhor = null, dm = lim + 1, unico = true;
+      lista.forEach(function (c) { var d = lev(w, c, lim); if (d < dm) { dm = d; melhor = c; unico = true; } else if (d === dm && c !== melhor) unico = false; });
+      if (melhor && dm <= lim && unico) { mudou = true; return melhor; }
+      return w;
+    }).join(" ");
+    return mudou ? out : "";
+  }
+  var STOP_COR = " quem tem teve fazer mais menos muito pouco todos todas cada porque quando quanto quantos quantas onde como qual quais esta estao esse essa isso para sobre entre ainda ja ate dia dias mes meses ano anos";
+  function naoEntendi(p) {
+    var corr = p && p.t ? corrigirFrase(p.t) : "";
+    if (corr) {
+      var rc = [T("Não entendi, mas talvez você tenha querido dizer:"), CH([{rot: "Você quis dizer: " + corr + "?", enviar: corr}])];
+      rc.naoEntendi = true; return rc;
+    }
+    var prox = p && p.t ? proximasAjudas(p.t) : [];
+    if (prox.length) {
+      var r2 = [T("Não tenho certeza do que você quis dizer. Algum destes?"), CH(prox.map(function (e) { return {rot: e.t, enviar: e.t}; }).concat([{rot: "Ver exemplos do que sei fazer", enviar: "o que você sabe fazer?"}]))];
+      r2.naoEntendi = true; return r2;
+    }
+    var ch = sugestoes().map(function (s) { return {rot: s, enviar: s}; });
+    var r = [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
+    r.naoEntendi = true;
+    return r;
+  }
+  function ajuda(p) {
+    var e = buscarAjuda(p.t, p.mods, 2);
+    if (!e) return naoEntendi(p);
+    var out = [{tipo: "ajuda", titulo: e.t, texto: e.a}];
+    if (e.ir) out.push(CH([{rot: "Abrir " + (e.ir.aba ? "essa tela" : MODN[e.ir.m]), acao: function () { return abrirItem(e.ir.m, {aba: e.ir.aba}); }}]));
+    return out;
+  }
+
+  /* ---------- consultas ---------- */
+  var TIT_PADRAO = {vencimentos: "vencimentos", atrasos: "atrasos", cliente: "pendencias", carteira: "carteira", cardapio: "cardapio"};
+  function modulosPara(p) { return modulosParaTodos(p).filter(podeMod); }
+  function modulosParaTodos(p) {
+    if (p.intent === "cardapio") return ["cardapio"];
+    if (p.mods.length) return p.mods;
+    if (p.intent === "cliente") return ["contabil", "fiscal"];
+    if (p.intent === "carteira") return ["dp", "contabil", "fiscal", "portal"];
+    return ["dp", "contabil", "fiscal", "portal"];
+  }
+  function consulta(p) {
+    if (semDepartamento() && p.intent !== "cardapio") return Promise.resolve([T(TXT_SEM_DEP)]);
+    var proibidos = (p.mods || []).filter(function (k) { return !podeMod(k); });
+    if (proibidos.length && !(p.mods || []).some(podeMod)) return Promise.resolve([T("Você não tem acesso ao relatório de " + proibidos.map(function (k) { return DEPTOS[k] || MODN[k]; }).join(" nem de ") + ": ele é de outro departamento." + (minhasDeps().length ? " Os seus: " + minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") + "." : ""))]);
+    var per = p.per;
+    if (!per) per = p.intent === "cardapio" ? {de: hoje(), ate: hoje()} : p.intent === "vencimentos" ? {de: hoje(), ate: addDias(hoje(), 7)} : {de: hoje(), ate: hoje()};
+    var tipo = TIT_PADRAO[p.intent], mods = modulosPara(p);
+    var pedidos = mods.map(function (k) { return modulo(k).then(function (a) { return a ? {k: k, a: a, r: a.consultar(tipo, {de: ymd(per.de), ate: ymd(per.ate), analista: p.analista})} : {k: k}; }).catch(function () { return {k: k}; }); });
+    return Promise.all(pedidos).then(function (res) {
+      var out = [], unico = res.filter(function (x) { return x.r; }).length === 1, nada = true;
+      var cab = {vencimentos: "Datas e entregas", atrasos: "Atrasos e alertas", cliente: "Aguardando o cliente", carteira: "Carteira", cardapio: "Cardápio"}[p.intent] + (p.intent === "vencimentos" || p.intent === "cardapio" ? " · " + rotPeriodo(per) : "") + (p.analista ? " · " + p.analista : "");
+      var vazios = [];
+      res.forEach(function (x) {
+        if (!x.r) { if (x.a === null || !x.a) vazios.push(MODN[x.k]); return; }
+        var ls = x.r.linhas || [];
+        if (!ls.length) { vazios.push(MODN[x.k]); return; }
+        nada = false;
+        var lim = unico ? 10 : 5;
+        out.push({tipo: "linhas", titulo: MODN[x.k] + " · " + x.r.total, nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: ls.slice(0, lim).map(function (l) { return Object.assign({mod: x.k}, l); }), todas: ls.map(function (l) { return Object.assign({mod: x.k}, l); }),
+          mais: (ls.length > lim || x.r.verTudo) ? {rot: ls.length > lim ? "Ver todas as " + x.r.total + " no " + MODN[x.k] : "Abrir no " + MODN[x.k], acao: function () { var v = x.r.verTudo || (ls[0] && ls[0].abrir && {aba: ls[0].abrir.aba, opts: ls[0].abrir.opts}) || {aba: ""}; return abrirItem(x.k, v); }} : null});
+      });
+      if (nada) {
+        var quem = p.analista ? " para " + p.analista : "";
+        return [T(p.intent === "atrasos" ? "Nada atrasado" + quem + (p.mods.length ? " nesse módulo" : "") + ". 👏" : p.intent === "cliente" ? "Ninguém aguardando o cliente" + quem + "." : p.intent === "cardapio" ? "Não achei cardápio para " + rotPeriodo(per) + "." : "Nada encontrado" + quem + " para " + rotPeriodo(per) + ".")];
+      }
+      var totN = 0, partes = [];
+      res.forEach(function (x) { if (x.r && (x.r.linhas || []).length) { var n = x.r.total || x.r.linhas.length; totN += n; partes.push(MODN[x.k] + " " + n); } });
+      var ROT_N = {atrasos: ["atraso ou alerta", "atrasos e alertas"], vencimentos: ["data", "datas"], cliente: ["pendência aguardando o cliente", "pendências aguardando o cliente"]}[p.intent];
+      if (ROT_N && totN) out.unshift({tipo: "md", texto: "**" + totN + " " + ROT_N[totN === 1 ? 0 : 1] + "**" + (p.intent === "vencimentos" ? " · " + rotPeriodo(per) : "") + (p.analista ? " de " + p.analista.split(" ")[0] : "") + (partes.length > 1 ? " — " + partes.join(" · ") : "")});
+      out.unshift({tipo: "cab", texto: cab});
+      if (vazios.length && !p.mods.length) out.push({tipo: "rodape", texto: "Sem itens em: " + vazios.join(", ") + "."});
+      var nf = notaFonte(mods); if (nf) out.push(nf);
+      return out;
+    });
+  }
+
+  /* ---------- rascunho de e-mail / mensagem (só texto para copiar: nada é enviado) ---------- */
+  function rascunhoEmail(p, emps) {
+    var t = p.t, tipo = /\b(guia|guias|boleto|darf|das|fgts|imposto)\b/.test(t) ? "guia" : /\b(ferias|aviso de ferias)\b/.test(t) ? "ferias" : "cobranca";
+    var g = emps && emps[0] ? emps[0].g : null;
+    if (!g) return Promise.resolve([T("De qual empresa? Por exemplo: “rascunho de e-mail de cobrança para a Importbras”."), CH([{rot: "Cobrança de documentos", enviar: "rascunho de e-mail de cobrança"}, {rot: "Envio de guia", enviar: "rascunho de e-mail de guia"}])]);
+    var ks = Object.keys(g.refs).filter(function (k) { return podeMod(k) && (k === "fiscal" || k === "contabil"); }), eu = euNome || "";
+    return Promise.all(ks.map(function (k) { return modulo(k).then(function (a) { var r = a && a.consultar("pendencias", {}); return r && r.linhas ? r.linhas.filter(function (l) { return norm(l.t) === norm(g.nome) || norm(l.t).indexOf(norm(g.nome).split(" ")[0]) === 0; }).map(function (l) { return String(l.sub || "").split(" · parado")[0]; }) : []; }).catch(function () { return []; }); })).then(function (r) {
+      var pend = [].concat.apply([], r).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 8), txt;
+      if (tipo === "guia") txt = "Assunto: Guia de [imposto] · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nSegue em anexo a guia de [imposto] da competência [mês/ano], com vencimento em [data].\nQualquer dúvida, é só responder esta mensagem.\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      else if (tipo === "ferias") txt = "Assunto: Aviso de férias · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nSegue o aviso de férias de [funcionário], com início em [data] e retorno em [data]. Pedimos a assinatura e a devolução do documento até [data].\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      else txt = "Assunto: Documentos pendentes · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nPara concluirmos o fechamento de [competência], ainda precisamos de:\n" + (pend.length ? pend.map(function (x) { return "- " + x; }).join("\n") : "- [liste os documentos]") + "\n\nSe puder nos enviar até [data], agradecemos.\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      return [{tipo: "cab", texto: "Rascunho · " + ({cobranca: "cobrança de documentos", guia: "envio de guia", ferias: "aviso de férias"}[tipo]) + " · " + g.nome}, {tipo: "md", texto: "```\n" + txt + "\n```", acoes: true}, {tipo: "rodape", texto: "É só um texto para copiar: nada foi enviado. Confira os dados entre [colchetes] antes de mandar." + (tipo === "cobranca" && pend.length ? " As pendências vieram do que está registrado como aguardando o cliente." : "")}];
+    });
+  }
+
+
+  /* ---------- passagem de bastão: resumo da carteira de quem vai se ausentar, para quem cobre ---------- */
+  function bastao(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var ana = p.analista;
+    if (!ana) return Promise.resolve([T("De qual analista? Por exemplo: “passagem de bastão da Carla”."), CH(indice().analistas.slice(0, 6).map(function (n) { return {rot: n, enviar: "passagem de bastão de " + n}; }))]);
+    var pn = norm(ana).split(" ")[0], ehDela = function (n) { return norm(n || "").split(" ")[0] === pn; };
+    var ids = ["dp", "contabil", "fiscal", "portal"].filter(podeMod), hj = hoje();
+    var getAus = podeMod("dp") ? modulo("dp").then(function (a) { var r = a && a.consultar("ausencias", {de: ymd(hj), ate: ymd(addDias(hj, 120)), analista: ana}); return r && r.linhas ? r.linhas.filter(function (l) { return norm(l.t).indexOf(pn) === 0; })[0] || null : null; }).catch(function () { return null; }) : Promise.resolve(null);
+    return getAus.then(function (au) {
+      var ini = hj, fim = addDias(hj, 14), cobre = "", motivo = "", semAus = !au;
+      if (au) {
+        var m = /(\d{2})\/(\d{2})\/(\d{4})\s+a\s+(\d{2})\/(\d{2})\/(\d{4})/.exec(au.sub || "");
+        if (m) { ini = new Date(+m[3], +m[2] - 1, +m[1]); fim = new Date(+m[6], +m[5] - 1, +m[4]); if (ini < hj) ini = hj; }
+        var mc = /cobre:\s*([^·]+)/i.exec(au.sub || ""); cobre = mc ? mc[1].trim() : "";
+        motivo = (String(au.t || "").split(" · ")[1] || "").toLowerCase();
+      }
+      return Promise.all(ids.map(function (k) {
+        return modulo(k).then(function (a) {
+          if (!a || (a.exemplo && a.exemplo())) return null;
+          var s = function (tipo, pr) { try { return a.consultar(tipo, pr); } catch (e) { return null; } }, mk = function (r) { return r && r.linhas ? r.linhas.map(function (l) { return Object.assign({mod: k}, l); }) : []; };
+          var cart = s("carteira", {analista: ana}), emp = 0;
+          ((cart && cart.linhas) || []).forEach(function (l) { if (l.dados && ehDela(l.dados.analista)) emp += l.dados.empresas || 0; });
+          return {k: k, emp: emp, atr: mk(s("atrasos", {de: ymd(hj), ate: ymd(hj), analista: ana})), venc: mk(s("vencimentos", {de: ymd(ini), ate: ymd(fim), analista: ana})).filter(function (l) { return l.tom !== "ok"; }), pend: (k === "fiscal" || k === "contabil") ? mk(s("pendencias", {analista: ana})) : [], obs: k === "dp" ? mk(s("historico", {analista: ana})).slice(0, 5) : []};
+        }).catch(function () { return null; });
+      })).then(function (res) {
+        res = res.filter(Boolean);
+        var tem = res.filter(function (x) { return x.emp || x.atr.length || x.venc.length || x.pend.length; });
+        if (!tem.length) return [T("Não encontrei carteira de " + ana + " nos módulos a que você tem acesso.")];
+        var per = rotPeriodo({de: ini, ate: fim}), todos = function (c) { return [].concat.apply([], tem.map(function (x) { return x[c]; })); };
+        var L = function (l) { return "- " + (MODN[l.mod] ? MODN[l.mod] + ": " : "") + mascarar(l.t) + (l.sub ? " (" + mascarar(l.sub) + ")" : ""); };
+        var txt = "Passagem de bastão: " + ana + (cobre ? " → " + cobre : "") + "\n" + (semAus ? "Período considerado: " + per + " (não há ausência registrada na Cartela)" : "Período: " + per + (motivo ? " (" + motivo + ")" : "")) + "\n\nCarteira: " + tem.map(function (x) { return MODN[x.k] + " " + x.emp + " empresa(s)"; }).join(" · ");
+        var sec = function (tit, ls, max) { return ls.length ? "\n\n" + tit + " (" + ls.length + "):\n" + ls.slice(0, max || 10).map(L).join("\n") + (ls.length > (max || 10) ? "\n- … e mais " + (ls.length - (max || 10)) : "") : ""; };
+        txt += sec("Atrasos e alertas hoje", todos("atr")) + sec("Vencimentos no período", todos("venc")) + sec("Aguardando o cliente / pendências", todos("pend")) + sec("Últimas observações", todos("obs"), 5);
+        var out = [{tipo: "cab", texto: "Passagem de bastão · " + ana + (cobre ? " → " + cobre : "")},
+          {tipo: "md", texto: "**" + ana + "**" + (semAus ? ": não há ausência registrada; considerei " + per : " " + (motivo ? "(" + motivo + ") " : "") + "· " + per + (cobre ? " · cobre: **" + cobre + "**" : " · **sem cobertura definida**")) + ". Carteira: " + tem.map(function (x) { return MODN[x.k] + " " + x.emp; }).join(" · ") + " empresa(s)."}];
+        [["Atrasos e alertas hoje", "atr"], ["Vencimentos no período", "venc"], ["Aguardando o cliente", "pend"], ["Últimas observações", "obs"]].forEach(function (q) { var l = todos(q[1]); if (l.length) out.push(linhasBloco(q[0], l, 6)); });
+        out.push({tipo: "md", texto: "Texto para copiar e mandar a quem vai cobrir:\n```\n" + txt + "\n```", acoes: true});
+        out.push({tipo: "rodape", texto: "Resumo do que está no sistema agora; nada foi enviado. Confira antes de repassar."});
+        var nf = notaFonte(ids); if (nf) out.push(nf);
+        return out;
+      });
+    });
+  }
+
+  /* ---------- por que o analista está sobrecarregado ---------- */
+  function explicar(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    return cargaAnalistas().then(function (l) {
+      var pn = norm(p.analista).split(" ")[0], q = l.filter(function (x) { return norm(x.analista).split(" ")[0] === pn; })[0];
+      if (!q) return [T("Não achei a carteira de " + p.analista + " nos módulos a que você tem acesso.")];
+      var media = l.length ? l.reduce(function (a, x) { return a + x.pontos; }, 0) / l.length : 0, partes = [], tot = 0;
+      Object.keys(q.modulos).forEach(function (mn) {
+        var d = q.modulos[mn], at = (d.atrasadas || 0) * 3, cl = d.aguardandoCliente || 0, em = Math.round((d.empresas || 0) * 0.15 * 10) / 10, fr = Math.round((d.frentes || 0) * 0.3 * 10) / 10, sub = at + cl + em + fr;
+        partes.push({mn: mn, sub: sub, t: mn, s: (d.empresas || 0) + " empresa(s) · " + (d.atrasadas || 0) + " atraso(s) (×3 = " + at + ") · " + cl + " aguardando o cliente" + (fr ? " · " + (d.frentes || 0) + " frente(s) do Portal" : "")});
+        tot += sub;
+      });
+      partes.sort(function (a, b) { return b.sub - a.sub; });
+      var topo = partes[0], rel = media ? Math.round((q.pontos / media - 1) * 100) : 0;
+      var out = [{tipo: "md", texto: "**" + q.analista + ": " + (Math.round(q.pontos * 10) / 10).toLocaleString("pt-BR") + " pontos de carga**" + (media ? " (" + (rel >= 0 ? "+" : "") + rel + "% em relação à média da equipe, " + (Math.round(media * 10) / 10).toLocaleString("pt-BR") + ")" : "") + (topo ? ". O maior peso vem do **" + topo.mn + "**." : "")},
+        {tipo: "linhas", titulo: "De onde vem a carga · " + partes.length, linhas: partes.map(function (x) { return {t: x.mn + ": " + (Math.round(x.sub * 10) / 10).toLocaleString("pt-BR") + " pontos", sub: x.s}; }), todas: [], nota: ""}];
+      out[1].todas = out[1].linhas;
+      var ks = Object.keys(q.modulos).filter(function (mn) { return (q.modulos[mn].atrasadas || 0) > 0; }), pedidos = [];
+      var ids = ["dp", "contabil", "fiscal", "portal"].filter(function (k) { return ks.indexOf(MODN[k]) !== -1 && podeMod(k); });
+      ids.forEach(function (k) { pedidos.push(modulo(k).then(function (a) { var r = a && a.consultar("atrasos", {de: ymd(hoje()), ate: ymd(hoje()), analista: q.analista}); return r && r.linhas ? r.linhas.slice(0, 5).map(function (x) { return Object.assign({mod: k}, x); }) : []; }).catch(function () { return []; })); });
+      return Promise.all(pedidos).then(function (r) {
+        var it = [].concat.apply([], r);
+        if (it.length) out.push(linhasBloco("Principais atrasos de " + q.analista.split(" ")[0], it, 8));
+        out.push(CH([{rot: "Quem pode ajudar " + q.analista.split(" ")[0] + "?", enviar: "quem pode ajudar " + q.analista.split(" ")[0] + "?"}]));
+        var nf = notaFonte(["dp", "contabil", "fiscal", "portal"].filter(podeMod)); if (nf) out.push(nf);
+        return out;
+      });
+    });
+  }
+
+  /* ---------- evolução dos atrasos (histórico diário guardado neste navegador) ---------- */
+  var HIST_ATR = "tx-atrasos-v1";
+  function guardarHistorico(s) {
+    var h = lerLS(HIST_ATR, {}), d = ymd(hoje());
+    h[d] = Object.assign({}, s.atrasos);
+    var ks = Object.keys(h).sort(); while (ks.length > 150) delete h[ks.shift()];
+    gravarLS(HIST_ATR, h);
+  }
+  function evolucao(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var t = p.t, dias = /\bmes passado|ultimo mes|30 dias\b/.test(t) ? 30 : /\bontem\b/.test(t) ? 1 : 7, rot = dias === 30 ? "no mês passado" : dias === 1 ? "ontem" : "na semana passada";
+    return situacao().then(function (s) {
+      var h = lerLS(HIST_ATR, {}), alvo = ymd(addDias(hoje(), -dias)), ks = Object.keys(h).sort(), ref = null;
+      ks.forEach(function (k) { if (k <= alvo) ref = k; });
+      if (!ref) ref = ks.filter(function (k) { return k < ymd(hoje()); })[0] || null;
+      if (!ref) return [T("Ainda não tenho histórico para comparar: passei a guardar o total de atrasos por dia a partir de hoje. Pergunte de novo daqui a alguns dias."), {tipo: "rodape", texto: "O histórico fica neste navegador."}];
+      var hojeT = {}, antT = h[ref] || {}, nomes = Object.keys(MODN).filter(function (k) { return k !== "cardapio" && podeMod(k); });
+      nomes.forEach(function (k) { hojeT[k] = s.atrasos[k] || 0; });
+      var somaH = 0, somaA = 0; nomes.forEach(function (k) { somaH += hojeT[k]; somaA += antT[k] || 0; });
+      var dif = somaH - somaA, gap = Math.round((hoje() - new Date(ref + "T12:00:00")) / 864e5);
+      var out = [{tipo: "md", texto: "**" + somaH + " atraso" + (somaH === 1 ? "" : "s") + " hoje**, contra **" + somaA + "** em " + ref.split("-").reverse().join("/") + (gap !== dias ? " (a data mais próxima de " + rot + " que tenho)" : " (" + rot + ")") + " — " + (dif > 0 ? "**subiu " + dif + "**" : dif < 0 ? "**caiu " + (-dif) + "**" : "**igual**") + "."},
+        {tipo: "grafico", titulo: "Atrasos por módulo: antes × hoje", itens: nomes.reduce(function (a, k) { a.push({rotulo: MODN[k] + " (antes)", valor: antT[k] || 0}); a.push({rotulo: MODN[k] + " (hoje)", valor: hojeT[k]}); return a; }, [])}];
+      return out;
+    });
+  }
+
+  /* ---------- comparações entre analistas ---------- */
+  function comparar(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var t = p.t, nomesMod = (p.mods || []).filter(podeMod).map(function (k) { return MODN[k]; });
+    var met = /\b(atras\w*|vencid\w*)\b/.test(t) ? "atrasos" : /\b(aguard\w*|pendenc\w*)\b/.test(t) ? "cliente" : /\b(empresas|carteira|clientes)\b/.test(t) ? "empresas" : "carga";
+    var asc = /\b(menos|menor|livre|livres|ocios\w*|folgad\w*|disponiv\w*)\b/.test(t);
+    var ROT = {atrasos: ["atraso", "atrasos", "Atrasos por analista"], cliente: ["item aguardando o cliente", "itens aguardando o cliente", "Aguardando o cliente por analista"], empresas: ["empresa na carteira", "empresas na carteira", "Empresas por analista"], carga: ["ponto de carga", "pontos de carga", "Carga de trabalho por analista"]}[met];
+    return cargaAnalistas().then(function (l) {
+      var linhas = [];
+      l.forEach(function (q) {
+        var v = 0, tem = false;
+        Object.keys(q.modulos).forEach(function (mn) {
+          if (nomesMod.length && nomesMod.indexOf(mn) === -1) return;
+          var d = q.modulos[mn]; tem = true;
+          v += met === "atrasos" ? d.atrasadas || 0 : met === "cliente" ? d.aguardandoCliente || 0 : met === "empresas" ? d.empresas || 0 : (d.atrasadas || 0) * 3 + (d.aguardandoCliente || 0) + (d.empresas || 0) * 0.15 + (d.frentes || 0) * 0.3;
+        });
+        if (tem) linhas.push({analista: q.analista, valor: Math.round(v * 10) / 10});
+      });
+      if (!linhas.length) return [T("Ainda não tenho dados de carteira por analista" + (nomesMod.length ? " em " + nomesMod.join(" / ") : "") + ".")];
+      linhas.sort(function (a, b) { return asc ? a.valor - b.valor : b.valor - a.valor; });
+      var topo = linhas[0].valor, empatados = linhas.filter(function (x) { return x.valor === topo; }), total = Math.round(linhas.reduce(function (a, x) { return a + x.valor; }, 0) * 10) / 10;
+      var fmt = function (n) { return n.toLocaleString("pt-BR"); }, local = nomesMod.length ? " no " + nomesMod.join(" / ") : "";
+      var out = [];
+      if (!asc && !topo && (met === "atrasos" || met === "cliente")) return [T((met === "atrasos" ? "Ninguém tem atrasos" : "Ninguém tem itens aguardando o cliente") + local + " agora. 👏")];
+      var quem = empatados.length > 3 ? empatados.length + " analistas empatados" : empatados.map(function (x) { return x.analista; }).join(", ");
+      out.push({tipo: "md", texto: "**" + quem + "** " + (empatados.length > 1 ? "têm" : "tem") + " " + (asc ? "menos" : "mais") + " " + ROT[1] + local + ": **" + fmt(topo) + "**" + (met !== "carga" && total ? " (de " + fmt(total) + " no total)" : "")});
+      out.push({tipo: "grafico", titulo: ROT[2] + local, itens: linhas.slice(0, 12).map(function (x) { return {rotulo: x.analista, valor: x.valor}; })});
+      if (met === "carga") out.push({tipo: "rodape", texto: "Pontos: atrasos ×3, aguardando o cliente ×1, empresas ×0,15 e frentes do Portal ×0,3."});
+      var alvo = asc ? null : linhas[0].analista;
+      if (alvo) out.push(CH([{rot: "Quem pode ajudar " + alvo.split(" ")[0] + "?", enviar: "quem pode ajudar " + alvo.split(" ")[0] + "?"}]));
+      return out;
+    });
+  }
+
+  /* ---------- convenções coletivas pelo chat (piso, data-base, reajuste, contribuição patronal) ---------- */
+  var STOP_CONV = ["qual", "quais", "quando", "como", "esta", "estao", "mostra", "mostrar", "mostre", "fala", "falar", "me", "das", "dos", "uma", "uns", "por", "com", "sobre", "tem", "temos", "existe", "existem", "hoje", "atual", "atuais", "vigente", "vigentes", "todas", "todos", "carteira", "empresa", "empresas", "sindicato", "sindicatos", "convencao", "convencoes", "coletiva", "coletivas", "cct", "ccts", "piso", "pisos", "salarial", "salariais", "data", "base", "database", "reajuste", "reajustes", "vigencia", "contribuicao", "contribuicoes", "patronal", "patronais", "assistencial", "negocial", "taxa", "beneficios", "valor", "valores", "categoria", "dessa", "desse", "dela", "dele", "mes", "que", "para", "pra", "pro", "dia"];
+  function textoConv(t) { return t.replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(function (w) { return w.length >= 3 && STOP_CONV.indexOf(w) === -1; }).join(" "); }
+  function destaqueConv(t, r) {
+    var ls = r.linhas || [], dst = [];
+    if (/\bpiso/.test(t)) ls.filter(function (l) { return /^Piso /.test(l.t); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t.replace(/^Piso /, "Piso ") + "**"); });
+    else if (/\bdata[ -]?base|database/.test(t)) ls.filter(function (l) { return l.dados && l.dados.convencao && l.dados.dataBase; }).slice(0, 3).forEach(function (l) { dst.push("**Data-base: " + l.dados.dataBase + "** (" + l.dados.convencao + ")"); });
+    else if (/\breajuste/.test(t)) ls.filter(function (l) { return /^Reajuste/.test(l.t); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t + "**"); });
+    else if (/\b(contribu|taxa negocial|patronal)/.test(t)) ls.filter(function (l) { return /^Contribui/.test(l.t) || (l.dados && l.dados.contribuicao); }).slice(0, 3).forEach(function (l) { dst.push("**" + l.t + "**"); });
+    return dst.join("\n");
+  }
+  function convencoes(p, emps) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    if (!podeMod("dp")) return Promise.resolve([T("As convenções coletivas ficam no Departamento Pessoal, e você não tem acesso a esse relatório: é de outro departamento.")]);
+    return modulo("dp").then(function (a) {
+      if (!a) return [T("O módulo do DP não está disponível agora.")];
+      var t = p.t, contrib = /\b(contribu\w*|taxa negocial|patronal|assistencial)\b/.test(t), g = emps && emps[0] ? emps[0].g : null, r = null, q = "";
+      if (g) {
+        if (!g.refs.dp) return [T("“" + g.nome + "” não está no DP, então não tenho a convenção dela por aqui.")];
+        r = a.consultar(contrib ? "contribuicao" : "convencao", {id: g.refs.dp});
+      } else {
+        q = textoConv(t).replace(/\b(abr\w*|ir|vai|leva\w*|ver|veja|quero|entrar|acessar|acesse|volta\w*|navegar|mostr\w*)\b/g, " ").replace(/\s+/g, " ").trim();
+        if (!q && RX.navegar.test(t)) return abrirItem("dp", {aba: "sindicatos"}).then(function () { return [T("Abrindo as Convenções do DP.")]; });
+        r = q ? a.consultar("convencao_busca", {q: q}) : a.consultar("convencoes", {analista: p.analista});
+      }
+      var abrirDP = CH([{rot: "Abrir Convenções no DP", acao: function () { return abrirItem("dp", {aba: "sindicatos"}); }}]);
+      if (!r || !(r.linhas || []).length) return [T(q ? "Não achei convenção ou sindicato com “" + q + "”. Confira o nome na aba Convenções." : "Não encontrei dados de convenção" + (g ? " para " + g.nome : "") + "."), abrirDP];
+      var out = [{tipo: "cab", texto: r.titulo}], dst = destaqueConv(t, r);
+      if (dst) out.push({tipo: "md", texto: dst});
+      out.push({tipo: "linhas", titulo: "Convenção · " + r.linhas.length, linhas: r.linhas.slice(0, 12).map(function (l) { return Object.assign({mod: "dp"}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }), nota: ""});
+      if (r.resumo) out.push({tipo: "rodape", texto: r.resumo});
+      out.push(abrirDP);
+      return out;
+    });
+  }
+
+  /* ---------- ausências de analistas (Cartela do DP) ---------- */
+  function ausencias(p) {
+    if (!podeMod("dp")) return Promise.resolve([T("As ausências ficam na Cartela do DP, e você não tem acesso a esse relatório: é de outro departamento.")]);
+    var per = p.per || {de: hoje(), ate: addDias(hoje(), 30)};
+    return modulo("dp").then(function (a) {
+      var r = a && a.consultar("ausencias", {de: ymd(per.de), ate: ymd(per.ate), analista: p.analista});
+      if (!r) return [T("Não consegui consultar as ausências agora.")];
+      if (!r.linhas.length) return [T("Nenhuma ausência de analista registrada " + (p.analista ? "para " + p.analista + " " : "") + rotPeriodo(per) + ". 👍")];
+      return [{tipo: "cab", texto: "Ausências de analistas · " + rotPeriodo(per) + (p.analista ? " · " + p.analista : "")}, {tipo: "md", texto: "**" + r.total + " ausência" + (r.total === 1 ? "" : "s") + "**" + (r.linhas.some(function (l) { return l.tom === "warn"; }) ? " — " + r.linhas.filter(function (l) { return l.tom === "warn"; }).length + " sem cobertura definida" : "")},
+        {tipo: "linhas", titulo: "Cartela · " + r.total, linhas: r.linhas.slice(0, 10).map(function (l) { return Object.assign({mod: "dp"}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }), nota: ""}];
+    });
+  }
+
+  /* ---------- empresa ---------- */
+  function empresa(p, emps) {
+    if (!emps.length) return Promise.resolve([T("Qual empresa? Diga o nome ou o CNPJ."), ]);
+    var topo = emps[0], pares = emps.filter(function (x) { return topo.s - x.s < 0.1; });
+    if (pares.length > 1 && topo.s < 1.5) return Promise.resolve([T("Achei mais de uma empresa parecida. Qual delas?"), CH(pares.slice(0, 6).map(function (x) { return {rot: x.g.nome, enviar: (RX.navegar.test(p.t) ? "abrir " : "") + x.g.nome + (x.g.cnpj ? " " + x.g.cnpj : "")}; }))]);
+    var g = topo.g, ks = Object.keys(g.refs).filter(podeMod), abrir = RX.navegar.test(p.t);
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    if (!ks.length) return Promise.resolve([T("“" + g.nome + "” não está em nenhum dos seus departamentos, então não mostro a ficha por aqui.")]);
+    var vistos = ks.map(function (k) { return modulo(k).then(function (a) { return a ? {k: k, a: a, r: a.consultar("empresa", {id: g.refs[k]})} : {k: k}; }).catch(function () { return {k: k}; }); });
+    return Promise.all(vistos).then(function (res) {
+      var out = [{tipo: "cab", texto: g.nome + (g.cnpj ? " · " + g.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : "")}], chips = [];
+      res.forEach(function (x) {
+        if (!x.r) return;
+        out.push({tipo: "linhas", titulo: MODN[x.k], nota: x.a.exemplo && x.a.exemplo() ? "dados de exemplo" : "", linhas: x.r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: x.k}, l); }), todas: x.r.linhas.map(function (l) { return Object.assign({mod: x.k}, l); })});
+        chips.push({rot: "Abrir no " + MODN[x.k], acao: function () { return abrirItem(x.k, {empresa: g.refs[x.k], aba: x.r.abrirFicha ? x.r.abrirFicha.aba : ""}); }});
+      });
+      if (out.length === 1) return [T("Encontrei “" + g.nome + "”, mas os módulos não trouxeram informações dela agora.")];
+      if (abrir && chips.length === 1) { chips[0].acao(); return out.concat([T("Abri a ficha para você.")]); }
+      return out.concat([CH(chips)]);
+    });
+  }
+
+  /* ---------- navegação ---------- */
+  var OPT_ANA = {fiscal: {agenda: "ag.ana", empresas: "em.ana", fechamento: "fx.ana"}, contabil: {fechamento: "fx.ana", carteira: "ct.ana", prazos: "ob.ana"}};
+  function abrirItem(mod, ab) {
+    ab = ab || {};
+    if (!ab.manter) fecharPainel();
+    H.abrirModulo(mod);
+    return modulo(mod).then(function (a) {
+      if (!a) return false;
+      if (ab.empresa && a.abrirEmpresa) return a.abrirEmpresa(ab.empresa, ab.aba);
+      if (ab.aba || mod === "cardapio") return a.irPara(ab.aba, ab.opts);
+      return true;
+    });
+  }
+  function navegar(p) {
+    var t = p.t;
+    if (/\b(inicio|home|tela inicial|pagina inicial)\b/.test(t) && !p.mods.length) { fecharPainel(); H.inicio(); return Promise.resolve([T("Pronto, voltei para o início.")]); }
+    var mod = p.mods[0] || H.ativo();
+    if (!mod || mod === "home") return Promise.resolve([T("Para qual módulo?"), CH(H.modulos().map(function (k) { return {rot: MODN[k], enviar: "abrir " + MODN[k]}; }))]);
+    return modulo(mod).then(function (a) {
+      var aba = detectarAba(t, a), opts = {};
+      if (aba && p.analista && OPT_ANA[mod] && OPT_ANA[mod][aba]) opts[OPT_ANA[mod][aba]] = p.analista;
+      if (p.per && aba === "agenda") {
+        if (mod === "fiscal") { opts["ag.mes"] = ymd(p.per.de).slice(0, 7); opts["ag.dia"] = ymd(p.per.de); }
+        else if (mod === "dp") opts.dia = ymd(p.per.de);
+      }
+      if (mod === "cardapio" && p.per) opts.dia = ymd(p.per.de);
+      var nome = MODN[mod] + (aba ? " · " + ((a.abas.filter(function (x) { return x[0] === aba; })[0] || [])[1] || aba) : "");
+      return abrirItem(mod, {aba: aba, opts: opts}).then(function () { return [T("Abrindo " + nome + (p.analista ? " (" + p.analista + ")" : "") + ".")]; });
+    });
+  }
+
+  /* ============ mascote ============ */
+  var CEL = 4, COLS = 14, W = CEL * COLS, HM = 44;
+  var el = null, painel = null, pos = {x: 0, y: 0}, fx = 0, fy = 0, tWander = 0, tSono = 0, andando = false, aberto = false, oculto = false, dormiu = false;
+  /* Visuais: pixel art (cada letra é uma cor da paleta; "E" = olhos; "." = vazio). Pernas em dois quadros para o passo. */
+  var SKINS = {
+    laranja: {nome: "Laranjinha", body: "O", pal: {O: "#E07A3F", D: "#B2531F", E: "#241510"},
+      rows: ["...OOOOOOOO...", "...OOOOOOOO...", "...OOEOOEOO...", "...OOEOOEOO...", "..OOOOOOOOOO..", "..OOOOOOOOOO..", "...OOOOOOOO...", "...OOOOOOOO...", "...DDDDDDDD..."],
+      legsA: ["...O.O..O.O...", "...D.D..D.D..."], legsB: ["....O.OO.O....", "....D.DD.D...."]},
+    controltax: {nome: "ControlTax", body: "B", pal: {B: "#3C659B", R: "#C2000C", E: "#101820"},
+      rows: ["......RR......", "......RR......", "..BBBBBBBBBB..", "..BBBBBBBBBB..", "..BBEEBBEEBB..", "..BBEEBBEEBB..", "..BBBBBBBBBB..", "..RRRRRRRRRR..", "...BBBBBBBB..."],
+      legsA: ["...BB....BB...", "...BB....BB..."], legsB: ["....BB..BB....", "....BB..BB...."]},
+    fantasma: {nome: "Fantasminha", body: "G", pal: {G: "#6FC3F0", W: "#FFFFFF", E: "#1B3A8A"},
+      rows: ["....GGGGGG....", "..GGGGGGGGGG..", ".GGGGGGGGGGGG.", ".GGWWGGGGWWGG.", ".GGWEGGGGWEGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG.", ".GGGGGGGGGGGG."],
+      legsA: [".GGG..GG..GGG.", ".GGG..GG..GGG."], legsB: [".GG..GGGG..GG.", ".GG..GGGG..GG."]},
+    alien: {nome: "Alienzinho", body: "A", pal: {A: "#5FD068", E: "#10301A"},
+      rows: ["..A........A..", "...A......A...", "..AAAAAAAAAA..", ".AAEEAAAAEEAA.", "AAAEEAAAAEEAAA", "AAAAAAAAAAAAAA", "A.AAAAAAAAAA.A", "A.A........A.A"],
+      legsA: ["...AA....AA...", "..AA......AA.."], legsB: ["....AA..AA....", "...AA....AA..."]},
+    gato: {nome: "Gatinho", body: "C", pal: {C: "#E6B15A", P: "#E87A8F", E: "#2B2B2B"},
+      rows: [".C..........C.", ".CC........CC.", ".CCCCCCCCCCCC.", ".CCCCCCCCCCCC.", ".CCECCCCCCECC.", ".CCECCCCCCECC.", ".CCCCCPPCCCCC.", "..CCCCCCCCCC..", "..CCCCCCCCCC.."],
+      legsA: ["..CC......CC..", "..CC......CC.."], legsB: ["...CC....CC...", "...CC....CC..."]}    ,coruja: {nome: "Corujinha", body: "B", pal: {B: "#8B5E3C", W: "#F3E3C3", Y: "#F2B705", E: "#1E1208"},
+      rows: ["..B........B..", "..BB......BB..", "..BBBBBBBBBB..", ".BWWWBBBBWWWB.", ".BWEWBBBBWEWB.", ".BWWWBYYBWWWB.", ".BBBBBYYBBBBB.", ".BBWWWWWWWWBB.", "..BWWWWWWWWB.."],
+      legsA: ["....Y....Y....", "...YY....YY..."], legsB: [".....Y..Y.....", "....YY..YY...."]},
+    cacto: {nome: "Cactinho", body: "G", pal: {G: "#4CAF50", D: "#2E7D32", F: "#E91E63", P: "#C8693A", E: "#10301A"},
+      rows: ["......FF......", ".....GGGG.....", "..G..GGGG..G..", "..G.GEGGEG.G..", "..GGGGGGGGGG..", ".....GGGG.....", ".....GDGG.....", "....PPPPPP....", "....PPPPPP...."],
+      legsA: ["....PP..PP....", "....P....P...."], legsB: [".....PPPP.....", ".....P..P....."]},
+    calculadora: {nome: "Calculadora", body: "C", pal: {C: "#8A97A3", S: "#B8E0A8", K: "#3B4650", E: "#1D3B14"},
+      rows: ["..CCCCCCCCCC..", "..CSSSSSSSSC..", "..CSESSSSESC..", "..CSSSSSSSSC..", "..CCCCCCCCCC..", "..CKCKCKCKCC..", "..CCCCCCCCCC..", "..CKCKCKCKCC..", "..CCCCCCCCCC.."],
+      legsA: ["...CC....CC...", "...CC....CC..."], legsB: ["....CC..CC....", "....CC..CC...."]},
+    robo: {nome: "Robozinho", body: "S", pal: {S: "#9FB3C8", R: "#E53935", K: "#44515E", E: "#0D2A4A"},
+      rows: ["......RR......", "......SS......", "..SSSSSSSSSS..", "..SSSSSSSSSS..", "..SEESSSSEES..", "..SEESSSSEES..", "..SSSSSSSSSS..", "..SKKKKKKKKS..", "..SSSSSSSSSS.."],
+      legsA: ["...SS....SS...", "...KK....KK..."], legsB: ["....SS..SS....", "....KK..KK...."]},
+    pinguim: {nome: "Pinguim", body: "W", pal: {K: "#26303A", W: "#F4F6F8", Y: "#F2A21B", E: "#26303A"},
+      rows: ["....KKKKKK....", "...KKKKKKKK...", "...KWWKKWWK...", "...KWEKKEWK...", "...KKKYYKKK...", "..KKWWWWWWKK..", "..KKWWWWWWKK..", "..KKWWWWWWKK..", "...KKWWWWKK..."],
+      legsA: ["...YY....YY...", "...YYY..YYY..."], legsB: ["...YY....YY...", "..YYY....YYY.."]},
+    panda: {nome: "Pandinha", body: "W", pal: {W: "#F7F7F7", K: "#23272B", E: "#FFFFFF"},
+      rows: ["..KK......KK..", "..KKWWWWWWKK..", "..WWWWWWWWWW..", ".WKKWWWWWWKKW.", ".WKEKWWWWKEKW.", ".WKKKWWWWKKKW.", "..WWWWKKWWWW..", "..WWWWWWWWWW..", "..KKWWWWWWKK.."],
+      legsA: ["...KK....KK...", "...KK....KK..."], legsB: ["....KK..KK....", "....KK..KK...."]},
+    dino: {nome: "Dininho", body: "G", pal: {G: "#5BBF5F", D: "#2E8B3A", L: "#CDEFA3", E: "#143018"},
+      rows: ["...D..D..D....", "..GGGGGGGGGG..", "..GGEGGGGEGG..", "..GGEGGGGEGG..", "..GGGGGGGGGG..", "..GGLLLLLLGG..", "...GLLLLLLG...", "...GGGGGGGG...", "...GGGGGGGG..."],
+      legsA: ["...GG....GG...", "...DD....DD..."], legsB: ["....GG..GG....", "....DD..DD...."]},
+    abelha: {nome: "Abelhinha", body: "Y", pal: {Y: "#F5C400", K: "#2B2B2B", W: "#DCEBFA", E: "#2B2B2B"},
+      rows: ["....K....K....", ".WW.YYYYYY.WW.", ".WW.YEYYEY.WW.", "..WYYYYYYYYW..", "...KKKKKKKK...", "...YYYYYYYY...", "...KKKKKKKK...", "....YYYYYY....", ".....KKKK....."],
+      legsA: ["...K.K..K.K...", "...K.K..K.K..."], legsB: ["....K.KK.K....", "....K.KK.K...."]},
+    sapo: {nome: "Sapinho", body: "G", pal: {G: "#4FBF4A", L: "#D9F2B0", K: "#1F5E22", E: "#10301A"},
+      rows: [".GGG......GGG.", ".GEG......GEG.", ".GGGGGGGGGGGG.", "GGGGGGGGGGGGGG", "GGGGGGGGGGGGGG", "GGKKKKKKKKKKGG", "GGGLLLLLLLLGGG", ".GGLLLLLLLLGG."],
+      legsA: ["..GG......GG..", "..GGG....GGG.."], legsB: ["...GG....GG...", "..GGG....GGG.."]},
+    foguete: {nome: "Foguetinho", body: "W", pal: {W: "#AFC0D2", R: "#D93025", E: "#1B2733", O: "#F28B1D", Y: "#FFD43B"},
+      rows: ["......RR......", ".....RRRR.....", "....WWWWWW....", "...WWEWWEWW...", "...WWEWWEWW...", "...WWWWWWWW...", "...WWWWWWWW...", "..RWWWWWWWWR..", "..RR.WWWW.RR.."],
+      legsA: ["....OO..OO....", "....Y....Y...."], legsB: ["....OO..OO....", "...Y..YY..Y..."]},
+    cafe: {nome: "Cafezinho", body: "W", pal: {W: "#6FA8DC", B: "#6B3E1F", S: "#B9C3CC", E: "#3A2412"},
+      rows: ["....S..S......", ".....S..S.....", "..BBBBBBBBBB..", "..WWWWWWWWWW..", "..WWEWWWWEWW..", "..WWWWWWWWWWWW", "..WWWWWWWWWWW.", "...WWWWWWWW...", "....WWWWWW...."],
+      legsA: ["....BB..BB....", "....BB..BB...."], legsB: ["...BB....BB...", "...BB....BB..."]}
+  };
+  var skinKey = "laranja";
+  function skinDe(k) { return SKINS[k] || SKINS.laranja; }
+  function altura(k) { var s = skinDe(k); return (s.rows.length + 2) * CEL; }
+  function runs(linhas, y0, cor, so) {
+    var out = "";
+    linhas.forEach(function (ln, j) {
+      for (var i = 0; i < ln.length;) {
+        var ch = ln.charAt(i); if (ch === ".") { i++; continue; }
+        var k = i; while (k < ln.length && ln.charAt(k) === ch) k++;
+        var c = cor(ch); if (c && (!so || so(ch))) out += '<rect x="' + i + '" y="' + (y0 + j) + '" width="' + (k - i) + '" height="1" fill="' + c + '"/>';
+        i = k;
+      }
+    });
+    return out;
+  }
+  function svgSkin(key) {
+    var s = skinDe(key), n = s.rows.length, p = s.pal;
+    var corpo = runs(s.rows, 0, function (ch) { return ch === "E" ? p[s.body] : p[ch]; });
+    var eo = runs(s.rows, 0, function (ch) { return p.E; }, function (ch) { return ch === "E"; });
+    var ec = ""; s.rows.forEach(function (ln, j) { for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") ec += '<rect x="' + i + '" y="' + (j + 0.6) + '" width="1" height="0.4" fill="' + p.E + '"/>'; });
+    var eh = ""; s.rows.forEach(function (ln, j) { for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") eh += '<path d="M' + (i + 0.08) + ',' + (j + 0.85) + ' L' + (i + 0.5) + ',' + (j + 0.2) + ' L' + (i + 0.92) + ',' + (j + 0.85) + '" fill="none" stroke="' + p.E + '" stroke-width=".32" stroke-linecap="square" stroke-linejoin="miter" shape-rendering="geometricPrecision"/>'; });
+    return '<svg viewBox="0 0 ' + COLS + ' ' + (n + 2) + '" width="100%" height="100%" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><g>' + corpo + '</g>' +
+      '<g class="tx-lA">' + runs(s.legsA, n, function (ch) { return p[ch]; }) + '</g><g class="tx-lB">' + runs(s.legsB, n, function (ch) { return p[ch]; }) + '</g>' +
+      '<g class="tx-eo">' + eo + '</g><g class="tx-ec">' + ec + '</g><g class="tx-eh">' + eh + '</g></svg>';
+  }
+  var CSS = '#tx-mascote{position:fixed;left:0;top:0;width:' + W + 'px;height:var(--tx-hm,44px);z-index:525;cursor:pointer;outline:none;will-change:transform;-webkit-tap-highlight-color:transparent;user-select:none}' +
+    '#tx-mascote.tx-oculto,#tx-painel.tx-oculto{display:none}#tx-mascote.tx-poof{opacity:0;transition:opacity .16s}' +
+    '#tx-mascote .tx-corpo{position:absolute;inset:0}#tx-mascote .tx-face{position:absolute;inset:0}#tx-mascote.tx-esq .tx-face{transform:scaleX(-1)}' +
+    '#tx-mascote .tx-sombra{position:absolute;left:8px;right:8px;bottom:-2px;height:5px;border-radius:50%;background:rgba(16,24,32,.25)}' +
+    '#tx-mascote:focus-visible .tx-corpo{filter:drop-shadow(0 0 2px #6BAAC9) drop-shadow(0 0 2px #6BAAC9)}#tx-mascote:hover .tx-corpo{filter:brightness(1.1)}' +
+    '#tx-mascote .tx-lB{visibility:hidden}#tx-mascote .tx-ec{visibility:hidden}#tx-mascote .tx-eh{visibility:hidden}' +
+    '#tx-mascote .tx-eo,#tx-mascote .tx-eh{transform-box:fill-box;transform-origin:50% 0}' +
+    '#tx-mascote.tx-feliz .tx-eo{animation:none;visibility:hidden}#tx-mascote.tx-feliz .tx-ec{animation:none;visibility:hidden}#tx-mascote.tx-feliz .tx-eh{visibility:visible}' +
+    '#tx-mascote.tx-triste .tx-eo{animation:none;transform:translateY(.3px) scaleY(.8)}' +
+    '#tx-mascote.tx-pensando .tx-eo{transform:translate(.25px,-.3px)}' +
+    '#tx-mascote.tx-sonolento:not(.tx-dorme):not(.tx-feliz) .tx-eo{animation:none;transform:scaleY(.45)}' +
+    '#tx-mascote.tx-andando .tx-lA{animation:txVA .34s steps(1) infinite}#tx-mascote.tx-andando .tx-lB{animation:txVB .34s steps(1) infinite}' +
+    '#tx-mascote.tx-andando .tx-corpo{animation:txBob .34s steps(1) infinite}' +
+    '#tx-mascote.tx-pulo .tx-lA{visibility:hidden}#tx-mascote.tx-pulo .tx-lB{visibility:visible}' +
+    '#tx-mascote .tx-eo{animation:txPisca 5.5s steps(1) infinite}#tx-mascote .tx-ec{animation:txPisca2 5.5s steps(1) infinite}' +
+    '#tx-mascote.tx-dorme .tx-eo{animation:none;visibility:hidden}#tx-mascote.tx-dorme .tx-ec{animation:none;visibility:visible}' +
+    '#tx-mascote.tx-parado .tx-corpo{animation:txRespira 3s ease-in-out infinite}#tx-mascote.tx-acena .tx-corpo{animation:txPula .32s ease-out 4}' +
+    '#tx-mascote .tx-z{position:absolute;right:-6px;top:-8px;font:700 13px Archivo,sans-serif;color:var(--blue-deep,#3C659B);opacity:0}#tx-mascote.tx-dorme .tx-z{animation:txZ 2.4s ease-out infinite}' +
+    '#tx-mascote .tx-balao{position:absolute;bottom:calc(var(--tx-hm,44px) + 8px);left:50%;transform:translateX(-50%) scale(.9);transform-origin:50% 100%;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;padding:6px 10px;font:600 12px "IBM Plex Sans",sans-serif;white-space:normal;width:max-content;max-width:240px;line-height:1.35;text-align:center;box-shadow:0 6px 18px rgba(16,24,32,.18);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}' +
+    '#tx-mascote .tx-badge{position:absolute;top:-6px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--brand-red,#C2000C);color:#fff;font:700 10px/16px "IBM Plex Sans",sans-serif;text-align:center;box-shadow:0 0 0 2px var(--surface,#fff)}#tx-mascote .tx-badge[hidden]{display:none}' +
+    '#tx-mascote .tx-balao.on{opacity:1;transform:translateX(-50%) scale(1)}' +
+    '@keyframes txVA{0%{visibility:visible}50%{visibility:hidden}}@keyframes txVB{0%{visibility:hidden}50%{visibility:visible}}@keyframes txBob{50%{transform:translateY(-3px)}}' +
+    '@keyframes txPisca{0%,94%{visibility:visible}95%,97%{visibility:hidden}98%,100%{visibility:visible}}@keyframes txPisca2{0%,94%{visibility:hidden}95%,97%{visibility:visible}98%,100%{visibility:hidden}}' +
+    '@keyframes txRespira{50%{transform:translateY(-1px)}}@keyframes txPula{40%{transform:translateY(-14px)}}@keyframes txZ{0%{opacity:0;transform:translate(0,4px)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-10px)}}' +
+    '#tx-mascote .tx-emo{position:absolute;left:50%;top:-14px;transform:translateX(-50%);font-size:15px;opacity:0;pointer-events:none}#tx-mascote .tx-emo.on{animation:txEmo 1.6s ease-out}@keyframes txEmo{0%{opacity:0;transform:translate(-50%,6px) scale(.6)}15%{opacity:1;transform:translate(-50%,-4px) scale(1.1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px)}}' +
+    '#tx-mascote .tx-chapeu{position:absolute;left:0;width:100%;height:16px;top:-12px;pointer-events:none}#tx-mascote .tx-ov{position:absolute;inset:0;pointer-events:none}' +
+    '#tx-mascote.tx-le .tx-corpo{transform:translateY(3px) scaleY(.92);transform-origin:50% 100%}#tx-mascote.tx-le .tx-eo{animation:none}' +
+    '#tx-mascote.tx-pensando .tx-corpo{animation:txRespira 1s ease-in-out infinite}#tx-mascote.tx-pensando .tx-balao{font-size:16px;letter-spacing:2px;border-radius:14px}' +
+    '#tx-mascote.tx-porta .tx-corpo{animation:txPorta .6s ease-in-out}@keyframes txPorta{0%,100%{transform:scaleX(1)}45%{transform:scaleX(.08)}}' +
+    '#tx-mascote.tx-segura .tx-corpo{transform:translateY(-4px) rotate(-6deg);transition:transform .12s}#tx-mascote.tx-segura .tx-lA{visibility:hidden}#tx-mascote.tx-segura .tx-lB{visibility:visible}' +
+    '#tx-mascote.tx-escondido{opacity:.38;filter:saturate(.6)}#tx-mascote.tx-escondido .tx-sombra{display:none}' +
+    '#tx-mascote.tx-arrastado{cursor:grabbing}#tx-mascote.tx-arrastado .tx-corpo{transform:rotate(-8deg) scale(1.05)}' +
+    '.tx-pegada{position:fixed;z-index:524;width:5px;height:3px;border-radius:2px;background:var(--ink-3,#5F6D77);opacity:.35;pointer-events:none;animation:txPeg 1.3s ease-out forwards}@keyframes txPeg{to{opacity:0}}' +
+    '.tx-destaque{position:fixed;z-index:524;border:3px solid var(--brand-red,#C2000C);border-radius:8px;box-shadow:0 0 0 4px rgba(194,0,12,.18);pointer-events:none;animation:txDest 1.2s ease-in-out 3}@keyframes txDest{50%{box-shadow:0 0 0 10px rgba(194,0,12,0)}}' +
+    ':root[data-theme="dark"] #tx-mascote .tx-face{filter:brightness(1.12) drop-shadow(0 0 1px rgba(255,255,255,.35))}:root[data-theme="dark"] #tx-mascote .tx-sombra{background:rgba(0,0,0,.5)}' +
+    '@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #tx-mascote .tx-face{filter:brightness(1.12) drop-shadow(0 0 1px rgba(255,255,255,.35))}}' +
+    '.tx-vis-sec{width:100%;font:700 11px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3,#5F6D77);margin-top:4px}.tx-sk.off{opacity:.45;cursor:not-allowed}.tx-conq{width:100%;font-size:11.5px;color:var(--ink-2,#47545F)}' +
+    '@media (prefers-reduced-motion:reduce){#tx-mascote *{animation:none!important}}' +
+    '#tx-painel{position:fixed;z-index:526;width:min(380px,calc(100vw - 16px));height:min(540px,calc(100vh - 24px));display:flex;flex-direction:column;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.32);overflow:hidden;font:13px "IBM Plex Sans",sans-serif;animation:txPainel .18s ease-out}' +
+    '@keyframes txPainel{from{opacity:0;transform:translateY(8px) scale(.98)}}' +
+    '#tx-painel header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA)}' +
+    '#tx-painel header b{font:700 14px Archivo,sans-serif;display:block;line-height:1.1}#tx-painel header small{display:block;font-size:11px;color:var(--ink-3,#5F6D77)}' +
+    '#tx-painel header .tx-t{flex:1;min-width:0}#tx-painel header button{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;border-radius:4px;padding:5px 7px;font:600 11.5px "IBM Plex Sans",sans-serif}#tx-painel header button:hover{background:var(--surface-3,#EAEFF3);color:var(--ink,#101820)}' +
+    '#tx-skins{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface,#fff)}#tx-skins[hidden]{display:none}' +
+    '.tx-sk{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA);color:var(--ink-2,#47545F);border-radius:8px;padding:6px 8px;font:600 10.5px "IBM Plex Sans",sans-serif;cursor:pointer}.tx-sk:hover{border-color:var(--blue-deep,#3C659B)}.tx-sk.on{border-color:var(--blue-deep,#3C659B);box-shadow:inset 0 0 0 1px var(--blue-deep,#3C659B)}.tx-sk-i{width:42px;height:34px;display:block}' +
+    '#tx-painel .tx-av{width:32px;height:30px;flex:none}' +
+    '#tx-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}' +
+    '.tx-m-u{align-self:flex-end;max-width:85%;background:var(--blue-deep,#3C659B);color:#fff;padding:7px 11px;border-radius:12px 12px 3px 12px;white-space:pre-wrap;overflow-wrap:anywhere}' +
+    ':root[data-theme="dark"] .tx-m-u{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tx-m-u{color:#0B1015}}' +
+    '.tx-m-b{align-self:stretch;max-width:100%;display:flex;flex-direction:column;gap:6px}' +
+    '.tx-t1{align-self:flex-start;max-width:96%;background:var(--surface-2,#F5F8FA);border:1px solid var(--rule,#DCE3E9);padding:7px 11px;border-radius:12px 12px 12px 3px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}' +
+    '.tx-cab{font:700 12px Archivo,sans-serif;color:var(--ink-2,#47545F);text-transform:uppercase;letter-spacing:.04em;padding:0 2px}' +
+    '.tx-bloco{border:1px solid var(--rule,#DCE3E9);border-radius:8px;overflow:hidden;background:var(--surface,#fff)}' +
+    '.tx-bloco h4{margin:0;padding:6px 10px;background:var(--surface-2,#F5F8FA);border-bottom:1px solid var(--rule,#DCE3E9);font:700 12px Archivo,sans-serif;display:flex;gap:8px;align-items:baseline}' +
+    '.tx-bloco h4 small{font:500 11px "IBM Plex Sans",sans-serif;color:var(--sector-fiscal,#6A4FA0)}' +
+    '#tx-painel.tx-amp:not(.tx-doca){left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%);width:min(900px,94vw)!important;height:min(88vh,920px)!important;max-width:94vw;max-height:94vh;resize:none!important;animation:none}#tx-painel.tx-amp.tx-doca{width:min(860px,80vw)!important}' +
+    '#tx-painel.tx-amp #tx-msgs{font-size:14px;padding-left:18px;padding-right:18px}#tx-painel.tx-amp .tx-m-b{max-width:100%}#tx-painel.tx-amp .tx-lin span{font-size:12.5px}' +
+    '#tx-filtro-b{display:none;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA)}#tx-painel.tx-amp #tx-filtro-b:not([hidden]){display:flex}#tx-filtro{flex:1;min-width:0;font:inherit;padding:6px 10px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:8px;background:var(--surface,#fff);color:inherit}#tx-filtro-n{font-size:11.5px;color:var(--ink-3,#5F6D77);white-space:nowrap}#tx-amp-b{display:inline-flex}' +
+    '.tx-anx-d{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 9px;border:1px solid var(--rule,#DCE3E9);border-radius:8px;background:var(--surface-2,#F5F8FA);font-size:12px}.tx-anx-d button{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:12px;padding:0 2px}.tx-anx-av{align-self:center;font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-anx{flex-wrap:wrap}#tx-painel.tx-soltar{outline:3px dashed var(--blue-deep,#3C659B);outline-offset:-6px}' +
+    '.tx-lw{position:relative}.tx-lw+.tx-lw .tx-lin{border-top:1px solid var(--rule,#DCE3E9)}.tx-lw .tx-lin{padding-right:34px}.tx-lin-a{position:absolute;right:4px;top:3px;border:0;background:none;color:var(--ink-3,#5F6D77);font:700 16px/1 inherit;padding:4px 8px;border-radius:6px;cursor:pointer}.tx-lin-a:hover,.tx-lin-a[aria-expanded=true]{background:var(--surface-2,#F5F8FA);color:var(--ink,#1B2630)}.tx-acs{display:flex;flex-wrap:wrap;gap:5px;padding:2px 10px 8px 26px}' +
+    '.tx-lin{display:grid;grid-template-columns:8px minmax(0,1fr);gap:8px;padding:7px 10px;border:0;border-top:1px solid var(--rule,#DCE3E9);width:100%;text-align:left;background:none;color:inherit;font:inherit;cursor:default}' +
+    '.tx-lin:first-of-type{border-top:0}button.tx-lin{cursor:pointer}button.tx-lin:hover{background:var(--surface-2,#F5F8FA)}button.tx-lin:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:-2px}' +
+    '.tx-lin i{width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--rule-strong,#C2CCD5)}.tx-lin.late i{background:var(--dp-late,#C2000C)}.tx-lin.warn i{background:var(--dp-today,#B5530C)}.tx-lin.ok i{background:var(--dp-ok,#167A45)}' +
+    '.tx-lin b{display:block;font-weight:600;overflow-wrap:anywhere}.tx-lin span{display:block;font-size:11.5px;color:var(--ink-3,#5F6D77);overflow-wrap:anywhere}' +
+    '.tx-mais{display:block;width:100%;border:0;border-top:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA);color:var(--blue-deep,#3C659B);font:600 12px "IBM Plex Sans",sans-serif;padding:7px 10px;text-align:left;cursor:pointer}.tx-mais:hover{text-decoration:underline}' +
+    '.tx-conf{border:1px solid var(--blue-deep,#3C659B);border-radius:8px;background:var(--surface,#fff);padding:10px 12px;display:flex;flex-direction:column;gap:5px}.tx-conf-ocupado{opacity:.6;pointer-events:none}' +
+    '.tx-conf-h{font:700 12px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--blue-deep,#3C659B)}.tx-conf-ok .tx-conf-h{color:var(--dp-ok,#167A45)}.tx-conf-erro .tx-conf-h{color:var(--dp-late,#C2000C)}.tx-conf-cancelado{border-color:var(--rule,#DCE3E9)}.tx-conf-cancelado .tx-conf-h{color:var(--ink-3,#5F6D77)}' +
+    '.tx-conf-e{font-weight:700}.tx-conf-l{color:var(--ink-2,#47545F);overflow-wrap:anywhere}.tx-conf-av{font-size:11.5px;color:var(--dp-today,#B5530C)}' +
+    '.tx-conf-b{display:flex;gap:6px;margin-top:4px}.tx-cb{border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--ink,#101820);border-radius:6px;padding:6px 12px;font:600 12.5px "IBM Plex Sans",sans-serif;cursor:pointer}.tx-cb:hover{border-color:var(--blue-deep,#3C659B)}.tx-cb-ok{background:var(--blue-deep,#3C659B);border-color:var(--blue-deep,#3C659B);color:#fff}' +
+    ':root[data-theme="dark"] .tx-cb-ok{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tx-cb-ok{color:#0B1015}}' +
+    '.tx-chips{display:flex;flex-wrap:wrap;gap:6px}.tx-chip{border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--blue-deep,#3C659B);border-radius:14px;padding:5px 11px;font:600 12px "IBM Plex Sans",sans-serif;cursor:pointer;text-align:left}.tx-chip:hover{background:var(--blue-pale,#DCE8F1);border-color:var(--blue-deep,#3C659B)}' +
+    '.tx-rod{font-size:11.5px;color:var(--ink-3,#5F6D77);padding:0 2px}' +
+    '.tx-aj{border-left:3px solid var(--blue-deep,#3C659B);background:var(--surface-2,#F5F8FA);border-radius:4px 10px 10px 4px;padding:8px 11px;line-height:1.45}.tx-aj b{display:block;margin-bottom:3px;font-family:Archivo,sans-serif}' +
+    '#tx-painel form{display:flex;gap:6px;padding:8px;border-top:1px solid var(--rule,#DCE3E9);background:var(--surface,#fff)}' +
+    '#tx-painel form input{flex:1;min-width:0;padding:8px 10px;border-radius:8px;font-size:13px}#tx-painel form button{border:0;border-radius:8px;background:var(--blue-deep,#3C659B);color:#fff;font:600 12.5px "IBM Plex Sans",sans-serif;padding:0 14px;cursor:pointer}' +
+    ':root[data-theme="dark"] #tx-painel form button{color:#0B1015}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #tx-painel form button{color:#0B1015}}' +
+    '.tx-pensa{display:inline-flex;gap:4px;padding:9px 12px}.tx-pensa i{width:6px;height:6px;border-radius:50%;background:var(--ink-3,#5F6D77);animation:txPensa 1s infinite}.tx-pensa i:nth-child(2){animation-delay:.15s}.tx-pensa i:nth-child(3){animation-delay:.3s}@keyframes txPensa{50%{transform:translateY(-4px);opacity:.4}}' +
+    '#tx-painel:not(.tx-doca){resize:both;min-width:300px;min-height:360px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px)}' +
+    '#tx-painel.tx-doca{left:auto!important;right:0!important;top:0!important;bottom:0;width:min(420px,100vw)!important;height:100vh!important;border-radius:0;border-width:0 0 0 1px;animation:none}' +
+    '#tx-painel header button[aria-pressed="true"]{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
+    '.tx-gaveta{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface,#fff);max-height:55%;overflow:auto}.tx-gaveta[hidden]{display:none}' +
+    '#tx-cfg{flex-direction:column;flex-wrap:nowrap;gap:7px;font-size:12.5px}.tx-cfg-sec{font:700 11px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3,#5F6D77);margin-top:4px}' +
+    '.tx-cfg-it{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.35}.tx-cfg-it input[type=text],.tx-cfg-it select,.tx-cfg-it textarea{font:inherit;padding:4px 7px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-cfg-it textarea{width:100%;min-height:70px}.tx-cfg-area{flex-direction:column;align-items:stretch}' +
+    '.tx-cfg-bool{flex-wrap:nowrap;align-items:flex-start}.tx-cfg-bool input{margin:2px 0 0;flex:none}' +
+    '.tx-aj-form{display:flex;flex-direction:column;gap:5px;margin-top:4px}.tx-aj-form input,.tx-aj-form textarea{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-aj-form .tx-cb{align-self:flex-start}.tx-conf-l .tx-mini{margin-left:4px}' +
+    '.tx-uso-alto{color:var(--status-warn,#B5530C)!important;font-weight:600}.tx-cfg-uso{font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-cfg .tx-cb{align-self:flex-start;padding:4px 10px;font-size:12px}' +
+    '.tx-fixo{display:inline-flex;align-items:center;gap:2px}.tx-fixo-x{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:11px;padding:2px 4px}' +
+    '.tx-md{display:flex;flex-direction:column;gap:3px;align-self:stretch}.tx-acts{display:flex;flex-wrap:wrap;gap:2px;padding-left:4px}' +
+    '.tx-mini{border:0;background:none;color:var(--ink-3,#5F6D77);font:600 11px "IBM Plex Sans",sans-serif;padding:3px 6px;border-radius:5px;cursor:pointer;line-height:1.2}.tx-mini:hover{background:var(--surface-3,#EAEFF3);color:var(--ink,#101820)}.tx-mini.on{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
+    '.tx-bloco h4 .tx-h4t{flex:1;min-width:0}.tx-bloco h4 .tx-h4a{display:inline-flex;gap:0;margin-left:auto}.tx-bloco h4 .tx-mini{padding:1px 5px}' +
+    '.tx-tab{display:block;overflow-x:auto;margin:2px 0;white-space:normal}.tx-tab table{border-collapse:collapse;font-size:12px;min-width:100%}.tx-tab th,.tx-tab td{border:1px solid var(--rule,#DCE3E9);padding:3px 7px;text-align:left;vertical-align:top}.tx-tab th{background:var(--surface-3,#EAEFF3);font-weight:700}' +
+    '.tx-sep{align-self:center;font-size:11px;color:var(--ink-3,#5F6D77);border-bottom:1px dashed var(--rule-strong,#C2CCD5);padding:0 10px 2px}' +
+    '#tx-sug{position:absolute;left:8px;right:8px;bottom:54px;z-index:2;background:var(--surface,#fff);border:1px solid var(--rule-strong,#C2CCD5);border-radius:8px;box-shadow:0 8px 24px rgba(16,24,32,.18);max-height:230px;overflow:auto;display:flex;flex-direction:column}#tx-sug[hidden]{display:none}' +
+    '.tx-sg{display:flex;flex-direction:column;align-items:flex-start;border:0;background:none;color:inherit;text-align:left;padding:6px 10px;cursor:pointer;font:inherit}.tx-sg span{font-size:11px;color:var(--ink-3,#5F6D77)}.tx-sg:hover,.tx-sg.on{background:var(--blue-pale,#DCE8F1)}' +
+    '#tx-anx{display:flex;gap:6px;padding:6px 8px 0}#tx-anx[hidden]{display:none}.tx-anx-i{position:relative}.tx-anx-i img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--rule,#DCE3E9)}.tx-anx-i button{position:absolute;top:-6px;right:-6px;border:0;border-radius:50%;width:18px;height:18px;font-size:10px;background:var(--ink,#101820);color:var(--surface,#fff);cursor:pointer}' +
+    '#tx-painel form .tx-ib{background:none;color:var(--ink-2,#47545F);padding:0 7px;font-size:15px}#tx-painel form .tx-ib[hidden]{display:none}#tx-painel form .tx-ib.on{color:var(--brand-red,#C2000C);animation:txPensa 1s infinite}' +
+    '.tx-graf{margin:0;border:1px solid var(--rule,#DCE3E9);border-radius:8px;padding:8px 10px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:5px}.tx-graf figcaption{font:700 12px Archivo,sans-serif;color:var(--ink-2,#47545F);margin-bottom:2px}' +
+    '.tx-graf{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:center}.tx-graf:hover{transform:scale(1.02)}@media (prefers-reduced-motion:reduce){.tx-graf,.tx-graf:hover{transition:none;transform:none}}' +
+    '.tx-gr{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11.5px}.tx-gr-r{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2,#47545F)}.tx-gr-t{height:8px;background:var(--surface-3,#EAEFF3);border-radius:0 4px 4px 0;display:block}.tx-gr-t i{display:block;height:100%;background:var(--blue-deep,#3C659B);border-radius:0 4px 4px 0}.tx-gr b{font-variant-numeric:tabular-nums;color:var(--ink,#101820);font-weight:600}' +
+    '#tx-painel.tx-grande{font-size:15px}#tx-painel.tx-grande .tx-lin span,#tx-painel.tx-grande .tx-rod{font-size:13px}#tx-painel.tx-grande .tx-chip{font-size:13.5px}' +
+    '#tx-painel.tx-contraste{--surface:#fff;--surface-2:#fff;--surface-3:#e6e6e6;--ink:#000;--ink-2:#000;--ink-3:#222;--rule:#000;--rule-strong:#000;--blue-deep:#0033a0;--blue-pale:#d6e2ff}#tx-painel.tx-contraste .tx-t1,#tx-painel.tx-contraste .tx-bloco{border-width:2px}' +
+    '@media (max-width:600px){#tx-painel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto!important;height:min(72vh,560px)!important;resize:none}#tx-mascote{transition:none}}';
+
+  function vw() { return Math.min(doc.documentElement.clientWidth || innerWidth, innerWidth); }
+  function vh() { return Math.min(doc.documentElement.clientHeight || innerHeight, innerHeight); }
+  function classe(add, rem) { (rem || []).forEach(function (c) { el.classList.remove(c); }); (add || []).forEach(function (c) { el.classList.add(c); }); }
+  function balao(txt, ms) {
+    var b = $(".tx-balao", el); if (!b) return;
+    b.textContent = txt; b.style.marginLeft = "0px"; b.classList.add("on"); clearTimeout(b.__t); b.__t = setTimeout(function () { b.classList.remove("on"); }, ms || 3200);
+    try { var r = b.getBoundingClientRect(), dx = 0; if (r.right > vw() - 8) dx = vw() - 8 - r.right; else if (r.left < 8) dx = 8 - r.left; b.style.marginLeft = dx + "px"; } catch (e) {}
+  }
+  function acordar() { dormiu = false; classe([], ["tx-dorme"]); clearTimeout(tSono); var hr = new Date().getHours(); tSono = setTimeout(adormecer, hr >= 19 || hr < 7 ? 40000 : 120000); }
+  function adormecer() {
+    if (aberto || andando) { tSono = setTimeout(adormecer, 30000); return; }
+    dormiu = true; classe(["tx-dorme"], ["tx-acena", "tx-feliz", "tx-triste"]);
+    var hr = new Date().getHours(); if ((hr >= 21 || hr < 5) && !adormecer.disse && !oculto) { adormecer.disse = 1; balao("Boa noite! Vou tirar um cochilo. 💤", 2600); }
+  }
+  function noiteOlhos() { if (!el) return; var hr = new Date().getHours(); el.classList.toggle("tx-sonolento", hr >= 21 || hr < 5); }
+
+  /* ---------- física: o layout vira chão e parede ----------
+     Plataformas = topo de cada bloco visível com fundo/borda/sombra (cartões, botões, tabelas, cabeçalhos…);
+     o chão é a base da janela. O Tax anda pelo topo, sobe degraus baixos pulando, desce caindo e dá a volta em paredes altas. */
+  var JUMP = 240, VEL = 78, GRAV = 1700;
+  var plats = [], platT = 0, plano = null, tw = null, modo = "parado", rafId = 0, tUlt = 0, dirMov = 1, vy = 0, atual = null;
+  function hw() { return W / 2 - 6; }
+  function quadroVisivel() {
+    var r = null;
+    try { H.quadros().forEach(function (f) { try { if (!f.hidden && f.contentDocument && f.contentDocument.body) { var b = f.getBoundingClientRect(); if (b.width > 100) r = {f: f, rect: b, d: f.contentDocument}; } } catch (e) {} }); } catch (e) {}
+    return r;
+  }
+  function minX() { var q = quadroVisivel(); return q ? Math.max(0, q.rect.left) : 0; }
+  function coletar() {
+    var q = quadroVisivel(), d = q ? q.d : doc, ox = q ? q.rect.left : 0, oy = q ? q.rect.top : 0, VW = vw(), VH = vh(), out = [], all, view;
+    try { all = d.body.getElementsByTagName("*"); view = d.defaultView; } catch (e) { all = []; }
+    var n = Math.min(all.length, 4500), mx = minX();
+    for (var i = 0; i < n; i++) {
+      var e = all[i];
+      if (e.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+      var r = e.getBoundingClientRect(), w = r.width, h = r.height;
+      if (w < 70 || h < 26 || (w > VW * 0.97 && h > VH * 0.7)) continue;
+      var L = r.left + ox, T = r.top + oy, R = r.right + ox, B = r.bottom + oy;
+      if (T < 44 || T > VH - 36 || R < mx + 10 || L > VW - 10) continue;
+      var cs; try { cs = view.getComputedStyle(e); } catch (x) { continue; }
+      if (cs.visibility === "hidden" || cs.display === "none" || +cs.opacity < 0.2) continue;
+      var tem = false, bg = cs.backgroundColor;
+      if (bg && bg !== "transparent") { var m = /rgba\([^)]*,\s*([\d.]+)\)$/.exec(bg); tem = !m || +m[1] > 0.15; }
+      if (!tem && parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle !== "none") tem = true;
+      if (!tem && cs.boxShadow && cs.boxShadow !== "none") tem = true;
+      if (!tem) continue;
+      if (e.closest && e.closest("#tx-mascote,#tx-painel")) continue;
+      out.push({l: Math.max(mx, L), r: Math.min(VW, R), t: T, b: B});
+    }
+    out.sort(function (a, b) { return a.t - b.t || a.l - b.l; });
+    var fim = [];
+    out.forEach(function (p) { if (fim.length < 320 && !fim.some(function (o) { return Math.abs(o.t - p.t) < 3 && Math.abs(o.l - p.l) < 8 && Math.abs(o.r - p.r) < 8; })) fim.push(p); });
+    fim.push({l: mx, r: VW, t: VH - 2, b: VH + 40, piso: true});
+    return fim;
+  }
+  function atualizarPlats() { plats = coletar(); platT = Date.now(); }
+  function apoio(x, y, tol) {
+    var m = null, dm = 1e9;
+    plats.forEach(function (p) { if (x >= p.l - 2 && x <= p.r + 2) { var dd = Math.abs(p.t - y); if (dd <= tol && dd < dm) { dm = dd; m = p; } } });
+    return m;
+  }
+  function abaixo(x, y) {
+    var m = null;
+    plats.forEach(function (p) { if (x >= p.l - 2 && x <= p.r + 2 && p.t >= y + 1 && (!m || p.t < m.t)) m = p; });
+    return m || plats[plats.length - 1];
+  }
+  function parede(d) {
+    var h = hw();
+    for (var i = 0; i < plats.length; i++) {
+      var p = plats[i];
+      if (p.piso || p.t >= fy - 6 || p.b <= fy - HM + 8) continue;
+      if (fx >= p.l - 1 && fx <= p.r + 1) continue;
+      if (d > 0 && fx < p.l && fx + h + 3 >= p.l) return p;
+      if (d < 0 && fx > p.r && fx - h - 3 <= p.r) return p;
+    }
+    return null;
+  }
+  // Como ir da plataforma A para a B: ponto de partida em A, de chegada em B e tipo do movimento.
+  function aresta(A, B) {
+    var dy = A.t - B.t, h = hw() + 2, dir;
+    if (dy > JUMP) return null;
+    var gap;
+    if (B.l >= A.r - 12) { dir = 1; gap = B.l - A.r; } else if (B.r <= A.l + 12) { dir = -1; gap = A.l - B.r; } else gap = null;
+    if (gap === null && dy > 6) {
+      // B mais alta e sobreposta: pula direto para cima, no trecho em comum
+      var o0 = Math.max(A.l, B.l), o1 = Math.min(A.r, B.r);
+      if (o1 - o0 < 2 * h) return null;
+      var ox = Math.max(o0 + h, Math.min(o1 - h, (o0 + o1) / 2));
+      return {tipo: "sobe", dir: 1, a: ox, b: ox};
+    }
+    if (dy > 6 || Math.abs(dy) <= 6) {
+      if (gap === null || gap > (dy > 6 ? 70 : 80)) return null;
+      return dir > 0 ? {tipo: dy > 6 ? "sobe" : "plano", dir: 1, a: A.r - 6, b: Math.min(B.r - h, B.l + 14)} : {tipo: dy > 6 ? "sobe" : "plano", dir: -1, a: A.l + 6, b: Math.max(B.l + h, B.r - 14)};
+    }
+    // B mais baixa: sai pela borda de A e cai
+    if (B.l <= A.r + 140 && B.r >= A.r + 6 && B.r - B.l > 2 * h) return {tipo: "desce", dir: 1, a: A.r - 6, b: Math.max(B.l + h, Math.min(A.r + 26, B.r - h))};
+    if (B.r >= A.l - 140 && B.l <= A.l - 6 && B.r - B.l > 2 * h) return {tipo: "desce", dir: -1, a: A.l + 6, b: Math.min(B.r - h, Math.max(A.l - 26, B.l + h))};
+    return null;
+  }
+  function bfs(origem) {
+    var prev = new Map(), fila = [origem], vis = new Set([origem]);
+    while (fila.length) {
+      var A = fila.shift();
+      for (var i = 0; i < plats.length; i++) {
+        var B = plats[i]; if (vis.has(B)) continue;
+        var e = aresta(A, B); if (!e) continue;
+        vis.add(B); prev.set(B, {de: A, e: e}); fila.push(B);
+      }
+    }
+    return prev;
+  }
+  function passosAte(prev, origem, destino, xFinal) {
+    var cadeia = [], p = destino;
+    while (p && p !== origem) { var r = prev.get(p); if (!r) return null; cadeia.unshift({de: r.de, para: p, e: r.e}); p = r.de; }
+    var passos = [];
+    cadeia.forEach(function (c) {
+      passos.push({tipo: "anda", x: c.e.a});
+      var dx = c.e.b - c.e.a, desce = c.e.tipo === "desce";
+      var T = desce ? Math.max(0.28, Math.sqrt(2 * Math.max(1, c.para.t - c.de.t) / GRAV)) + Math.abs(dx) / 900 : 0.42 + Math.hypot(dx, c.para.t - c.de.t) / 800;
+      passos.push({tipo: "salta", x0: c.e.a, y0: c.de.t, x1: c.e.b, y1: c.para.t, T: T, arc: desce ? 12 : Math.max(24, c.de.t - c.para.t + 30), desce: desce, plat: c.para});
+    });
+    passos.push({tipo: "anda", x: xFinal});
+    return passos;
+  }
+  function desenhar() {
+    pos = {x: fx - W / 2, y: fy - HM};
+    el.style.transform = "translate3d(" + Math.round(pos.x) + "px," + Math.round(pos.y) + "px,0)";
+    if (aberto) posicionarPainel();
+  }
+  function parado() { modo = "parado"; andando = false; classe(["tx-parado"], ["tx-andando", "tx-pulo"]); }
+  function proximoPasso() {
+    if (!plano) { parado(); return; }
+    var s = plano.passos.shift();
+    if (!s) { var fim = plano.fim; plano = null; parado(); agendarPasseio(); if (fim) fim(); return; }
+    if (s.tipo === "anda") {
+      if (Math.abs(s.x - fx) < 1.5) { proximoPasso(); return; }
+      modo = "anda"; andando = true; alvoX = s.x; dirMov = s.x >= fx ? 1 : -1;
+      classe(["tx-andando", dirMov > 0 ? "tx-dir" : "tx-esq"], ["tx-parado", "tx-pulo", dirMov > 0 ? "tx-esq" : "tx-dir"]);
+    } else {
+      modo = "salta"; andando = true; tw = s; tw.t = 0; fx = s.x0; fy = s.y0; dirMov = s.x1 >= s.x0 ? 1 : -1;
+      classe(["tx-pulo", dirMov > 0 ? "tx-dir" : "tx-esq"], ["tx-parado", "tx-andando", dirMov > 0 ? "tx-esq" : "tx-dir"]);
+    }
+    iniciarRaf();
+  }
+  var alvoX = 0;
+  function aterrissar(p) { atual = p; fy = p.t; vy = 0; }
+  function cair() {
+    modo = "queda"; andando = true; vy = 0; plano = plano || null;
+    classe(["tx-pulo"], ["tx-parado", "tx-andando"]);
+    iniciarRaf();
+  }
+  function iniciarRaf() { if (!rafId) { tUlt = 0; rafId = requestAnimationFrame(tick); } }
+  function tick(ts) {
+    rafId = 0;
+    if (doc.hidden) { if (modo !== "parado") rafId = requestAnimationFrame(tick); return; }
+    var dt = tUlt ? Math.min(0.05, (ts - tUlt) / 1000) : 0.016; tUlt = ts;
+    if (Date.now() - platT > 600) {
+      var f0 = {x: fx, y: fy}; atualizarPlats();
+      if (modo === "anda") { var ap0 = apoio(fx, fy, 40); if (ap0) { fy = ap0.t; atual = ap0; } else cair(); }
+    }
+    if (modo === "anda") {
+      var h = hw(), mn = minX() + h, mxx = vw() - h, passo = VEL * velFator() * dt * dirMov; pegada();
+      var w = parede(dirMov);
+      if (w) {
+        if (w.t >= fy - JUMP && plano) {
+          var x1 = dirMov > 0 ? Math.min(w.r - h, w.l + 14) : Math.max(w.l + h, w.r - 14), desti = plano.destino;
+          var T = 0.4;
+          plano.passos = [{tipo: "salta", x0: fx, y0: fy, x1: x1, y1: w.t, T: T, arc: Math.max(24, fy - w.t + 26), desce: false, plat: w}];
+          plano.replanejar = desti;
+          proximoPasso(); rafId = rafId || requestAnimationFrame(tick); return;
+        }
+        // parede alta demais: desiste do trajeto (o passeio só dá meia-volta)
+        if (plano && plano.destino) { var d0 = plano.destino, f1 = plano.fim; plano = null; teletransportar(d0.x, d0.t, f1); return; }
+        plano = null; parado(); agendarPasseio(); return;
+      }
+      var nx = fx + passo;
+      if (nx < mn || nx > mxx) { plano = null; parado(); agendarPasseio(); return; }
+      var chegou = (alvoX - fx) * (alvoX - (nx)) <= 0;
+      fx = chegou ? alvoX : nx;
+      desenhar();
+      if (chegou) proximoPasso(); else rafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (modo === "salta") {
+      tw.t += dt;
+      var u = Math.min(1, tw.t / tw.T);
+      fx = tw.x0 + (tw.x1 - tw.x0) * u;
+      fy = tw.desce ? tw.y0 + (tw.y1 - tw.y0) * u * u - 4 * tw.arc * u * (1 - u) : tw.y0 + (tw.y1 - tw.y0) * u - 4 * tw.arc * u * (1 - u);
+      desenhar();
+      if (u >= 1) {
+        fx = tw.x1; fy = tw.y1;
+        var ap = apoio(fx, fy, 10);
+        if (!ap) { cair(); rafId = rafId || requestAnimationFrame(tick); return; }
+        aterrissar(ap); desenhar();
+        if (plano && plano.replanejar) { var d1 = plano.replanejar, f2 = plano.fim, dd = plano.destino; plano.replanejar = null; plano.tent = (plano.tent || 0) + 1; if (plano.tent > 3) { plano = null; teletransportar(dd.x, dd.t, f2); return; } plano = null; irPara(dd.p, dd.x, f2, (dd.tent || 0) + 1); return; }
+        proximoPasso();
+      } else rafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (modo === "queda") {
+      var antes = fy; vy += GRAV * dt; fy += vy * dt;
+      var pouso = null;
+      plats.forEach(function (p) { if (fx >= p.l - 2 && fx <= p.r + 2 && p.t >= antes - 1 && p.t <= fy + 1 && (!pouso || p.t < pouso.t)) pouso = p; });
+      if (pouso) { aterrissar(pouso); desenhar(); if (plano && plano.destino && !plano.passos.length) { var q = plano.destino, f3 = plano.fim; plano = null; irPara(q.p, q.x, f3, 0); } else if (plano) proximoPasso(); else { parado(); agendarPasseio(); } return; }
+      desenhar(); rafId = requestAnimationFrame(tick);
+    }
+  }
+  function teletransportar(x, y, fim) {
+    if (window.__txDebug) console.log("[tx] poof", Math.round(fx), Math.round(fy), "->", Math.round(x), Math.round(y), String(new Error().stack).split("\n")[2]);
+    modo = "poof"; plano = null; andando = false;
+    classe(["tx-poof"], []);
+    setTimeout(function () {
+      fx = x; fy = y; atual = apoio(fx, fy, 10); desenhar();
+      classe([], ["tx-poof"]); parado(); agendarPasseio(); if (fim) fim();
+    }, 190);
+  }
+  // Vai até x na plataforma `plat` (usa o grafo de plataformas; sem caminho, some e reaparece lá).
+  function irPara(plat, x, fim, tent) {
+    acordar(); if (!el) return;
+    if (!plat) plat = plats[plats.length - 1];
+    if (plats.indexOf(plat) === -1) { var q = plat; plat = null; plats.forEach(function (p) { if (!plat && Math.abs(p.t - q.t) < 4 && Math.abs(p.l - q.l) < 6 && Math.abs(p.r - q.r) < 6) plat = p; }); plat = plat || plats[plats.length - 1]; }
+    var h = hw(), xf = Math.max(plat.l + h + 2, Math.min(plat.r - h - 2, x));
+    if (plat.r - plat.l < 2 * h + 4) xf = (plat.l + plat.r) / 2;
+    var destino = {p: plat, x: xf, t: plat.t, tent: tent || 0};
+    if (reduzido()) { teletransportar(xf, plat.t, fim); return; }
+    var cur = apoio(fx, fy, 8);
+    if (!cur) { plano = {passos: [], fim: fim, destino: destino}; atualizarPlats(); cair(); return; }
+    if (cur === plat) { plano = {passos: [{tipo: "anda", x: xf}], fim: fim, destino: destino}; proximoPasso(); return; }
+    var prev = bfs(cur);
+    var passos = prev.has(plat) ? passosAte(prev, cur, plat, xf) : null;
+    if (!passos) { teletransportar(xf, plat.t, fim); return; }
+    plano = {passos: passos, fim: fim, destino: destino};
+    proximoPasso();
+  }
+  function parar() {
+    if (modo === "parado") return;
+    if (modo === "salta" && tw) { fx = tw.x1; fy = tw.y1; }
+    plano = null;
+    if (modo === "queda" || modo === "salta") { var ap = apoio(fx, fy, 12) || abaixo(fx, fy); fy = ap.t; atual = ap; }
+    desenhar(); parado();
+  }
+  function destinoPara(pt) {
+    var m = null;
+    plats.forEach(function (p) { if (pt.x >= p.l - 18 && pt.x <= p.r + 18 && p.t >= pt.y - 14 && (!m || p.t < m.t)) m = p; });
+    return m || plats[plats.length - 1];
+  }
+  // No celular o Tax fica quieto no canto (toque abre a conversa).
+  function celular() { return vw() <= 600; }
+  var parado2 = function () { return false; };
+  function agendarPasseio() {
+    clearTimeout(tWander);
+    tWander = setTimeout(function () {
+      if (!aberto && !oculto && !dormiu && modo === "parado" && !doc.hidden && !reduzido() && !celular() && !parado2()) passear();
+      else agendarPasseio();
+    }, rnd(4500, 11000) / velFator());
+  }
+  function passear() {
+    atualizarPlats();
+    var cur = apoio(fx, fy, 10);
+    if (!cur) { cair(); return; }
+    atual = cur;
+    if (Math.random() < 0.4) {
+      var prev = bfs(cur), alc = []; prev.forEach(function (v, k) { alc.push(k); });
+      var bons = alc.filter(bomLugar); if (bons.length) alc = bons;
+      if (alc.length) { var alvo = alc[Math.floor(Math.random() * alc.length)]; irPara(alvo, rnd(alvo.l, alvo.r), null, 0); return; }
+    }
+    var h = hw(), lo = Math.max(cur.l + h + 2, minX() + h), hi = Math.min(cur.r - h - 2, vw() - h);
+    if (hi - lo < 20) { agendarPasseio(); return; }
+    var dist = rnd(50, 240) * (Math.random() < 0.5 ? -1 : 1), x = Math.max(lo, Math.min(hi, fx + dist));
+    plano = {passos: [{tipo: "anda", x: x}], fim: null, destino: null};
+    proximoPasso();
+  }
+  function chamar(pt) {
+    atualizarPlats();
+    var D = destinoPara(pt);
+    irPara(D, pt.x, function () { classe(["tx-acena"], []); balao(["Oi! Estou aqui.", "Chamou?", "Pois não!"][Math.floor(Math.random() * 3)], 2600); setTimeout(function () { classe([], ["tx-acena"]); }, 1400); }, 0);
+  }
+  // Rolagem: o mascote se segura (o chão está se mexendo).
+  var tSeg = 0;
+  function segurar() { if (!el || modo !== "parado") return; el.classList.add("tx-segura"); clearTimeout(tSeg); tSeg = setTimeout(function () { el.classList.remove("tx-segura"); }, 450); }
+  function reapoiar() {
+    if (!el) return;
+    atualizarPlats();
+    if (modo !== "parado") return;
+    var ap = apoio(fx, fy, 60);
+    if (ap) { fy = ap.t; atual = ap; desenhar(); } else cair();
+  }
+  function colocarInicial() {
+    atualizarPlats();
+    fx = Math.max(minX() + hw(), vw() - 60); fy = plats[plats.length - 1].t; atual = plats[plats.length - 1]; desenhar();
+  }
+  function mostrar() { oculto = false; el.classList.remove("tx-oculto"); acordar(); }
+
+  // Clique "vazio": nada interativo por perto (botão, link, campo, linha clicável…).
+  function interativo(alvo) {
+    for (var n = alvo, i = 0; n && n.nodeType === 1 && i < 10; n = n.parentElement, i++) {
+      if (/^(A|BUTTON|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY|DIALOG|OPTION|IFRAME)$/.test(n.tagName)) return true;
+      var r = n.getAttribute && n.getAttribute("role");
+      if (r && /button|tab|link|menuitem|option|checkbox|switch|row|gridcell/.test(r)) return true;
+      if (n.isContentEditable || (n.hasAttribute && n.hasAttribute("draggable") && n.getAttribute("draggable") === "true")) return true;
+      var cs; try { cs = n.ownerDocument.defaultView.getComputedStyle(n); } catch (e) { continue; }
+      if (/pointer|text|grab|move|help/.test(cs.cursor)) return true;
+    }
+    return false;
+  }
+  function aoClicar(ev, quadro) {
+    if (ev.button || oculto || !el || celular()) return;
+    var alvo = ev.target; if (!alvo || !alvo.closest) return;
+    if (alvo.closest("#tx-mascote,#tx-painel,.pop,#toasts,#toast")) return;
+    var sel = (ev.view || window).getSelection && (ev.view || window).getSelection();
+    if (sel && !sel.isCollapsed && String(sel).trim()) return;
+    if (interativo(alvo)) return;
+    if (aberto) { fecharPainel(); return; }
+    var pt = {x: ev.clientX, y: ev.clientY};
+    if (quadro) { var r = quadro.getBoundingClientRect(); pt.x += r.left; pt.y += r.top; }
+    chamar(pt);
+  }
+  function ligarQuadros() {
+    H.quadros().forEach(function (f) {
+      try {
+        var d = f.contentDocument;
+        if (!d || !d.body || d.__tx) return;
+        d.__tx = 1;
+        d.addEventListener("click", function (ev) { aoClicar(ev, f); });
+        d.addEventListener("keydown", aoTecla);
+        var ts = 0; d.addEventListener("scroll", function () { segurar(); clearTimeout(ts); ts = setTimeout(reapoiar, 120); }, true);
+      } catch (e) {}
+    });
+  }
+  function algumDialogo() {
+    if (doc.querySelector("dialog[open]")) return true;
+    var c = $("#cmdk"); if (c && !c.hidden) return true;
+    var achou = false;
+    H.quadros().forEach(function (f) { try { if (!f.hidden && f.contentDocument && f.contentDocument.querySelector("dialog[open]")) achou = true; } catch (e) {} });
+    return achou;
+  }
+  function aoTecla(ev) {
+    if ((ev.ctrlKey || ev.metaKey) && (ev.key === "j" || ev.key === "J")) { ev.preventDefault(); if (oculto) mostrar(); aberto ? fecharPainel() : abrirPainel(); return; }
+    if (ev.key === "Escape" && aberto && !doc.querySelector("dialog[open]")) fecharPainel();
+  }
+
+  /* ============ painel de conversa ============ */
+  var msgs = null, hist = [], anexos = [], SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var HIST = "tx-hist-v1", FIXOS = "tx-fixos-v1";
+  function guardarHist(r, x) { if (!x) return; var h = lerLS(HIST, []); h.push({r: r, x: String(x).slice(0, 1500), t: Date.now()}); gravarLS(HIST, h.slice(-40)); }
+  function textoDosBlocos(bl) {
+    var out = [];
+    (bl || []).forEach(function (b) {
+      if (b.tipo === "md" || b.tipo === "texto" || b.tipo === "cab") out.push(b.texto);
+      else if (b.tipo === "ajuda") out.push("**" + b.titulo + "**\n" + b.texto);
+      else if (b.tipo === "linhas") out.push("**" + b.titulo + "**\n" + b.linhas.slice(0, 5).map(function (l) { return "- " + l.t + (l.sub ? " (" + l.sub + ")" : ""); }).join("\n"));
+      else if (b.tipo === "confirma") out.push("[cartão: " + (b.plano.titulo || "ação") + "]");
+    });
+    return out.join("\n");
+  }
+  // Configurações do assistente (cada lote acrescenta itens).
+  var CFG = [
+    {sec: "Conversa", itens: [
+      {k: "nome", rot: "Nome do assistente", tipo: "texto", ph: "Tax", ao: function () { atualizarNome(); }},
+      {k: "iniciante", rot: "Modo iniciante: explica os termos e o porquê de cada passo", tipo: "bool"},
+      {k: "lerVoz", rot: "Ler as respostas em voz alta", tipo: "bool"},
+      {k: "fonteGrande", rot: "Letra maior no chat", tipo: "bool", ao: aplicarVisualPainel},
+      {k: "contraste", rot: "Alto contraste no chat", tipo: "bool", ao: aplicarVisualPainel},
+      {k: "doca", rot: "Chat fixo na lateral da tela", tipo: "bool", ao: aplicarVisualPainel},
+      {k: "flutuar", rot: "Ampliar a janela do chat quando a resposta for grande", tipo: "bool", padrao: true},
+      {rot: "Desfazer o que o assistente gravou na última hora", tipo: "botao", soChat: true, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/desfazer"); desfazerRecentes().then(function (bl) { addBot(bl); }); }}
+    ]}
+  ];
+  var COMANDOS = [
+    ["/hoje", "o que vence hoje", "O que vence hoje"], ["/semana", "o que vence esta semana", "Vencimentos da semana"],
+    ["/atrasos", "quem está atrasado", "Quem está atrasado"], ["/cliente", "pendências do cliente", "Aguardando o cliente"],
+    ["/cardapio", "cardápio da semana", "Cardápio da semana"], ["/empresa", "", "Ficha de uma empresa: /empresa nome"],
+    ["/abrir", "", "Abrir uma tela: /abrir fiscal agenda"], ["/limpar", "", "Apagar esta conversa"],
+    ["/config", "", "Configurações do assistente"], ["/ajuda", "", "Lista de comandos"]
+  ];
+  function comando(txt) {
+    var m = /^\/(\S+)\s*(.*)$/.exec(txt.trim()), c = m ? m[1].toLowerCase() : "", resto = m ? m[2] : "";
+    var dir = COMANDOS.filter(function (x) { return x[0] === "/" + c; })[0];
+    var extra = (COMANDOS_EXTRA[c] || null);
+    if (extra) return extra(resto);
+    if (c === "limpar") { limparConversa(); return null; }
+    if (c === "config") { try { H.abrirConfig("assistente"); } catch (e) {} return Promise.resolve([T("Abri as configurações do assistente no módulo Configurações.")]); }
+    if (c === "empresa") return resto ? porRegrasDireto("empresa " + resto) : Promise.resolve([T("Diga o nome: /empresa Alfa Comércio")]);
+    if (c === "abrir") return resto ? porRegrasDireto("abrir " + resto) : Promise.resolve([T("Diga a tela: /abrir fiscal agenda")]);
+    if (dir && dir[1]) return porRegrasDireto(dir[1] + (resto ? " " + resto : ""));
+    return Promise.resolve([{tipo: "ajuda", titulo: "Comandos (respondidos sem IA)", texto: COMANDOS.concat(Object.keys(COMANDOS_EXTRA).map(function (k) { return ["/" + k, "", COMANDOS_EXTRA[k].rot || ""]; })).map(function (x) { return x[0] + " · " + x[2]; }).join("\n")}]);
+  }
+  var COMANDOS_EXTRA = {};
+  function porRegrasDireto(frase) { return depsPronto().then(carregarTodos).then(quemSou).then(function () { return entender(frase, norm(frase)); }); }
+  function limparConversa() {
+    conversa = []; guardarConversa(); gravarLS(HIST, []);
+    if (msgs) { msgs.innerHTML = ""; boasVindas(false); }
+  }
+  function atualizarSub() {
+    var sub = painel && $("#tx-sub", painel); if (!sub) return;
+    var n = usoHoje();
+    sub.textContent = iaOk ? "com IA · " + (n ? n + (n === 1 ? " pergunta hoje" : " perguntas hoje") : "assistente do Control Hub") : "assistente do Control Hub";
+  }
+  function atualizarNome() {
+    if (painel) { var b = $("header b", painel); if (b) b.textContent = nomeTax(); }
+    if (el) { el.setAttribute("aria-label", "Abrir o assistente " + nomeTax()); el.title = nomeTax() + ", o assistente do Hub"; }
+  }
+  function aplicarVisualPainel() {
+    if (!painel) return;
+    var p = lerPref();
+    painel.classList.toggle("tx-grande", !!p.fonteGrande);
+    painel.classList.toggle("tx-contraste", !!p.contraste);
+    painel.classList.toggle("tx-doca", !!p.doca);
+    var bd = $("#tx-doca-b", painel); if (bd) bd.setAttribute("aria-pressed", p.doca ? "true" : "false");
+    if (!p.doca && p.tam && p.tam.w) { painel.style.width = p.tam.w + "px"; painel.style.height = p.tam.h + "px"; } else { painel.style.width = ""; painel.style.height = ""; }
+    posicionarPainel();
+  }
+  function montarPainel() {
+    painel = doc.createElement("section");
+    painel.id = "tx-painel"; painel.setAttribute("role", "dialog"); painel.setAttribute("aria-label", "Conversa com o assistente"); painel.hidden = true;
+    painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b></b><small id="tx-sub">assistente do Control Hub</small></div>' +
+      '<button type="button" id="tx-fixos-b" title="Perguntas fixadas" aria-label="Perguntas fixadas">📌</button>' +
+      '<button type="button" id="tx-visual" title="Mudar o visual" aria-label="Mudar o visual">🎨</button>' +
+      '<button type="button" id="tx-amp-b" title="Ampliar a janela" aria-label="Ampliar a janela" aria-pressed="false">⤢</button>' +
+      '<button type="button" id="tx-doca-b" title="Fixar o chat na lateral" aria-label="Fixar o chat na lateral" aria-pressed="false">◨</button>' +
+      '<button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
+      '<div id="tx-skins" class="tx-gaveta" hidden></div><div id="tx-cfg" class="tx-gaveta" hidden></div><div id="tx-fixos" class="tx-gaveta" hidden></div>' +
+      '<div id="tx-filtro-b" hidden><input id="tx-filtro" type="search" placeholder="Filtrar esta resposta…" aria-label="Filtrar a resposta" autocomplete="off"><span id="tx-filtro-n"></span></div>' +
+      '<div id="tx-msgs" aria-live="polite"></div>' +
+      '<div id="tx-sug" role="listbox" hidden></div><div id="tx-anx" hidden></div><div id="tx-uso-l" class="tx-rod"></div>' +
+      '<form autocomplete="off"><button type="button" class="tx-ib" id="tx-clipe" title="Anexar foto, PDF, planilha ou texto (também dá para arrastar ou colar)" aria-label="Anexar arquivo" hidden>📎</button><input type="file" id="tx-arq" accept="image/*,.pdf,.csv,.tsv,.txt,.json,.md,.xlsx,.xls,.xlsm,.ods" multiple hidden>' +
+      '<button type="button" class="tx-ib" id="tx-cam" title="Tirar uma foto agora" aria-label="Tirar uma foto" hidden>📷</button><input type="file" id="tx-cam-in" accept="image/*" capture="environment" hidden>' +
+      '<input id="tx-in" type="text" maxlength="600" placeholder="Pergunte, peça algo ou digite / para comandos" aria-label="Mensagem para o assistente" aria-autocomplete="list" aria-controls="tx-sug">' +
+      '<button type="button" class="tx-ib" id="tx-mic" title="Falar a pergunta" aria-label="Falar a pergunta" hidden>🎤</button><button type="submit" id="tx-env">Enviar</button></form>';
+    doc.body.appendChild(painel);
+    msgs = $("#tx-msgs", painel);
+    mostrarUso();
+    atualizarNome();
+    $("#tx-fecha", painel).onclick = fecharPainel;
+    $("#tx-visual", painel).onclick = abrirVisuais;
+    $("#tx-fixos-b", painel).onclick = abrirFixos;
+    $("#tx-amp-b", painel).onclick = function () { ampliar(!painel.classList.contains("tx-amp"), true); };
+    $("#tx-filtro", painel).addEventListener("input", filtrarGrande);
+    $("#tx-doca-b", painel).onclick = function () { salvarPref({doca: !lerPref().doca}); aplicarVisualPainel(); };
+    var inp = $("#tx-in", painel);
+    $("form", painel).onsubmit = function (e) {
+      e.preventDefault();
+      if (sugAtivo()) { escolherSug(); return; }
+      var v = inp.value.trim(); if (!v && !anexos.length && !docs.length) return;
+      if (lendoAnx) { avisoAnx("Espere terminar de ler o arquivo."); return; }
+      inp.value = ""; fecharSug();
+      enviar(v || "Leia o que anexei, diga o que é e registre no módulo certo (com cartão para eu confirmar).");
+    };
+    inp.addEventListener("input", atualizarSug);
+    inp.addEventListener("keydown", teclaSug);
+    inp.addEventListener("blur", function () { setTimeout(fecharSug, 150); });
+    inp.addEventListener("paste", function (e) {
+      if (!e.clipboardData) return;
+      var fs = [].slice.call(e.clipboardData.files || []);
+      if (fs.length && iaOk) { e.preventDefault(); anexar(fs); }
+    });
+    $("#tx-clipe", painel).onclick = function () {
+      if (!iaOk) { avisoAnx("Para ler fotos e arquivos eu preciso da IA, e ela não está disponível agora. Tente de novo em instantes."); if (!iaPronta || !iaNs) iniciarIA(); return; }
+      $("#tx-arq", painel).click();
+    };
+    $("#tx-arq", painel).onchange = function () { anexar([].slice.call(this.files || [])); this.value = ""; };
+    $("#tx-cam", painel).onclick = function () {
+      if (!iaOk) { avisoAnx("Para ler fotos eu preciso da IA, e ela não está disponível agora."); return; }
+      $("#tx-cam-in", painel).click();
+    };
+    $("#tx-cam-in", painel).onchange = function () { anexar([].slice.call(this.files || [])); this.value = ""; };
+    painel.addEventListener("dragover", function (e) { if (e.dataTransfer && [].indexOf.call(e.dataTransfer.types || [], "Files") !== -1) { e.preventDefault(); painel.classList.add("tx-soltar"); } });
+    painel.addEventListener("dragleave", function (e) { if (e.target === painel) painel.classList.remove("tx-soltar"); });
+    painel.addEventListener("drop", function (e) { painel.classList.remove("tx-soltar"); if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return; e.preventDefault(); if (!iaOk) { avisoAnx("Para ler arquivos eu preciso da IA, que não está disponível agora."); return; } anexar([].slice.call(e.dataTransfer.files)); });
+    if (SR) { $("#tx-mic", painel).hidden = false; $("#tx-mic", painel).onclick = ouvir; }
+    try { new ResizeObserver(function () { if (!aberto || lerPref().doca || !painel.style.width || painel.classList.contains("tx-amp")) return; salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); }).observe(painel); } catch (e) {}
+    painel.addEventListener("mouseup", function () { if (!lerPref().doca && !painel.classList.contains("tx-amp") && (painel.style.width || painel.style.height)) salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); });
+    aplicarVisualPainel();
+  }
+  function posicionarPainel() {
+    if (!painel || !aberto) return;
+    if (lerPref().doca) { painel.style.left = ""; painel.style.top = ""; return; }
+    if (vw() <= 600) { painel.style.left = ""; painel.style.top = ""; return; }
+    var pw = Math.min(painel.offsetWidth || 380, vw() - 16), ph = Math.min(painel.offsetHeight || 540, vh() - 24);
+    var x = pos.x + W / 2 - pw / 2, y = pos.y - ph - 10;
+    if (y < 8) y = Math.min(pos.y + HM + 10, vh() - ph - 8);
+    x = Math.max(8, Math.min(vw() - pw - 8, x)); y = Math.max(8, Math.min(vh() - ph - 8, y));
+    painel.style.left = x + "px"; painel.style.top = y + "px";
+  }
+  function gavetas(id) {
+    ["tx-skins", "tx-cfg", "tx-fixos"].forEach(function (g) { var x = $("#" + g, painel); if (x && g !== id) x.hidden = true; });
+    var box = $("#" + id, painel); if (!box) return null;
+    if (!box.hidden) { box.hidden = true; return null; }
+    box.innerHTML = ""; box.hidden = false; return box;
+  }
+  function abrirConfig() {
+    if (!painel) montarPainel();
+    var box = gavetas("tx-cfg"); if (!box) return;
+    desenharConfig(box, false);
+    var mais = doc.createElement("button"); mais.type = "button"; mais.className = "tx-cb"; mais.textContent = "Abrir todas as configurações do Hub";
+    mais.onclick = function () { box.hidden = true; try { H.abrirConfig && H.abrirConfig("assistente"); } catch (e) {} }; box.appendChild(mais);
+  }
+  // Desenha as configurações num contêiner. emPagina = true quando é a página do módulo Configurações do Hub
+  // (os itens que só fazem sentido dentro do chat saem, e os editores abrem ali mesmo em vez de virar mensagem).
+  function desenharConfig(box, emPagina) {
+    var p = lerPref();
+    CFG.forEach(function (s) {
+      if (s.so && !s.so()) return;
+      var itens = s.itens.filter(function (it) { return !(emPagina && it.soChat) && !(it.so && !it.so()); });
+      if (!itens.length) return;
+      var h = doc.createElement("div"); h.className = "tx-cfg-sec"; h.textContent = s.sec; box.appendChild(h);
+      itens.forEach(function (it) {
+        if (emPagina && it.pagina) {
+          var dt = doc.createElement("details"); dt.className = "tx-cfg-it tx-cfg-det"; var sm = doc.createElement("summary"); sm.textContent = it.rot; dt.appendChild(sm);
+          var corpo = doc.createElement("div"); corpo.className = "tx-cfg-det-c"; dt.appendChild(corpo);
+          dt.addEventListener("toggle", function () { if (!dt.open || corpo.firstChild) return; var r = it.pagina(); if (r && r.then) { corpo.textContent = "Carregando…"; r.then(function (el) { corpo.textContent = ""; corpo.appendChild(el); }); } else if (r) corpo.appendChild(r); });
+          box.appendChild(dt); return;
+        }
+        var lb = doc.createElement("label"); lb.className = "tx-cfg-it tx-cfg-" + it.tipo;
+        if (it.tipo === "bool") {
+          var c = doc.createElement("input"); c.type = "checkbox"; c.checked = it.padrao ? p[it.k] !== false : !!p[it.k];
+          c.onchange = function () { var o = {}; o[it.k] = c.checked; salvarPref(o); if (it.ao) it.ao(c.checked); };
+          lb.appendChild(c); lb.appendChild(doc.createTextNode(" " + it.rot));
+        } else if (it.tipo === "sel") {
+          lb.appendChild(doc.createTextNode(it.rot + " "));
+          var s2 = doc.createElement("select");
+          it.opcoes.forEach(function (o) { var op = doc.createElement("option"); op.value = o[0]; op.textContent = o[1]; s2.appendChild(op); });
+          s2.value = p[it.k] != null ? p[it.k] : it.opcoes[0][0];
+          s2.onchange = function () { var o = {}; o[it.k] = s2.value; salvarPref(o); if (it.ao) it.ao(s2.value); };
+          lb.appendChild(s2);
+        } else if (it.tipo === "botao") {
+          var b = doc.createElement("button"); b.type = "button"; b.className = "tx-cb"; b.textContent = it.rot; b.onclick = function (ev) { ev.preventDefault(); it.ao(b); }; lb.appendChild(b);
+        } else if (it.tipo === "info") {
+          lb.textContent = typeof it.rot === "function" ? it.rot() : it.rot;
+        } else {
+          lb.appendChild(doc.createTextNode(it.rot + " "));
+          var t = doc.createElement(it.tipo === "area" ? "textarea" : "input"); if (it.tipo !== "area") t.type = "text"; t.value = it.valor ? it.valor() : (p[it.k] || ""); t.placeholder = it.ph || ""; t.maxLength = it.max || 20;
+          t.onchange = function () { if (it.salvar) it.salvar(t.value); else { var o = {}; o[it.k] = t.value.trim(); salvarPref(o); } if (it.ao) it.ao(t.value); };
+          lb.appendChild(t);
+        }
+        box.appendChild(lb);
+      });
+    });
+    var uso = doc.createElement("div"); uso.className = "tx-cfg-uso";
+    uso.textContent = "IA neste navegador: " + usoHoje() + " pergunta(s) hoje, " + (+lerLS("tx-uso-tot", 0) || 0) + " no total. Cada pergunta à IA usa o plano do Claude de quem pergunta." + (cfgEquipe.limiteDia ? " Limite da equipe: " + cfgEquipe.limiteDia + " por dia." : "");
+    box.appendChild(uso);
+    var lim = doc.createElement("button"); lim.type = "button"; lim.className = "tx-cb"; lim.textContent = "Apagar esta conversa"; lim.onclick = function () { limparConversa(); if (!emPagina) box.hidden = true; }; box.appendChild(lim);
+  }
+  function abrirFixos() {
+    var box = gavetas("tx-fixos"); if (!box) return;
+    var fx2 = lerLS(FIXOS, []);
+    if (!fx2.length) { box.innerHTML = '<div class="tx-rod">Nenhuma pergunta fixada. Use 📌 embaixo de uma resposta para guardar a pergunta aqui.</div>'; return; }
+    fx2.forEach(function (q, i) {
+      var w = doc.createElement("span"); w.className = "tx-fixo";
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-chip"; b.textContent = q; b.onclick = function () { box.hidden = true; enviar(q); };
+      var x = doc.createElement("button"); x.type = "button"; x.className = "tx-fixo-x"; x.textContent = "✕"; x.title = "Desafixar"; x.setAttribute("aria-label", "Desafixar " + q);
+      x.onclick = function () { var l = lerLS(FIXOS, []); l.splice(i, 1); gravarLS(FIXOS, l); box.hidden = true; abrirFixos(); };
+      w.appendChild(b); w.appendChild(x); box.appendChild(w);
+    });
+  }
+  function fixar(q) { var l = lerLS(FIXOS, []).filter(function (x) { return x !== q; }); l.unshift(q); gravarLS(FIXOS, l.slice(0, 10)); }
+
+  /* ---- autocompletar: comandos com "/", nomes de empresas e analistas ---- */
+  var sugIdx = -1, sugItens = [];
+  function sugAtivo() { var s = $("#tx-sug", painel); return s && !s.hidden && sugIdx >= 0; }
+  function fecharSug() { var s = painel && $("#tx-sug", painel); if (s) s.hidden = true; sugIdx = -1; sugItens = []; }
+  function atualizarSug() {
+    var inp = $("#tx-in", painel), v = inp.value, s = $("#tx-sug", painel), itens = [];
+    if (/^\/\S*$/.test(v)) {
+      var c = v.toLowerCase();
+      itens = COMANDOS.concat(Object.keys(COMANDOS_EXTRA).map(function (k) { return ["/" + k, "", COMANDOS_EXTRA[k].rot || ""]; })).filter(function (x) { return x[0].indexOf(c) === 0; }).map(function (x) { return {rot: x[0], sub: x[2], valor: x[0] + " "}; });
+    } else {
+      var m = /(\S{3,})$/.exec(v);
+      if (m && apisCarregadas().length) {
+        var w = norm(m[1]), ix = indice(), achou = {};
+        ix.empresas.forEach(function (g) { if (itens.length >= 6) return; if (norm(g.nome).split(" ").some(function (t) { return t.indexOf(w) === 0; }) && !achou[g.nome]) { achou[g.nome] = 1; itens.push({rot: g.nome, sub: "empresa · " + Object.keys(g.refs).map(function (k) { return MODN[k]; }).join(", "), valor: v.slice(0, m.index) + g.nome}); } });
+        ix.analistas.forEach(function (n) { if (itens.length >= 8) return; if (norm(n).split(" ").some(function (t) { return t.indexOf(w) === 0; })) itens.push({rot: n, sub: "analista", valor: v.slice(0, m.index) + n}); });
+        if (itens.length === 1 && norm(itens[0].rot) === norm(v.slice(m.index))) itens = [];
+      }
+    }
+    sugItens = itens; sugIdx = -1;
+    if (!itens.length) { s.hidden = true; return; }
+    s.innerHTML = "";
+    itens.forEach(function (it, i) {
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-sg"; b.setAttribute("role", "option");
+      b.innerHTML = "<b>" + esc(it.rot) + "</b><span>" + esc(it.sub || "") + "</span>";
+      b.onmousedown = function (e) { e.preventDefault(); sugIdx = i; escolherSug(); };
+      s.appendChild(b);
+    });
+    s.hidden = false;
+  }
+  function teclaSug(e) {
+    var s = $("#tx-sug", painel); if (s.hidden || !sugItens.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sugIdx = (sugIdx + (e.key === "ArrowDown" ? 1 : -1) + sugItens.length) % sugItens.length; [].forEach.call(s.children, function (c, i) { c.classList.toggle("on", i === sugIdx); }); }
+    else if (e.key === "Tab") { e.preventDefault(); if (sugIdx < 0) sugIdx = 0; escolherSug(); }
+    else if (e.key === "Escape") { e.stopPropagation(); fecharSug(); }
+  }
+  function escolherSug() { var it = sugItens[sugIdx]; if (!it) return; var inp = $("#tx-in", painel); inp.value = it.valor; fecharSug(); inp.focus(); }
+
+  /* ---- anexos (imagens para a IA) ---- */
+  var docs = [], lendoAnx = 0, leituraId = 0, statusLeitura = "", cancelarLeitura = function () {};
+  var TXT_MAX_TOTAL = 40000, DOCS_MAX = 3;
+  function avisoAnx(t) { if (msgs) addBot([T("📎 " + t)], true); }
+  // Sem visão na IA da tela: foto vira texto por OCR e segue como arquivo de texto.
+  function lerComOcr(f) {
+    if (!H.lerArquivo) { avisoAnx("Esta tela não consegue enviar imagens para a IA. Envie PDF, planilha ou texto."); return; }
+    anexar([f], true);
+  }
+
+  /* ---- conferência de documentos: confronta o que está no arquivo com o cadastro ---- */
+  function cnpjOk(c) {
+    if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+    var dv = function (n) { var p = n === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2], t = 0; for (var i = 0; i < n; i++) t += +c[i] * p[i]; var r = t % 11; return r < 2 ? 0 : 11 - r; };
+    return dv(12) === +c[12] && dv(13) === +c[13];
+  }
+  var TIPOS_DOC = [[/fgts digital|guia do fgts|gfd|gre\b/i, "Guia do FGTS"], [/dctfweb|darf/i, "DARF / DCTFWeb"], [/documento de arrecada[cç][aã]o do simples|\bdas\b|simples nacional/i, "DAS (Simples Nacional)"], [/\bgps\b|guia da previd[eê]ncia/i, "GPS (INSS)"], [/recibo de pagamento|holerite|contracheque/i, "Recibo de pagamento"], [/nota fiscal|nfs-?e|danfe/i, "Nota fiscal"], [/extrato mensal|resumo da folha/i, "Extrato da folha"]];
+  function moedaNum(t) { return parseFloat(String(t).replace(/\./g, "").replace(",", ".")); }
+  function conferirDocumento(d) {
+    var tx = String(d.texto || ""), hoje = new Date(), hj = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    var tipo = ""; TIPOS_DOC.some(function (x) { if (x[0].test(tx)) { tipo = x[1]; return true; } });
+    var cn = [], vistos = {}, m, rx = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g;
+    while ((m = rx.exec(tx))) { var c = m[0].replace(/\D/g, ""); if (!vistos[c] && (/[./-]/.test(m[0]) || cnpjOk(c))) { vistos[c] = 1; cn.push(c); } }
+    var ix = indice().empresas, ln = [], ok = 0, aviso = 0, falha = 0, nomeEmp = "";
+    var mascara = function (c) { return c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"); };
+    if (!cn.length) { ln.push("⚠️ Não encontrei CNPJ no documento" + (d.ocr ? " (a leitura por imagem pode ter falhado)" : "") + "."); aviso++; }
+    cn.slice(0, 6).forEach(function (c) {
+      if (!cnpjOk(c)) { ln.push("❌ CNPJ " + mascara(c) + " tem dígito verificador inválido" + (d.ocr ? " (pode ser erro de leitura da imagem)" : "") + "."); falha++; return; }
+      var g = ix.filter(function (x) { return x.cnpj === c; })[0], raiz = !g && ix.filter(function (x) { return x.cnpj && x.cnpj.slice(0, 8) === c.slice(0, 8); })[0];
+      if (g) { ln.push("✅ CNPJ " + mascara(c) + " é da empresa **" + g.nome + "** no cadastro."); ok++; if (!nomeEmp) nomeEmp = g.nome; }
+      else if (raiz) { ln.push("⚠️ CNPJ " + mascara(c) + " tem a mesma raiz de **" + raiz.nome + "**, mas é outro estabelecimento (filial ou matriz). Confira se é o certo."); aviso++; if (!nomeEmp) nomeEmp = raiz.nome; }
+      else { ln.push("⚠️ CNPJ " + mascara(c) + " não está no cadastro de nenhum módulo."); aviso++; }
+    });
+    if (cn.length > 6) ln.push("• Mais " + (cn.length - 6) + " CNPJs no arquivo não conferidos aqui.");
+    var cm = /(compet[eê]ncia|per[ií]odo de apura[cç][aã]o|refer[eê]ncia|m[eê]s\/ano)\D{0,25}?(\d{2})\/(\d{4})/i.exec(tx) || /\b(0[1-9]|1[0-2])\/(20\d{2})\b/.exec(tx), comp = null;
+    if (cm) { comp = cm.length === 4 ? {m: +cm[2], a: +cm[3]} : {m: +cm[1], a: +cm[2]}; if (comp.m < 1 || comp.m > 12) comp = null; }
+    if (comp) {
+      var dif = (hj.getFullYear() * 12 + hj.getMonth()) - (comp.a * 12 + comp.m - 1), tag = pad2(comp.m) + "/" + comp.a;
+      if (dif < 0) { ln.push("⚠️ Competência " + tag + " é futura. Confira se não é erro de digitação."); aviso++; }
+      else if (dif > 3) { ln.push("⚠️ Competência " + tag + " tem " + dif + " meses. Documento antigo, confirme se é o que você queria."); aviso++; }
+      else { ln.push("✅ Competência " + tag + (dif === 0 ? " (mês atual)." : dif === 1 ? " (mês anterior)." : ".")); ok++; }
+    } else if (tipo) { ln.push("⚠️ Não achei a competência (mês/ano) no documento."); aviso++; }
+    var vm = /vencimento\D{0,20}?(\d{2})\/(\d{2})\/(\d{4})/i.exec(tx);
+    if (vm) {
+      var dv = new Date(+vm[3], +vm[2] - 1, +vm[1]), dd = Math.round((dv - hj) / 864e5), ds = vm[1] + "/" + vm[2] + "/" + vm[3];
+      if (dd < 0) { ln.push("❌ Vencimento " + ds + " já passou há " + (-dd) + " dia(s): pode ter multa e juros."); falha++; }
+      else if (dd <= 3) { ln.push("⚠️ Vence " + (dd === 0 ? "hoje" : "em " + dd + " dia(s)") + " (" + ds + ")."); aviso++; }
+      else { ln.push("✅ Vencimento " + ds + " (em " + dd + " dias)."); ok++; }
+    }
+    var vs = [], rv = /(valor (?:total|do documento|a pagar|principal|do d[eé]bito)|total a recolher|total geral|l[ií]quido a receber|total)\D{0,25}?R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/ig, mv;
+    while ((mv = rv.exec(tx)) && vs.length < 3) vs.push(mv[2]);
+    if (vs.length) { var nums = vs.map(moedaNum); ln.push("💰 Valor lido: R$ " + vs[0] + (vs.length > 1 && Math.abs(nums[0] - nums[1]) > 0.009 ? " (outro valor no documento: R$ " + vs[1] + ", confira o total)" : "")); if (nums[0] <= 0) { ln.push("⚠️ Valor zerado."); aviso++; } }
+    if (!tipo && !cn.length && !comp && !vs.length) return null;
+    var tit = falha ? "❌ Encontrei problemas" : aviso ? "⚠️ Confira estes pontos" : "✅ Tudo confere";
+    return {texto: "**Conferência de " + (d.nome || "documento") + "**" + (tipo ? " · " + tipo : "") + "\n" + tit + "\n" + ln.map(function (l) { return "• " + l; }).join("\n") + (d.ocr ? "\n_Lido por OCR: valores e números podem ter erros._" : ""), empresa: nomeEmp};
+  }
+  function anexar(fs, forcarDoc) {
+    var lim = limitesImagem(), tipos = lim && lim.mediaTypes || [];
+    fs.forEach(function (f) {
+      var ehImg = /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(f.name || "");
+      if (ehImg && !forcarDoc) {
+        if (!lim) { lerComOcr(f); return; }
+        if (tipos.length && tipos.indexOf(f.type) === -1) { avisoAnx("Tipo de imagem não aceito: " + (f.type || f.name)); return; }
+        if (anexos.length >= (lim.maxCount || 1)) { avisoAnx("Limite de imagens por mensagem: " + (lim.maxCount || 1)); return; }
+        anexos.push(f); return;
+      }
+      if (!H.lerArquivo) { avisoAnx("Leitura de arquivos indisponível nesta tela."); return; }
+      if (docs.length + lendoAnx >= DOCS_MAX) { avisoAnx("No máximo " + DOCS_MAX + " arquivos por mensagem."); return; }
+      lendoAnx++; var meuId = ++leituraId; statusLeitura = "Lendo " + (f.name || "o arquivo") + "…"; pintarAnexos();
+      var limite = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("a leitura passou de " + (lim ? 2 : 3) + " minutos e foi interrompida. Envie um arquivo com texto (PDF, planilha ou .txt) ou uma foto menor")); }, (lim ? 2 : 3) * 60000); });
+      Promise.race([Promise.resolve(H.lerArquivo(f, {ocr: !lim, progresso: function (t) { if (meuId === leituraId) { statusLeitura = t; pintarAnexos(); } }})), limite, new Promise(function (_, rej) { cancelarLeitura = function () { rej(new Error("cancelado")); }; })]).then(function (r) {
+        if (meuId !== leituraId) return;
+        lendoAnx = Math.max(0, lendoAnx - 1);
+        if (!r || r.tipo === "erro") { avisoAnx((r && r.erro) || "Não consegui ler esse arquivo."); return; }
+        if (r.tipo === "imagens") { if (!lim) { avisoAnx("É um PDF digitalizado e não consegui ler o texto dele."); return; } (r.files || []).forEach(function (im) { if (anexos.length < (lim.maxCount || 1)) anexos.push(im); }); if (r.aviso) avisoAnx(r.aviso); return; }
+        if (r.tipo === "imagem") { anexar([r.file]); return; }
+        var usado = docs.reduce(function (t, d) { return t + d.texto.length; }, 0);
+        if (usado + r.texto.length > TXT_MAX_TOTAL) { r.texto = r.texto.slice(0, Math.max(0, TXT_MAX_TOTAL - usado)); r.truncado = true; }
+        if (!r.texto.trim()) { avisoAnx("O arquivo não tem texto legível."); return; }
+        docs.push({nome: r.nome, texto: r.texto, truncado: !!r.truncado, paginas: r.paginas || 0, ocr: !!r.ocr});
+        try { var cf = conferirDocumento(docs[docs.length - 1]); if (cf && msgs) addBot([{tipo: "md", texto: cf.texto}].concat(cf.empresa ? [CH([{rot: "Ver ficha de " + cf.empresa, enviar: "ficha da empresa " + cf.empresa}])] : []), true); } catch (e) {}
+        if (r.ocr) avisoAnx((r.aviso ? r.aviso + " " : "") + "O texto foi lido por reconhecimento de imagem (OCR) e pode ter erros: confira o cartão antes de confirmar.");
+        if (r.truncado) avisoAnx("Arquivo grande: li só o começo (" + Math.round(r.texto.length / 1000) + " mil caracteres).");
+      }).catch(function (e) { if (meuId !== leituraId && e && e.message === "cancelado") return; lendoAnx = Math.max(0, lendoAnx - 1); if (!(e && e.message === "cancelado")) avisoAnx("Não consegui ler " + (f.name || "o arquivo") + (e && e.message ? ": " + e.message : ".")); }).then(function () { pintarAnexos(); });
+    });
+    pintarAnexos();
+  }
+  function pintarAnexos() {
+    var a = $("#tx-anx", painel); a.innerHTML = "";
+    anexos.forEach(function (f, i) {
+      var w = doc.createElement("span"); w.className = "tx-anx-i";
+      var im = doc.createElement("img"); im.alt = f.name || "imagem"; try { im.src = URL.createObjectURL(f); } catch (e) {}
+      var x = doc.createElement("button"); x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Tirar anexo"); x.onclick = function () { anexos.splice(i, 1); pintarAnexos(); };
+      w.appendChild(im); w.appendChild(x); a.appendChild(w);
+    });
+    docs.forEach(function (d, i) {
+      var w = doc.createElement("span"); w.className = "tx-anx-d"; w.title = d.nome + (d.truncado ? " (li só o começo)" : "");
+      var t = doc.createElement("span"); t.textContent = "📄 " + (d.nome.length > 22 ? d.nome.slice(0, 20) + "…" : d.nome);
+      var x = doc.createElement("button"); x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Tirar " + d.nome); x.onclick = function () { docs.splice(i, 1); pintarAnexos(); };
+      w.appendChild(t); w.appendChild(x); a.appendChild(w);
+    });
+    if (lendoAnx) {
+      var l = doc.createElement("span"); l.className = "tx-anx-d"; var lt = doc.createElement("span"); lt.textContent = "⏳ " + (statusLeitura || "Lendo o arquivo…"); l.appendChild(lt);
+      var lx = doc.createElement("button"); lx.type = "button"; lx.textContent = "Cancelar"; lx.setAttribute("aria-label", "Cancelar a leitura"); lx.onclick = function () { leituraId++; lendoAnx = 0; try { cancelarLeitura(); } catch (e) {} pintarAnexos(); }; l.appendChild(lx); a.appendChild(l);
+    }
+    a.hidden = !a.children.length;
+  }
+  function atualizarClipe() { var c = painel && $("#tx-clipe", painel), cam = painel && $("#tx-cam", painel); if (c) c.hidden = false; if (cam) cam.hidden = false; }
+
+  /* ---- voz: ditar a pergunta e ouvir a resposta ---- */
+  var rec = null;
+  function ouvir() {
+    var b = $("#tx-mic", painel), inp = $("#tx-in", painel);
+    if (rec) { try { rec.stop(); } catch (e) {} return; }
+    try { rec = new SR(); } catch (e) { b.hidden = true; return; }
+    rec.lang = "pt-BR"; rec.interimResults = true; rec.continuous = false;
+    var final = "";
+    rec.onresult = function (ev) { var t = ""; for (var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript; inp.value = t; if (ev.results[ev.results.length - 1].isFinal) final = t; };
+    rec.onerror = function (ev) { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") { b.hidden = true; addBot([{tipo: "rodape", texto: "O microfone está bloqueado nesta página: digite a pergunta."}]); } };
+    rec.onend = function () { b.classList.remove("on"); rec = null; var v = (final || "").trim(); if (v) { inp.value = ""; enviar(v); } };
+    b.classList.add("on");
+    try { rec.start(); } catch (e) { rec = null; b.classList.remove("on"); }
+  }
+  function falar(txt) {
+    try {
+      var s = window.speechSynthesis; if (!s) return false;
+      s.cancel();
+      var u = new SpeechSynthesisUtterance(String(txt).replace(/[*#`|»•]/g, " ").replace(/\s+/g, " ").slice(0, 1200));
+      u.lang = "pt-BR";
+      var v = s.getVoices().filter(function (x) { return /^pt(-|_)BR/i.test(x.lang); })[0]; if (v) u.voice = v;
+      s.speak(u); return true;
+    } catch (e) { return false; }
+  }
+
+  function rolar() { msgs.scrollTop = msgs.scrollHeight; }
+  function addUser(txt, semGuardar) { var d = doc.createElement("div"); d.className = "tx-m-u"; d.textContent = txt; msgs.appendChild(d); rolar(); if (!semGuardar) guardarHist("u", txt); }
+  /* ---------- respostas grandes: a própria janela do chat se amplia (uma janela só) ---------- */
+  function medida(blocos) {
+    var n = 0, linhas = 0, blocosConteudo = 0;
+    (blocos || []).forEach(function (b) {
+      if (b.tipo === "md" || b.tipo === "texto" || b.tipo === "ajuda") { n += String(b.texto || "").length; blocosConteudo++; }
+      else if (b.tipo === "linhas") { linhas += (b.linhas || []).length; blocosConteudo++; }
+      else if (b.tipo === "grafico") { linhas += (b.itens || []).length; blocosConteudo++; }
+    });
+    return {chars: n, linhas: linhas, blocos: blocosConteudo};
+  }
+  function ehGrande(blocos) {
+    if ((blocos || []).some(function (b) { return b.tipo === "confirma"; })) return false;
+    var m = medida(blocos);
+    return m.chars > 900 || m.linhas >= 7 || m.blocos >= 4 || (m.blocos >= 3 && m.linhas >= 5) || (m.chars > 500 && m.linhas >= 4);
+  }
+  var ampAuto = true, ultimaGrande = null;
+  function ampliar(sim, manual) {
+    if (!painel) return;
+    painel.classList.toggle("tx-amp", !!sim);
+    var b = $("#tx-amp-b", painel); if (b) { b.textContent = sim ? "⤡" : "⤢"; b.title = sim ? "Reduzir a janela" : "Ampliar a janela"; b.setAttribute("aria-label", b.title); b.setAttribute("aria-pressed", sim ? "true" : "false"); }
+    if (!sim) { if (manual) ampAuto = false; limparFiltro(); }
+  }
+  function limparFiltro() { var f = $("#tx-filtro", painel); if (f) f.value = ""; filtrarGrande(); var fb = $("#tx-filtro-b", painel); if (fb) fb.hidden = true; }
+  // Filtro da última resposta grande: esconde as linhas que não contêm o texto digitado.
+  function filtrarGrande() {
+    var f = $("#tx-filtro", painel), q = norm(f ? f.value : ""), n = 0, tot = 0;
+    if (!ultimaGrande || !ultimaGrande.isConnected) { var c = $("#tx-filtro-n", painel); if (c) c.textContent = ""; return; }
+    [].forEach.call(ultimaGrande.querySelectorAll(".tx-lw"), function (w) { tot++; var ok = !q || norm(w.textContent).indexOf(q) !== -1; w.hidden = !ok; if (ok) n++; });
+    [].forEach.call(ultimaGrande.querySelectorAll(".tx-bloco"), function (bl) { var ls = bl.querySelectorAll(".tx-lw"); if (ls.length) bl.hidden = q && ![].some.call(ls, function (w) { return !w.hidden; }); });
+    var c2 = $("#tx-filtro-n", painel); if (c2) c2.textContent = q ? n + " de " + tot : "";
+  }
+  function addBot(blocos, semGuardar) {
+    if (!blocos || !blocos.length) return null;
+    var d = doc.createElement("div"); d.className = "tx-m-b";
+    blocos.forEach(function (b) { var n = blocoDom(b); if (n) d.appendChild(n); });
+    msgs.appendChild(d);
+    var grande = !semGuardar && painel && !painel.hidden && lerPref().flutuar !== false && ehGrande(blocos);
+    if (grande) {
+      ultimaGrande = d; var fb = $("#tx-filtro-b", painel), fi = $("#tx-filtro", painel); if (fi) fi.value = ""; filtrarGrande();
+      if (fb) fb.hidden = !d.querySelector(".tx-lw");
+      if (ampAuto) ampliar(true);
+    }
+    if (d.offsetHeight > msgs.clientHeight || grande) msgs.scrollTop = d.offsetTop - msgs.offsetTop - 6; else rolar();
+    if (!semGuardar) guardarHist("b", textoDosBlocos(blocos));
+    return d;
+  }
+  // Empresa de uma linha de resultado (pelo nome no título/subtítulo), só quando a correspondência é firme.
+  function empresaDaLinha(l) {
+    if (l.emp && l.emp.nome) return l.emp;
+    try {
+      var r = casarEmpresas(norm((l.t || "") + " " + (l.sub || "")), {});
+      return r.length && r[0].s >= 0.7 && !(r[1] && r[1].s >= r[0].s * 0.92) ? r[0].g : null;
+    } catch (e) { return null; }
+  }
+  function atalhosEmpresa(g, fechar) {
+    var m = doc.createElement("div"); m.className = "tx-acs";
+    var fc = !!(g.refs && (g.refs.fiscal || g.refs.contabil)), inp = $("#tx-in", painel);
+    function pre(txt) { return function () { fechar(); inp.value = txt; inp.focus(); }; }
+    function env(txt) { return function () { fechar(); enviar(txt); }; }
+    var it = [["Ficha", env(g.nome)], ["Anotar", pre("anota no histórico da " + g.nome + ": ")], ["Passar para…", pre("passa a " + g.nome + " para ")], ["Lembrete", pre("me lembra de " + g.nome + " dia ")]];
+    if (fc) { it.splice(2, 0, ["Pendência", pre("registra pendência da " + g.nome + ": ")]); it.push(["Cobrança (e-mail)", env("rascunho de e-mail de cobrança para " + g.nome)]); }
+    it.forEach(function (a) { var b = doc.createElement("button"); b.type = "button"; b.className = "tx-chip"; b.textContent = a[0]; b.onclick = a[1]; m.appendChild(b); });
+    return m;
+  }
+  function botaoMini(rot, titulo, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-mini"; x.textContent = rot; x.title = titulo; x.setAttribute("aria-label", titulo); x.onclick = function () { fn(x); }; return x; }
+  function barraAcoes(b) {
+    var bar = doc.createElement("div"); bar.className = "tx-acts";
+    var q = b.pergunta || "";
+    bar.appendChild(botaoMini("Explicar melhor", "Explicar melhor", function () { enviar("Explicar melhor", {oculto: "Explique melhor e com mais detalhes a sua resposta anterior."}); }));
+    if (q) bar.appendChild(botaoMini("↻", "Responder de outro jeito", function () {
+      if (conversa.length && conversa[conversa.length - 1].role === "assistant") { conversa.pop(); if (conversa.length && conversa[conversa.length - 1].role === "user") conversa.pop(); }
+      enviar("↻ " + q, {oculto: q + "\n(Responda de outro jeito, mais claro.)"});
+    }));
+    var avaliou = false;
+    function aval(bom, x) {
+      if (avaliou) return; avaliou = true; x.classList.add("on");
+      registrarFeedback(q, b.texto, bom);
+      if (!bom) addBot([T("Obrigado pelo aviso! Quer que eu tente de outro jeito?"), CH([{rot: "Tentar de novo", enviar: "↻ " + q, oculto: q + "\n(A resposta anterior não ajudou. Responda de outro jeito, mais claro e completo.)"}])]);
+    }
+    bar.appendChild(botaoMini("👍", "Resposta útil", function (x) { aval(true, x); }));
+    bar.appendChild(botaoMini("👎", "Resposta não ajudou", function (x) { aval(false, x); }));
+    bar.appendChild(botaoMini("⧉", "Copiar a resposta", function (x) { copiarTexto(b.texto.replace(/\*\*/g, "")).then(function (ok) { x.textContent = ok ? "✓" : "✕"; setTimeout(function () { x.textContent = "⧉"; }, 1500); }); }));
+    if (window.speechSynthesis) bar.appendChild(botaoMini("🔊", "Ouvir a resposta", function () { falar(b.texto); }));
+    if (q) bar.appendChild(botaoMini("📌", "Fixar esta pergunta", function (x) { fixar(q); x.classList.add("on"); x.title = "Fixada"; }));
+    return bar;
+  }
+  function blocoDom(b) {
+    var d;
+    if (b.tipo === "md") {
+      d = doc.createElement("div"); d.className = "tx-md";
+      var bolha = doc.createElement("div"); bolha.className = "tx-t1"; bolha.innerHTML = mdHtml(b.texto); d.appendChild(bolha);
+      if (b.acoes) { d.appendChild(barraAcoes(b)); if (lerPref().lerVoz) setTimeout(function () { falar(b.texto); }, 50); }
+      return d;
+    }
+    if (b.tipo === "texto") { d = doc.createElement("div"); d.className = "tx-t1"; d.textContent = mascarar(b.texto); return d; }
+    if (b.tipo === "cab") { d = doc.createElement("div"); d.className = "tx-cab"; d.textContent = b.texto; return d; }
+    if (b.tipo === "rodape") { d = doc.createElement("div"); d.className = "tx-rod"; d.textContent = b.texto; return d; }
+    if (b.tipo === "ajuda") { d = doc.createElement("div"); d.className = "tx-aj"; d.innerHTML = "<b>" + esc(b.titulo) + "</b>" + esc(b.texto); return d; }
+    if (b.tipo === "chips") {
+      d = doc.createElement("div"); d.className = "tx-chips";
+      b.itens.forEach(function (c) {
+        var x = doc.createElement("button"); x.type = "button"; x.className = "tx-chip"; x.textContent = c.rot;
+        x.onclick = function () { if (c.enviar) enviar(c.enviar, {forcarIA: c.forcarIA, forcarRegras: c.forcarRegras, oculto: c.oculto}); else if (c.acao) { var r = c.acao(); if (r && r.then) r.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); } };
+        d.appendChild(x);
+      });
+      return d;
+    }
+    if (b.tipo === "confirma") return cartaoConfirma(b);
+    if (b.tipo === "grafico") return graficoDom(b);
+    if (b.tipo === "linhas") {
+      d = doc.createElement("div"); d.className = "tx-bloco";
+      var h = doc.createElement("h4"); var ht = doc.createElement("span"); ht.className = "tx-h4t"; ht.textContent = b.titulo; h.appendChild(ht);
+      if (b.nota) { var s = doc.createElement("small"); s.textContent = b.nota; h.appendChild(s); }
+      var todas = b.todas || b.linhas;
+      var ac = doc.createElement("span"); ac.className = "tx-h4a";
+      ac.appendChild(botaoMini("⬇", "Baixar a lista em planilha (" + todas.length + " itens)", function (x) { exportarLinhas(b.titulo, todas).then(function (ok) { x.textContent = ok ? "✓" : "⬇"; setTimeout(function () { x.textContent = "⬇"; }, 1800); }); }));
+      ac.appendChild(botaoMini("⧉", "Copiar a lista", function (x) { copiarTexto(b.titulo + "\n" + todas.map(function (l) { return "• " + mascarar(l.t) + (l.sub ? " — " + mascarar(l.sub) : ""); }).join("\n")).then(function (ok) { x.textContent = ok ? "✓" : "✕"; setTimeout(function () { x.textContent = "⧉"; }, 1500); }); }));
+      h.appendChild(ac);
+      d.appendChild(h);
+      b.linhas.forEach(function (l) {
+        var wrap = doc.createElement("div"); wrap.className = "tx-lw";
+        var x = doc.createElement(l.abrir ? "button" : "div"); x.className = "tx-lin " + (l.tom || "");
+        if (l.abrir) { x.type = "button"; x.title = "Abrir no " + MODN[l.mod]; x.onclick = function () { abrirItem(l.mod, l.abrir, l).then(function () { if (!l.abrir.empresa) setTimeout(function () { mostrarNaTela(String(l.t).split(" · ")[0].replace(/^(Treinamento|Impedimento|Admissão recente|Férias|Afastado|Sem analista|Sem CNPJ):\s*/, "")); }, 700); }); }; }
+        x.innerHTML = "<i></i><div><b>" + esc(mascarar(l.t)) + "</b>" + (l.sub ? "<span>" + esc(mascarar(l.sub)) + "</span>" : "") + "</div>";
+        wrap.appendChild(x);
+        var emp = empresaDaLinha(l);
+        if (emp) {
+          var menu = null, bt = doc.createElement("button"); bt.type = "button"; bt.className = "tx-lin-a"; bt.textContent = "⋯"; bt.title = "Ações para " + emp.nome; bt.setAttribute("aria-label", "Ações para " + emp.nome); bt.setAttribute("aria-expanded", "false");
+          bt.onclick = function () {
+            if (menu) { menu.remove(); menu = null; bt.setAttribute("aria-expanded", "false"); return; }
+            menu = atalhosEmpresa(emp, function () { if (menu) { menu.remove(); menu = null; bt.setAttribute("aria-expanded", "false"); } });
+            wrap.appendChild(menu); bt.setAttribute("aria-expanded", "true");
+          };
+          wrap.appendChild(bt);
+        }
+        d.appendChild(wrap);
+      });
+      if (b.mais) { var m = doc.createElement("button"); m.type = "button"; m.className = "tx-mais"; m.textContent = b.mais.rot + " ›"; m.onclick = function () { var r = b.mais.acao(); if (r && r.then) r.catch(function () {}); }; d.appendChild(m); }
+      return d;
+    }
+    return null;
+  }
+  // Gráfico de barras horizontais pequeno (dentro do chat).
+  function graficoDom(b) {
+    var d = doc.createElement("figure"); d.className = "tx-graf";
+    var cap = doc.createElement("figcaption"); cap.textContent = b.titulo || ""; d.appendChild(cap);
+    var itens = (b.itens || []).filter(function (x) { return isFinite(+x.valor); }).slice(0, 12), max = Math.max.apply(null, itens.map(function (x) { return +x.valor; }).concat([0]));
+    itens.forEach(function (x) {
+      var r = doc.createElement("div"); r.className = "tx-gr";
+      var rot = doc.createElement("span"); rot.className = "tx-gr-r"; rot.textContent = x.rotulo; rot.title = x.rotulo;
+      var trilho = doc.createElement("span"); trilho.className = "tx-gr-t";
+      var barra = doc.createElement("i"); barra.style.width = (max > 0 ? Math.max(2, +x.valor / max * 100) : 0) + "%"; trilho.appendChild(barra);
+      var v = doc.createElement("b"); v.textContent = (+x.valor).toLocaleString("pt-BR") + (b.unidade ? " " + b.unidade : "");
+      r.appendChild(rot); r.appendChild(trilho); r.appendChild(v); d.appendChild(r);
+    });
+    return d;
+  }
+
+  // Cartão de confirmação: nada grava antes do clique em "Confirmar" (ou de um "sim" na conversa).
+  /* ---------- quando algo falha: o que aconteceu, por quê e o que fazer ---------- */
+  // Traduz um erro (texto, Error ou código) em {titulo, motivo, passos[], chips[]}. `ctx`: {acao, repetir, modulo, txt}
+  function explicarFalha(e, ctx) {
+    ctx = ctx || {};
+    var msg = String(e && (e.message || e.erro || e.text) || (typeof e === "string" ? e : "") || ""), cod = String(e && e.code || "");
+    var acao = ctx.acao ? ctx.acao.toLowerCase() : "concluir isso";
+    var r = {titulo: "Não consegui " + acao, motivo: "", passos: [], chips: []};
+    var tentar = ctx.repetir ? {rot: "Tentar de novo", acao: ctx.repetir} : (ctx.txt ? {rot: "Tentar de novo", enviar: ctx.txt} : null);
+    var abrirMod = ctx.modulo && MODN[ctx.modulo] ? {rot: "Abrir o " + MODN[ctx.modulo], acao: function () { return abrirItem(ctx.modulo, {}); }} : null;
+    if (cod === "sem_permissao" || /permiss|s[oó] a coordena|s[oó] de consulta|voc[eê] s[oó] altera|somente leitura|sem acesso|n[aã]o tem acesso|not_granted|forbidden|403/i.test(msg + " " + cod)) {
+      r.motivo = (/^[A-ZÁ-Ú][^]{8,}/.test(msg) && !/^(error|typeerror|not_granted|forbidden)/i.test(msg)) ? msg : "O seu acesso não permite essa alteração.";
+      r.semRepetir = true;
+      r.passos = ["Peça à coordenação para fazer a alteração ou liberar o seu acesso.", "Em Configurações do perfil, na seção “Meu acesso”, você vê o seu nível em cada módulo."];
+      var pedido = "Oi! O assistente não deixou eu " + acao + (ctx.detalhe ? " (" + ctx.detalhe + ")" : "") + ": " + r.motivo + " Pode fazer ou liberar o meu acesso? Obrigado.";
+      r.chips.push({rot: "Copiar pedido para a coordenação", acao: function () { return copiarTexto(pedido).then(function (ok) { return [T(ok ? "Copiei o pedido. É só colar numa mensagem para a coordenação." : "Não consegui copiar. O texto é: " + pedido)]; }); }});
+    } else if (cod === "quota_exceeded" || /limite de armazenamento|quota/i.test(msg)) {
+      r.motivo = "O banco de dados chegou ao limite de espaço.";
+      r.passos = ["Peça à coordenação para apagar registros antigos (veja o módulo “Uso do banco”).", "Depois tente de novo."];
+      if (tentar) r.chips.push(tentar);
+    } else if (/network|failed to fetch|offline|timeout|time-out|timed out|tempo|demor|conex|abort|ECONN|unavailable|session_expired/i.test(msg + " " + cod)) {
+      r.motivo = "A conexão com o banco ou com a IA falhou ou demorou demais.";
+      r.passos = ["Confira a internet e tente de novo em alguns segundos.", "Se continuar, recarregue a página (Ctrl+F5). O que já foi confirmado não se perde."];
+      if (tentar) r.chips.push(tentar);
+    } else if (cod === "rate_limited" || /rate|limite|ocupad|muitas|quota/i.test(msg + " " + cod)) {
+      r.motivo = "A IA está ocupada ou o limite de perguntas foi atingido.";
+      r.passos = ["Espere um minuto e tente de novo.", "Se for o limite do dia, “Responder pelas regras” ainda funciona para consultas simples."];
+      if (tentar) r.chips.push(tentar);
+    } else if (/n[aã]o ach|amb[ií]gu|mais de uma|n[aã]o encontr|n[aã]o est[aá] n|qual (empresa|analista|etapa|obriga)|n[aã]o existe|desconhecid/i.test(msg)) {
+      r.motivo = msg || "Não achei o que você citou, ou há mais de uma possibilidade.";
+      r.passos = ["Diga o nome completo da empresa ou o CNPJ.", "Se a empresa estiver em mais de um módulo, diga qual (“no Fiscal”)."];
+    } else if (/diga|falta|informe|obrigat|inv[aá]lid|formato|aaaa-mm-dd|qual [eé]|preciso d[eao]/i.test(msg)) {
+      r.motivo = msg;
+      r.passos = ["Complete o pedido com o que está faltando e envie de novo."];
+    } else if (/carregando|ainda n[aã]o|pronto|n[aã]o carreg/i.test(msg)) {
+      r.motivo = "O módulo ainda estava carregando os dados.";
+      r.passos = ["Aguarde alguns segundos e tente de novo."];
+      if (tentar) r.chips.push(tentar);
+    } else {
+      r.motivo = "Aconteceu um erro inesperado" + (msg ? " (" + msg.slice(0, 120) + ")" : "") + ".";
+      r.passos = ["Tente de novo. Nada foi gravado se o cartão não mostrou “Feito”.", "Se repetir, confira a tela do módulo e avise a coordenação com o texto que aparece em “Copiar detalhes”."];
+      if (tentar) r.chips.push(tentar);
+      var det = "Assistente — falha em “" + (ctx.acao || "ação") + "” em " + new Date().toLocaleString("pt-BR") + (msg ? ": " + msg : "") + (cod ? " [" + cod + "]" : "");
+      r.chips.push({rot: "Copiar detalhes", acao: function () { return copiarTexto(det).then(function (ok) { return [T(ok ? "Copiei os detalhes do erro." : "Não consegui copiar.")]; }); }});
+    }
+    if (abrirMod) r.chips.push(abrirMod);
+    try { registrarPergunta && ctx.txt && registrarPergunta(ctx.txt, "erro"); } catch (x) {}
+    r.resumo = r.motivo + (r.passos.length ? " " + r.passos[0] : "");
+    return r;
+  }
+  function blocosFalha(e, ctx) {
+    var r = explicarFalha(e, ctx);
+    var md = "**" + r.titulo + ".**\n\n**Por quê:** " + r.motivo + (r.passos.length ? "\n\n**O que fazer:**\n" + r.passos.map(function (p) { return "- " + p; }).join("\n") : "");
+    var out = [{tipo: "md", texto: md}];
+    if (r.chips.length) out.push(CH(r.chips));
+    return out;
+  }
+  function cartaoConfirma(b) {
+    var pl = b.plano, d = doc.createElement("div"); d.className = "tx-conf";
+    var ctl = {feito: false};
+    function pintar(estado, msg) {
+      d.innerHTML = "";
+      var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = estado === "ok" ? "Feito" : estado === "cancelado" ? "Cancelado" : estado === "desfeito" ? "Desfeito" : estado === "erro" ? "Não consegui" : (pl.titulo || "Confirmar");
+      d.appendChild(h);
+      d.className = "tx-conf" + (estado ? " tx-conf-" + estado : "");
+      if (estado === "ok" || estado === "erro" || estado === "desfeito") { var m = doc.createElement("div"); m.className = "tx-conf-l"; m.textContent = estado === "erro" && ctl.erroEx ? ctl.erroEx.motivo : (msg || ""); d.appendChild(m);
+        if (estado === "erro" && ctl.erroEx) { ctl.erroEx.passos.forEach(function (ps) { var pe = doc.createElement("div"); pe.className = "tx-conf-l"; pe.textContent = "• " + ps; d.appendChild(pe); }); } }
+      else {
+        if (pl.empresa) { var em = doc.createElement("div"); em.className = "tx-conf-e"; em.textContent = pl.empresa; d.appendChild(em); }
+        (pl.linhas || []).forEach(function (l) { var x = doc.createElement("div"); x.className = "tx-conf-l"; x.textContent = l; d.appendChild(x); });
+        if (pl.aviso) { var av = doc.createElement("div"); av.className = "tx-conf-av"; av.textContent = pl.aviso; d.appendChild(av); }
+      }
+      var bt = doc.createElement("div"); bt.className = "tx-conf-b";
+      function btn(rot, cls, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-cb " + cls; x.textContent = rot; x.onclick = fn; bt.appendChild(x); return x; }
+      if (!estado) { btn("Confirmar", "tx-cb-ok", ctl.confirmar); btn("Cancelar", "", ctl.cancelar); }
+      else if (estado === "ok" && pl.desfazer) btn("Desfazer", "", ctl.desfazer);
+      else if (estado === "erro" && ctl.erroEx) {
+        if (!ctl.erroEx.semRepetir) btn("Tentar de novo", "tx-cb-ok", function () { ctl.feito = false; ctl.erroEx = null; ctl.confirmar(); });
+        ctl.erroEx.chips.filter(function (c) { return c.acao && c.rot !== "Tentar de novo"; }).forEach(function (c) { btn(c.rot, "", function () { var rr = c.acao(); if (rr && rr.then) rr.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); }); });
+      }
+      if (bt.children.length) d.appendChild(bt);
+    }
+    ctl.confirmar = function () {
+      if (ctl.feito) return Promise.resolve(); ctl.feito = true; if (pendente === ctl) pendente = null;
+      d.classList.add("tx-conf-ocupado");
+      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); feitosSessao.push({t: Date.now(), plano: pl, ctl: ctl}); aoConfirmar(pl); }, function (e) { console.error(e); ctl.erroEx = explicarFalha(e, {acao: pl.titulo || "salvar a alteração", modulo: b.mod, detalhe: (pl.linhas || [])[0]}); pintar("erro", ctl.erroEx.resumo); });
+    };
+    ctl.cancelar = function () { if (ctl.feito) return; ctl.feito = true; if (pendente === ctl) pendente = null; pintar("cancelado", ""); };
+    ctl.desfazer = function () { d.classList.add("tx-conf-ocupado"); return Promise.resolve().then(function () { return pl.desfazer(); }).then(function () { ctl.desfeito = true; pintar("desfeito", "Voltei ao que estava antes."); }, function () { pintar("erro", "Não consegui desfazer. Ajuste direto no módulo."); }); };
+    pendente = ctl;
+    pintar("", "");
+    return d;
+  }
+  function enviar(txt, op) {
+    op = op || {};
+    if (!painel) montarPainel();
+    fecharSug();
+    if (/^\//.test(txt)) {
+      addUser(txt);
+      var rc = comando(txt);
+      if (rc && rc.then) {
+        var pc = doc.createElement("div"); pc.className = "tx-m-b"; pc.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pc); rolar();
+        rc.then(function (bl) { pc.remove(); addBot(bl); }).catch(function (e) { pc.remove(); addBot(blocosFalha(e, {acao: "executar o comando", txt: txt})); });
+      }
+      return;
+    }
+    var imgs = anexos.slice(), dcs = docs.slice(); anexos = []; docs = []; if (painel) pintarAnexos();
+    contarPergunta();
+    if (/esconde.?esconde/i.test(txt)) { addUser(txt); addBot([T("Valendo! Fecha os olhos… 🙈 Agora me ache e clique em mim.")]); setTimeout(comecarEsconde, 1200); return; }
+    addUser(txt + (imgs.length ? "  📷" + imgs.length : "") + (dcs.length ? "  📄 " + dcs.map(function (d) { return d.nome; }).join(", ") : ""));
+    var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar(); bolhaAtual = pensa;
+    var temModulos = apisCarregadas().length >= H.modulos().length;
+    var lento = setTimeout(function () { if (!temModulos && !iaOk) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
+    responder(txt, {forcarIA: op.forcarIA, forcarRegras: op.forcarRegras, oculto: op.oculto, imagens: imgs, docs: dcs}).then(function (bl) {
+      clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl);
+      if (bl && bl.naoEntendi) registrarPergunta(txt, "nao_entendi");
+      aoResponder(bl);
+    }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot(blocosFalha(e, {acao: "responder", txt: txt})); });
+  }
+  // Ganchos preenchidos por outras partes (mascote, avisos, equipe).
+  var aoConfirmar = function () {}, aoSituacao = function () {};
+  var emote = function () {};
+  // Desfaz, do mais recente para o mais antigo, o que o assistente gravou na última hora (com confirmação).
+  function desfazerRecentes() {
+    var lim = Date.now() - 36e5, lista = feitosSessao.filter(function (x) { return x.t >= lim && !x.ctl.desfeito && x.plano.desfazer; });
+    if (!lista.length) return Promise.resolve([T("Não há ações minhas da última hora para desfazer.")]);
+    var planos = lista.slice().reverse().map(function (x) { return {plano: {titulo: x.plano.titulo, empresa: x.plano.empresa, linhas: ["desfazer: " + ((x.plano.linhas || [])[0] || x.plano.titulo)], executar: function () { return Promise.resolve().then(function () { return x.plano.desfazer(); }).then(function () { x.ctl.desfeito = true; }); }}}; });
+    var c = cartaoLote(planos, [], "Desfazer o que fiz na última hora");
+    c.plano.desfazer = null;
+    return Promise.resolve([c]);
+  }
+  COMANDOS_EXTRA.desfazer = function () { return desfazerRecentes(); }; COMANDOS_EXTRA.desfazer.rot = "Desfazer o que o assistente gravou na última hora";
+  COMANDOS_EXTRA.carga = function () { return cargaAnalistas().then(function (l) { return l.length ? [{tipo: "grafico", titulo: "Carga por analista (pontos: atrasos ×3, aguardando cliente, empresas)", itens: l.slice(0, 12).map(function (q) { return {rotulo: q.analista, valor: q.pontos}; })}, {tipo: "rodape", texto: "Pergunte “quem pode ajudar o Bruno?” para uma sugestão."}] : [T("Sem dados de carteira ainda.")]; }); }; COMANDOS_EXTRA.carga.rot = "Carga de trabalho por analista";
+  COMANDOS_EXTRA.glossario = function (r) { var g = buscarGlossario(r || ""); return Promise.resolve(g ? [{tipo: "ajuda", titulo: "Glossário", texto: g}] : [T("Não tenho esse termo no glossário" + (r ? ": “" + r + "”" : "") + ". Termos: " + Object.keys(GLOSSARIO).slice(0, 30).join(", ") + "…")]); }; COMANDOS_EXTRA.glossario.rot = "Significado de um termo: /glossario DCTFWeb";
+  var aoResponder = function () {}, pensando = function () {}, registrarPergunta = function () {}, registrarFeedback = function () {};
+  function boasVindas(retomou) {
+    var fixados = lerLS(FIXOS, []).slice(0, 4).map(function (q) { return {rot: "📌 " + q, enviar: q}; });
+    var ch = fixados.concat(sugestoes().map(function (s) { return {rot: s, enviar: s}; })).slice(0, 7);
+    var oi = retomou ? "Continuando de onde paramos. Pode perguntar, ou comece do zero." :
+      (iaOk ? "Oi! Eu sou o " + nomeTax() + ". Pergunte do seu jeito: prazos, atrasos, empresas, cardápio, como usar o Hub… Também abro telas, preparo alterações para você confirmar e rascunho mensagens. Digite / para ver os comandos." : "Oi! Eu sou o " + nomeTax() + ". Posso responder sobre prazos, atrasos, empresas e cardápio, abrir telas e tirar dúvidas de uso. Digite / para ver os comandos.");
+    var bl = [T(oi), CH(ch)];
+    if (retomou) bl.push(CH([{rot: "Começar do zero", acao: function () { limparConversa(); }}]));
+    addBot(bl, true);
+  }
+  function abrirPainel() {
+    if (!painel) montarPainel();
+    parar(); acordar();
+    atualizarSub(); atualizarClipe();
+    aberto = true; painel.hidden = false; painel.classList.remove("tx-oculto");
+    aplicarVisualPainel();
+    if (!msgs.children.length) {
+      var h = lerLS(HIST, []);
+      if (h.length) {
+        var ult = h[h.length - 1].t, dt = new Date(ult);
+        var sep = doc.createElement("div"); sep.className = "tx-sep"; sep.textContent = "Conversa anterior · " + dm(dt) + " " + pad2(dt.getHours()) + ":" + pad2(dt.getMinutes()); msgs.appendChild(sep);
+        h.slice(-16).forEach(function (m) { if (m.r === "u") addUser(m.x, true); else addBot([{tipo: "md", texto: m.x}], true); });
+        var sep2 = doc.createElement("div"); sep2.className = "tx-sep"; sep2.textContent = "agora"; msgs.appendChild(sep2);
+        boasVindas(true);
+      } else boasVindas(false);
+    }
+    if (filaAvisos.length) mostrarFila();
+    carregarTodos();
+    setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); rolar(); }, 30);
+  }
+  function fecharPainel() { if (!painel) return; ampliar(false); ampAuto = true; aberto = false; painel.hidden = true; fecharSug(); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (el) el.focus({preventScroll: true}); }
+
+
+  /* ---------- visuais ---------- */
+  function aplicarSkin(k) {
+    if (!SKINS[k]) return;
+    skinKey = k; salvarPref({skin: k});
+    HM = altura(k); el.style.setProperty("--tx-hm", HM + "px");
+    acKey = ""; atualizarAcessorios();
+    if (painel) { var av = $(".tx-av", painel); if (av) av.innerHTML = svgSkin(k); }
+    reapoiar(); desenhar();
+    balao("Gostei! 😄", 1600); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 1400);
+  }
+  function abrirVisuais() {
+    var box = gavetas("tx-skins"); if (!box) return;
+    Object.keys(SKINS).forEach(function (k) {
+      var b = doc.createElement("button"); b.type = "button"; b.className = "tx-sk" + (k === skinKey ? " on" : ""); b.title = SKINS[k].nome;
+      b.innerHTML = '<span class="tx-sk-i">' + svgSkin(k) + '</span><span>' + SKINS[k].nome + '</span>';
+      b.onclick = function () { aplicarSkin(k); box.hidden = true; };
+      box.appendChild(b);
+    });
+    var hs = doc.createElement("div"); hs.className = "tx-vis-sec"; hs.textContent = "Chapéu"; box.appendChild(hs);
+    var atual = lerPref().chapeu || "auto";
+    [["auto", "Automático", ""], ["nenhum", "Nenhum", ""]].concat(Object.keys(CONQ).map(function (k) { return [CONQ[k].premio, CHAPEUS[CONQ[k].premio].nome, k]; }).filter(function (x, i, arr) { return arr.findIndex(function (y) { return y[0] === x[0]; }) === i; })).forEach(function (o) {
+      var ok = !o[2] || conquistado(o[0]), c = doc.createElement("button"); c.type = "button"; c.className = "tx-sk" + (atual === o[0] ? " on" : "") + (ok ? "" : " off");
+      c.title = ok ? o[1] : "Conquiste: " + CONQ[o[2]].nome; c.disabled = !ok;
+      c.innerHTML = '<span class="tx-sk-i">' + (CHAPEUS[o[0]] ? svgRows(CHAPEUS[o[0]].rows, CHAPEUS[o[0]].pal) : '') + '</span><span>' + esc(ok ? o[1] : "🔒 " + o[1]) + '</span>';
+      c.onclick = function () { salvarPref({chapeu: o[0]}); acKey = ""; atualizarAcessorios(); box.hidden = true; balao("Que tal? 😎", 1600); };
+      box.appendChild(c);
+    });
+    box.hidden = false;
+  }
+
+  /* ============ início ============ */
+  function iniciar() {
+    iniciarIA();
+    if (lerPref().dispensado) salvarPref({dispensado: ""});
+    var st = doc.createElement("style"); st.id = "tx-css"; st.textContent = CSS; doc.head.appendChild(st);
+    el = doc.createElement("div"); el.id = "tx-mascote"; el.className = "tx-parado"; el.setAttribute("role", "button"); el.tabIndex = 0;
+    el.setAttribute("aria-label", "Abrir o assistente Tax"); el.title = "Tax, o assistente do Hub";
+    skinKey = SKINS[lerPref().skin] ? lerPref().skin : "laranja"; HM = altura(skinKey); el.style.setProperty("--tx-hm", HM + "px");
+    el.innerHTML = '<div class="tx-sombra"></div><div class="tx-corpo"><div class="tx-face">' + svgSkin(skinKey) + '</div></div><span class="tx-z" aria-hidden="true">z</span><span class="tx-emo" aria-hidden="true"></span><div class="tx-balao" role="status"></div>';
+    if (oculto) el.classList.add("tx-oculto");
+    doc.body.appendChild(el);
+    atualizarNome();
+    colocarInicial();
+    el.addEventListener("click", function (e) { e.stopPropagation(); if (arrastou) return; if (esconde.ativo) { achouEsconde(); return; } if (dormiu) { acordar(); balao("Hã? Já acordei!", 2000); return; } aberto ? fecharPainel() : abrirPainel(); });
+    el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); aberto ? fecharPainel() : abrirPainel(); } });
+    doc.addEventListener("click", function (ev) { aoClicar(ev, null); });
+    doc.addEventListener("keydown", aoTecla);
+    window.addEventListener("resize", function () { reapoiar(); posicionarPainel(); });
+    var tScroll = 0; doc.addEventListener("scroll", function () { segurar(); clearTimeout(tScroll); tScroll = setTimeout(reapoiar, 120); }, true);
+    setInterval(function () { if (modo === "parado" && !doc.hidden && !aberto) reapoiar(); }, 1500);
+    doc.addEventListener("visibilitychange", function () { if (!doc.hidden) agendarPasseio(); });
+    setInterval(function () {
+      ligarQuadros();
+      var esconde = oculto || algumDialogo();
+      el.classList.toggle("tx-oculto", esconde);
+      if (painel) painel.classList.toggle("tx-oculto", algumDialogo() && !aberto ? true : false);
+      try { var rr = el.getBoundingClientRect(); if (!oculto && !esconde && (rr.right < 8 || rr.left > innerWidth - 8 || rr.bottom < 8 || rr.top > innerHeight - 8 || !isFinite(rr.left))) { colocarInicial(); } } catch (e) {}
+    }, 600);
+    [ligarQuadros, agendarPasseio, acordar, iniciarAvisos, atualizarBadge, iniciarMascoteExtra, iniciarEquipe].forEach(function (f) { try { f(); } catch (e) { try { console.error("Assistente (partida):", e); } catch (x) {} } });
+    if (!oculto && !lerPref().visto) { salvarPref({visto: 1}); setTimeout(function () { balao("Oi! Sou o Tax. Clique em mim para conversar.", 5200); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 2000); }, 1800); }
+  }
+
+  /* ============ mascote: comportamento, acessórios, emotes, conquistas e som ============ */
+  function velFator() { return {lento: 0.6, normal: 1, rapido: 1.6}[lerPref().vel] || 1; }
+  var digitandoAte = 0, ultMouse = {x: -1, y: -1, t: Date.now()};
+  parado2 = function () { return lerPref().parado || Date.now() < digitandoAte || esconde.ativo; };
+  // Lugar bom para ficar: o espaço logo acima da plataforma não tem botão, campo nem link.
+  function bomLugar(p) {
+    if (p.piso) return true;
+    try {
+      var q = quadroVisivel(), d = q ? q.d : doc, ox = q ? q.rect.left : 0, oy = q ? q.rect.top : 0, cx = (p.l + p.r) / 2;
+      var e = d.elementFromPoint(cx - ox, p.t - oy - HM / 2);
+      return !e || !interativo(e);
+    } catch (e) { return true; }
+  }
+  /* ---- acessórios em pixel art (chapéus por estação, setor ou conquista; óculos e gravata) ---- */
+  var CHAPEUS = {
+    natal: {nome: "Gorro de Natal", pal: {R: "#D7263D", W: "#FFFFFF"}, rows: ["........WW....", ".......RR.....", "....RRRRR.....", "...WWWWWWWW..."]},
+    junina: {nome: "Chapéu de palha", pal: {Y: "#E3B341", D: "#B07D1E"}, rows: ["......YY......", ".....YYYY.....", "....YDDDDY....", "..YYYYYYYYYY.."]},
+    festa: {nome: "Chapéu de festa", pal: {Y: "#F2C14E", P: "#C2185B", B: "#3C9EE7"}, rows: ["......Y.......", "......P.......", ".....PBP......", "....PBPBP....."]},
+    carnaval: {nome: "Confete", pal: {P: "#E91E63", Y: "#FFC107", G: "#4CAF50", B: "#2196F3"}, rows: ["..P....Y...G..", "....G.....B...", ".Y.....P....Y.", ".............."]},
+    coroa: {nome: "Coroa", pal: {Y: "#F4C430", R: "#D7263D"}, rows: ["..............", "...Y..R..Y....", "...YY.YY.YY...", "...YYYYYYYY..."]},
+    bone: {nome: "Boné", pal: {B: "#3C659B", W: "#FFFFFF"}, rows: ["..............", ".....BBBB.....", "....BBWBBB....", "....BBBBBBBBB."]},
+    laco: {nome: "Laço", pal: {P: "#E85D9E"}, rows: ["..............", "..............", "........P.P...", ".........P...."]},
+    capacete: {nome: "Capacete do DP", pal: {Y: "#F2B705", D: "#C99A04"}, rows: ["..............", ".....YYYY.....", "....YYYYYY....", "...DDDDDDDD..."]}
+  };
+  function svgRows(rows, pal) {
+    var n = rows.length;
+    return '<svg viewBox="0 0 14 ' + n + '" width="100%" height="100%" shape-rendering="crispEdges" aria-hidden="true" focusable="false">' + runs(rows, 0, function (ch) { return pal[ch]; }) + '</svg>';
+  }
+  function chapeuAtual() {
+    var p = lerPref(), m = new Date().getMonth(), d = new Date().getDate();
+    if (p.chapeu && p.chapeu !== "auto" && p.chapeu !== "nenhum" && conquistado(p.chapeu)) return p.chapeu;
+    if (p.chapeu === "nenhum") return "";
+    if (p.sazonal !== false) {
+      if (m === 11 && d >= 26) return "festa";
+      if (m === 11) return "natal";
+      if (m === 5 || (m === 6 && d <= 15)) return "junina";
+      if (m === 1 || (m === 2 && d <= 5)) return "carnaval";
+    }
+    if (p.acSetor !== false && H.ativo() === "dp") return "capacete";
+    return "";
+  }
+  function overlaySkin() {
+    var s = skinDe(skinKey), n = s.rows.length, out = "", p = lerPref(), at = H.ativo();
+    if (p.acSetor === false) return "";
+    var er = -1, ec = [];
+    s.rows.forEach(function (ln, j) { if (er < 0 && ln.indexOf("E") !== -1) { er = j; for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") ec.push(i); } });
+    if (at === "fiscal" && er >= 0) {
+      var grupos = []; ec.forEach(function (c) { var g = grupos[grupos.length - 1]; if (g && c - g[1] <= 1) g[1] = c; else grupos.push([c, c]); });
+      grupos.forEach(function (g) { out += '<rect x="' + (g[0] - 0.6) + '" y="' + (er - 0.5) + '" width="' + (g[1] - g[0] + 2.2) + '" height="' + 2 + '" fill="rgba(140,198,236,.25)" stroke="#101820" stroke-width=".35"/>'; });
+      if (grupos.length > 1) out += '<rect x="' + (grupos[0][1] + 1.6) + '" y="' + (er + 0.1) + '" width="' + (grupos[1][0] - grupos[0][1] - 2.2) + '" height=".35" fill="#101820"/>';
+    }
+    if (at === "contabil") { var r = Math.max(er + 3, n - 4); out += '<rect x="6.2" y="' + r + '" width="1.6" height=".9" fill="#C2000C"/><rect x="6.5" y="' + (r + .9) + '" width="1" height="2.1" fill="#C2000C"/><rect x="6.75" y="' + (r + 3) + '" width=".5" height=".5" fill="#8E0009"/>'; }
+    if (!out) return "";
+    return '<svg class="tx-ov" viewBox="0 0 ' + COLS + ' ' + (n + 2) + '" width="100%" height="100%" aria-hidden="true" focusable="false">' + out + '</svg>';
+  }
+  var acKey = "";
+  function atualizarAcessorios() {
+    if (!el) return;
+    var face = $(".tx-face", el); if (!face) return;
+    var ch = chapeuAtual(), ov = overlaySkin(), k = skinKey + "|" + ch + "|" + ov.length + "|" + H.ativo();
+    if (k === acKey) return; acKey = k;
+    face.innerHTML = svgSkin(skinKey) + ov + (ch ? '<span class="tx-chapeu">' + svgRows(CHAPEUS[ch].rows, CHAPEUS[ch].pal) + '</span>' : "");
+  }
+  /* ---- emotes, pensamento e som ---- */
+  var actx = null;
+  function som(tipo) {
+    if (!lerPref().sons) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      var notas = {pulo: [[660, .05]], festa: [[523, .08], [659, .08], [784, .14]], alerta: [[880, .08], [660, .12]], erro: [[330, .1], [262, .16]], achou: [[784, .07], [988, .07], [1319, .16]]}[tipo] || [[600, .05]], t = actx.currentTime;
+      notas.forEach(function (n) { var o = actx.createOscillator(), g = actx.createGain(); o.type = "square"; o.frequency.value = n[0]; g.gain.setValueAtTime(.035, t); g.gain.exponentialRampToValueAtTime(.001, t + n[1]); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + n[1] + .01); t += n[1]; });
+    } catch (e) {}
+  }
+  emote = function (tipo) {
+    if (!el || (emFoco() && tipo === "alerta")) return;
+    var e = $(".tx-emo", el); if (!e) return;
+    var txt = {festa: "✨", alerta: "❗", suor: "💦", triste: "😟", amor: "💙", ok: "👍", achou: "🎉", porta: "🚪", sono: "💤"}[tipo] || "❔";
+    e.textContent = txt; e.classList.remove("on"); void e.offsetWidth; e.classList.add("on");
+    var cara = /^(festa|achou|amor|ok)$/.test(tipo) ? "tx-feliz" : /^(triste|suor)$/.test(tipo) ? "tx-triste" : "";
+    if (cara && !dormiu) { clearTimeout(emote.tCara); classe([cara], ["tx-feliz", "tx-triste"].filter(function (c) { return c !== cara; })); emote.tCara = setTimeout(function () { classe([], ["tx-feliz", "tx-triste"]); }, tipo === "achou" || tipo === "festa" ? 2600 : 1800); }
+    if (tipo === "festa" || tipo === "alerta" || tipo === "achou") { classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 1300); }
+    som(tipo === "triste" ? "erro" : tipo === "achou" ? "achou" : tipo === "festa" ? "festa" : tipo === "alerta" ? "alerta" : "");
+  };
+  pensando = function (on) {
+    if (!el) return;
+    el.classList.toggle("tx-pensando", !!on);
+    var b = $(".tx-balao", el); if (!b) return;
+    if (on && !aberto) { b.textContent = "…"; b.classList.add("on"); clearTimeout(b.__t); }
+    else if (!on && b.textContent === "…") b.classList.remove("on");
+  };
+  /* ---- mostrar na tela: rola até o texto, destaca e o Tax vai até lá ---- */
+  function mostrarNaTela(texto) {
+    var alvoN = norm(texto); if (alvoN.length < 3) return false;
+    var q = quadroVisivel(), d = q ? q.d : doc, ox = q ? q.rect.left : 0, oy = q ? q.rect.top : 0, melhor = null, area = 1e12;
+    try {
+      var tw = d.createTreeWalker(d.body, NodeFilter.SHOW_ELEMENT), n;
+      while ((n = tw.nextNode())) {
+        if (n.closest && n.closest("#tx-painel,#tx-mascote,script,style,dialog:not([open])")) continue;
+        var tx = n.textContent; if (!tx || tx.length > 400) continue;
+        if (norm(tx).indexOf(alvoN) === -1) continue;
+        var r = n.getBoundingClientRect(); if (!r.width || !r.height) continue;
+        var a = r.width * r.height; if (a < area) { area = a; melhor = n; }
+      }
+    } catch (e) { return false; }
+    if (!melhor) return false;
+    var alvoEl = melhor.closest("tr,li,article,.card,[role=row],button,a") || melhor;
+    try { alvoEl.scrollIntoView({block: "center", behavior: reduzido() ? "auto" : "smooth"}); } catch (e) { alvoEl.scrollIntoView(); }
+    setTimeout(function () {
+      var r = alvoEl.getBoundingClientRect(), hl = doc.createElement("div");
+      hl.className = "tx-destaque"; hl.style.cssText = "left:" + (r.left + ox - 4) + "px;top:" + (r.top + oy - 4) + "px;width:" + (r.width + 8) + "px;height:" + (r.height + 8) + "px";
+      doc.body.appendChild(hl); setTimeout(function () { hl.remove(); }, 4200);
+      if (!celular() && !lerPref().parado) chamar({x: Math.min(r.right + ox - 20, vw() - 40), y: r.top + oy - 4});
+      emote("ok");
+    }, 450);
+    return true;
+  }
+  FERRAMENTAS_EXTRA.push(function () {
+    return {name: "mostrar_na_tela", description: "Rola a tela até um texto (empresa, obrigação, funcionário…) e destaca o item, com o mascote indo até ele. Use depois de abrir a tela certa.",
+      inputSchema: {type: "object", properties: {texto: {type: "string"}, modulo: {type: "string", enum: ["dp", "contabil", "fiscal", "portal", "cardapio"]}, aba: {type: "string"}}, required: ["texto"]},
+      execute: function (i) {
+        var abre = i.modulo ? abrirItem(i.modulo, {aba: i.aba || "", manter: true}) : Promise.resolve();
+        return abre.then(function () { return new Promise(function (ok) { setTimeout(function () { ok(mostrarNaTela(i.texto) ? "Destacado na tela." : "Não achei esse texto na tela aberta."); }, i.modulo ? 900 : 50); }); });
+      }};
+  });
+  /* ---- esconde-esconde ---- */
+  var esconde = {ativo: false, t0: 0};
+  function comecarEsconde() {
+    if (celular()) return [T("No celular eu fico no canto, não dá para brincar de esconde-esconde. 😅")];
+    fecharPainel(); atualizarPlats();
+    var cand = plats.filter(function (p) { return !p.piso && p.r - p.l > 80 && Math.abs(p.l - fx) > 250; }), alvo = cand[Math.floor(Math.random() * cand.length)] || plats[plats.length - 1];
+    esconde.ativo = true; esconde.t0 = Date.now();
+    teletransportar(rnd(alvo.l + 30, alvo.r - 30), alvo.t, function () { el.classList.add("tx-escondido"); });
+    return [];
+  }
+  function achouEsconde() {
+    var seg = Math.round((Date.now() - esconde.t0) / 1000); esconde.ativo = false; el.classList.remove("tx-escondido");
+    emote("achou"); balao("Achou! Em " + seg + " s. 🎉", 3500); conquistar("esconde");
+  }
+  COMANDOS_EXTRA.esconde = function () { return Promise.resolve(comecarEsconde()); }; COMANDOS_EXTRA.esconde.rot = "Brincar de esconde-esconde com o mascote";
+  /* ---- conquistas (desbloqueiam chapéus) ---- */
+  var CONQ = {
+    primeira: {nome: "Primeira conversa", premio: "laco"},
+    perguntas10: {nome: "10 perguntas", premio: "bone"},
+    acoes5: {nome: "5 alterações confirmadas pelo assistente", premio: "festa"},
+    esconde: {nome: "Achou o mascote no esconde-esconde", premio: "coroa"},
+    dias5: {nome: "5 dias úteis seguidos usando o Hub", premio: "coroa"},
+    zerou: {nome: "Zerou os atrasos da carteira", premio: "festa"}
+  };
+  function stats() { return lerLS("tx-stats-v1", {perguntas: 0, acoes: 0, dias: [], conq: {}}); }
+  function conquistado() { return true; }   // sem sistema de conquistas: todos os chapéus ficam livres
+  function conquistar() {}   // sistema de conquistas removido
+  function contarPergunta() { var s = stats(); s.perguntas = (s.perguntas || 0) + 1; gravarLS("tx-stats-v1", s); if (s.perguntas === 1) conquistar("primeira"); if (s.perguntas >= 10) conquistar("perguntas10"); }
+  function contarDia() {
+    var s = stats(), h = ymd(hoje()); s.dias = s.dias || [];
+    if (s.dias[s.dias.length - 1] !== h) { s.dias.push(h); s.dias = s.dias.slice(-30); gravarLS("tx-stats-v1", s); }
+    var seq = 1;
+    for (var i = s.dias.length - 1; i > 0; i--) {
+      var a = new Date(s.dias[i] + "T12:00:00"), b = new Date(s.dias[i - 1] + "T12:00:00"), gap = Math.round((a - b) / 864e5);
+      var ok = gap === 1 || (gap <= 3 && a.getDay() === 1);
+      if (ok) seq++; else break;
+    }
+    if (seq >= 5) conquistar("dias5");
+  }
+  aoConfirmar = function () { var s = stats(); s.acoes = (s.acoes || 0) + 1; gravarLS("tx-stats-v1", s); if (s.acoes >= 5) conquistar("acoes5"); emote("festa"); };
+  aoSituacao = function (s, av) {
+    try { guardarHistorico(s); } catch (e) {}
+    var t = totalAtrasos(s), ant = av.snapAnt && av.snapAnt.atrasos ? Object.keys(av.snapAnt.atrasos).reduce(function (x, k) { return x + (av.snapAnt.atrasos[k] || 0); }, 0) : 0;
+    if (t === 0 && ant > 0) conquistar("zerou");
+    if (t >= 15) setTimeout(function () { emote("suor"); }, 9000);
+  };
+  /* ---- frases de personalidade ---- */
+  var FRASES = ["Psiu, qualquer coisa é só me chamar.", "Já tomou água hoje? 💧", "Dica: digite / no chat para ver os atalhos.", "Pergunte “o que vence hoje?” que eu respondo.", "Eu também sei o cardápio do almoço. 🍽️", "Dica: arraste-me para onde quiser.", "Posso marcar entregas em lote, é só pedir.", "Ctrl+K busca no Hub inteiro (e pergunta para mim)."];
+  function fraseAleatoria() {
+    var h = new Date().getHours();
+    var extras = h < 10 ? ["Bom dia! ☀️ Bora começar?"] : h >= 17 ? ["Quase lá! Último gás do dia. 💪"] : ["Boa tarde! Como vai o fechamento?"];
+    var l = FRASES.concat(extras); return l[Math.floor(Math.random() * l.length)];
+  }
+  /* ---- arrastar o mascote ---- */
+  var arrasto = null, arrastou = false;
+  function ligarArrasto() {
+    el.addEventListener("pointerdown", function (e) {
+      if (e.button || celular()) return;
+      arrasto = {x0: e.clientX, y0: e.clientY, dx: e.clientX - fx, dy: e.clientY - fy, mov: false, id: e.pointerId};
+    });
+    el.addEventListener("pointermove", function (e) {
+      if (!arrasto) return;
+      if (!arrasto.mov && Math.hypot(e.clientX - arrasto.x0, e.clientY - arrasto.y0) < 6) return;
+      if (!arrasto.mov) { arrasto.mov = true; try { el.setPointerCapture(arrasto.id); } catch (x) {} parar(); plano = null; modo = "arrasto"; el.classList.add("tx-arrastado"); }
+      fx = Math.max(minX() + hw(), Math.min(vw() - hw(), e.clientX - arrasto.dx)); fy = Math.max(HM, Math.min(vh() - 2, e.clientY - arrasto.dy)); desenhar();
+    });
+    var soltar = function () {
+      if (!arrasto) return;
+      var mov = arrasto.mov; arrasto = null;
+      if (!mov) return;
+      arrastou = true; setTimeout(function () { arrastou = false; }, 50);
+      el.classList.remove("tx-arrastado"); atualizarPlats(); modo = "parado"; cair(); som("pulo");
+    };
+    el.addEventListener("pointerup", soltar); el.addEventListener("pointercancel", soltar);
+  }
+  /* ---- pegadas ---- */
+  var ultPegada = 0;
+  function pegada() {
+    if (!lerPref().pegadas || modo !== "anda" || Date.now() - ultPegada < 160) return;
+    ultPegada = Date.now();
+    var p = doc.createElement("i"); p.className = "tx-pegada"; p.style.left = (fx - 3 + (Math.random() * 6 - 3)) + "px"; p.style.top = (fy - 3) + "px";
+    doc.body.appendChild(p); setTimeout(function () { p.remove(); }, 1300);
+  }
+  /* ---- ligações com a página (mouse, teclado, toasts, troca de módulo) ---- */
+  function ligarDoc(d, quadro) {
+    if (!d || d.__tx2) return; d.__tx2 = 1;
+    d.addEventListener("mousemove", function (e) {
+      var x = e.clientX, y = e.clientY; if (quadro) { var r = quadro.getBoundingClientRect(); x += r.left; y += r.top; }
+      ultMouse = {x: x, y: y, t: Date.now()};
+      if (el && el.classList.contains("tx-le")) el.classList.remove("tx-le");
+      checarSairDaFrente(x, y, e.target);
+    }, {passive: true});
+    d.addEventListener("keydown", function (e) { var t = e.target; if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) && !(t.closest && t.closest("#tx-painel"))) digitandoAte = Date.now() + 12000; }, true);
+    var vigia = function (n) {
+      try {
+        new MutationObserver(function () {
+          var txt = (n.textContent || "").trim(); if (!txt || n.__ult === txt) return; n.__ult = txt;
+          if (n.id === "toast" && !n.classList.contains("show")) return;
+          if (/não foi poss|nao foi poss|erro|falhou|sem permiss|não tem permiss/i.test(txt)) emote("triste");
+          else if (/conclu|entreg|feito|pronto|finaliz|zerou/i.test(txt)) emote("achou");
+          else if (/salv|registrad|criad|marcad|importad|atualizad|aplicad/i.test(txt)) emote("ok");
+        }).observe(n, {childList: true, subtree: true, characterData: true, attributes: n.id === "toast"});
+      } catch (e) {}
+    };
+    ["#toast", "#toasts"].forEach(function (s) { var n = d.querySelector(s); if (n) vigia(n); });
+  }
+  var saiuEm = 0;
+  function checarSairDaFrente(x, y, alvo) {
+    if (!el || aberto || modo !== "parado" || celular() || esconde.ativo || Date.now() - saiuEm < 2500) return;
+    var r = el.getBoundingClientRect();
+    var perto = x > r.left - 30 && x < r.right + 30 && y > r.top - 30 && y < r.bottom + 10, emCima = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    if (!perto || emCima || !alvo || !interativo(alvo)) return;
+    saiuEm = Date.now();
+    var cur = apoio(fx, fy, 10) || plats[plats.length - 1], dir = x < fx ? 1 : -1, nx = fx + dir * 90;
+    if (nx < cur.l + hw() || nx > cur.r - hw()) nx = fx - dir * 90;
+    nx = Math.max(cur.l + hw(), Math.min(cur.r - hw(), nx));
+    plano = {passos: [{tipo: "anda", x: nx}], fim: null, destino: null}; proximoPasso();
+    balao(["Opa, licença!", "Saindo da frente!", "Foi mal! 🙈"][Math.floor(Math.random() * 3)], 1500);
+  }
+  var ultAtivo = null;
+  function vigiarModulo() {
+    var a = H.ativo();
+    if (ultAtivo !== null && a !== ultAtivo && el && !oculto) { el.classList.add("tx-porta"); setTimeout(function () { el.classList.remove("tx-porta"); }, 700); if (Math.random() < 0.5) emote("porta"); }
+    ultAtivo = a; atualizarAcessorios();
+  }
+  function iniciarMascoteExtra() {
+    ligarArrasto(); ligarDoc(doc, null); contarDia(); atualizarAcessorios(); noiteOlhos(); setInterval(noiteOlhos, 300000);
+    setInterval(function () { H.quadros().forEach(function (f) { try { if (f.contentDocument && f.contentDocument.body) ligarDoc(f.contentDocument, f); } catch (e) {} }); vigiarModulo(); }, 1200);
+    // ler junto (mouse parado) e seguir o mouse de longe
+    setInterval(function () {
+      if (!el || aberto || oculto || doc.hidden || modo !== "parado" || esconde.ativo) return;
+      var parado3 = Date.now() - ultMouse.t;
+      if (parado3 > 25000 && !el.classList.contains("tx-le") && !dormiu) el.classList.add("tx-le");
+      if (lerPref().seguir && !lerPref().parado && ultMouse.x >= 0 && parado3 < 4000 && Math.abs(ultMouse.x - fx) > 260 && !celular()) {
+        var alvoX = ultMouse.x + (ultMouse.x > fx ? -130 : 130); chamarSilencioso({x: alvoX, y: ultMouse.y});
+      }
+    }, 4000);
+    // frases de vez em quando
+    (function prox() { setTimeout(function () { if (lerPref().frases !== false && !aberto && !oculto && !doc.hidden && !emFoco() && !esconde.ativo && !dormiu) balao(fraseAleatoria(), 4200); prox(); }, rnd(4, 9) * 6e4); })();
+  }
+  function chamarSilencioso(pt) { atualizarPlats(); var D = destinoPara(pt); irPara(D, pt.x, null, 0); }
+  CFG.push({sec: "Mascote", itens: [
+    {k: "vel", rot: "Velocidade:", tipo: "sel", opcoes: [["normal", "normal"], ["lento", "calmo"], ["rapido", "agitado"]]},
+    {k: "parado", rot: "Ficar parado (não passear)", tipo: "bool"},
+    {k: "seguir", rot: "Seguir o mouse de longe", tipo: "bool"},
+    {k: "pegadas", rot: "Deixar pegadas ao andar", tipo: "bool"},
+    {k: "frases", rot: "Falar frases de vez em quando", tipo: "bool", padrao: true},
+    {k: "sazonal", rot: "Chapéu da época (Natal, São João, Carnaval)", tipo: "bool", padrao: true, ao: function () { acKey = ""; atualizarAcessorios(); }},
+    {k: "acSetor", rot: "Acessório do setor (capacete no DP, óculos no Fiscal, gravata no Contábil)", tipo: "bool", padrao: true, ao: function () { acKey = ""; atualizarAcessorios(); }},
+    {k: "sons", rot: "Sons em 8 bits", tipo: "bool"},
+    {rot: "Modo discreto: mascote parado, sem frases nem sons", tipo: "botao", ao: function (b) { salvarPref({parado: true, frases: false, seguir: false, pegadas: false, sons: false}); b.textContent = "Modo discreto ligado"; }},
+    {rot: "Brincar de esconde-esconde", tipo: "botao", ao: function () { comecarEsconde(); }}
+  ]});
+
+  /* ============ avisos proativos (sem IA: só regras sobre os dados dos módulos) ============ */
+  var AV = "tx-avisos-v1", AG = "tx-agendados-v1", filaAvisos = [];
+  function lerAv() {
+    var a = lerLS(AV, {});
+    if (a.dia !== ymd(hoje())) a = {dia: ymd(hoje()), alertados: {}, pend: a.pend || null, snap: a.snap || null, snapAnt: a.snap || a.snapAnt || null};
+    a.alertados = a.alertados || {};
+    return a;
+  }
+  function gravarAv(a) { gravarLS(AV, a); }
+  function emFoco() { return (+lerPref().focoAte || 0) > Date.now(); }
+  function opt(k) { return lerPref()["av_" + k] !== false; }
+  function algumAviso() { return ["resumo", "segunda", "sexta", "prazos", "lembretes", "cliente", "parada", "ausencia"].some(opt); }
+  function horaResumo() { return +lerPref().av_hora || 0; }
+  function diasUteisDepois(d, n) {
+    var fer = feriadosEntre(d, addDias(d, n * 2 + 15)), c = new Date(d), k = 0;
+    while (k < n) { c = addDias(c, 1); if (c.getDay() % 6 && !fer[ymd(c)]) k++; }
+    return c;
+  }
+  // Fotografia do momento: vencimentos, atrasos, pendências do cliente e pontos de atenção.
+  function situacao() {
+    return depsPronto().then(carregarTodos).then(quemSou).then(function () {
+      var h = hoje(), ate2 = diasUteisDepois(h, 2), meu = euNome ? casarEu(indice().analistas) : "";
+      var s = {meu: meu, vencHoje: [], prox: [], atrasos: {}, pend: {}, lembretes: [], feriados: [], atencao: [], exemplo: []};
+      ["dp", "contabil", "fiscal", "portal"].forEach(function (m) {
+        var a = carregados[m]; if (!a) return;
+        if (!podeMod(m)) {
+          // Outro departamento: só os lembretes pessoais (privados de quem está logado) entram.
+          if (m === "dp") { try { var lb0 = a.consultar("lembretes", {de: ymd(h), ate: ymd(h)}); (lb0 && lb0.linhas || []).forEach(function (l) { if (l.dados && !l.dados.feito) s.lembretes.push(Object.assign({mod: "dp"}, l)); }); } catch (e) {} }
+          return;
+        }
+        if (a.exemplo && a.exemplo()) { s.exemplo.push(m); return; }
+        try {
+          var v = a.consultar("vencimentos", {de: ymd(h), ate: ymd(ate2), analista: meu}) || {linhas: []};
+          v.linhas.forEach(function (l) { if (l.tom === "ok") return; var x = Object.assign({mod: m}, l); if (l.data === ymd(h)) s.vencHoje.push(x); else if (l.data > ymd(h)) s.prox.push(x); });
+          var at = a.consultar("atrasos", {analista: meu}); if (at) s.atrasos[m] = at.total;
+          if (m === "fiscal" || m === "contabil") { var pd = a.consultar("pendencias", {analista: meu}); var mp = {}; (pd && pd.linhas || []).forEach(function (l) { mp[l.t] = l.sub; }); s.pend[m] = mp; }
+          if (m === "dp") {
+            var lb = a.consultar("lembretes", {de: ymd(h), ate: ymd(h)}); (lb && lb.linhas || []).forEach(function (l) { if (l.dados && !l.dados.feito) s.lembretes.push(Object.assign({mod: "dp"}, l)); });
+            var cv = a.consultar("convencoes", {}), mesN = norm(MESES[h.getMonth()]);
+            (cv && cv.linhas || []).forEach(function (l) { if (l.dados && norm(l.dados.dataBase) === mesN) s.atencao.push(Object.assign({mod: "dp"}, l, {t: "Data-base neste mês: " + l.t.replace(/^Convenção /, "")})); });
+            var fe = (at && at.linhas || []).filter(function (l) { return /f[ée]rias/i.test(l.t); });
+            if (fe.length) s.atencao.push({mod: "dp", t: fe.length + " alerta(s) de férias no DP", sub: fe.slice(0, 3).map(function (l) { return l.t; }).join(" · "), tom: "late", abrir: fe[0].abrir});
+            var us = a.consultar("uso", {}); (us && us.linhas || []).forEach(function (l) { if (l.dados && l.dados.docs > 4000) s.atencao.push(Object.assign({mod: "dp"}, l, {t: "Banco perto do limite: " + l.t})); });
+          }
+        } catch (e) { if (window.__txDebug) console.error(e); }
+      });
+      var fi = carregados.fiscal;
+      if (fi) { var fr = fi.consultar("feriados", {de: ymd(h), ate: ymd(addDias(h, 7))}); s.feriados = (fr && fr.linhas || []).map(function (l) { return Object.assign({mod: "fiscal"}, l); }); }
+      var ca = carregados.cardapio;
+      if (ca && ca.podeEditar && ca.podeEditar()) {
+        var cd = ca.consultar("cardapio", {de: ymd(h), ate: ymd(addDias(h, 6))}), falta = (cd && cd.linhas || []).filter(function (l) { return /ainda não cadastrado/.test(l.sub); });
+        if (falta.length) s.atencao.push({mod: "cardapio", t: "Cardápio sem cadastro: " + falta.map(function (l) { return l.t.split(",")[0].toLowerCase() + " " + l.data.slice(8); }).join(", "), sub: "você pode editar o cardápio", tom: "warn", abrir: {aba: "", opts: {dia: falta[0].data}}});
+      }
+      return listarTudo().then(function (rows) { s.divergencias = divergencias(rows); return s; });
+    });
+  }
+  function totalAtrasos(s) { return Object.keys(s.atrasos).reduce(function (t, k) { return t + (s.atrasos[k] || 0); }, 0); }
+  // Linha de rodapé com a origem dos dados: quais módulos foram lidos, a hora e se algum ainda carregava.
+  function notaFonte(mods) {
+    var nomes = [], carregando = [], exemplo = [];
+    (mods || []).forEach(function (k) {
+      var a = carregados[k]; if (!a) return;
+      nomes.push(MODN[k]);
+      if (a.pronto && !a.pronto()) carregando.push(MODN[k]);
+      else if (a.exemplo && a.exemplo()) exemplo.push(MODN[k]);
+    });
+    if (!nomes.length) return null;
+    var d = new Date(), hh = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    var t = "Consultado: " + nomes.join(", ") + " · dados lidos às " + hh + ".";
+    if (carregando.length) t += " " + carregando.join(" e ") + " ainda estava carregando: o resultado pode estar incompleto.";
+    if (exemplo.length) t += " " + exemplo.join(" e ") + " com dados de exemplo.";
+    return {tipo: "rodape", texto: t};
+  }
+  function linhasBloco(titulo, ls, max) { return {tipo: "linhas", titulo: titulo + " · " + ls.length, linhas: ls.slice(0, max || 6), todas: ls, nota: ""}; }
+  function mudancas(s, ant, mods) {
+    if (!ant) return "";
+    var ps = Object.keys(s.atrasos).filter(function (k) { return (!mods || mods.indexOf(k) !== -1) && ant.atrasos && ant.atrasos[k] != null && ant.atrasos[k] !== s.atrasos[k]; }).map(function (k) { var d = s.atrasos[k] - ant.atrasos[k]; return MODN[k] + " " + ant.atrasos[k] + " → " + s.atrasos[k] + " (" + (d > 0 ? "+" : "") + d + ")"; });
+    return ps.length ? "Desde a sua última visita (" + dm(new Date(ant.t)) + "), atrasos: " + ps.join(" · ") + "." : "";
+  }
+  function snapDe(s) { return {t: Date.now(), atrasos: s.atrasos}; }
+  // Resumo do dia (também em /resumo). Devolve {blocos, curto}.
+  function montarResumo(s, tipo, deps) { return deps || depAtivo() ? montarResumoDeptos(s, tipo, deps) : montarResumoGeral(s, tipo); }
+  // Um relatório separado para cada departamento (só os da pessoa; a coordenação escolhe ou vê todos), mais um bloco "Geral".
+  function montarResumoDeptos(s, tipo, deps) {
+    var h = new Date(), saud = h.getHours() < 12 ? "Bom dia" : h.getHours() < 18 ? "Boa tarde" : "Boa noite", av = lerAv(), bl = [], totV = 0, totA = 0;
+    deps = deps || depsDoRelatorio();
+    var oi = saud + (euNome ? ", " + euNome.split(" ")[0] : "") + "! ";
+    bl.push({tipo: "cab", texto: (tipo === "sexta" ? "Resumo da semana · " : "Resumo do dia · ") + SEM[h.getDay()] + ", " + dm(h) + (s.meu ? " · carteira de " + s.meu : "")});
+    bl.push(T(deps.length ? oi + (deps.length > 1 ? "Um relatório para cada departamento:" : "Relatório do departamento " + DEPTOS[deps[0]] + ":") : oi + TXT_SEM_DEP));
+    deps.forEach(function (d) {
+      var vh = s.vencHoje.filter(function (l) { return l.mod === d; }), px = s.prox.filter(function (l) { return l.mod === d; }), nAt = s.atrasos[d] || 0, partes = [];
+      bl.push({tipo: "cab", texto: DEPTOS[d]});
+      if (s.exemplo.indexOf(d) !== -1) { bl.push({tipo: "rodape", texto: "Sem avisos: este departamento está com dados de exemplo."}); return; }
+      totV += vh.length; totA += nAt;
+      partes.push(vh.length ? vh.length + (vh.length === 1 ? " prazo vence hoje" : " prazos vencem hoje") : "nada vence hoje");
+      if (px.length) partes.push(px.length + " nos próximos 2 dias úteis");
+      partes.push(nAt ? nAt + " atraso(s)" : "nenhum atraso");
+      bl.push(T(partes.join(", ") + "."));
+      if (vh.length) bl.push(linhasBloco("Vence hoje", vh));
+      if (px.length) bl.push(linhasBloco("Próximos 2 dias úteis", px));
+      var mud = mudancas(s, av.snapAnt, [d]); if (mud) bl.push({tipo: "rodape", texto: mud});
+      var at = s.atencao.filter(function (l) { return l.mod === d; }); if (at.length) bl.push(linhasBloco("Atenção", at));
+    });
+    var ge = s.feriados.map(function (f) { return Object.assign({}, f, {t: "Feriado: " + f.t, sub: "os prazos que caem nele mudam de dia"}); }).concat(s.lembretes, s.atencao.filter(function (l) { return l.mod === "cardapio"; }));
+    if (deps.length > 1 && s.divergencias && s.divergencias.length) ge.push({t: s.divergencias.length + " divergência(s) de cadastro entre os setores", sub: s.divergencias.slice(0, 2).map(function (x) { return x.t; }).join(" · "), tom: "warn", mod: s.divergencias[0].mod, abrir: s.divergencias[0].abrir});
+    if (ge.length) { bl.push({tipo: "cab", texto: "Geral"}); bl.push(linhasBloco("Para todos", ge)); }
+    var chips = [{rot: "O que vence esta semana", enviar: "/semana"}, {rot: "Quem está atrasado", enviar: "/atrasos"}];
+    if (ehCoord || minhasDeps().length > 1) DEP_ORD.filter(function (d) { return podeMod(d) && deps.indexOf(d) === -1; }).forEach(function (d) { chips.push({rot: "Resumo de " + DEPTOS[d], enviar: "/resumo " + d}); });
+    chips.push({rot: "Silenciar avisos por 1h", acao: function () { focar(); return Promise.resolve([T("Ok, fico quieto por 1 hora. 🤫")]); }});
+    bl.push(CH(chips));
+    return {blocos: bl, curto: saud + "! " + (deps.length ? (totV ? totV + " vence(m) hoje" : "Nada vence hoje") + (totA ? ", " + totA + " atraso(s)" : "") + ". Clique em mim." : "Peça à coordenação para ligar você a um departamento.")};
+  }
+  function montarResumoGeral(s, tipo) {
+    var h = new Date(), saud = h.getHours() < 12 ? "Bom dia" : h.getHours() < 18 ? "Boa tarde" : "Boa noite", av = lerAv();
+    var bl = [{tipo: "cab", texto: (tipo === "sexta" ? "Resumo da semana · " : "Resumo do dia · ") + SEM[h.getDay()] + ", " + dm(h) + (s.meu ? " · carteira de " + s.meu : "")}];
+    var nAt = totalAtrasos(s), partes = [];
+    partes.push(s.vencHoje.length ? s.vencHoje.length + (s.vencHoje.length === 1 ? " prazo vence hoje" : " prazos vencem hoje") : "nada vence hoje");
+    if (s.prox.length) partes.push(s.prox.length + " nos próximos 2 dias úteis");
+    partes.push(nAt ? nAt + " atraso(s) no total" : "nenhum atraso");
+    bl.push(T(saud + (euNome ? ", " + euNome.split(" ")[0] : "") + "! " + partes.join(", ") + "."));
+    if (s.vencHoje.length) bl.push(linhasBloco("Vence hoje", s.vencHoje));
+    if (s.prox.length) bl.push(linhasBloco("Próximos 2 dias úteis", s.prox));
+    if (nAt) bl.push({tipo: "grafico", titulo: "Atrasos por módulo", itens: Object.keys(s.atrasos).filter(function (k) { return s.atrasos[k]; }).map(function (k) { return {rotulo: MODN[k], valor: s.atrasos[k]}; })});
+    var mud = mudancas(s, av.snapAnt); if (mud) bl.push({tipo: "rodape", texto: mud});
+    var at = s.atencao.slice();
+    s.feriados.forEach(function (f) { at.push(Object.assign({}, f, {t: "Feriado: " + f.t, sub: "os prazos que caem nele mudam de dia"})); });
+    s.lembretes.forEach(function (l) { at.push(l); });
+    if (s.divergencias && s.divergencias.length) at.push({t: s.divergencias.length + " divergência(s) de cadastro entre os setores", sub: s.divergencias.slice(0, 2).map(function (x) { return x.t; }).join(" · "), tom: "warn", mod: s.divergencias[0].mod, abrir: s.divergencias[0].abrir});
+    if (at.length) bl.push(linhasBloco("Atenção", at));
+    if (s.exemplo.length) bl.push({tipo: "rodape", texto: "Sem avisos de " + s.exemplo.map(function (m) { return MODN[m]; }).join(", ") + ": está com dados de exemplo."});
+    bl.push(CH([{rot: "O que vence esta semana", enviar: "/semana"}, {rot: "Quem está atrasado", enviar: "/atrasos"}, {rot: "Silenciar avisos por 1h", acao: function () { focar(); return Promise.resolve([T("Ok, fico quieto por 1 hora. 🤫")]); }}]));
+    var curto = saud + "! " + (s.vencHoje.length ? s.vencHoje.length + " vence(m) hoje" : "Nada vence hoje") + (nAt ? ", " + nAt + " atraso(s)" : "") + ". Clique em mim.";
+    return {blocos: bl, curto: curto};
+  }
+  // Nota do mês: no começo do mês, quanto cada analista fechou da competência anterior.
+  function notaDoMes() {
+    var h = hoje(); if (h.getDate() > 6) return [];
+    var comp = ymd(new Date(h.getFullYear(), h.getMonth() - 1, 1)).slice(0, 7), out = [];
+    ["fiscal", "contabil"].forEach(function (m) {
+      var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return;
+      var r = a.consultar("competencia", {comp: comp}); if (!r || !r.resumo || !r.resumo.length) return;
+      out.push({tipo: "grafico", titulo: MODN[m] + ": % fechado de " + MESES[+comp.slice(5) - 1] + " por analista", unidade: "%", itens: r.resumo.filter(function (q) { return q.empresas; }).map(function (q) { return {rotulo: q.analista, valor: Math.round(q.fechadas / q.empresas * 100)}; }).sort(function (a2, b2) { return b2.valor - a2.valor; })});
+    });
+    return out;
+  }
+  function avisar(curto, blocos) {
+    try { if (H.notificar) H.notificar({t: String(curto).replace(/^[^\wÀ-ú0-9]+/, ""), s: "Assistente", tipo: "tax"}); } catch (e) {}
+    filaAvisos.push(blocos);
+    if (aberto) { mostrarFila(); return; }
+    atualizarBadge();
+    if (emFoco()) return;
+    balao(curto, 8000); emote("alerta");
+  }
+  function mostrarFila() { if (!msgs) return; var f = filaAvisos; filaAvisos = []; f.forEach(function (b) { addBot(b); }); atualizarBadge(); }
+  function atualizarBadge() { if (!el) return; var b = $(".tx-badge", el); if (!b) { b = doc.createElement("span"); b.className = "tx-badge"; b.setAttribute("aria-hidden", "true"); el.appendChild(b); } b.textContent = filaAvisos.length ? String(filaAvisos.length) : ""; b.hidden = !filaAvisos.length; el.setAttribute("aria-label", "Abrir o assistente " + nomeTax() + (filaAvisos.length ? " (" + filaAvisos.length + " aviso(s))" : "")); }
+  function focar() { var ate = Date.now() + 36e5; salvarPref({focoAte: ate}); balao("Modo foco: sem avisos até " + pad2(new Date(ate).getHours()) + ":" + pad2(new Date(ate).getMinutes()) + ".", 3000); }
+  // Primeira checagem do dia: resumo (e de sexta à tarde, o da semana).
+  function checarDia() {
+    if (!algumAviso()) return;
+    situacao().then(function (s) {
+      var av = lerAv(), agora = new Date();
+      var novos = s.vencHoje.concat(s.prox).map(function (l) { return l.mod + "|" + l.t + "|" + l.data; });
+      if (opt("resumo") && !av.resumo && agora.getHours() >= horaResumo()) {
+        var r = montarResumo(s, "dia"); av.resumo = 1; novos.forEach(function (k) { av.alertados[k] = 1; });
+        avisar(r.curto, r.blocos.concat(notaDoMes()));
+      } else if (opt("prazos")) {
+        var nv = s.vencHoje.concat(s.prox).filter(function (l) { return !av.alertados[l.mod + "|" + l.t + "|" + l.data]; });
+        if (nv.length) { nv.forEach(function (l) { av.alertados[l.mod + "|" + l.t + "|" + l.data] = 1; }); avisar("⏰ " + nv.length + " prazo(s) chegando: " + nv[0].t, [T("Prazos chegando (hoje e nos próximos 2 dias úteis):"), linhasBloco("Prazos", nv)]); }
+      }
+      if (opt("sexta") && agora.getDay() === 5 && agora.getHours() >= 15 && !av.sexta) {
+        av.sexta = 1;
+        var seg = diasUteisDepois(hoje(), 1), carregadas = [];
+        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(addDias(hoje(), -4)), ate: ymd(seg), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") carregadas.push(Object.assign({mod: m}, l)); }); });
+        var ficou = carregadas.filter(function (l) { return l.data <= ymd(hoje()); }), segunda = carregadas.filter(function (l) { return l.data > ymd(hoje()); });
+        var bl = [{tipo: "cab", texto: "Resumo da semana"}, T(ficou.length || segunda.length ? "Antes do fim de semana: " + ficou.length + " item(ns) da semana ainda pendente(s) e " + segunda.length + " vencendo no próximo dia útil (" + SEM[seg.getDay()] + ")." : "Semana limpa: nada pendente e nada vencendo no próximo dia útil. Bom descanso! 🎉")];
+        if (depAtivo()) depsDoRelatorio().forEach(function (d) {
+          var fa = ficou.filter(function (l) { return l.mod === d; }), sg = segunda.filter(function (l) { return l.mod === d; });
+          bl.push({tipo: "cab", texto: DEPTOS[d]});
+          if (fa.length) bl.push(linhasBloco("Ficou pendente na semana", fa));
+          if (sg.length) bl.push(linhasBloco("Vence no próximo dia útil", sg));
+          if (!fa.length && !sg.length) bl.push(T("Nada pendente nem vencendo no próximo dia útil."));
+        });
+        else {
+          if (ficou.length) bl.push(linhasBloco("Ficou pendente na semana", ficou));
+          if (segunda.length) bl.push(linhasBloco("Vence no próximo dia útil", segunda));
+        }
+        avisar("Resumo da semana: " + ficou.length + " pendente(s), " + segunda.length + " para " + SEM[seg.getDay()] + ".", bl);
+      }
+      if (opt("segunda") && agora.getDay() === 1 && agora.getHours() >= 8 && !av.segunda) {
+        av.segunda = 1;
+        var h0 = hoje(), sexta = addDias(h0, 4), itensS = [], blS = [{tipo: "cab", texto: "Semana de " + dm(h0) + " a " + dm(sexta)}];
+        ["dp", "contabil", "fiscal", "portal"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var v = a.consultar("vencimentos", {de: ymd(h0), ate: ymd(sexta), analista: s.meu}); (v && v.linhas || []).forEach(function (l) { if (l.tom !== "ok") itensS.push(Object.assign({mod: m}, l)); }); });
+        blS.push(T(itensS.length ? itensS.length + " prazo(s) nesta semana" + (s.meu ? " na sua carteira" : "") + "." : "Nenhum prazo pendente nesta semana. 🎉"));
+        if (itensS.length) blS.push(linhasBloco("Prazos da semana", itensS));
+        var nAus = 0;
+        if (carregados.dp && podeMod("dp") && !(carregados.dp.exemplo && carregados.dp.exemplo())) { var au = carregados.dp.consultar("ausencias", {de: ymd(h0), ate: ymd(sexta)}); if (au && au.linhas.length) { nAus = au.linhas.length; blS.push(linhasBloco("Ausências na equipe", au.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }))); } }
+        if (carregados.cardapio && carregados.cardapio.consultar) { try { var cd = carregados.cardapio.consultar("cardapio", {de: ymd(h0), ate: ymd(sexta)}); var cdl = cd && cd.linhas ? cd.linhas.filter(function (l) { return !/ainda não cadastrado/.test(l.sub || ""); }) : []; if (cdl.length) blS.push(linhasBloco("Cardápio da semana", cdl.map(function (l) { return Object.assign({mod: "cardapio"}, l); }), 5)); } catch (e) {} }
+        avisar("Semana de " + dm(h0) + ": " + itensS.length + " prazo(s)" + (nAus ? ", " + nAus + " ausência(s)" : "") + ".", blS);
+      }
+      // empresas paradas e ausências sem cobertura (sem IA: só regras sobre os dados dos módulos)
+      if (opt("parada") && !av.parada) {
+        var par = [];
+        ["fiscal", "contabil"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var r; try { r = a.consultar("pendencias", {}); } catch (e) { return; } ((r && r.linhas) || []).forEach(function (l) { var mm = /parado h[aá] (\d+) dia/.exec(String(l.sub || "")); if (mm && +mm[1] >= 10) par.push(Object.assign({mod: m}, l, {dias: +mm[1]})); }); });
+        if (par.length) { par.sort(function (a, b) { return b.dias - a.dias; }); av.parada = 1; avisar("🕒 " + par.length + " empresa(s) parada(s) há 10 dias ou mais", [T("Sem movimento no “aguardando o cliente” há 10 dias ou mais:"), linhasBloco("Paradas", par, 8)]); }
+      }
+      if (opt("ausencia") && !av.aus && podeMod("dp") && carregados.dp && !(carregados.dp.exemplo && carregados.dp.exemplo())) {
+        var ua; try { ua = carregados.dp.consultar("ausencias", {de: ymd(hoje()), ate: ymd(addDias(hoje(), 7))}); } catch (e) { ua = null; }
+        var sem = ((ua && ua.linhas) || []).filter(function (l) { return l.tom === "warn"; });
+        if (sem.length) { av.aus = 1; avisar("⚠️ " + sem.length + " ausência(s) sem cobertura nos próximos 7 dias", [T("Defina quem cobre na Cartela do DP:"), linhasBloco("Sem cobertura", sem.map(function (l) { return Object.assign({mod: "dp"}, l); }), 6)]); }
+      }
+      // pendências do cliente que saíram de "aguardando" desde a última checagem
+      if (opt("cliente") && av.pend) {
+        var sairam = [];
+        Object.keys(s.pend).forEach(function (m) { var antes = av.pend[m] || {}; Object.keys(antes).forEach(function (n) { if (!s.pend[m][n]) sairam.push({mod: m, t: n, sub: "saiu de “aguardando o cliente” (" + MODN[m] + ")", tom: "ok"}); }); });
+        if (sairam.length) avisar("📬 " + sairam.length + " pendência(s) do cliente resolvida(s)", [T("Chegou do cliente (ou foi encerrada) desde a última vez:"), linhasBloco("Pendências encerradas", sairam)]);
+      }
+      aoSituacao(s, av);
+      av.pend = s.pend; av.snap = snapDe(s);
+      gravarAv(av);
+    }).catch(function (e) { if (window.__txDebug) console.error(e); });
+  }
+  // Lembretes do DP no horário e agendamentos do assistente (a cada 30 s).
+  function checarHorarios() {
+    var agora = Date.now(), av = lerAv(), mudou = false;
+    if (opt("lembretes") && carregados.dp) {
+      try {
+        var lb = carregados.dp.consultar("lembretes", {de: ymd(hoje()), ate: ymd(hoje())});
+        (lb && lb.linhas || []).forEach(function (l) {
+          var d = l.dados || {}; if (!d.hora || d.feito) return;
+          var hm = d.hora.split(":"), quando = new Date(); quando.setHours(+hm[0], +hm[1] || 0, 0, 0);
+          var k = "lem|" + d.texto + "|" + d.hora;
+          if (!av.alertados[k] && agora >= quando - 5 * 6e4 && agora <= quando + 30 * 6e4) { av.alertados[k] = 1; mudou = true; avisar("🔔 " + d.hora + " · " + d.texto, [T("🔔 Lembrete das " + d.hora + ": " + d.texto), linhasBloco("Lembrete", [Object.assign({mod: "dp"}, l)])]); }
+        });
+      } catch (e) {}
+    }
+    var ag = lerLS(AG, []), resto = [];
+    ag.forEach(function (x) {
+      if (x.quando > agora) { resto.push(x); return; }
+      var atraso = agora - x.quando > 10 * 6e4;
+      avisar("⏰ " + x.texto, [T("⏰ " + (atraso ? "(era para " + pad2(new Date(x.quando).getHours()) + ":" + pad2(new Date(x.quando).getMinutes()) + ") " : "") + x.texto + (x.mod ? "\nAbri " + MODN[x.mod] + (x.aba ? " · " + x.aba : "") + " para você." : ""))]);
+      if (x.mod) abrirItem(x.mod, {aba: x.aba || "", manter: true}).catch(function () {});
+    });
+    if (resto.length !== ag.length) gravarLS(AG, resto);
+    if (mudou) gravarAv(av);
+  }
+  function agendamentosBlocos() {
+    var ag = lerLS(AG, []);
+    if (!ag.length) return [T("Nenhum agendamento. Peça, por exemplo: “amanhã às 9h me lembre de conferir a agenda e abra o Fiscal”.")];
+    return [T("Seus agendamentos (neste navegador):"), CH(ag.map(function (x) { var d = new Date(x.quando); return {rot: "✕ " + dm(d) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + " · " + x.texto, acao: function () { gravarLS(AG, lerLS(AG, []).filter(function (y) { return y.id !== x.id; })); return Promise.resolve([T("Agendamento cancelado: " + x.texto)]); }}; }))];
+  }
+  COMANDOS_EXTRA.resumo = function (resto) {
+    var t = norm(resto || ""), deps = null;
+    if (t) {
+      if (/^(todos|todas|tudo|geral)$/.test(t)) deps = DEP_ORD.slice();
+      else deps = detectarModulos(t).filter(function (k) { return DEP_ORD.indexOf(k) !== -1; });
+      if (!deps.length) return Promise.resolve([T("Qual departamento? Use /resumo dp, /resumo fiscal, /resumo contabil, /resumo portal ou /resumo todos.")]);
+      var nao = deps.filter(function (d) { return !podeMod(d); });
+      if (nao.length) return Promise.resolve([T("Você não tem acesso ao relatório de " + nao.map(function (d) { return DEPTOS[d]; }).join(" nem de ") + ": é de outro departamento." + (minhasDeps().length ? " Os seus: " + minhasDeps().map(function (d) { return DEPTOS[d]; }).join(", ") + "." : ""))]);
+    }
+    return situacao().then(function (s) { var r = montarResumo(s, "dia", deps); return r.blocos.concat(depAtivo() && !deps ? [] : notaDoMes()); }); }; COMANDOS_EXTRA.resumo.rot = "Resumo do dia (prazos, atrasos e pontos de atenção); /resumo fiscal, dp, contabil, portal ou todos";
+  COMANDOS_EXTRA.foco = function () { if (emFoco()) { salvarPref({focoAte: 0}); return Promise.resolve([T("Modo foco desligado: volto a avisar.")]); } focar(); return Promise.resolve([T("Modo foco por 1 hora: guardo os avisos e mostro quando você abrir a conversa.")]); }; COMANDOS_EXTRA.foco.rot = "Silenciar os avisos por 1 hora (ou religar)";
+  COMANDOS_EXTRA.agendados = function () { return Promise.resolve(agendamentosBlocos()); }; COMANDOS_EXTRA.agendados.rot = "Ver e cancelar agendamentos";
+  FERRAMENTAS_EXTRA.push(function (cartoes) {
+    return {name: "agendar", description: "Agenda um aviso do assistente para um horário (funciona enquanto o Hub estiver aberto neste navegador; se estiver fechado, avisa na próxima abertura). Pode abrir uma tela no horário. Prepara um cartão de confirmação.",
+      inputSchema: {type: "object", properties: {quando: {type: "string", description: "AAAA-MM-DDTHH:MM (horário local)"}, texto: {type: "string"}, abrir_modulo: {type: "string", enum: ["dp", "contabil", "fiscal", "portal", "cardapio"]}, abrir_aba: {type: "string"}}, required: ["quando", "texto"]},
+      execute: function (i) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/.exec(i.quando || ""); if (!m) return "Horário inválido: use AAAA-MM-DDTHH:MM.";
+        var q = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]); if (q < Date.now() - 6e4) return "Esse horário já passou.";
+        var x = {id: "a" + Date.now().toString(36), quando: +q, texto: String(i.texto || "").slice(0, 160), mod: i.abrir_modulo || "", aba: i.abrir_aba || ""};
+        cartoes.push({tipo: "confirma", titulo: "Agendar aviso", plano: {titulo: "Agendar aviso", empresa: "", linhas: [dm(q) + " às " + pad2(q.getHours()) + ":" + pad2(q.getMinutes()) + ": " + x.texto].concat(x.mod ? ["e abrir " + MODN[x.mod] + (x.aba ? " · " + x.aba : "")] : []), aviso: "Fica neste navegador; avisa enquanto o Hub estiver aberto.",
+          executar: function () { var l = lerLS(AG, []); l.push(x); gravarLS(AG, l); return Promise.resolve("Agendado."); },
+          desfazer: function () { gravarLS(AG, lerLS(AG, []).filter(function (y) { return y.id !== x.id; })); return Promise.resolve(); }}});
+        return "Cartão de agendamento preparado; falta o usuário confirmar.";
+      }};
+  });
+  CFG.push({sec: "Avisos", itens: [
+    {k: "av_resumo", rot: "Resumo do dia na primeira abertura", tipo: "bool", padrao: true},
+    {k: "av_segunda", rot: "Resumo da semana na segunda de manhã (prazos, ausências e cardápio)", tipo: "bool", padrao: true},
+    {k: "av_sexta", rot: "Resumo da semana na sexta à tarde", tipo: "bool", padrao: true},
+    {k: "av_hora", rot: "Resumo do dia a partir de:", tipo: "sel", opcoes: [["0", "ao abrir o Hub"], ["8", "8h"], ["9", "9h"], ["10", "10h"], ["13", "13h"]]},
+    {k: "av_parada", rot: "Avisar empresas paradas há 10 dias ou mais (Fiscal e Contábil)", tipo: "bool", padrao: true},
+    {k: "av_ausencia", rot: "Avisar ausência de analista sem cobertura nos próximos 7 dias (DP)", tipo: "bool", padrao: true},
+    {k: "av_prazos", rot: "Avisar prazos chegando (2 dias úteis)", tipo: "bool", padrao: true},
+    {k: "av_lembretes", rot: "Lembretes do DP no horário", tipo: "bool", padrao: true},
+    {k: "av_cliente", rot: "Avisar quando sair pendência do cliente", tipo: "bool", padrao: true},
+    {rot: "Silenciar avisos por 1 hora", tipo: "botao", ao: function (b) { focar(); b.textContent = "Silenciado por 1 hora"; }}
+  ]});
+  function iniciarAvisos() {
+    setTimeout(function () { if (algumAviso()) checarDia(); }, 7000);
+    setInterval(function () { if (!doc.hidden && algumAviso()) checarDia(); }, 10 * 6e4);
+    setInterval(function () { if (!doc.hidden) checarHorarios(); }, 30000);
+    setTimeout(checarHorarios, 9000);
+  }
+
+  /* ============ equipe: configuração compartilhada, ajuda da equipe, registros e painel da coordenação ============ */
+  // Banco do Hub: tax_config/geral {limiteDia, instrucoes}; tax_ajuda/{id} {t, k, a}; registros por dia em tax_perguntas, tax_feedback e tax_acoes ({itens: {id: {...}}}).
+  var userNs = null, meuId = "", ajudaEquipe = [];
+  function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function registrarNoDia(col, item) {
+    return usarDb().then(function (db) {
+      if (!db) return;
+      var ref = db.doc(col + "/" + ymd(hoje())), o = {}; o[rid()] = item;
+      return ref.update({itens: o}).catch(function () { return ref.set({itens: o}); });
+    }).catch(function () {});
+  }
+  registrarPergunta = function (texto, modo) { registrarNoDia("tax_perguntas", {q: String(texto).slice(0, 200), modo: modo, em: new Date().toISOString()}); };
+  registrarFeedback = function (q, r, bom) { registrarNoDia("tax_feedback", {q: String(q || "").slice(0, 200), r: String(r || "").slice(0, 300), bom: !!bom, em: new Date().toISOString()}); };
+  var aoConfirmarAntes = aoConfirmar;
+  aoConfirmar = function (pl) { aoConfirmarAntes(pl); if (/dados de exemplo/i.test(pl.aviso || "")) return; registrarNoDia("tax_acoes", {titulo: pl.titulo || "", empresa: pl.empresa || "", linha: ((pl.linhas || [])[0] || "").slice(0, 200), quem: meuId, em: new Date().toISOString()}); };
+  function iniciarEquipe() {
+    try {
+      if (AUTH() && AUTH().usuario()) meuId = AUTH().usuario().id;
+      if (window.claude && window.claude.use) window.claude.use("user").then(function (u) { userNs = u || null; if (!AUTH() && u && u.id) Promise.resolve(u.id()).then(function (i) { meuId = i || ""; }, function () {}); }).catch(function () {});
+    } catch (e) {}
+    usarDb().then(function (db) {
+      if (!db) { depsOk(); return; }
+      iniciarDeps(db);
+      try { db.doc("tax_config/geral").onSnapshot(function (d) { var x = d && d.exists !== false && d.data ? d.data() || {} : {}; cfgEquipe = {limiteDia: Math.max(0, +x.limiteDia || 0), instrucoes: String(x.instrucoes || "").slice(0, 1500)}; }, function () {}); } catch (e) {}
+      try { db.collection("tax_ajuda").onSnapshot(function (snap) { ajudaEquipe = snap.docs.map(function (d) { var x = d.data() || {}; return {id: d.id, t: String(x.t || ""), k: String(x.k || ""), a: String(x.a || ""), equipe: true}; }).filter(function (x) { return x.t && x.a; }); }, function () {}); } catch (e) {}
+    });
+  }
+
+  /* ---- departamentos: chave geral (tax_config/deptos {ativo}) e uma linha por pessoa (tax_deptos/<id> {nome, deps}) ---- */
+  // Quem abre o assistente aparece na lista da coordenação (sem departamento até ser marcado). Isto organiza o que o assistente mostra;
+  // não é uma trava de segurança: o banco do Hub é compartilhado e quem tem acesso ao artefato ainda abre os módulos pelas telas.
+  function iniciarDeps(db) {
+    var gotCfg = false, gotMe = false, gotCoord = false;
+    var chk = function () { if (gotCfg && gotMe && gotCoord) depsOk(); };
+    try { db.doc("tax_config/deptos").onSnapshot(function (d) { var x = d && d.exists !== false && d.data ? d.data() || {} : {}; cfgDep.ativo = x.ativo === true; gotCfg = true; chk(); }, function () { gotCfg = true; chk(); }); } catch (e) { gotCfg = true; chk(); }
+    var uP = window.claude && window.claude.use ? window.claude.use("user") : Promise.resolve(null);
+    uP.then(function (u) {
+      if (!u) { gotMe = gotCoord = true; chk(); return; }
+      userNs = u;
+      Promise.resolve(u.canEdit ? u.canEdit() : false).then(function (v) { ehCoord = !!v; podeVerTudo = !!v; }, function () {}).then(function () { gotCoord = true; chk(); });
+      return Promise.resolve(u.id ? u.id() : "").then(function (i) {
+        meuId = i || meuId;
+        if (!meuId) { gotMe = true; chk(); return; }
+        var ref = db.doc("tax_deptos/" + meuId), registrou = false;
+        ref.onSnapshot(function (d) {
+          var ex = !!(d && d.exists !== false && d.data && d.data());
+          minhaLinha = ex ? d.data() || {} : null; gotMe = true; chk();
+          if (!ex && !registrou) { registrou = true; quemSou().then(function (nome) { return ref.set({nome: nome || "", deps: [], em: new Date().toISOString()}); }).catch(function () {}); }
+        }, function () { gotMe = true; chk(); });
+      });
+    }).catch(function () { gotMe = gotCoord = true; chk(); });
+  }
+  function sugerirDeps(nome) {
+    var t = norm(nome || "").split(" ").filter(Boolean), out = [];
+    if (!t.length) return out;
+    DEP_ORD.forEach(function (d) {
+      var a = carregados[d]; if (!a || !a.analistas || (a.exemplo && a.exemplo())) return;
+      if (a.analistas().some(function (n) { var q = norm(n).split(" ").filter(Boolean); return q[0] === t[0] && (q.length < 2 || t.length < 2 || q.slice(1).some(function (x) { return t.indexOf(x) !== -1; })); })) out.push(d);
+    });
+    return out;
+  }
+  function gravarDepsPessoa(id, nome, deps) {
+    return usarDb().then(function (db) { if (!db) throw new Error("sem banco"); return db.doc("tax_deptos/" + id).set({nome: nome || "", deps: deps, em: new Date().toISOString()}); })
+      .then(function () { balao("Departamentos salvos.", 1500); return true; }, function () { balao("Não consegui salvar (sem permissão?).", 2500); return false; });
+  }
+  function salvarDepAtivo(v) {
+    return usarDb().then(function (db) { if (!db) throw new Error("sem banco"); return db.doc("tax_config/deptos").set({ativo: !!v, em: new Date().toISOString()}); })
+      .then(function () { balao(v ? "Relatórios separados por departamento." : "Relatórios de volta para todos.", 2200); return true; }, function () { balao("Não consegui salvar (sem permissão?).", 2500); return false; });
+  }
+  // Editor da coordenação: liga/desliga a separação e marca os departamentos de cada pessoa.
+  function editorDeptos() {
+    var d = doc.createElement("div"); d.className = "tx-conf";
+    var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = "Relatórios por departamento"; d.appendChild(h);
+    var lb = doc.createElement("label"); lb.className = "tx-conf-l";
+    var c = doc.createElement("input"); c.type = "checkbox"; c.checked = depAtivo();
+    c.onchange = function () { var v = c.checked; salvarDepAtivo(v).then(function (ok) { if (!ok) c.checked = !v; }); };
+    lb.appendChild(c); lb.appendChild(doc.createTextNode(" Separar os relatórios por departamento")); d.appendChild(lb);
+    var av = doc.createElement("div"); av.className = "tx-conf-av";
+    av.textContent = "Ligado: cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela (um resumo do dia para cada departamento). Quem não tiver departamento marcado não vê relatórios. Os editores do Hub veem tudo. Cardápio e lembretes pessoais são de todos. Isto organiza o que o assistente mostra: quem tem acesso ao Hub ainda abre os módulos pelas telas.";
+    d.appendChild(av);
+    var lista = doc.createElement("div"); d.appendChild(lista);
+    var carregando = doc.createElement("div"); carregando.className = "tx-conf-l"; carregando.textContent = "Carregando as pessoas…"; lista.appendChild(carregando);
+    usarDb().then(function (db) {
+      if (!db) throw new Error("sem banco");
+      return db.collection("tax_deptos").get();
+    }).then(function (snap) {
+      var pessoas = snap.docs.map(function (x) { var v = x.data() || {}; return {id: x.id, nome: String(v.nome || ""), deps: Array.isArray(v.deps) ? v.deps.filter(function (k) { return DEP_ORD.indexOf(k) !== -1; }) : []}; });
+      var ids = pessoas.filter(function (p) { return !p.nome; }).map(function (p) { return p.id; });
+      var nomes = userNs && userNs.profiles && ids.length ? Promise.resolve(userNs.profiles(ids)).catch(function () { return {}; }) : Promise.resolve({});
+      return nomes.then(function (ps) {
+        pessoas.forEach(function (p) { if (!p.nome && ps && ps[p.id] && ps[p.id].name) p.nome = ps[p.id].name; });
+        pessoas.sort(function (a, b) { return (a.nome || "~").localeCompare(b.nome || "~", "pt-BR"); });
+        lista.textContent = "";
+        if (!pessoas.length) { var v0 = doc.createElement("div"); v0.className = "tx-conf-l"; v0.textContent = "Ainda ninguém abriu o assistente. As pessoas aparecem aqui na primeira vez que o abrirem."; lista.appendChild(v0); return; }
+        var sem = pessoas.filter(function (p) { return !p.deps.length; }).length;
+        var cab = doc.createElement("div"); cab.className = "tx-conf-l"; cab.textContent = pessoas.length + " pessoa(s)" + (sem ? " · " + sem + " ainda sem departamento" : ""); lista.appendChild(cab);
+        pessoas.forEach(function (p) {
+          var row = doc.createElement("div"); row.className = "tx-conf-l"; row.style.cssText = "display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px";
+          var nm = doc.createElement("b"); nm.textContent = (p.nome || "Pessoa sem nome") + (p.id === meuId ? " (você)" : ""); nm.style.minWidth = "9em"; row.appendChild(nm);
+          var caixas = {};
+          var salvar = function () { gravarDepsPessoa(p.id, p.nome, DEP_ORD.filter(function (k) { return caixas[k].checked; })); };
+          DEP_ORD.forEach(function (k) {
+            var l2 = doc.createElement("label"); var i2 = doc.createElement("input"); i2.type = "checkbox"; i2.checked = p.deps.indexOf(k) !== -1; i2.onchange = salvar; caixas[k] = i2;
+            l2.appendChild(i2); l2.appendChild(doc.createTextNode(" " + DEPTOS[k])); row.appendChild(l2);
+          });
+          var sug = !p.deps.length ? sugerirDeps(p.nome) : [];
+          if (sug.length) { var bs = botaoMini("Usar sugestão: " + sug.map(function (k) { return DEPTOS[k]; }).join(" + "), "Marca os departamentos em que o nome aparece como analista", function () { sug.forEach(function (k) { caixas[k].checked = true; }); salvar(); bs.remove(); }); row.appendChild(bs); }
+          lista.appendChild(row);
+        });
+      });
+    }).catch(function () { lista.textContent = ""; var e1 = doc.createElement("div"); e1.className = "tx-conf-av"; e1.textContent = "Não consegui ler a lista (sem banco ou sem permissão)."; lista.appendChild(e1); });
+    return d;
+  }
+  function salvarCfgEquipe(campo, valor) {
+    return usarDb().then(function (db) {
+      if (!db) throw new Error("sem banco");
+      var o = {}; o[campo] = valor; var ref = db.doc("tax_config/geral");
+      return ref.update(o).catch(function () { return ref.set(Object.assign({limiteDia: cfgEquipe.limiteDia, instrucoes: cfgEquipe.instrucoes}, o)); });
+    }).then(function () { balao("Configuração da equipe salva.", 1800); }, function () { balao("Não consegui salvar (sem permissão?).", 2500); });
+  }
+  // Editor da base de ajuda da equipe (no chat, só para a coordenação).
+  function editorAjuda() {
+    var d = doc.createElement("div"); d.className = "tx-conf";
+    var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = "Base de ajuda da equipe"; d.appendChild(h);
+    ajudaEquipe.forEach(function (x) {
+      var l = doc.createElement("div"); l.className = "tx-conf-l"; l.textContent = "• " + x.t + ": " + x.a.slice(0, 90) + (x.a.length > 90 ? "…" : "");
+      var b = botaoMini("✕", "Excluir “" + x.t + "”", function () { usarDb().then(function (db) { return db && db.doc("tax_ajuda/" + x.id).delete(); }).then(function () { l.remove(); }, function () { b.textContent = "!"; }); });
+      l.appendChild(b); d.appendChild(l);
+    });
+    var f = doc.createElement("form"); f.className = "tx-aj-form";
+    f.innerHTML = '<input name="t" maxlength="80" placeholder="Pergunta ou título (ex.: Como pedir o extrato ao cliente)" required><input name="k" maxlength="200" placeholder="Palavras-chave (opcional)"><textarea name="a" maxlength="1200" rows="3" placeholder="Resposta" required></textarea><button type="submit" class="tx-cb tx-cb-ok">Adicionar</button>';
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      var t = f.elements.t.value.trim(), a = f.elements.a.value.trim(); if (!t || !a) return;
+      usarDb().then(function (db) { if (!db) throw new Error(); return db.doc("tax_ajuda/" + slug(t) + "-" + rid().slice(-4)).set({t: t, k: f.elements.k.value.trim(), a: a, em: new Date().toISOString()}); })
+        .then(function () { f.reset(); var l = doc.createElement("div"); l.className = "tx-conf-l"; l.textContent = "✓ " + t; d.insertBefore(l, f); }, function () { var l = doc.createElement("div"); l.className = "tx-conf-av"; l.textContent = "Não consegui salvar (sem permissão?)."; d.insertBefore(l, f); });
+    };
+    d.appendChild(f);
+    return d;
+  }
+  // Painel da coordenação: perguntas mais feitas, não entendidas, avaliações e ações dos últimos dias.
+  function painelCoordenacao(dias) {
+    dias = dias || 30;
+    return usarDb().then(function (db) {
+      if (!db) return [T("Sem banco do Hub nesta tela.")];
+      var ds = []; for (var i = 0; i < dias; i++) ds.push(ymd(addDias(hoje(), -i)));
+      var ler = function (col) { return Promise.all(ds.map(function (d) { return db.doc(col + "/" + d).get().then(function (s) { var x = s && s.exists !== false && s.data ? s.data() || {} : {}; return Object.keys(x.itens || {}).map(function (k) { return Object.assign({dia: d}, x.itens[k]); }); }, function () { return []; }); })).then(function (l) { return [].concat.apply([], l); }); };
+      return Promise.all([ler("tax_perguntas"), ler("tax_feedback"), ler("tax_acoes")]).then(function (r) {
+        var pq = r[0], fb = r[1], ac = r[2], cont = {}, rot = {};
+        pq.forEach(function (x) { var k = norm(x.q).replace(/[^a-z0-9 ]/g, "").slice(0, 60); if (!k) return; cont[k] = (cont[k] || 0) + 1; rot[k] = rot[k] || x.q; });
+        var top = Object.keys(cont).sort(function (a, b) { return cont[b] - cont[a]; }).slice(0, 10);
+        var nao = pq.filter(function (x) { return x.modo === "nao_entendi"; }), ruins = fb.filter(function (x) { return !x.bom; }), bons = fb.filter(function (x) { return x.bom; });
+        var bl = [{tipo: "cab", texto: "Painel do assistente · últimos " + dias + " dias"},
+          T(pq.length + " pergunta(s) registradas, " + nao.length + " não entendida(s), " + bons.length + " 👍 e " + ruins.length + " 👎, " + ac.length + " alteração(ões) confirmada(s) pelo assistente. As perguntas são registradas sem o nome de quem perguntou.")];
+        if (top.length) bl.push({tipo: "grafico", titulo: "Perguntas mais feitas", itens: top.map(function (k) { return {rotulo: rot[k], valor: cont[k]}; })});
+        if (nao.length) bl.push(linhasBloco("Não entendidas (sugestão: criar na base de ajuda)", nao.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.dia.split("-").reverse().join("/")}; })));
+        if (ruins.length) bl.push(linhasBloco("Respostas que não ajudaram", ruins.slice(-40).reverse().map(function (x) { return {t: x.q, sub: x.r, tom: "warn"}; })));
+        var ids = ac.map(function (x) { return x.quem; }).filter(Boolean);
+        var unicos = ids.filter(function (v, i, a) { return a.indexOf(v) === i; });
+        var nomes = !unicos.length ? Promise.resolve({}) : AUTH() ? AUTH().perfis(unicos, function (l) { return userNs && userNs.profiles ? userNs.profiles(l) : Promise.resolve({}); }).catch(function () { return {}; }) : userNs && userNs.profiles ? Promise.resolve(userNs.profiles(unicos)).catch(function () { return {}; }) : Promise.resolve({});
+        return nomes.then(function (ps) {
+          if (ac.length) bl.push(linhasBloco("Alterações feitas pelo assistente", ac.slice().sort(function (a, b) { return a.em < b.em ? 1 : -1; }).slice(0, 60).map(function (x) { var n = x.quem && ps && ps[x.quem] && ps[x.quem].name || "alguém"; return {t: (x.empresa ? x.empresa + ": " : "") + (x.linha || x.titulo), sub: x.titulo + " · " + n + " · " + new Date(x.em).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"})}; })));
+          return bl;
+        });
+      });
+    });
+  }
+  COMANDOS_EXTRA.painel = function () { return ehCoord ? painelCoordenacao(30) : Promise.resolve([T("O painel do assistente é só do administrador.")]); }; COMANDOS_EXTRA.painel.rot = "Painel do assistente (coordenação)";
+  CFG.push({sec: "Equipe (coordenação)", so: function () { return ehCoord; }, itens: [
+    {rot: "Limite de perguntas à IA por pessoa/dia (0 = sem limite):", tipo: "texto", max: 4, valor: function () { return String(cfgEquipe.limiteDia || 0); }, salvar: function (v) { salvarCfgEquipe("limiteDia", Math.max(0, parseInt(v, 10) || 0)); }},
+    {rot: "Instruções para a IA (tom, regras, termos internos):", tipo: "area", max: 1500, valor: function () { return cfgEquipe.instrucoes || ""; }, salvar: function (v) { salvarCfgEquipe("instrucoes", String(v).trim().slice(0, 1500)); }},
+    {rot: "Editar a base de ajuda da equipe", tipo: "botao", pagina: function () { return editorAjuda(); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Perguntas e respostas da equipe (entram na ajuda do assistente e da IA):")], true); var m = msgs.lastChild; m.appendChild(editorAjuda()); rolar(); }},
+    {rot: "Relatórios por departamento: quem vê o quê", tipo: "botao", pagina: function () { return editorDeptos(); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Separação dos relatórios por departamento (só a coordenação vê isto):")], true); var m = msgs.lastChild; m.appendChild(editorDeptos()); rolar(); }},
+    {rot: "Painel do assistente: uso, perguntas e o que ele alterou", tipo: "botao", pagina: function () { return painelCoordenacao(30).then(function (bl) { var d = doc.createElement("div"); d.className = "tx-cfg-painel"; bl.forEach(function (b) { d.appendChild(blocoDom(b)); }); return d; }); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/painel"); painelCoordenacao(30).then(function (bl) { addBot(bl); }); }}
+  ]});
+
+  window.__assistenteHub = {
+    perguntar: function (t) { return responder(t); },
+    configurar: function (box) { desenharConfig(box, true); },
+    perguntarNoChat: function (t) { if (oculto) mostrar(); if (!aberto) abrirPainel(); enviar(t); },
+    nome: nomeTax,
+    mostrar: mostrar, abrir: abrirPainel, fechar: fecharPainel, versao: 1, reparar: function () { try { oculto = false; el.classList.remove("tx-oculto"); colocarInicial(); acordar(); } catch (e) {} },
+    estado: function () { return {aberto: aberto, oculto: oculto, andando: andando, dormiu: dormiu, pos: pos, modo: modo, pes: {x: fx, y: fy}, plataformas: plats.length}; },
+    irPara: function (x, y) { chamar({x: x, y: y}); }, plataformas: function () { return plats.slice(); }, visual: function (k) { aplicarSkin(k); }, skins: function () { return Object.keys(SKINS); }
+  };
+  if (doc.body) iniciar(); else doc.addEventListener("DOMContentLoaded", iniciar);
+})();

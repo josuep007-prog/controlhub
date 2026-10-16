@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="fiscal.css?v=2">
+<title>Fiscal · Control Hub</title>
+<script src="tema.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+</head>
+<body>
+<div class="module-view">
+  <div class="module-view-head">
+    <a class="hub-back" href="index.html" id="hubBack" title="Voltar ao Control Hub" aria-label="Voltar ao Control Hub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a>
+    <h2><i aria-hidden="true"></i>Fiscal</h2>
+    <span class="save-state" id="salv" role="status" aria-live="polite" hidden></span>
+    <span class="dp-sync" id="fsSync"></span>
+    <label class="dp-carteira" title="Quem está usando: filtra as suas empresas e define o que você pode marcar">Você <select id="euSel"><option value="">—</option></select></label>
+    <span class="coord-tag" id="coordTag" hidden>coordenação</span>
+    <button type="button" id="temaBtn" hidden aria-hidden="true" tabindex="-1"></button>
+  </div>
+  <div class="dp-tabs" id="tabs" role="tablist" aria-label="Partes do módulo">
+    <button type="button" class="dp-tab" role="tab" data-view="painel">Painel</button>
+    <button type="button" class="dp-tab" role="tab" data-view="agenda">Agenda <span class="dp-tab-badge" id="bdAg" hidden></span></button>
+    <button type="button" class="dp-tab" role="tab" data-view="empresas">Empresas</button>
+    <button type="button" class="dp-tab" role="tab" data-view="fechamento">Fechamento <span class="dp-tab-badge" id="bdFech" hidden></span></button>
+    <button type="button" class="dp-tab" role="tab" data-view="cadastro">Cadastro</button>
+  </div>
+  <div class="avisos">
+    <div class="exemplo" id="exemplo" hidden><span><b>Dados de exemplo</b> · nada é gravado. As empresas, analistas e entregas são fictícios, para você conhecer o módulo; o que você marcar some ao recarregar.</span><button type="button" class="btn" data-ir="cadastro">Começar a carteira real</button></div>
+    <div class="aviso erro" id="semBanco" hidden><div><b>Sem conexão com o banco do Hub.</b> Os dados ficam só neste navegador. Abra o módulo pelo Control Hub para usar a carteira compartilhada.</div></div>
+    <div class="aviso" id="carregando"><span>Carregando dados…</span></div>
+  </div>
+
+  <!-- PAINEL -->
+  <section class="view" id="v-painel">
+    <div class="kpi-grid" id="pnKpis"></div>
+    <div class="pn-grid" id="pnGrid"></div>
+  </section>
+
+  <!-- AGENDA DE OBRIGAÇÕES -->
+  <section class="view" id="v-agenda" hidden>
+    <div class="dp-toolbar">
+      <div class="compnav"><button type="button" class="fbtn" id="agAnt" aria-label="Mês anterior">‹</button><b id="agRot"></b><button type="button" class="fbtn" id="agProx" aria-label="Próximo mês">›</button></div>
+      <button type="button" class="fbtn" id="agHoje">Hoje</button>
+      <select id="agAna" aria-label="Analista"></select>
+      <select id="agReg" aria-label="Regime"></select>
+      <select id="agOb" aria-label="Obrigação"></select>
+      <span class="cont" id="agCont"></span>
+    </div>
+    <div class="ag-grid">
+      <div class="list-card">
+        <div class="agm" id="agCal"></div>
+        <div class="agm-foot"><div class="legend"><span><i style="background:var(--sector-fiscal)"></i>com entrega pendente</span><span><i style="background:var(--dp-late)"></i>vencida e pendente</span><span><i style="background:var(--dp-ok)"></i>tudo entregue</span></div><span>Número = empresas que ainda faltam entregar</span></div>
+      </div>
+      <div class="list-card ag-side">
+        <div class="ag-dia-h"><h3 id="agDiaTit"></h3><span class="cont" id="agDiaCont"></span></div>
+        <div class="ag-lista" id="agLista"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMPRESAS -->
+  <section class="view" id="v-empresas" hidden>
+    <div class="dp-toolbar">
+      <input type="search" id="emBusca" placeholder="Buscar empresa, CNPJ, município…" autocomplete="off">
+      <select id="emAna" aria-label="Analista"></select>
+      <div class="seg" id="emModo" aria-label="Forma de ver"><button type="button" data-m="cartoes" class="on">Cartões</button><button type="button" data-m="lista">Lista</button></div>
+      <span class="cont" id="emCont"></span>
+      <button type="button" class="btn" id="emNova" data-coord>+ Empresa</button>
+    </div>
+    <div class="emp-faixa" id="emFaixa"></div>
+    <div class="emp-grid" id="emGrid"></div>
+    <div class="list-card" id="emLista" hidden><div class="tbl-wrap"><table class="tbl" id="emTab"></table></div></div>
+  </section>
+
+  <!-- FECHAMENTO -->
+  <section class="view" id="v-fechamento" hidden>
+    <div class="dp-toolbar">
+      <div class="compnav"><button type="button" class="fbtn" id="compAnt" aria-label="Competência anterior">‹</button><b id="compRot"></b><button type="button" class="fbtn" id="compProx" aria-label="Próxima competência">›</button></div>
+      <input type="search" id="fxBusca" placeholder="Buscar empresa ou CNPJ…" autocomplete="off">
+      <select id="fxAna" aria-label="Analista"></select>
+      <select id="fxReg" aria-label="Regime"></select>
+      <span class="cont" id="fxCont"></span>
+    </div>
+    <div class="dp-toolbar" style="padding-top:0">
+      <div class="seg" id="fxSt"><button type="button" data-st="" class="on">Todas</button><button type="button" data-st="abertas">Abertas</button><button type="button" data-st="atras">Atrasadas</button><button type="button" data-st="cli">Aguardando cliente</button><button type="button" data-st="fechadas">Fechadas</button></div>
+    </div>
+    <div class="list-card">
+      <div class="lote" id="fxLote" hidden></div>
+      <div class="tbl-wrap"><table class="tbl fx" id="fxTab"></table></div>
+      <div class="legenda" id="fxLeg"></div>
+    </div>
+  </section>
+
+  <!-- CADASTRO -->
+  <section class="view" id="v-cadastro" hidden>
+    <div class="pn-grid">
+      <section class="pn-card pn-span2" id="cdImport">
+        <div class="pn-card-head"><h3>Importar carteira</h3><span class="sub">planilha .xlsx ou .xls</span></div>
+        <div class="pn-card-body" style="gap:10px">
+          <p class="note">Uma linha por empresa, com as colunas <b>Empresa, CNPJ, Regime, Atividade, Analista, IE, IM, Município, UF</b>. Regime aceita Simples, Presumido ou Real; atividade aceita Comércio, Serviço, Indústria ou Misto. Empresas já cadastradas (mesmo CNPJ ou mesmo nome) são atualizadas, não duplicadas.</p>
+          <p class="note" id="impExemplo" hidden>Ao importar, os dados de exemplo saem e a carteira passa a ser gravada no banco do Hub.</p>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap"><input type="file" id="impArq" accept=".xlsx,.xls"><button type="button" class="btn" id="impLer" disabled>Ler planilha</button><button type="button" class="fbtn" id="impModelo">Baixar modelo</button></div>
+          <div class="import-res" id="impRes" hidden></div>
+          <div id="impVazio" hidden><button type="button" class="linkish" id="impComecar">Ou começar sem empresas e cadastrar à mão</button></div>
+        </div>
+      </section>
+      <section class="pn-card">
+        <div class="pn-card-head"><h3>Backup</h3><span class="sub">tudo em uma planilha</span></div>
+        <div class="pn-card-body" style="gap:10px">
+          <p class="note">Carteira, fechamento de todas as competências e entregas das obrigações.</p>
+          <div><button type="button" class="btn" id="bkBaixar">Baixar backup (.xlsx)</button></div>
+        </div>
+      </section>
+      <section class="pn-card pn-wide" id="cfgPonteiro">
+        <div class="pn-card-head"><h3>Configurações</h3><span class="sub">ficam no módulo Configurações</span></div>
+        <div class="pn-card-body" style="gap:10px"><p class="note">Início do controle, prazos e demais ajustes do Fiscal agora ficam no módulo <b>Configurações</b>, junto com os dos outros sistemas e os do assistente.</p><div><button type="button" class="btn" data-abrir-config="fiscal">Abrir Configurações de Fiscal</button></div></div>
+      </section>
+      <section class="pn-card pn-wide" id="cfgCard">
+        <div class="pn-card-head"><h3>Obrigações e prazos</h3><span class="sub">só a coordenação altera · os prazos padrão vêm marcados “conferir”: confira com a legislação do estado e do município de cada carteira</span></div>
+        <div class="pn-card-body" style="gap:14px" id="cfgBox"></div>
+      </section>
+    </div>
+  </section>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<dialog class="dlg" id="dlgFicha"></dialog>
+<dialog class="dlg" id="dlgConf" style="width:min(460px, calc(100vw - 24px))"><div class="confirm-txt" id="confTxt"></div><div class="dlg-acoes"><button type="button" class="fbtn" id="confNao">Cancelar</button><button type="button" class="btn" id="confSim">Confirmar</button></div></dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="fiscal.js"></script>
+</body>
+</html>

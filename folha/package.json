@@ -1,0 +1,26 @@
+{
+  "name": "folha-controltax",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Folha de pagamento da ControlTax — substituto do módulo Folha/DP do Domínio",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @folha/calculo && concurrently -n api,web -c yellow,cyan \"npm run dev -w @folha/api\" \"npm run dev -w @folha/web\"",
+    "build": "npm run build -w @folha/calculo && npm run build -w @folha/web && npm run build -w @folha/api",
+    "start": "npm run start -w @folha/api",
+    "test": "npm run build -w @folha/calculo && npm test -w @folha/calculo && npm test -w @folha/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "seed": "npm run seed -w @folha/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
