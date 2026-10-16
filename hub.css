@@ -314,9 +314,9 @@ body:not(.in-module)::before{content:""; position:fixed; z-index:-1; pointer-eve
 body:not(.in-module).tema-claro::before{opacity:.16;}
 /* Tela inicial no tema claro: fundo branco, logo mantida */
 body:not(.in-module).tema-claro{background:
-    radial-gradient(62vmax 62vmax at 4% 0%, #B9D8F3, transparent 70%),
+    radial-gradient(62vmax 62vmax at 4% 0%, #E4F0FB, transparent 70%),
     radial-gradient(62vmax 62vmax at 100% 100%, #F4B9BF, transparent 70%),
-    radial-gradient(46vmax 46vmax at 42% 46%, rgba(107,178,225,.34), transparent 70%),
+    radial-gradient(46vmax 46vmax at 42% 46%, rgba(107,178,225,.10), transparent 70%),
     #EDF0F3;
   background-attachment:fixed;}
 .tema-claro:not(.in-module) #view-home{--ink:#101820; --ink-2:#47545F; --ink-3:#5F6D77; --surface:#FFFFFF; --surface-2:rgba(16,24,32,.05); --rule:rgba(16,24,32,.11); --rule-strong:rgba(16,24,32,.2); --blue-deep:#3C659B; color:var(--ink);}
@@ -1759,7 +1759,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
 }
 
 /* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
-:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+:root{--fd1:#E4F0FB;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.12)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
 :root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
 html:has(body.in-module){background:var(--page)}
