@@ -175,7 +175,7 @@ body:not(.in-module) .side-rail, body:not(.in-module) .rail-btn{display:none!imp
 .side-rail .card.nav-on{background:linear-gradient(90deg, rgba(194,0,12,.22), rgba(194,0,12,.04) 70%, transparent);}
 .side-rail .card-icon{width:36px; height:36px; border-radius:4px; background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); transition:transform .18s cubic-bezier(.2,.7,.2,1), background .15s, box-shadow .15s;}
 .side-rail .card-icon .ic{color:color-mix(in srgb, var(--accent, #6BAAC9) 55%, #fff); stroke-width:1.7;}
-.side-rail .card:hover .card-icon{background:color-mix(in srgb, var(--accent, #6BAAC9) 22%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 55%, transparent), 0 0 18px color-mix(in srgb, var(--accent, #6BAAC9) 35%, transparent);}
+.side-rail .card:hover .card-icon{transform:scale(1.06); background:color-mix(in srgb, var(--accent, #6BAAC9) 22%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 55%, transparent), 0 0 18px color-mix(in srgb, var(--accent, #6BAAC9) 35%, transparent);}
 .side-rail .card.nav-on .card-icon{background:linear-gradient(135deg, #C2000C, #7A0A0E); box-shadow:0 4px 14px rgba(194,0,12,.45), inset 0 0 0 1px rgba(255,255,255,.12);}
 .side-rail .card.nav-on .card-icon .ic{color:#fff;}
 .side-rail .card-title{font-size:13px; font-weight:600; color:var(--ink-2); transition:color .15s;} .side-rail .card:hover .card-title,.side-rail .card.nav-on .card-title{color:#fff;}
@@ -228,7 +228,7 @@ body:not(.in-module) #view-home{width:100%; box-sizing:border-box;}
 #view-home .home-dock .qa-tile .card-icon .ic{width:24px; height:24px; color:color-mix(in srgb, var(--accent, #6BAAC9) 65%, #fff);}
 #view-home .home-dock .qa-tile .card-icon .brand-img{width:30px; height:30px;}
 #view-home .home-dock .qa-tile > span:last-child{max-width:94px; overflow-wrap:normal; word-break:normal; font-size:11.5px; font-weight:600; line-height:1.25; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; transition:color .15s;}
-#view-home .home-dock .qa-tile:hover .card-icon, #view-home .home-dock .qa-tile:focus-visible .card-icon{background:color-mix(in srgb, var(--accent, #6BAAC9) 26%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);}
+#view-home .home-dock .qa-tile:hover .card-icon, #view-home .home-dock .qa-tile:focus-visible .card-icon{transform:translateY(-5px) scale(1.06); background:color-mix(in srgb, var(--accent, #6BAAC9) 26%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent, #6BAAC9) 65%, transparent), 0 12px 26px color-mix(in srgb, var(--accent, #6BAAC9) 30%, transparent);}
 #view-home .home-dock .qa-tile:hover > span:last-child, #view-home .home-dock .qa-tile:focus-visible > span:last-child{color:var(--ink);}
 #view-home .home-dock .qa-tile:focus-visible .card-icon{outline:2px solid #6BAAC9; outline-offset:3px;}
 #view-home .home-dock .qa-tile:disabled{cursor:default; opacity:.5;}
@@ -1780,21 +1780,7 @@ html:has(body.in-module)::before{background:radial-gradient(closest-side,var(--f
 /* Fundo animado: fica numa camada própria e pausa enquanto a cascata de abertura roda. */
 :root[data-cascata] body.in-module::before,:root[data-cascata] body.in-module::after,:root[data-cascata]:has(body.in-module)::before{animation-play-state:paused}
 
-/* Início: cada módulo faz um gesto próprio no ícone ao passar o mouse (o fundo e o resto do cartão ficam como estavam). */
-@keyframes gsNod{0%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}55%{transform:translateY(0)}75%{transform:translateY(-2px)}}
-@keyframes gsPorta{0%,100%{transform:perspective(90px) rotateY(0)}50%{transform:perspective(90px) rotateY(-42deg)}}
-@keyframes gsTecla{0%,100%{transform:scale(1)}25%{transform:scale(.88)}50%{transform:scale(1.06)}75%{transform:scale(.94)}}
-@keyframes gsLupa{0%,100%{transform:translate(0,0)}25%{transform:translate(3px,-3px)}75%{transform:translate(-3px,3px)}}
-@keyframes gsInclina{0%,100%{transform:rotate(0)}30%{transform:rotate(-13deg)}70%{transform:rotate(11deg)}}
-@keyframes gsGira{to{transform:rotate(360deg)}}
-@keyframes gsBalanca{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}}
-#view-home .home-dock .qa-tile[data-module="dp"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsNod 1.1s ease-in-out infinite}
-#view-home .home-dock .qa-tile[data-module="portal"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsPorta 1.3s ease-in-out infinite}
-#view-home .home-dock .qa-tile[data-module="contabil"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsTecla 1s ease-in-out infinite}
-#view-home .home-dock .qa-tile[data-module="fiscal"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsLupa 1.5s ease-in-out infinite}
-#view-home .home-dock .qa-tile[data-module="cardapio"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsInclina 1.2s ease-in-out infinite}
-#view-home .home-dock .qa-tile[data-id="onvio"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsGira 3s linear infinite}
-#view-home .home-dock .qa-tile[data-id="zappy"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsBalanca .8s ease-in-out infinite}
+/* Início: o desenho dentro do ícone fica parado ao passar o mouse. */
 /* ao clicar o cartão afunda um pouco */
 #view-home .home-dock .qa-tile:not(:disabled):active .card-icon{transform:translateY(-1px) scale(.96);transition:transform .08s}
 @media (hover:none){#view-home .home-dock .qa-tile .card-icon > *{animation:none !important}}
