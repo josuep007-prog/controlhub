@@ -142,6 +142,8 @@
   .ag-ok{border:1px solid var(--status-green); color:var(--status-green); background:none; border-radius:2px; font-family:"IBM Plex Sans",sans-serif; font-size:11px; font-weight:600; letter-spacing:0; padding:3px 7px; cursor:pointer;}
   .ag-ok:hover{background:var(--status-green); color:var(--surface);}
   .ag-remarcar-btn{font-size:11px;}
+  .ag-cancelar-btn{font-size:11px; color:var(--brand-red);}
+  .ag-cancelar-btn:hover{border-color:var(--brand-red); background:var(--brand-red-soft);}
   .ag-remarcar-campos{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;}
   .ag-remarcar-campos[hidden]{display:none;}
   .ag-remarcar{display:inline-flex; align-items:center; gap:5px; font-family:"IBM Plex Sans",sans-serif; font-size:11px; font-weight:600; letter-spacing:0; color:var(--ink-3);}
@@ -1283,3 +1285,31 @@
   .hub-back:hover{color:var(--masthead-ink); border-color:var(--masthead-ink-2);}
   .hub-back:focus-visible{outline:2px solid var(--masthead-ink); outline-offset:2px;}
   .brand-row{display:flex; align-items:center;}
+
+/* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
+:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
+:root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
+html{background:var(--page)}
+body{background:transparent}
+body::before,body::after,html::before{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;width:74vmax;height:74vmax}
+body::before{background:radial-gradient(closest-side,var(--fd1),transparent);left:-18vmax;top:-20vmax;animation:fd-respira 26s ease-in-out infinite}
+body::after{background:radial-gradient(closest-side,var(--fd2),transparent);right:-22vmax;bottom:-24vmax;animation:fd-respira 31s -9s ease-in-out infinite}
+html::before{background:radial-gradient(closest-side,var(--fd3),transparent);left:25%;top:30%;width:58vmax;height:58vmax;animation:fd-respira 36s -17s ease-in-out infinite}
+@keyframes fd-respira{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vmax,5vmax) scale(1.14)}66%{transform:translate(-5vmax,8vmax) scale(.92)}}
+@media (prefers-reduced-motion: reduce){body::before,body::after,html::before{animation:none}}
+
+/* Gráficos: crescem levemente ao passar o mouse. */
+.rel-chart,.hero-gauge{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:center}
+.rel-chart:hover{transform:scale(1.02)}
+.hero-gauge:hover{transform:scale(1.06)}
+@media (prefers-reduced-motion: reduce){.rel-chart,.hero-gauge{transition:none}.rel-chart:hover,.hero-gauge:hover{transform:none}}
+
+/* Fundo animado: fica numa camada própria e pausa enquanto a cascata de abertura roda. */
+:root[data-cascata] body::before,:root[data-cascata] body::after,:root[data-cascata]::before{animation-play-state:paused}
+
+/* Sombra em duas camadas nos blocos: uma curta, que assenta o bloco na página, e uma longa e suave, que dá profundidade. Só sombra; cores e fundo ficam como estão. */
+:root{--sh-bloco:0 1px 2px rgba(16,24,32,.09),0 14px 30px -10px rgba(16,24,32,.16);--sh-bloco-up:0 2px 3px rgba(16,24,32,.10),0 20px 38px -10px rgba(16,24,32,.22)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
+.panel,.sblock,.fcard,.kpi,.fer-empresa,.cfm,.agd,.eedit{box-shadow:var(--sh-bloco)}

@@ -363,3 +363,45 @@
   .qd.on{background:var(--dp-ok); box-shadow:none;} .qd:disabled{cursor:not-allowed; opacity:.5;}
   .qd:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
   @media (max-width:760px){ .imp-item{grid-template-columns:52px minmax(0,1fr) auto; } .imp-item .fseg{display:none;} .imp-item .cd{grid-column:2;} }
+
+/* Modo configurações: a página é aberta dentro do módulo Configurações do Hub (?cfg=1) e mostra só o cartão de configurações. */
+body.modo-cfg .module-view-head, body.modo-cfg .dp-tabs, body.modo-cfg .avisos, body.modo-cfg .exemplo, body.modo-cfg .view:not(#v-cadastro), body.modo-cfg #v-cadastro .pn-card:not(#cfgCard), body.modo-cfg #cfgPonteiro{display:none!important}
+body.modo-cfg{background:transparent}
+body.modo-cfg .module-view{padding-top:0;min-height:0}
+body.modo-cfg #v-cadastro .pn-grid{display:block;padding:0}
+body:not(.modo-cfg) #cfgCard{display:none!important}
+body.modo-cfg #cfgCard{border:0;box-shadow:none;background:transparent}
+body.modo-cfg #cfgCard .pn-card-head{display:none}
+body.modo-cfg #cfgCard .pn-card-body{padding:0}
+
+/* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
+:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
+:root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
+html{background:var(--page)}
+body{background:transparent}
+body::before,body::after,html::before{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;width:74vmax;height:74vmax}
+body::before{background:radial-gradient(closest-side,var(--fd1),transparent);left:-18vmax;top:-20vmax;animation:fd-respira 26s ease-in-out infinite}
+body::after{background:radial-gradient(closest-side,var(--fd2),transparent);right:-22vmax;bottom:-24vmax;animation:fd-respira 31s -9s ease-in-out infinite}
+html::before{background:radial-gradient(closest-side,var(--fd3),transparent);left:25%;top:30%;width:58vmax;height:58vmax;animation:fd-respira 36s -17s ease-in-out infinite}
+@keyframes fd-respira{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vmax,5vmax) scale(1.14)}66%{transform:translate(-5vmax,8vmax) scale(.92)}}
+@media (prefers-reduced-motion: reduce){body::before,body::after,html::before{animation:none}}
+
+/* Gráficos: crescem levemente ao passar o mouse. */
+.hbars,.meters{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:center}
+.hbars:hover,.meters:hover{transform:scale(1.02)}
+@media (prefers-reduced-motion: reduce){.hbars,.meters{transition:none}.hbars:hover,.meters:hover{transform:none}}
+
+/* Carteira por analista e fechamento: barras crescem ao passar o mouse. */
+.an-carga,.fbar{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:left center}
+.an-carga:hover,.fbar:hover{transform:scale(1.06)}
+@media (prefers-reduced-motion: reduce){.an-carga,.fbar{transition:none}.an-carga:hover,.fbar:hover{transform:none}}
+
+/* Fundo animado: fica numa camada própria e pausa enquanto a cascata de abertura roda. */
+:root[data-cascata] body::before,:root[data-cascata] body::after,:root[data-cascata]::before{animation-play-state:paused}
+
+/* Sombra em duas camadas nos blocos: uma curta, que assenta o bloco na página, e uma longa e suave, que dá profundidade. Só sombra; cores e fundo ficam como estão. */
+:root{--sh-bloco:0 1px 2px rgba(16,24,32,.09),0 14px 30px -10px rgba(16,24,32,.16);--sh-bloco-up:0 2px 3px rgba(16,24,32,.10),0 20px 38px -10px rgba(16,24,32,.22)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
+.panel,.kpi-card,.pn-card,.list-card{box-shadow:var(--sh-bloco)}

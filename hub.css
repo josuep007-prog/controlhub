@@ -314,9 +314,10 @@ body:not(.in-module)::before{content:""; position:fixed; z-index:-1; pointer-eve
 body:not(.in-module).tema-claro::before{opacity:.16;}
 /* Tela inicial no tema claro: fundo branco, logo mantida */
 body:not(.in-module).tema-claro{background:
-    radial-gradient(900px 600px at 100% 100%, rgba(194,0,12,.10), transparent 70%),
-    radial-gradient(700px 500px at 0% 0%, rgba(60,101,155,.10), transparent 70%),
-    #FFFFFF;
+    radial-gradient(62vmax 62vmax at 4% 0%, #B9D8F3, transparent 70%),
+    radial-gradient(62vmax 62vmax at 100% 100%, #F4B9BF, transparent 70%),
+    radial-gradient(46vmax 46vmax at 42% 46%, rgba(107,178,225,.34), transparent 70%),
+    #EDF0F3;
   background-attachment:fixed;}
 .tema-claro:not(.in-module) #view-home{--ink:#101820; --ink-2:#47545F; --ink-3:#5F6D77; --surface:#FFFFFF; --surface-2:rgba(16,24,32,.05); --rule:rgba(16,24,32,.11); --rule-strong:rgba(16,24,32,.2); --blue-deep:#3C659B; color:var(--ink);}
 .tema-claro:not(.in-module) #view-home .pn-card{background:rgba(255,255,255,.82); border-color:rgba(16,24,32,.11); backdrop-filter:blur(6px);}
@@ -1551,7 +1552,7 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
 .uso-bar.is-soon i{background:var(--cv-soon);} .uso-bar.is-late i{background:var(--brand-red);}
 .uso-mini{display:flex; align-items:center; gap:8px; min-width:0;} .uso-mini .uso-bar{flex:1; height:6px; min-width:36px;}
 .uso-sec h3{font-family:"Archivo",sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); margin-bottom:8px;}
-.uso-tabela{overflow:auto; border:1px solid var(--rule); border-radius:4px; scrollbar-width:thin;}
+.uso-tabela{overflow:auto; border:1px solid var(--rule); border-radius:4px; scrollbar-width:thin; background:var(--surface);}
 .uso-tabela table{min-width:760px; table-layout:fixed;} .uso-tabela th{white-space:normal;} .uso-tabela td{overflow-wrap:anywhere; font-size:12.5px; vertical-align:top;}
 .uso-tabela tfoot td{font-weight:700; border-top:1px solid var(--rule-strong);}
 .uso-tabela .uso-erro{color:var(--brand-red);} .uso-tabela .dp-cell-sub{display:block; white-space:normal;}
@@ -1756,3 +1757,51 @@ tr.ct-flash > td{animation:ctFlash 1.6s ease-out;}
   .imp .tabela-lote{display:block; overflow-x:auto;}
   .imp .rec-valor-input{width:100px;}
 }
+
+/* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
+:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
+:root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
+html:has(body.in-module){background:var(--page)}
+body.in-module{background:transparent}
+body.in-module::before,body.in-module::after,html:has(body.in-module)::before{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;width:74vmax;height:74vmax}
+body.in-module::before{background:radial-gradient(closest-side,var(--fd1),transparent);left:-18vmax;top:-20vmax;animation:fd-respira 26s ease-in-out infinite}
+body.in-module::after{background:radial-gradient(closest-side,var(--fd2),transparent);right:-22vmax;bottom:-24vmax;animation:fd-respira 31s -9s ease-in-out infinite}
+html:has(body.in-module)::before{background:radial-gradient(closest-side,var(--fd3),transparent);left:25%;top:30%;width:58vmax;height:58vmax;animation:fd-respira 36s -17s ease-in-out infinite}
+@keyframes fd-respira{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vmax,5vmax) scale(1.14)}66%{transform:translate(-5vmax,8vmax) scale(.92)}}
+@media (prefers-reduced-motion: reduce){body.in-module::before,body.in-module::after,html:has(body.in-module)::before{animation:none}}
+
+/* Gráficos: crescem levemente ao passar o mouse. */
+.hbars,.meters,.stack,.tl-row,.uso-cap,.uso-trend,.xm .x-bar,.cv-donut-w{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:center}
+.hbars:hover,.meters:hover,.stack:hover,.tl-row:hover,.uso-cap:hover,.uso-trend:hover,.xm .x-bar:hover{transform:scale(1.02)}
+.cv-donut-w:hover{transform:scale(1.06)}
+@media (prefers-reduced-motion: reduce){.hbars,.meters,.stack,.tl-row,.uso-cap,.uso-trend,.xm .x-bar,.cv-donut-w{transition:none}.hbars:hover,.meters:hover,.stack:hover,.tl-row:hover,.uso-cap:hover,.uso-trend:hover,.xm .x-bar:hover,.cv-donut-w:hover{transform:none}}
+
+/* Fundo animado: fica numa camada própria e pausa enquanto a cascata de abertura roda. */
+:root[data-cascata] body.in-module::before,:root[data-cascata] body.in-module::after,:root[data-cascata]:has(body.in-module)::before{animation-play-state:paused}
+
+/* Início: cada módulo faz um gesto próprio no ícone ao passar o mouse (o fundo e o resto do cartão ficam como estavam). */
+@keyframes gsNod{0%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}55%{transform:translateY(0)}75%{transform:translateY(-2px)}}
+@keyframes gsPorta{0%,100%{transform:perspective(90px) rotateY(0)}50%{transform:perspective(90px) rotateY(-42deg)}}
+@keyframes gsTecla{0%,100%{transform:scale(1)}25%{transform:scale(.88)}50%{transform:scale(1.06)}75%{transform:scale(.94)}}
+@keyframes gsLupa{0%,100%{transform:translate(0,0)}25%{transform:translate(3px,-3px)}75%{transform:translate(-3px,3px)}}
+@keyframes gsInclina{0%,100%{transform:rotate(0)}30%{transform:rotate(-13deg)}70%{transform:rotate(11deg)}}
+@keyframes gsGira{to{transform:rotate(360deg)}}
+@keyframes gsBalanca{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg)}75%{transform:rotate(10deg)}}
+#view-home .home-dock .qa-tile[data-module="dp"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsNod 1.1s ease-in-out infinite}
+#view-home .home-dock .qa-tile[data-module="portal"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsPorta 1.3s ease-in-out infinite}
+#view-home .home-dock .qa-tile[data-module="contabil"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsTecla 1s ease-in-out infinite}
+#view-home .home-dock .qa-tile[data-module="fiscal"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsLupa 1.5s ease-in-out infinite}
+#view-home .home-dock .qa-tile[data-module="cardapio"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsInclina 1.2s ease-in-out infinite}
+#view-home .home-dock .qa-tile[data-id="onvio"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsGira 3s linear infinite}
+#view-home .home-dock .qa-tile[data-id="zappy"]:not(:disabled):is(:hover,:focus-visible) .card-icon > *{animation:gsBalanca .8s ease-in-out infinite}
+/* ao clicar o cartão afunda um pouco */
+#view-home .home-dock .qa-tile:not(:disabled):active .card-icon{transform:translateY(-1px) scale(.96);transition:transform .08s}
+@media (hover:none){#view-home .home-dock .qa-tile .card-icon > *{animation:none !important}}
+@media (prefers-reduced-motion: reduce){#view-home .home-dock .qa-tile .card-icon > *{animation:none !important}}
+
+/* Sombra em duas camadas nos blocos: uma curta, que assenta o bloco na página, e uma longa e suave, que dá profundidade. Só sombra; cores e fundo ficam como estão. */
+:root{--sh-bloco:0 1px 2px rgba(16,24,32,.09),0 14px 30px -10px rgba(16,24,32,.16);--sh-bloco-up:0 2px 3px rgba(16,24,32,.10),0 20px 38px -10px rgba(16,24,32,.22)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
+.pn-card,.tl-card,.kpi-card,.list-card,.cct-resumo,.sd-kpi,.sd-emp,.ct-side,.emp-card,.cb-lista{box-shadow:var(--sh-bloco)}

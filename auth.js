@@ -159,7 +159,7 @@
     return n === "coord" || n === "analista" || n === "consulta" ? n : null;
   }
   function publico(u) {
-    return {id: u.id, nome: u.nome, login: u.login, email: u.email || "", admin: !!u.admin, niveis: clone(u.niveis || {}), analista: clone(u.analista || {})};
+    return {id: u.id, nome: u.nome, login: u.login, email: u.email || "", telefone: u.telefone || "", foto: u.foto || "", avatarCor: u.avatarCor || "", prefs: clone(u.prefs || {}), admin: !!u.admin, niveis: clone(u.niveis || {}), analista: clone(u.analista || {})};
   }
 
   /* ============ regras de conta ============ */
@@ -245,6 +245,63 @@
     });
   }
 
+  /* ============ recuperação de senha (senha reserva ou informações pessoais) ============ */
+  // Guardamos só hashes (PBKDF2) das respostas, nunca o texto. Recuperar exige a senha reserva OU pelo menos 2 informações corretas.
+  var REC_ITENS = [["cidade", "Nome de uma cidade", "text", ""], ["cpf3", "3 primeiros dígitos do seu CPF", "text", ' inputmode="numeric" maxlength="3" pattern="[0-9]*"'], ["escola", "Escola onde estudou", "text", ""]];
+  var REC_MAX = 5, REC_ESPERA = 15 * 60000;
+  function normInfo(k, v) { v = String(v || ""); if (k === "cpf3") return v.replace(/\D/g, "").slice(0, 3); return norm(v).replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim(); }
+  function infoOk(k, v) { var n = normInfo(k, v); return k === "cpf3" ? n.length === 3 : n.length >= 3; }
+  function hashItem(txt) { var sal = novoSal(); return hashSenha(txt, sal, ITER).then(function (h) { return {salt: sal, hash: h}; }); }
+  // f: {reserva, cidade, cpf3, escola}; u: documento da conta (para não aceitar uma reserva igual à senha de entrada)
+  function montarRec(f, u) {
+    var reserva = String(f.reserva || "").trim(), preench = REC_ITENS.filter(function (i) { return String(f[i[0]] || "").trim(); });
+    if (reserva && reserva.length < 6) return Promise.reject(erro("A senha reserva precisa ter pelo menos 6 caracteres."));
+    if (reserva && (norm(reserva) === norm(u.login) || norm(reserva) === norm(u.email))) return Promise.reject(erro("A senha reserva não pode ser igual ao seu usuário ou e-mail."));
+    for (var j = 0; j < preench.length; j++) if (!infoOk(preench[j][0], f[preench[j][0]])) return Promise.reject(erro(preench[j][0] === "cpf3" ? "Digite exatamente os 3 primeiros números do CPF." : "Confira: " + preench[j][1].toLowerCase() + " precisa ter pelo menos 3 letras."));
+    if (!reserva && preench.length < 2) return Promise.reject(erro("Cadastre a senha reserva ou pelo menos 2 das informações."));
+    var rec = {v: 1, em: agora(), reserva: null, itens: {}}, tarefas = [];
+    if (reserva) tarefas.push(hashSenha(reserva, u.salt, u.iter || ITER).then(function (h) { if (igualConst(h, u.hash)) throw erro("A senha reserva precisa ser diferente da senha que você usa para entrar."); return hashItem(reserva).then(function (r) { rec.reserva = r; }); }));
+    preench.forEach(function (i) { tarefas.push(hashItem(normInfo(i[0], f[i[0]])).then(function (r) { rec.itens[i[0]] = r; })); });
+    return Promise.all(tarefas).then(function () { return rec; });
+  }
+  // atualTxt: quando a pessoa já está logada e muda a recuperação, pede a senha atual
+  function salvarRec(uid, f, exigeAtual, atualTxt) {
+    return BACKEND.ler("auth_usuarios/" + uid).then(function (u) {
+      if (!u) throw erro("Conta não encontrada.");
+      var confere = exigeAtual ? hashSenha(atualTxt || "", u.salt, u.iter || ITER).then(function (h) { if (!igualConst(h, u.hash)) throw erro("A senha atual não confere."); }) : Promise.resolve();
+      return confere.then(function () { return montarRec(f, u); }).then(function (rec) {
+        return BACKEND.atualizar("auth_usuarios/" + uid, {rec: rec, recFalhas: 0, recBloqueadoAte: 0}).then(function () { BACKEND.registrar("recuperacao_cadastrada", uid, uid); return rec; });
+      });
+    });
+  }
+  function verificarRec(ident, prova) {
+    var gen = erro("Os dados não conferem. Confira e tente de novo. Se você nunca cadastrou a recuperação, peça ao administrador para redefinir a senha.");
+    if (!String(ident || "").trim()) return Promise.reject(erro("Informe o usuário ou e-mail."));
+    var falso = function () { return hashSenha("x", novoSal(), ITER).then(function () { throw gen; }); };
+    return chaveLogin(ident).then(function (k) { return BACKEND.ler("auth_logins/" + k); }).then(function (lk) {
+      if (!lk) return falso();
+      return BACKEND.ler("auth_usuarios/" + lk.id).then(function (u) {
+        if (!u || u.status === "bloqueado" || !u.rec) return falso();
+        if ((u.recBloqueadoAte || 0) > agora()) throw erro("Muitas tentativas. Tente de novo em " + Math.ceil((u.recBloqueadoAte - agora()) / 60000) + " min.");
+        var reserva = String(prova.reserva || "").trim(), tarefas = [];
+        tarefas.push(reserva && u.rec.reserva ? hashSenha(reserva, u.rec.reserva.salt, ITER).then(function (h) { return igualConst(h, u.rec.reserva.hash); }) : Promise.resolve(false));
+        REC_ITENS.forEach(function (i) { var k = i[0], it = u.rec.itens && u.rec.itens[k]; if (it && infoOk(k, prova[k])) tarefas.push(hashSenha(normInfo(k, prova[k]), it.salt, ITER).then(function (h) { return igualConst(h, it.hash); })); });
+        return Promise.all(tarefas).then(function (r) {
+          var acertos = r.slice(1).filter(Boolean).length;
+          if (r[0] || acertos >= 2) { if (u.recFalhas || u.recBloqueadoAte) BACKEND.atualizar("auth_usuarios/" + lk.id, {recFalhas: 0, recBloqueadoAte: 0}).catch(function () {}); return {uid: lk.id, nome: u.nome}; }
+          var f = (u.recFalhas || 0) + 1, up = {recFalhas: f};
+          if (f >= REC_MAX) { up.recFalhas = 0; up.recBloqueadoAte = agora() + REC_ESPERA; }
+          BACKEND.atualizar("auth_usuarios/" + lk.id, up).catch(function () {}); BACKEND.registrar("recuperacao_errada", lk.id, lk.id);
+          throw f >= REC_MAX ? erro("Muitas tentativas erradas. Aguarde 15 minutos e tente de novo.") : gen;
+        });
+      });
+    });
+  }
+  function recuperarSenha(ident, prova, nova) {
+    var m = validarSenha(nova); if (m) return Promise.reject(erro(m));
+    return verificarRec(ident, prova).then(function (r) { return mudarSenha(r.uid, nova, false).then(function () { BACKEND.registrar("senha_recuperada", r.uid, r.uid); }); });
+  }
+
   /* ============ interface: tela de login ============ */
   var CSS = ".ax-tela{position:fixed;inset:0;z-index:100000;background:var(--page,#EDF0F3);color:var(--ink,#101820);font:14px/1.5 'IBM Plex Sans',system-ui,sans-serif;display:flex;flex-direction:column;overflow:auto}" +
     ".ax-tela *{box-sizing:border-box}.ax-mast{background:#0E151B;border-bottom:3px solid var(--brand-red,#C2000C);padding:16px 20px;color:#E9EEF2}.ax-mast b{font:700 19px Archivo,system-ui,sans-serif;letter-spacing:-.02em}.ax-mast b i{font-style:normal;color:var(--brand-red,#C2000C)}.ax-mast b u{text-decoration:none;color:#7FC2DE}.ax-mast small{display:block;color:#8FA0AD;font-size:11.5px;margin-top:2px}" +
@@ -257,6 +314,24 @@
     ".ax-acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.ax-acoes .ax-btn{flex:1}.ax-pe{padding:12px 20px;font-size:11.5px;color:var(--ink-3,#5F6D77);text-align:center}" +
     ".ax-chip-home{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;z-index:60}.ax-chip{display:flex;justify-content:center;padding:6px 0}.ax-av{width:38px;height:38px;border-radius:50%;border:2px solid var(--rule-strong,#35434E);background:var(--blue-deep,#3C659B);color:#fff;font:700 13px Archivo,sans-serif;cursor:pointer;letter-spacing:.02em}.ax-av:hover,.ax-av[aria-expanded=true]{border-color:var(--brand-red,#C2000C)}.ax-av:focus-visible{outline:2px solid var(--blue-mid,#6BAAC9);outline-offset:2px}" +
     ".ax-pop{position:fixed;z-index:100003;width:230px;background:var(--surface,#fff);color:var(--ink,#101820);border:1px solid var(--rule-strong,#C2CCD5);border-radius:8px;box-shadow:0 12px 32px rgba(16,24,32,.28);padding:10px;display:flex;flex-direction:column;gap:8px;font:13px 'IBM Plex Sans',sans-serif}.ax-pop b{display:block;font-size:14px;line-height:1.25}.ax-pop span{display:block;color:var(--ink-3,#5F6D77);font-size:12px}.ax-pop button{border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--ink-2,#47545F);border-radius:6px;padding:7px 10px;font:600 12.5px 'IBM Plex Sans',sans-serif;cursor:pointer;text-align:left}.ax-pop button:hover{border-color:var(--blue-deep,#3C659B);color:var(--blue-deep,#3C659B)}" +
+    "@property --ax-ang{syntax:'<angle>';inherits:false;initial-value:0deg}" +
+    /* brilho ao passar o mouse no botão do usuário */
+    ".ax-av{transition:box-shadow .25s,border-color .25s,transform .2s}.ax-av:hover{transform:translateY(-1px);border-color:var(--blue-mid,#6BAAC9);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue-mid,#6BAAC9) 35%,transparent),0 0 14px 3px color-mix(in srgb,var(--blue-mid,#6BAAC9) 55%,transparent);animation:ax-pulso 1.8s ease-in-out infinite}" +
+    "@keyframes ax-pulso{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--blue-mid,#6BAAC9) 30%,transparent),0 0 10px 2px color-mix(in srgb,var(--blue-mid,#6BAAC9) 45%,transparent)}50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--blue-mid,#6BAAC9) 45%,transparent),0 0 20px 5px color-mix(in srgb,var(--blue-mid,#6BAAC9) 70%,transparent)}}" +
+    /* luz percorrendo a borda do campo em foco */
+    ".ax-cartao .ax-campo input,.ax-cartao .ax-campo select{border:1.5px solid var(--rule-strong,#C2CCD5);transition:box-shadow .25s}" +
+    ".ax-cartao .ax-campo input:focus,.ax-cartao .ax-campo select:focus{outline:none;border-color:transparent;background:linear-gradient(var(--surface,#fff),var(--surface,#fff)) padding-box,conic-gradient(from var(--ax-ang),color-mix(in srgb,var(--blue-deep,#3C659B) 55%,transparent) 0 50%,var(--blue-mid,#6BAAC9) 74%,#fff 86%,var(--blue-mid,#6BAAC9) 94%,color-mix(in srgb,var(--blue-deep,#3C659B) 55%,transparent) 100%) border-box;animation:ax-gira 2.4s linear infinite;box-shadow:0 0 10px 1px color-mix(in srgb,var(--blue-mid,#6BAAC9) 45%,transparent)}" +
+    /* listas de seleção (Tema, Abrir o Hub em…) acompanham o tema do Hub, também a lista que se abre */
+    ".ax-cartao select,.ax-cartao select option,.ax-cartao select optgroup{background-color:var(--surface,#fff);color:var(--ink,#101820)}.ax-cartao select{color-scheme:light}:root[data-theme=dark] .ax-cartao select,:root[data-theme=dark] .ax-cartao input{color-scheme:dark}" +
+    "@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .ax-cartao select,:root:not([data-theme=light]) .ax-cartao input{color-scheme:dark}}" +
+    ".ax-cartao select option:checked{background-color:var(--blue-deep,#3C659B);color:#fff}" +
+    "@keyframes ax-gira{to{--ax-ang:360deg}}" +
+    "@media (prefers-reduced-motion:reduce){.ax-av:hover{animation:none}.ax-cartao .ax-campo input:focus,.ax-cartao .ax-campo select:focus{animation:none;border-color:var(--blue-mid,#6BAAC9)}}" +
+    ".ax-pf{width:min(560px,100%)!important;padding:18px 20px}.ax-pf section{border-top:1px solid var(--rule,#DCE3E9);padding:12px 0 4px;margin-top:8px}.ax-pf h2{margin:0 0 8px;font:700 12px Archivo,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3,#5F6D77)}" +
+    ".ax-pf-topo{display:flex;align-items:center;gap:14px;margin-bottom:4px}.ax-pf-av{width:64px;height:64px;font-size:22px;cursor:default;flex:none;display:flex;align-items:center;justify-content:center}.ax-pf-id{min-width:0;flex:1}.ax-pf-id h1{margin:0;font:700 19px Archivo,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ax-pf-id span{color:var(--ink-3,#5F6D77);font-size:12.5px}.ax-pf-x{border:0;background:none;font-size:16px;cursor:pointer;color:var(--ink-3,#5F6D77);padding:6px 8px;border-radius:6px;align-self:flex-start}.ax-pf-x:hover{background:var(--surface-2,#F5F8FA)}" +
+    ".ax-pf-foto,.ax-pf-lin{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 8px}.ax-pf-foto .ax-btn,.ax-pf-lin .ax-btn{flex:none}.ax-pf-cores{display:flex;gap:8px;flex-wrap:wrap}.ax-pf-cor{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}.ax-pf-cor[aria-pressed=true]{border-color:var(--ink,#101820);box-shadow:0 0 0 2px var(--surface,#fff) inset}" +
+    ".ax-pf select{width:100%;font:inherit;padding:9px 10px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:inherit}.ax-pf-ac{list-style:none;margin:0 0 6px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}.ax-pf-ac li{display:flex;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--rule,#DCE3E9);border-radius:6px;font-size:12.5px}.ax-pf-ac b{font-weight:600}" +
+    ".ax-av.tem-foto{color:transparent}" +
     ".ax-dlg{position:fixed;inset:0;z-index:100001;background:rgba(10,16,22,.55);display:flex;align-items:center;justify-content:center;padding:16px}.ax-dlg .ax-cartao{max-height:92vh;overflow:auto}" +
     /* administração de usuários */
     ".au{display:flex;flex-direction:column;gap:14px;padding:4px 0 90px;font-size:13.5px;position:relative}.au-intro{margin:0;color:var(--ink-3,#5F6D77)}.au kbd{font:11px 'IBM Plex Mono',monospace;border:1px solid var(--rule-strong,#C2CCD5);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface,#fff)}" +
@@ -283,6 +358,76 @@
     ".ax-sen{position:relative}.ax-sen input{padding-right:72px!important}.ax-olho{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--blue-deep,#3C659B);font:600 12px 'IBM Plex Sans',sans-serif;cursor:pointer;padding:4px 6px}" +
     ".au-badge{position:absolute;top:-5px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--brand-red,#C2000C);color:#fff;font:700 11px/18px 'IBM Plex Sans',sans-serif;text-align:center;box-shadow:0 0 0 2px var(--surface,#0E151B);pointer-events:none;z-index:3}.card-icon:has(>.au-badge){position:relative}" +
     "@media (max-width:640px){.au-head{gap:8px}.au-resumo{flex-basis:100%}.au-ult{margin-left:auto}.au-seta{margin-left:0}.au-gaveta{width:100vw}.au-linha .au-novobtn{width:100%!important}.au-barra select{flex:1 1 45%}.au-listahead .au-dica{display:none}}";
+
+  CSS += ".ax-tela{background:var(--page,#EDF0F3)}.ax-fundo{position:absolute;inset:0;overflow:hidden;pointer-events:none}.ax-fundo i{position:absolute;width:74vmax;height:74vmax;border-radius:50%;opacity:.9;animation:ax-respira 26s ease-in-out infinite}" +
+    ".ax-fundo i:nth-child(1){background:radial-gradient(closest-side,var(--blue-pale,#DCE8F1),transparent);left:-18vmax;top:-20vmax}.ax-fundo i:nth-child(2){background:radial-gradient(closest-side,var(--brand-red-soft,#FBEAEA),transparent);right:-22vmax;bottom:-24vmax;animation-delay:-9s;animation-duration:31s}.ax-fundo i:nth-child(3){background:radial-gradient(closest-side,color-mix(in srgb,var(--blue-mid,#6BAAC9) 22%,transparent),transparent);left:25%;top:30%;width:58vmax;height:58vmax;animation-delay:-17s;animation-duration:36s}" +
+    "@keyframes ax-respira{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vmax,5vmax) scale(1.14)}66%{transform:translate(-5vmax,8vmax) scale(.92)}}" +
+    ".ax-tela .ax-miolo{position:relative;z-index:1;perspective:1100px}.ax-tela .ax-pe{position:relative;z-index:1}" +
+    ".ax-tela .ax-cx{border-radius:28px;padding:30px 28px 24px;overflow:hidden;box-shadow:0 2px 4px rgba(16,24,32,.08),0 24px 48px rgba(16,24,32,.16)}.ax-tela .ax-cx::before{display:none}" +
+    ".ax-tela .ax-cx::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(420px circle at var(--lx,50%) var(--ly,0%),color-mix(in srgb,var(--blue-mid,#6BAAC9) 24%,transparent),transparent 60%);opacity:var(--lo,0);transition:opacity .3s}" +
+    ".ax-marca{display:flex;align-items:center;gap:12px;margin-bottom:20px}.ax-marca .sig{height:46px;width:auto}.ax-marca .nom{height:25px;width:auto}" +
+    ".ax-tela .ax-cx h1{font-size:26px;line-height:1.15;margin:0 0 4px;text-wrap:balance}.ax-tela .ax-cx .ax-sub{margin:0 0 22px;font-size:14px}" +
+    ".ax-in{opacity:0;transform:translateY(14px);animation:ax-sobe .6s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--i,0)*var(--passo,90ms) + 80ms)}@keyframes ax-sobe{to{opacity:1;transform:none}}" +
+    ".ax-fl{position:relative;margin-bottom:16px}.ax-fl input{height:50px;padding:20px 14px 6px;border-radius:16px;background:transparent;font:500 15px 'IBM Plex Sans',system-ui,sans-serif}.ax-fl label{position:absolute;left:14px;top:15px;margin:0;font:400 15px 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--ink-3,#5F6D77);pointer-events:none;transform-origin:left top;transition:transform .2s cubic-bezier(.2,.7,.2,1),color .2s}" +
+    ".ax-fl input:focus+label,.ax-fl input:not(:placeholder-shown)+label{transform:translateY(-10px) scale(.74)}.ax-fl input:focus+label{color:var(--blue-deep,#3C659B)}" +
+    ".ax-tela .ax-fl input:focus{animation:none;background:transparent;border-color:var(--blue-deep,#3C659B);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue-deep,#3C659B) 22%,transparent)}" +
+    ".ax-ln{position:absolute;left:18px;right:18px;bottom:0;height:2px;border-radius:2px;background:var(--blue-deep,#3C659B);transform:scaleX(0);transform-origin:left;transition:transform .35s cubic-bezier(.2,.7,.2,1);pointer-events:none}.ax-fl input:focus~.ax-ln{transform:scaleX(1)}.ax-fl input:-webkit-autofill+label{transform:translateY(-10px) scale(.74)}" +
+    ".ax-tela .ax-olho{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:36px;height:36px;padding:0;border:0;border-radius:12px;background:transparent;color:var(--ink-3,#5F6D77);cursor:pointer;display:grid;place-items:center;transition:color .2s,background .2s}.ax-tela .ax-olho:hover{color:var(--blue-deep,#3C659B);background:color-mix(in srgb,var(--blue-deep,#3C659B) 10%,transparent)}.ax-tela .ax-olho:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:1px}" +
+    ".ax-sen input,.ax-fl.ax-fsen input{padding-right:48px!important}.ax-olho svg{width:22px;height:22px;overflow:visible}.ax-olho svg *{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ax-olho .globo{transform-origin:12px 12px}.ax-olho .pupila{fill:currentColor;stroke:none;transform-origin:12px 12px;transition:transform .22s}.ax-olho .corte{stroke-dasharray:24;stroke-dashoffset:24;transition:stroke-dashoffset .3s .08s}.ax-olho.fechado .corte{stroke-dashoffset:0}.ax-olho.fechado .pupila{transform:scale(0)}.ax-olho.pisca .globo{animation:ax-pisca .26s ease}@keyframes ax-pisca{50%{transform:scaleY(.1)}}" +
+    ".ax-btn.ax-fx{position:relative;height:50px;padding:0;grid-template-columns:minmax(0,1fr);white-space:nowrap;border-radius:16px;display:grid;place-items:center;overflow:hidden;margin:6px auto 0;transition:width .35s cubic-bezier(.2,.7,.2,1),border-radius .35s,background .3s,transform .15s;font:600 15px 'IBM Plex Sans',system-ui,sans-serif}.ax-btn.ax-fx:hover{transform:translateY(-1px)}.ax-btn.ax-fx:disabled{opacity:1}" +
+    ".ax-fx .t,.ax-fx .anel,.ax-fx .okk{grid-area:1/1;transition:opacity .2s,transform .3s}.ax-fx .anel,.ax-fx .okk{opacity:0;transform:scale(.5)}.ax-fx .anel{width:26px;height:26px;border-radius:50%;background:conic-gradient(from 0deg,rgba(255,255,255,.4) 0,#fff 100%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px));animation:ax-roda .75s linear infinite;will-change:transform}.ax-fx.carrega{animation:ax-halo 1.4s ease-out infinite}@keyframes ax-halo{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--brand-red,#C2000C) 45%,transparent)}100%{box-shadow:0 0 0 14px transparent}}@keyframes ax-roda{to{rotate:360deg}}" +
+    ".ax-fx.carrega,.ax-fx.sucesso{width:50px;border-radius:50%;pointer-events:none}.ax-fx.carrega .t,.ax-fx.sucesso .t{opacity:0;transform:scale(.6)}.ax-fx.carrega .anel{opacity:1;transform:scale(1)}.ax-fx.sucesso{background:var(--dp-ok,#167A45);border-color:var(--dp-ok,#167A45)}.ax-fx.sucesso .anel{opacity:0}.ax-fx.sucesso .okk{opacity:1;transform:scale(1)}" +
+    ".okk{width:24px;height:24px}.okk path{stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:26;stroke-dashoffset:26}.ax-fx.sucesso .okk path{animation:ax-traco .45s .12s ease forwards}@keyframes ax-traco{to{stroke-dashoffset:0}}" +
+    ".ax-troca{margin:16px 0 0;text-align:center;font-size:13.5px;color:var(--ink-2,#47545F)}.ax-troca button{all:unset;cursor:pointer;color:var(--blue-deep,#3C659B);font-weight:600;margin-left:4px;border-bottom:1px solid transparent;transition:border-color .2s}.ax-troca button:hover{border-color:currentColor}.ax-troca button:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:3px}" +
+    ".ax-cx.sai{animation:ax-dissolve .6s cubic-bezier(.5,0,.8,.4) forwards}@keyframes ax-dissolve{to{opacity:0;transform:scale(.94) translateY(-18px);filter:blur(6px)}}" +
+    "@media (prefers-reduced-motion:reduce){.ax-fundo i,.ax-fx .anel,.ax-fx.carrega{animation:none}.ax-in{animation:none;opacity:1;transform:none}.ax-tela .ax-cx{transition:none}.ax-cx.sai{animation:none;opacity:0}}";
+  CSS += ".ax-tela{--page:#EDF0F3;--surface:#FFFFFF;--surface-2:#F5F8FA;--ink:#101820;--ink-2:#47545F;--ink-3:#5F6D77;--rule:#DCE3E9;--rule-strong:#C2CCD5;--blue-deep:#3C659B;--blue-mid:#6BAAC9;--blue-pale:#DCE8F1;--brand-red:#C2000C;--brand-red-soft:#FBEAEA;--surface-3:#EAEFF3;--warn-soft:#FBF0D6;--warn:#9A6B00;--status-warn:#9A6B00;--green-soft:#E1F2E8;--status-green:#167A45;color-scheme:light;background:#EDF0F3}" +
+    ".ax-tela .ax-fundo i:nth-child(1){background:radial-gradient(closest-side,#B9D8F3,transparent)}.ax-tela .ax-fundo i:nth-child(2){background:radial-gradient(closest-side,#F4B9BF,transparent)}.ax-tela .ax-fundo i:nth-child(3){background:radial-gradient(closest-side,rgba(107,178,225,.40),transparent)}";
+  CSS += ".ax-tela .ax-campo input,.ax-tela .ax-campo select{color:#101820!important;-webkit-text-fill-color:#101820!important;caret-color:#101820}" +
+    ".ax-tela .ax-campo input:-webkit-autofill,.ax-tela .ax-campo input:-webkit-autofill:hover,.ax-tela .ax-campo input:-webkit-autofill:focus{-webkit-text-fill-color:#101820!important;caret-color:#101820;box-shadow:0 0 0 1000px #FFFFFF inset!important;transition:background-color 9999s ease-out}";
+  CSS += ".ax-tema2{display:flex;gap:10px}.ax-tema2 button{all:unset;box-sizing:border-box;flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px 12px;border:1.5px solid var(--rule-strong,#C2CCD5);border-radius:16px;background:var(--surface,#fff);color:var(--ink,#101820);font:600 13.5px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;transition:border-color .2s,box-shadow .2s,background .2s}" +
+    ".ax-tema2 button:hover{border-color:var(--blue-mid,#6BAAC9)}.ax-tema2 button[aria-checked=true]{border-color:var(--blue-deep,#3C659B);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue-deep,#3C659B) 20%,transparent)}.ax-tema2 button:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:2px}" +
+    ".ax-tema2 .sw{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--rule-strong,#C2CCD5);flex:none}.ax-tema2 .sw.claro{background:#FFFFFF}.ax-tema2 .sw.escuro{background:#131A21;border-color:#35434E}";
+  CSS += ".ax-link{all:unset;cursor:pointer;font:600 12.5px 'IBM Plex Sans',system-ui,sans-serif;color:var(--blue-deep,#3C659B)}.ax-link:hover{text-decoration:underline}.ax-link:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:3px;border-radius:4px}" +
+    ".ax-sep{display:flex;align-items:center;gap:10px;margin:2px 0 14px;color:var(--ink-3,#5F6D77);font-size:12px}.ax-sep::before,.ax-sep::after{content:'';flex:1;height:1px;background:var(--rule,#DCE3E9)}";
+  CSS += ".ax-dlg{backdrop-filter:blur(6px)}.ax-dlg .ax-fundo i{opacity:.4}.ax-dlg .ax-cartao{position:relative;z-index:1;border-radius:28px;box-shadow:0 2px 4px rgba(16,24,32,.08),0 24px 48px rgba(16,24,32,.25)}.ax-dlg .ax-cartao::before{display:none}.ax-dlg .ax-campo select{border-radius:14px}" +
+    ".ax-dlg .ax-fl{margin-bottom:12px}.ax-dlg .ax-acoes .ax-fx{height:44px;margin:0}.ax-dlg .ax-acoes .ax-fx.carrega,.ax-dlg .ax-acoes .ax-fx.sucesso{flex:0 0 44px;width:44px;margin-left:auto}.ax-dlg .ax-acoes .ax-btn{border-radius:14px}.ax-dlg .ax-pf-x{border-radius:50%}" +
+    /* barra de rolagem discreta, fina e arredondada, recuada para ficar dentro do cartão */
+    "@supports not selector(::-webkit-scrollbar){.ax-dlg .ax-cartao,.ax-tela{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink-3,#5F6D77) 38%,transparent) transparent}}" +
+    ".ax-dlg .ax-cartao::-webkit-scrollbar,.ax-tela::-webkit-scrollbar{width:10px}.ax-dlg .ax-cartao::-webkit-scrollbar-track,.ax-tela::-webkit-scrollbar-track{background:transparent;margin:22px 0}" +
+    ".ax-dlg .ax-cartao::-webkit-scrollbar-thumb,.ax-tela::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink-3,#5F6D77) 34%,transparent);border-radius:10px;border:3px solid transparent;background-clip:content-box;min-height:40px}" +
+    ".ax-dlg .ax-cartao::-webkit-scrollbar-thumb:hover,.ax-tela::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--blue-deep,#3C659B) 60%,transparent);border:3px solid transparent;background-clip:content-box}";
+  CSS += ".ax-bv{position:fixed;inset:0;z-index:100002;display:grid;place-items:center;background:var(--page,#fff);color:var(--ink,#101820);overflow:hidden;transition:opacity .7s ease,visibility 0s linear .7s}.ax-bv.sai{opacity:0;visibility:hidden;pointer-events:none}.ax-bv .ax-fundo i{opacity:1}" +
+    ".ax-bv-meio{position:relative;text-align:center;padding:24px}.ax-bv img{height:64px;width:auto;display:block;margin:0 auto 22px;opacity:0;animation:ax-ap .7s .15s ease forwards}" +
+    ".ax-bv small{display:block;font:600 12px 'IBM Plex Mono',monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3,#5F6D77);opacity:0;animation:ax-ap .7s .45s ease forwards}" +
+    ".ax-bv h2{margin:8px 0 0;font:700 clamp(30px,6vw,52px)/1.1 Archivo,system-ui,sans-serif;letter-spacing:-.02em;text-wrap:balance;opacity:0;animation:ax-ap .8s .65s cubic-bezier(.2,.75,.25,1) forwards}" +
+    ".ax-bv h2 span{background:linear-gradient(90deg,var(--brand-red,#C2000C),var(--blue-deep,#3C659B));-webkit-background-clip:text;background-clip:text;color:transparent}" +
+    "@keyframes ax-ap{from{opacity:0;transform:translate3d(0,14px,0)}to{opacity:1;transform:translate3d(0,0,0)}}" +
+    "@media (prefers-reduced-motion:reduce){.ax-bv img,.ax-bv small,.ax-bv h2{animation:none;opacity:1}.ax-bv .ax-fundo i{animation:none}}";
+  var BV_LOGO = "data:image/webp;base64,UklGRmAdAABXRUJQVlA4WAoAAAAQAAAAlQAAtQAAQUxQSNgNAAABoIZtm6G9eWZmYzS2WYa1bcV2Uttug9ptVBthHdtWe7Sxra9x8u7OPMexs+/szjO7/yMCghtJQqOBBdLXCmSW7W2GewFkbmEeAL/k5XEbCo4f2jJ50CUAwCH7Cweo+PgyhfmLmt9DgMh8eOA9thsRA6kUKiUDRFxwLnjmyCStyXxEX6JpkT6e6ApexmndD6OvMG4JCT1AZJlWZLD+7QkWKeUlILJLazwfgyia4HBdCc6ySWPQ/gD6mHTx8RkQGR3z7xhoiSC1oySwLLa6Mwy0pNCd2ftCzuH2PZpmE776JHMhgA2K0uw2C4FljVZjIkqFliFxW3Fg2aLdsF3TbEPhgXJZCgHwgqZRxP4shQeVf0cpkSAkbimamWAcrtxooFlT5gHLDu2JgKqhr4aBlxVauZGoQhrVpg2ITNAEXLQGfUXVlNLMbNDuPxWhUX3GoZnYe1DqO0RJ15Q82YDxLNBarNI0yv07GdhzgL7HQhppW1OSs/TTin8a0mjbiZbA02/Az16KgaJtO68FkX5a10O0NCVxSq3UNw8Kf4wYULYA8U0OIvW0RnPJafvbQNpPyBm03U9MC3BeI/BY2qcR8RY97ePC4KX+O2pPI6cd7g6QdhqHW3YR03xc1iQDNHiZmCYRvyyRAVqVP1FSTyP3QOqFSMBVm8lp/10AIv20JwNimsIRZcHLhAEnpgWPZ4F2oTbgtG3TlVmg3XeS9jukxD8qG2hMeJ4nWBoN+DfEFi5AfMlA4/kswdNGa7aC3sLdBJwb+rf8jY++9MgN5dN1d3OAnkeIhUji1FrgGVJZa8ge1MuewTVTtHpQdCi9CXiDg2cqz+7VRX5fF/33tgKRnkr0AnLagbYGC+eBeBfRV/liju1BpKYS7dLCeVBvpjmVgTp+BuNpECLxNj1tcBEj7Y7Y8qyP44Bn0cId0RbOqjwrVVPg2bNwy7WFM5dnZYJ8PQue62nkFXoL91Vo4WzLsz6OBJE1C3cvgLAuzwY4FbjTaeRqRxbOvjwbhESRUQvHBFy5KXEqffUheA4t3Ch6C/eEmfaERSoDbAXCnYVb7cbCkbhSKbeXZCwzFu7PKuDRlGdVDu92tPeg5Nf0Fu5lM+2BU+jb5O1Hxh3RmjqwcDcDN5iA0lbl2QDxReAuMA7Qg9rCBXEWrsXfGChLC8rcvNQfghgQ097iIAyp7GNTnlWBruZ5jqph88lpB80WrthwxCB11TzOoB29hVvQGDyWn8ozFoU0WwvqRIj42/QmYJjZwnU4aEebr6t5riycJKYd7WWycBEDHtha0IxYuFXNjdNInel2tCM9AHgmqmEKvyttoHG4dbcNzccVTUNaNixc7iHzNNLfJpUS8euSboSIR6thtG39pUZalb9sUunjqfuAWIhi/A6xCfi1IngmV7rFjrbmwjBvWaiGBYjPm2lPShuawtHl3NAEXEBv4XbcAJzTpNJH+RSAiNaneBhcV6mIaPcSWzglcUpN8IhS6eOWa7Sq87idxyks3FeIkr6eImhSKSWOqwaeThkUuuCRL6et+HvljG8ev6Sorp7Z0prQW7j92gTQpDJAHKATFh41fm01mpb1754DIJxYOOtJ1JDK5XbTyJ7bgOvurDHsuD6tH0gpA1/fZrmv6wNnqbFwEnGI2QR0P4y+Td5m1tO08Or2IPrSfPk+YsG9ACw1Fu5oTwADrfBgSxPwnhdpfDAmGYUqPPimCPCELxYPkJuAlc0MNA8azrOj/d9Z3/WMFxqLvkr6KyaXYPGrAP4WvQn4tpSR1nq/HW3pWTpvTMAIzGHSJYcT4iXTg1pTyWm5B8EkROwNm1RKxM+LR/ImYJBuFutQEIksHG1bdwnkZ9SDmpNR2tBO3A3AI+0ay7nKxzbGVQC8RE2TOLZCPo1xuHEH+lb1oPOjeWO82GrLeUGqHWUZy2/0Fi5AfC6+GkZSD/LgIfSte75/fo4FXLSJnLb9euAGWsVf7SycNNSDGCu2SUnrkbuvbFQtOTSl/z+RSTUMNAGXb0AfLdrmq413fWsMCHq/L3iRbyu3EQNi2ussn8YsXamSOK4qeKZR85Py7UNNzBuPI9AnNgGtDRaO8RIjUNmbAMjPXLFtaD9oFBZUAJ3sVugTv9xoaHomEuxXzFmZgNuBc6PjaKYUyYyuS4Cs6JpEFpzqiVZAHzxlk7dZoQmImR/aYUByD9wLngedE5GonmjDTG5Q0iJvHxQKW0w8hj5JDNSOeJIKCGkrm+qBbNpfh4mbxEMRExAXLxPFR+BBpSOoqKYRxG9Kxd4KLyceywpXRP7PJTb6E8XHYVyLkuoYT92vB3JMfIYJQ6oFAEWSWNmnieKN6NxD1dZcmkczfvgaE2+OfFENOI+P7kTxWBhvEoVU2ypD0QS3wls2aryjB4AXm7xLSG7SAG8NYzDZxp9zWfg5NjphYJFq/L1RHJlBuYMEq8KTtYHDRzqoiO+UioMYVChQykYpDj3OY76Mw2QVEOwXaws1gC6kwtW3xd0NAt7BnNUPw9nnm/vVgwfQJ/jLS/qndSfc6Av8qqp58DBexsqnoPIx91oJU78yqHzIeq5T6lQDPT2cJRWt893Z0wxyaLIXfWUH/nODCRQE96mPP+irZGKVorZPfzQGxk3QWYsRAzsQP62U36+cVT9kmXwVnGzMuNWkSDZ4BBR5/jgGyq5ft3bO71cBD2HOKnLYP9KhjJXZqb0KMTjnAtPdwAGaTLEDdbLH1I/2KxMwzir5Ps4rJFg0bV102qhB/3XT4GEewH0H7EAV4MEHQ5BpqPxq9C3a1prA8/v+c72Sg//caAQZ1B2D6Fte6PTmkQvlUHcD5hK33efktUgF8tfEHLLBE7lbO29HKe3Ak/2L6n4VUHspBkmuUPr43xn5CY5wxKf6+pItVIMHdF4qf2kPrrhGgwJKfoEYyPgjHFleN+MKLyI5GLnOsXrwGEQAblmNSlr265ByIcgB7lylLzyQSqFSMtBKu6Yz6L+aVwFtduuHdvpzFjwUgsxw8aXeVXZaLhVuageRgyK95qF5WXJfyUQlRgE1ftSgg3POaBHyTeCli+3FaURt4Fxfactn/lx/JMDg6MYJL12orzppGb3NRhegj6cGFDWLU+EXT1iCAe67W/dr5LcXqtrw7EbVikR+twGNZ5UbionfOVgPnhiw6TRLMECccIYeBtxQ2+de/lFS8Lq/EQMX4jQ0HLXcpOUPFlhr+ZG8uZIxzjljBG9oir/mJwctB097ozgxqD/WXpxmtUxyA9uBF8xLDtoOnjrAjFrebQdKaTkMXilC+bKUeSCePooBPShx/71g+HmcQ5Wv7MEll5GCnMFZEzTo4JyTm8Sc8/a11lqu3ikJggI0dfzd+zBwoeXHXyxsEicBp31gr+X/3kgLcqg9wpGWL7kiBrxiqWVn+4jDy1ODHbe40XL1YRkzWOTlk9b+eFMbAI8UrPipC1AqXH8ngGcCm8+wB7+vDpyTitNN/yYfJ7Y/rwZwk5azh/+3BAPc1YMINHmPt6ULLZe4p69RnBg0/M0e/FW/kyQFL1nkSJzGnwkgjFpu748L7gNGuDIPCkWe5xyI09FnvBgtJ/DH34jwkBRsMsURuODiGHG65T9LLc/hF1oxSUG4/6AL0Ef5TmmzOJV6K7AbGznsQLvq+7/eWDNIWTq6NQa8aL7V1Uu1tkiUQ6rlXcNx4kScvq5qFifvqSM2nS3xesJdrPdwIE47esRo+Rl/WYC+eh08F//bdNsaVNLFOX9vGGP4+iR/hvNxFO3G5D3eR/RdiFPBg2AWp+rfJe3sAMcDJ41Y7+ECnNIEwAjekdDw+fht5IMTsMgrJ91o+fFntZYbO1uhrxLEU5FwBLaY4Qicf2GMOF2e5CFaynNcfDB5j0f+d6Pl/mvFzFpe+PljcVfv4zhHzeQ9fnciTogrr44Bz5lkBqU8eRZzGaBvup67HGn5R0Z/HH0okdLwhN0NBLha4mTFxdS39jYTyBnU/hnRD5cA8VDnvOYabLXBkT/+sjJwozi134x6OfRNI9fNME7KDkY3/nhbJwAvHxRQrnP/d19pXwPcN9M4uXqlI3EaUSsfNI666LelBCw2KOdm6tvbzwQyTy95R+kBz5vjCPwr8rIntQvzgD9x2M3Ud+hRRlEJcqvlZ4xzBM5objeyUiFOffe6KdGceLFwukEONX9C9F2Aiy5JPdhuEyrp4unrzRIg0gwKKD/EiZYr/Of6dIMC4JoVLs4ZeXeTDEyVlvc/6aaOu6FV6sEW0x2B31ZN6Wp873DQDbizoxbcVGt5ff0u1wX4TlpX47vcrQ78sQzweyZSvXIOlT51IU45/BK8MNJ9zhv+QQzo16fcf1kq342pIGgZrqkHz6c3fAHOza+rp9vwPXYIA0W83p6/S7c4Nf6dGAzUVMjfpVycuu+gFSeVa5iJlXOoSluY9PHe/DOk/5y3/oeYFLQtnKVenEq/HZCJU4BzgIWRFfDiBVTnlLjey8JqKqQ/o1+gk8TWojoyBJ45PgQpYrWIRIZA6LOHQJwCnBLzRdkQpxrf24uTrz4EDzK2eAB3rkMlLTd3xEx1mRGnMh8qK3GSalepTP0FjIX0JTbn9HFA9HMWwcIv6DfCifflWGSfTbDJ5ISgymGr+L9nTJzu2Z9EnFSIWbYsGL46IxD92CN8g6qlv3SUfw4lw6OC3oQt3aWjoVFutAqY+6aB85aicvxv26InK5j74hmQqGVVnOC05q3uvrfbFTUSlfkBVlA4IGIPAABwOwCdASqWALYAPj0aikOiIaEWClWYIAPEtROBbYAgawHn3+k+Sn6M3tEYgBkBjmcDJZhnam58fj/5v+xngran7J+TP5HfMrW/6f99v3Z/v3yn8KujPOt8l/R/9N+bn+D9+/qg/RHsCfpL/iP7t+739y7hn9T/5PqA/nX9u/7/+X93X/O/sz7mP8p6gH9K/x//r9qX/R+wH/g/997AH7SerZ/tv/H/pvgT/ab/w/679//oG/l39c/6X5//IB6AHqXfwDsff7nmw/MWA7distRgnx6d5T9k/4vRG5ytQH+Yf1j0w/Xf+7XsLfrKhQyt/QjaL2grWsXTEpK4syuROyEFRNAbJT6UFEnZ2QknM36uWJVymiMs7Sp2xOvjmGHcw/HRU/L51WS1VBWCRS/USlHkHLVb9lYOGYm5cuze9p5Jle14FCfOLUdkIleG8TB9Ggdda36wm93JrMCUikL96R1/Xqt5jibYz3l7FQi1D9zs+nctGgq5UiHuj0+kFOmFWNGp97rCs1THTT6d6siGl8vLz3RZCS9GKx7svbqlsKUKOUiV0g9qaLsDxGza0PzlexeuMofgIZdcUN9RbmDr9vChn373jeKkMbiaDselKsdGRsYCI+OxcCOm0SBcoul/9Gvu2HcAAP7uekBq/A/98n/+97v75Ajt8ngncieKz/3DiEdWUcmeBz7557cF++3OHBmdfeT/5YnDhuwWhrSmqqfbx2fn/yohMsKeBxoGD9B9bPRpj0HWBVM9h3P/3JEPW6Cz/v+kY3bgnp9WYjASw00+O2MVqbhhFp+Qm5s3QFTNJNou9j5t9ixH5+2SRMGu2gUcKSMCLy4cQX9QcGYbQmOjI1h1GZ7mH9zWPv1iRKceNZxg0Jd9mmxaO/R54drxkOvk4APnv6OSZAAL625NKzUWqK2GaSceTSggi/22vHm4ULGi3hfZ6djM6bbgvepZeeTryNdCUCJ4dltpcJObhkh3KZcFBD+50H/6f5/+4vfR8woTK2Eyo+1qdooAAS8CPesbdaG8ECn3umouX9uDHZLyM2X4MGC6qsXXLuzVEcCjuN4MrIrJvLgxhSqN2nHp3n0w+1LkJxm3rqDPO73xARunFfjy1T/SCLH2C3KQwcqsYQYbBFJiLPCGTCkUq8V1oPA5fNDceMS8s19j4jAbEXa72BJKq3bcdwgmDZeVg5bN2gXJcuyoVCCEHdtmSqPOxvmV/55cqq3qpCaU7vIAAMHlLWu7XP7Wn0BxBNxCkofAIaCPy87gjBm0zZ4amqd31u3P/91EWEOJ/00/PuzQDHzmi9HeWslZTo0tMdCWAfnBU/fu5GCw1VMiCooBL+qdKrGSHH+KWu98hCuZf3NApWczmefY6S5zt6ng9SZFPBLiokosogUAt7C9E4KqvaseVwIfMrTqrzd/A/nXGkusE6yq+Chrw5nyoAnIDJGSBp3F8cbghNwDC6AN0DBKaHnvHtp8fT4pDy74oXMKOk/OMCnn5lg/8/Y+k4r0AdmHqcFsk8boZ3BN+rqAYc5OCmUQRE9QNwt6+AE6ARkxc65jmn8W5fdEwY0k5nflHm9KACzHkfvFKMW7px+IjadnFE1ljVooQB6U7DcEP6mzpHNf3QU/ZnPBtlT0lO1zqgRQNwgz32irVqXJAZDI1ihSoUjYXEWL8Jg0HQgtJU8ICFOAW3ui6uegMJS6CDaXTb6BOut2OS/eqOmmyiWjlenCoe5l2KPO2rCHdQGnbHYRbWLIgd6mizu/1jeP7XfwHDWNYLak1ZlIlskunOIEhWHUNXlFb7RSNc/BEleOlkEFa/zZa4Ic05fzr3FeEM46GLmwiZFAuWl9wzttoh2fH/cLLis1mi/ekH8YnFb4jwgE0l8d4Kg8/lmu7nq4vmzdNLwgjIXs14dUUG361Cre2aDFd962wER0hzWeSl+LQAFEAgxuutAFUsmsM9ycetpkylNRUzVvYAOguU+/6FIQolzbnZX4WFujZkFKYLkq8ih1oFBve+FGtLPTDd3uuZB2NQjzBk0VF48m9VmgKGSOMquqRj62pxwK3beF1I8etA9cma7osII7evVPCiDnpcM8xdmB19hgbaEl/5Hsm6wE2xioSPrFY0QboUKm2XHRH9dbVuIAJfj5TbQbkz/34HJndSpJUpuU5SHKtTxXN4HoIuno+44H1Rk1FU57vfjYtQBPH5bOwN+Q708X/zmjbHSu8sGhIhKbXy3ZZmbLQL9NfIX1Np+Vpet+MUs+Svmz/zX7Is/OzPUGj5H3iLc+oISb4uMSbd3g2BTCDWoFZB3Zmw+K6W2cx4aED5iuaP0WpGEePj0UY29/4gTQ694R1bb/25HAZ2XsyvS4j6Q7ifxM7Ql1h1FQ6iXdStcuvQny9Ji2vwLe5l1hpz0VBXoPxrPIeU4/KvAuxtXIuX3HDXv/Sj3Ew2PUUEXh+GGeiLZuLlYY09EvsYLQCm/M0aaMExcqkjKq3KoVJ/wIaSpCUqpk9zVt4fSrXAiINlGP6pYXwRJLktww8uMe4vnArqdlJa59uHRP1ehLfEQL1YMJpSXRY627aiI8rYAlqtFo7F9LeTQ+5oY/GXKq8kS+Yje3eBJRpZdgklOc0DtgUeccJn7MiuRWycDRhnPbgCXBqG3omI4UNrWnPFI6we30JGNYA4WhrhX7vZoBzwdn6g7V2hXU/4M2JjGA+rhBt5I84IV6NxRyGiZLmqocSgfwKrbD7ftC32UDxcr8yW46egzqhMFkzE84B+mZ1z/H17a5kQZn9mPnLMQrVKVojFVVS4MApqO6tJgyQB00JazQg3uJ8t4vs3BugQA20NsGXWzdt9ZXujykauRvH0n6Ib1lUgPkdXsDNBHz+HP3ipjxw/DYoXLTAH2shU0Mu2+kVybHCd0nvsralIc92T0CxHV7yfZEExwFJIzt3mAHjO/x+MZWkpIHyERjffIdU94FW4ydkZ+e3pPiO2BbtMucC4oMuCpvvRUO16qNOm12y7nmV+vwatK63zCQfqf/tJvOBOwIdu82LaQsZg7Mkv+0qx9J1AwuTod1Ev9qc3lOOgqI2GmXWDjjJ1G7DZcpupv1SorL15XHBP3JsUS2LKgBGEsbHtdtxAIllKZM7xqz4SzfAPw8rh/FdItJ5VoKwwgR/f5S32zfP+JnZ+c1GpUDFwbt9vnGVexFGPucs59z60RG+IU7FW79hGpr/TLED8NYbBTErFWnsI5+vmY3vBd0PfGhhOm55kelaurcSapiaOU0P6UK4KyZ8wOdroKqB5C3fqxjPTkMaj1ZYlT6Xayk04FX0k1o42UFxQi6X0VVQ/kMQvy4rHAiCM43pndoRHGkQlRFsC3P85MUxnWKq0DxstDfhgyQu2xYcinHjeI7U/PGEC/lNiTBkrN0wRYS+u30Nxp6+74e7RdL+mSs+CV1P2HM9dRFjbOM7yMBFyC4kEZxC7OmvyTSzPEiPdLSXc3aS2XtQJa8Tu9Ajapm1qERmrbp/xEH7W4qr1g2RpclD9SnKnpZH0tHucZr31DowJINQ/r7I6FRW7/F3Oq806ovydljtBmmidQkAfYRcXZUKo0MnXSsJDb9v/gkwZ/FYCnhX02c5SsQn9sQfzpCsV3yh/Bjf+hknv/VvClOZqhqwOzU70GBCNra17t/xXf5O70zmBZCMpJR/8jqpzh+ewfq2U0VOTNpOh1+m2yEl7Ya345/fudhLp+Go2QhpncGdHKatwplP3rkuye0Saf/6ZXKdmuFD+sxp/qVU4wA6p3+eTSxchILm8dNJHp8w4ZvaH2of4N9oWjIX90Yolj3Rs8JEcCXfvDLKIsksi77xXQR3+HA5e19eILREsnCwpdf/PYw5gWA0xyq6nrHLdVAfNyPZ7KriQVVMo/pIpA+z+6N2+riAWmveZqjsOLqB9vAqQL7ydr57V5j7PFV7aGUsWAhERjiDewBP2G9yNnSLZDPVNm2jZo8H+n3OLOqlV7LY7UMRY/XPd+XYrGLsvn2iZgRfSjnlIKE0xm+EjGLdjO3LFGR7qu/IUP9OrYEZlanjoUG3MpWUak5AzOHg6rIAJOoz1XX7c9YZS1E/4CniVYA4aFFdfMIUDaAtbxPC9Na2w/vF+jcy+0z+vGyQcBD95svJoF4wym5p8Na3Rzf/+f/QUVnFRgft7pDc/kiIRM3kZhDBWLeFRD39tZnb3iVLH+rnbXaLrWdWoXIuoNmROUyyWujpoPsz2ogFgniehRq01Jm1xxJy95XvHK0XXm87O8rkSWerthkrSpVgzO/MHoAAyBPiXOP6GU0uxmF80rUTDrudsJqsvHtIRTLyNfgLOedu/aUYgHllNVQkWVjP36EZe3o4d1fF/C3hURwBdCz3+YUIfQZLWKpMGgJU/SQgAOUru06FTvuN3yXx9s7BDRGx3QEyk8f4Np6vNN9Fnmn1s+f9/APvw2/Faaj0H6TgGg9kVzsmMR723WjArP+ZejO9/bkf1683p5ZT07eg3Etb/EMXNGNN+9sUltVy+XlamQS9g4r+JIgtXZV/iyjD9vBNCEVl5y+rAIjk2U0Ql29Q48Z301046VwJvMcDT8E8r3Lx4OomCWbC/ZstLRzTrGWyWLz+M1bMv5YZwpaqs/QhmCuiHd2oxxIyXUmn21ovmcltcVUMGF9VXgAMVrGeZP9A6MxG5zYWOPgUhHQsatYgdotCcoSttZJoAA9Bz2iJt1WdztPn52RM+q7jJnBQjB+3AWbmGvvvhG8F1dIBVCvMCri+5MHMPiVU6UF4IK4WQJF7qW1Z57eom4XoD7TyIZKcSZ2bUPcAoL7pN42LP/IS9zh2VvYAdqkgJFjl+ka7DEc/c5IykPle4InyTBfYOhc2Z5v/q3bxO3VWe5xMI2Iw0wvTyTsfkKeV4r6BbZ+DK8EBxberu0AAFh010Jiy80HRXoqlRVeItrv2zfcT28EIQCYi9IJiDmbhV/giJG+dxCVkXc+Is2Sp8HxxiBBBstqaksEL3SmaoqEyldLvGbt3/JwKK+wARp8JXwn6QTynRDBBBffcxT8/Jup6/oixfvYPA5zjmgeeE7ASWPxus6CWr1B4KZK56v4sQoQLwyf9Hn6FPkPBovIi9Alo83AAII0U1RxdbNfB9GebwPS2wVu5ysp7CWg/LulFlKq1mI6azp1xMW9VfAKQ8yL6jdp3dom1p094bwX52/WgVVtqcQMX4/U9PLVhF/jAp5SYAfvrfibIQkjvxNluLfSLc+1zygbV0wVkmgoI97x0ZE/t++w2wAAAA==";
+  // Tela de boas-vindas ao entrar no Hub; ao sair, a tela inicial sobe de leve.
+  function boasVindas(u) {
+    if (window.__bvFeito || !doc.body) return; window.__bvFeito = true;
+    var reduz = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var nome = String((u && u.nome) || "").trim().split(/\s+/)[0] || "colega";
+    var el = doc.createElement("div"); el.className = "ax-bv"; el.setAttribute("role", "status");
+    el.innerHTML = '<div class="ax-fundo" aria-hidden="true"><i></i><i></i><i></i></div><div class="ax-bv-meio"><img alt="ControlTax" src="' + BV_LOGO + '"><small>Control Hub</small><h2>Bem-vindo, <span></span></h2></div>';
+    el.querySelector("h2 span").textContent = nome;
+    doc.body.appendChild(el);
+    var feito = false, t = null;
+    function sair() {
+      if (feito) return; feito = true; clearTimeout(t);
+      // Anima só o conteúdo da tela inicial (nunca o contêiner inteiro): um ancestral com transform prenderia o botão do usuário, que é fixo, e ele pularia de lugar.
+      var home = doc.getElementById("view-home");
+      if (home && !home.hidden && !reduz) {
+        var alvos = home.querySelectorAll("#home-root > section"); if (!alvos.length) alvos = home.querySelectorAll("#home-root");
+        [].forEach.call(alvos, function (x, i) { try { x.animate([{ opacity: 0, transform: "translate3d(0,26px,0)" }, { opacity: 1, transform: "translate3d(0,0,0)" }], { duration: 900, delay: i * 90, easing: "cubic-bezier(.2,.75,.25,1)", fill: "backwards" }); } catch (e) {} });
+      }
+      el.classList.add("sai"); setTimeout(function () { el.remove(); }, 900);
+    }
+    t = setTimeout(sair, reduz ? 1200 : 2600);
+    el.addEventListener("click", sair); doc.addEventListener("keydown", function k(e) { if (!feito) sair(); doc.removeEventListener("keydown", k); });
+  }
   function injetarCss() { if (doc.getElementById("ax-css")) return; var st = doc.createElement("style"); st.id = "ax-css"; st.textContent = CSS; doc.head.appendChild(st); }
   var tela = null;
   function fecharTela() { if (tela) { tela.remove(); tela = null; } doc.documentElement.classList.remove("ax-bloqueado"); }
@@ -290,24 +435,46 @@
     injetarCss();
     if (tela) return tela;
     tela = doc.createElement("div"); tela.className = "ax-tela"; tela.setAttribute("role", "dialog"); tela.setAttribute("aria-modal", "true"); tela.setAttribute("aria-label", "Entrar no Control Hub");
-    tela.innerHTML = '<div class="ax-mast"><b><i>Control</i> <u>Hub</u></b><small>Painel interno · ControlTax</small></div><div class="ax-miolo"><div class="ax-cartao" id="ax-cartao"></div></div><div class="ax-pe" id="ax-pe"></div>';
+    tela.innerHTML = '<div class="ax-fundo" aria-hidden="true"><i></i><i></i><i></i></div><div class="ax-miolo"><div class="ax-cartao ax-cx" id="ax-cx"><div class="ax-marca"><img class="sig" alt="" src="data:image/webp;base64,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"><img class="nom" alt="ControlTax" src="data:image/webp;base64,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"></div><div id="ax-cartao"></div></div></div><div class="ax-pe" id="ax-pe"></div>';
+    inclinar(tela.querySelector("#ax-cx"));
     doc.body.appendChild(tela);
     BACKEND.modo().then(function (m) { var pe = doc.getElementById("ax-pe"); if (pe) pe.textContent = m === "local" ? "Modo de teste: contas guardadas só neste navegador." : "Acesso restrito à equipe. Em caso de dúvida, fale com o administrador."; });
     return tela;
   }
+  function campoFl(id, rot, tipo, extra) { return '<div class="ax-campo ax-fl' + (tipo === "password" ? " ax-fsen" : "") + '"><input id="' + id + '" type="' + (tipo || "text") + '" placeholder=" " ' + (extra || "") + '><label for="' + id + '">' + rot + '</label><span class="ax-ln"></span></div>'; }
+  function inclinar(el) {
+    if (!el || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+    el.addEventListener("mousemove", function (e) { var r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height; el.style.setProperty("--lx", (x * 100) + "%"); el.style.setProperty("--ly", (y * 100) + "%"); el.style.setProperty("--lo", 1); });
+    el.addEventListener("mouseleave", function () { el.style.setProperty("--lo", 0); });
+  }
+  function cascata(c, passo) { var n = 0, p = passo || 90; [].forEach.call(doc.querySelectorAll("#ax-cx .ax-marca"), function (x) { x.classList.add("ax-in"); x.style.setProperty("--i", n++); }); [].forEach.call(c.querySelectorAll("h1,.ax-sub,.ax-aviso:not([hidden]),.ax-campo,.ax-chk,.ax-erro,.ax-fx,.ax-troca,.ax-acoes"), function (x) { x.classList.add("ax-in"); x.style.setProperty("--i", n++); }); c.style.setProperty("--passo", p + "ms"); }
+  function okBtn(bt, rot) { if (!bt) return; bt.classList.remove("carrega"); bt.classList.add("sucesso"); setTimeout(function () { bt.classList.remove("sucesso"); ocupado(bt, false, rot); }, 1000); }
+  var BTN_FX = '<span class="t">@</span><span class="anel" aria-hidden="true"></span><svg class="okk" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  // Dá tempo de a tela desenhar o anel antes do trabalho pesado (cálculo da senha trava a página) e o mantém visível por pelo menos ~0,9 s.
+  function esperar(fn) {
+    var t0 = Date.now(), resto = function () { return new Promise(function (r) { setTimeout(r, Math.max(0, 900 - (Date.now() - t0))); }); };
+    return new Promise(function (r) { requestAnimationFrame(function () { setTimeout(r, 60); }); }).then(fn).then(function (v) { return resto().then(function () { return v; }); }, function (e) { return resto().then(function () { throw e; }); });
+  }
+  function sucessoTela(fn) {
+    var bt = doc.getElementById("ax-ok"), cx = doc.getElementById("ax-cx");
+    if (!tela || !bt || !cx || !bt.classList.contains("ax-fx") || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) { fn(); return; }
+    bt.classList.remove("carrega"); bt.classList.add("sucesso");
+    setTimeout(function () { cx.classList.add("sai"); setTimeout(fn, 520); }, 600);
+  }
   function campo(id, rot, tipo, extra) { return '<div class="ax-campo"><label for="' + id + '">' + rot + '</label><input id="' + id + '" type="' + (tipo || "text") + '" ' + (extra || "") + '></div>'; }
   function cartao() { return doc.getElementById("ax-cartao"); }
   function mostrarErro(msg, ok) { var e = doc.getElementById("ax-erro"); if (e) { e.textContent = msg || ""; e.className = "ax-erro" + (ok ? " ax-ok" : ""); } }
-  function ocupado(btn, on, rot) { if (!btn) return; btn.disabled = !!on; if (rot) btn.textContent = rot; }
+  function ocupado(btn, on, rot) { if (!btn) return; btn.disabled = !!on; var t = btn.querySelector(".t"); if (rot) { if (t) t.textContent = rot; else btn.textContent = rot; } btn.classList.toggle("carrega", !!on && btn.classList.contains("ax-fx")); }
   function pegar(id) { var e = doc.getElementById(id); return e ? e.value : ""; }
 
   // botão Mostrar/Ocultar nos campos de senha e indicador de força nas senhas novas
   function melhorarSenhas(cont) {
     [].forEach.call(cont.querySelectorAll('input[type="password"]'), function (i) {
-      if (i.parentNode.classList.contains("ax-sen")) return;
-      var w = doc.createElement("div"); w.className = "ax-sen"; i.parentNode.insertBefore(w, i); w.appendChild(i);
-      var b = doc.createElement("button"); b.type = "button"; b.className = "ax-olho"; b.textContent = "Mostrar"; b.setAttribute("aria-pressed", "false"); b.setAttribute("aria-label", "Mostrar a senha");
-      b.onclick = function () { var vis = i.type === "password"; i.type = vis ? "text" : "password"; b.textContent = vis ? "Ocultar" : "Mostrar"; b.setAttribute("aria-pressed", String(vis)); b.setAttribute("aria-label", vis ? "Ocultar a senha" : "Mostrar a senha"); i.focus(); };
+      if (i.parentNode.classList.contains("ax-sen") || i.parentNode.querySelector(".ax-olho")) return;
+      var fl = i.parentNode.classList.contains("ax-fl"), w;
+      if (fl) w = i.parentNode; else { w = doc.createElement("div"); w.className = "ax-sen"; i.parentNode.insertBefore(w, i); w.appendChild(i); }
+      var b = doc.createElement("button"); b.type = "button"; b.className = "ax-olho fechado"; b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="globo" d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle class="pupila" cx="12" cy="12" r="2.9"/><path class="corte" d="M4 4l16 16"/></svg>'; b.setAttribute("aria-pressed", "false"); b.setAttribute("aria-label", "Mostrar a senha");
+      b.onclick = function () { var vis = i.type === "password"; i.type = vis ? "text" : "password"; b.classList.toggle("fechado", !vis); b.setAttribute("aria-pressed", String(vis)); b.setAttribute("aria-label", vis ? "Ocultar a senha" : "Mostrar a senha"); b.classList.remove("pisca"); void b.offsetWidth; b.classList.add("pisca"); i.focus(); };
       w.appendChild(b);
       if (i.getAttribute("autocomplete") === "new-password" && (i.id === "ax-senha" || i.id === "ax-n1" || i.id === "ax-s1")) {
         var f = doc.createElement("div"); f.className = "au-forca"; f.setAttribute("data-forca", ""); w.parentNode.insertBefore(f, w.nextSibling);
@@ -318,28 +485,29 @@
   function telaEntrar(aba, aviso) {
     abrirTela(); var c = cartao(), criar = aba === "criar";
     BACKEND.listar("auth_usuarios").then(function (l) { var av = doc.getElementById("ax-primeiro"); if (av && !l.length) av.hidden = false; }, function () {});
-    c.innerHTML = '<h1>' + (criar ? "Criar conta" : "Entrar") + '</h1><p class="ax-sub">' + (criar ? "O cadastro só vale depois de aprovado pelo administrador." : "Use o usuário e a senha do Control Hub.") + '</p>' +
-      '<div class="ax-abas" role="group" aria-label="Entrar ou criar conta"><button type="button" data-aba="entrar" aria-pressed="' + !criar + '">Entrar</button><button type="button" data-aba="criar" aria-pressed="' + criar + '">Criar conta</button></div>' +
+    c.innerHTML = '<h1>' + (criar ? "Criar conta" : "Control Hub") + '</h1><p class="ax-sub">' + (criar ? "O cadastro só vale depois de aprovado pelo administrador." : "Entre para continuar de onde parou.") + '</p>' +
       '<div class="ax-aviso" id="ax-primeiro" hidden>Ainda não há nenhuma conta. A primeira que for criada vira <b>Administrador</b> e já entra liberada.</div>' +
       (aviso ? '<div class="ax-aviso">' + esc(aviso) + '</div>' : '') +
       '<form id="ax-form" autocomplete="on" novalidate>' +
-      (criar ? campo("ax-nome", "Nome completo", "text", 'autocomplete="name" maxlength="80" required') + campo("ax-email", "E-mail", "email", 'autocomplete="email" maxlength="120" required') + campo("ax-login", "Usuário", "text", 'autocomplete="username" maxlength="32" autocapitalize="none" spellcheck="false" required') +
-        campo("ax-senha", "Senha", "password", 'autocomplete="new-password" maxlength="100" required') + '<p class="ax-dica" style="margin:-6px 0 10px">Pelo menos 8 caracteres, com letras e números.</p>' + campo("ax-conf", "Repita a senha", "password", 'autocomplete="new-password" maxlength="100" required')
-       : campo("ax-ident", "Usuário ou e-mail", "text", 'autocomplete="username" autocapitalize="none" spellcheck="false" required') + campo("ax-senha", "Senha", "password", 'autocomplete="current-password" required') +
-        '<label class="ax-chk"><input type="checkbox" id="ax-manter"> Manter conectado neste computador</label>') +
-      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim" id="ax-ok">' + (criar ? "Criar conta" : "Entrar") + '</button></form>';
+      (criar ? campoFl("ax-nome", "Nome completo", "text", 'autocomplete="name" maxlength="80" required') + campoFl("ax-email", "E-mail", "email", 'autocomplete="email" maxlength="120" required') + campoFl("ax-login", "Usuário", "text", 'autocomplete="username" maxlength="32" autocapitalize="none" spellcheck="false" required') +
+        campoFl("ax-senha", "Senha", "password", 'autocomplete="new-password" maxlength="100" required') + '<p class="ax-dica" style="margin:-6px 0 10px">Pelo menos 8 caracteres, com letras e números.</p>' + campoFl("ax-conf", "Repita a senha", "password", 'autocomplete="new-password" maxlength="100" required')
+       : campoFl("ax-ident", "Usuário ou e-mail", "text", 'autocomplete="username" autocapitalize="none" spellcheck="false" required') + campoFl("ax-senha", "Senha", "password", 'autocomplete="current-password" required') +
+        '<label class="ax-chk"><input type="checkbox" id="ax-manter"> Manter conectado neste computador</label><div style="text-align:right;margin:-2px 0 8px"><button type="button" class="ax-link" id="ax-esq">Esqueci a senha</button></div>') +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim ax-fx" id="ax-ok" aria-label="' + (criar ? "Criar conta" : "Entrar") + '">' + BTN_FX.replace("@", criar ? "Criar conta" : "Entrar") + '</button></form>' +
+      '<p class="ax-troca">' + (criar ? "Já tem conta?" : "Ainda não tem conta?") + '<button type="button" data-aba="' + (criar ? "entrar" : "criar") + '">' + (criar ? "Entrar" : "Criar conta") + '</button></p>';
     [].forEach.call(c.querySelectorAll("[data-aba]"), function (b) { b.onclick = function () { telaEntrar(b.getAttribute("data-aba")); }; });
-    melhorarSenhas(c);
+    melhorarSenhas(c); cascata(c);
+    var esq = doc.getElementById("ax-esq"); if (esq) esq.onclick = function () { telaEsqueci(pegar("ax-ident")); };
     var f = doc.getElementById("ax-form"), foco = doc.getElementById(criar ? "ax-nome" : "ax-ident"); if (foco) setTimeout(function () { foco.focus(); }, 30);
     f.onsubmit = function (ev) {
       ev.preventDefault(); mostrarErro(""); var bt = doc.getElementById("ax-ok");
       if (criar) {
         ocupado(bt, true, "Criando…");
-        criarConta({nome: pegar("ax-nome"), email: pegar("ax-email"), login: pegar("ax-login"), senha: pegar("ax-senha"), confirma: pegar("ax-conf")})
-          .then(function (r) { return entrarConta(pegar("ax-login"), pegar("ax-senha"), false); }).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Criar conta"); mostrarErro(e.amigavel ? e.message : "Não consegui criar a conta agora. Tente de novo."); if (!e.amigavel) console.error(e); });
+        esperar(function () { return criarConta({nome: pegar("ax-nome"), email: pegar("ax-email"), login: pegar("ax-login"), senha: pegar("ax-senha"), confirma: pegar("ax-conf")})
+          .then(function (r) { return entrarConta(pegar("ax-login"), pegar("ax-senha"), false); }); }).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Criar conta"); mostrarErro(e.amigavel ? e.message : "Não consegui criar a conta agora. Tente de novo."); if (!e.amigavel) console.error(e); });
       } else {
         ocupado(bt, true, "Entrando…");
-        entrarConta(pegar("ax-ident"), pegar("ax-senha"), doc.getElementById("ax-manter").checked).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui entrar agora. Tente de novo. (" + String((e && e.message) || e).slice(0, 80) + ")"); if (!e.amigavel) console.error(e); });
+        esperar(function () { return entrarConta(pegar("ax-ident"), pegar("ax-senha"), doc.getElementById("ax-manter").checked); }).then(depoisDeEntrar).catch(function (e) { ocupado(bt, false, "Entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui entrar agora. Tente de novo. (" + String((e && e.message) || e).slice(0, 80) + ")"); if (!e.amigavel) console.error(e); });
       }
     };
   }
@@ -355,26 +523,101 @@
   function telaTrocaObrigatoria(u) {
     abrirTela(); var c = cartao();
     c.innerHTML = '<h1>Defina uma nova senha</h1><p class="ax-sub">Você entrou com uma senha provisória. Crie a sua para continuar.</p><form id="ax-form" novalidate>' +
-      campo("ax-n1", "Nova senha", "password", 'autocomplete="new-password" required') + '<p class="ax-dica" style="margin:-6px 0 10px">Pelo menos 8 caracteres, com letras e números.</p>' + campo("ax-n2", "Repita a nova senha", "password", 'autocomplete="new-password" required') +
-      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim" id="ax-ok">Salvar e entrar</button></form>';
-    melhorarSenhas(c);
+      campoFl("ax-n1", "Nova senha", "password", 'autocomplete="new-password" required') + '<p class="ax-dica" style="margin:-6px 0 10px">Pelo menos 8 caracteres, com letras e números.</p>' + campoFl("ax-n2", "Repita a nova senha", "password", 'autocomplete="new-password" required') +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim ax-fx" id="ax-ok" aria-label="Salvar e entrar">' + BTN_FX.replace("@", "Salvar e entrar") + '</button></form>';
+    melhorarSenhas(c); cascata(c);
     setTimeout(function () { var i = doc.getElementById("ax-n1"); if (i) i.focus(); }, 30);
     doc.getElementById("ax-form").onsubmit = function (ev) {
       ev.preventDefault(); mostrarErro(""); var bt = doc.getElementById("ax-ok");
       if (pegar("ax-n1") !== pegar("ax-n2")) { mostrarErro("As senhas não são iguais."); return; }
       ocupado(bt, true, "Salvando…");
-      mudarSenha(u.id, pegar("ax-n1"), false).then(function () { return BACKEND.ler("auth_usuarios/" + u.id); }).then(function (n) { n.id = u.id; depoisDeEntrar(n); })
+      esperar(function () { return mudarSenha(u.id, pegar("ax-n1"), false); }).then(function () { return BACKEND.ler("auth_usuarios/" + u.id); }).then(function (n) { n.id = u.id; depoisDeEntrar(n); })
         .catch(function (e) { ocupado(bt, false, "Salvar e entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui salvar. Tente de novo."); });
+    };
+  }
+  /* ---- recuperação de senha: telas ---- */
+  function htmlRec(modo) {
+    var cad = modo === "cad";
+    return campoFl("rc-reserva", "Senha reserva ou palavra-chave", "password", 'autocomplete="off" maxlength="100"') +
+      '<p class="ax-dica" style="margin:-6px 0 10px">' + (cad ? "Uma segunda senha só sua (mínimo 6 caracteres), diferente da senha de entrada. Sozinha já basta." : "Se você cadastrou uma, ela sozinha já basta.") + '</p>' +
+      '<div class="ax-sep"><span>' + (cad ? "ou informe pelo menos 2 destas" : "ou pelo menos 2 destas informações") + '</span></div>' +
+      REC_ITENS.map(function (i) { return campoFl("rc-" + i[0], i[1], i[2], 'autocomplete="off" spellcheck="false"' + (i[3] || ' maxlength="80"')); }).join("");
+  }
+  function lerRec() { var o = {reserva: pegar("rc-reserva")}; REC_ITENS.forEach(function (i) { o[i[0]] = pegar("rc-" + i[0]); }); return o; }
+  function telaRecObrigatoria(u) {
+    abrirTela(); var c = cartao();
+    c.innerHTML = '<h1>Proteja o seu acesso</h1><p class="ax-sub">Cadastre como recuperar a sua senha caso um dia você a esqueça. É só uma vez e dá para mudar depois, no seu perfil.</p><form id="ax-form" novalidate>' + htmlRec("cad") +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim ax-fx" id="ax-ok" aria-label="Salvar e entrar">' + BTN_FX.replace("@", "Salvar e entrar") + '</button></form>' +
+      '<p class="ax-troca"><button type="button" id="ax-sai">Sair</button></p>';
+    melhorarSenhas(c); cascata(c);
+    setTimeout(function () { var i = doc.getElementById("rc-reserva"); if (i) i.focus(); }, 30);
+    doc.getElementById("ax-sai").onclick = function () { apagarLS(SESSAO_KEY); telaEntrar("entrar"); };
+    doc.getElementById("ax-form").onsubmit = function (ev) {
+      ev.preventDefault(); mostrarErro(""); var bt = doc.getElementById("ax-ok"), f = lerRec();
+      ocupado(bt, true, "Salvando…");
+      esperar(function () { return salvarRec(u.id, f, false); }).then(function () { return BACKEND.ler("auth_usuarios/" + u.id); }).then(function (n) { n.id = u.id; depoisDeEntrar(n); })
+        .catch(function (e) { ocupado(bt, false, "Salvar e entrar"); mostrarErro(e.amigavel ? e.message : "Não consegui salvar. Tente de novo."); if (!e.amigavel) console.error(e); });
+    };
+  }
+  function telaEsqueci(identIni) {
+    abrirTela(); var c = cartao();
+    c.innerHTML = '<h1>Esqueci a senha</h1><p class="ax-sub">Prove que é você com a senha reserva ou com pelo menos 2 das informações que você cadastrou.</p><form id="ax-form" novalidate>' +
+      campoFl("ax-ident", "Usuário ou e-mail", "text", 'autocomplete="username" autocapitalize="none" spellcheck="false" required') + htmlRec("esq") +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim ax-fx" id="ax-ok" aria-label="Continuar">' + BTN_FX.replace("@", "Continuar") + '</button></form>' +
+      '<p class="ax-troca">Lembrou?<button type="button" id="ax-volta">Voltar ao login</button></p>';
+    melhorarSenhas(c); cascata(c);
+    var ii = doc.getElementById("ax-ident"); if (identIni) ii.value = identIni; setTimeout(function () { ii.focus(); }, 30);
+    doc.getElementById("ax-volta").onclick = function () { telaEntrar("entrar"); };
+    doc.getElementById("ax-form").onsubmit = function (ev) {
+      ev.preventDefault(); mostrarErro(""); var bt = doc.getElementById("ax-ok"), ident = pegar("ax-ident"), prova = lerRec();
+      ocupado(bt, true, "Conferindo…");
+      esperar(function () { return verificarRec(ident, prova); }).then(function (r) { telaNovaSenhaRec(ident, prova, r.nome); })
+        .catch(function (e) { ocupado(bt, false, "Continuar"); mostrarErro(e.amigavel ? e.message : "Não consegui conferir agora. Tente de novo."); if (!e.amigavel) console.error(e); });
+    };
+  }
+  function telaNovaSenhaRec(ident, prova, nome) {
+    abrirTela(); var c = cartao();
+    c.innerHTML = '<h1>Crie a nova senha</h1><p class="ax-sub">Tudo certo, ' + esc(String(nome || "").split(" ")[0]) + '. Escolha uma nova senha para entrar. Você será desconectado dos outros aparelhos.</p><form id="ax-form" novalidate>' +
+      campoFl("ax-n1", "Nova senha", "password", 'autocomplete="new-password" required') + '<p class="ax-dica" style="margin:-6px 0 10px">Pelo menos 8 caracteres, com letras e números.</p>' + campoFl("ax-n2", "Repita a nova senha", "password", 'autocomplete="new-password" required') +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><button type="submit" class="ax-btn prim ax-fx" id="ax-ok" aria-label="Salvar nova senha">' + BTN_FX.replace("@", "Salvar nova senha") + '</button></form>';
+    melhorarSenhas(c); cascata(c);
+    setTimeout(function () { var i = doc.getElementById("ax-n1"); if (i) i.focus(); }, 30);
+    doc.getElementById("ax-form").onsubmit = function (ev) {
+      ev.preventDefault(); mostrarErro(""); var bt = doc.getElementById("ax-ok");
+      if (pegar("ax-n1") !== pegar("ax-n2")) { mostrarErro("As senhas não são iguais."); return; }
+      ocupado(bt, true, "Salvando…");
+      esperar(function () { return recuperarSenha(ident, prova, pegar("ax-n1")); }).then(function () { telaEntrar("entrar", "Senha alterada. Entre com a nova senha."); })
+        .catch(function (e) { ocupado(bt, false, "Salvar nova senha"); mostrarErro(e.amigavel ? e.message : "Não consegui salvar. Tente de novo."); if (!e.amigavel) console.error(e); });
+    };
+  }
+  function dialogoRec() {
+    injetarCss();
+    var r = atual && atual.rec, itens = r ? REC_ITENS.filter(function (i) { return r.itens && r.itens[i[0]]; }).map(function (i) { return i[1].toLowerCase(); }) : [];
+    var estado = r ? "Cadastrada em " + fmtData(r.em) + (r.reserva ? " · com senha reserva" : "") + (itens.length ? " · " + itens.join(", ") : "") + ". Preencher de novo substitui o que está cadastrado." : "Ainda não há recuperação cadastrada.";
+    var d = doc.createElement("div"); d.className = "ax-dlg"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "Recuperação de senha");
+    d.innerHTML = '<div class="ax-fundo" aria-hidden="true"><i></i><i></i><i></i></div><div class="ax-cartao"><h1>Recuperação de senha</h1><p class="ax-sub">' + esc(estado) + '</p><form id="ax-fs" novalidate>' + campoFl("ax-r0", "Senha atual", "password", 'autocomplete="current-password" required') + htmlRec("cad") +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><div class="ax-acoes"><button type="button" class="ax-btn" id="ax-cancel">Cancelar</button><button type="submit" class="ax-btn prim ax-fx" id="ax-oks" style="flex:1" aria-label="Salvar">' + BTN_FX.replace("@", "Salvar") + '</button></div></form></div>';
+    doc.body.appendChild(d); melhorarSenhas(d); cascata(d.querySelector(".ax-cartao"), 60);
+    var fecha = function () { d.remove(); };
+    d.addEventListener("keydown", function (e) { if (e.key === "Escape") fecha(); });
+    d.querySelector("#ax-cancel").onclick = fecha;
+    setTimeout(function () { d.querySelector("#ax-r0").focus(); }, 30);
+    d.querySelector("#ax-fs").onsubmit = function (ev) {
+      ev.preventDefault(); mostrarErro(""); var bt = d.querySelector("#ax-oks"), f = lerRec(), atualTxt = d.querySelector("#ax-r0").value;
+      ocupado(bt, true, "Salvando…");
+      esperar(function () { return salvarRec(atual.id, f, true, atualTxt); }).then(function (rec) { atual.rec = rec; mostrarErro("Recuperação salva.", true); bt.classList.remove("carrega"); bt.classList.add("sucesso"); setTimeout(fecha, 1100); })
+        .catch(function (e) { ocupado(bt, false, "Salvar"); mostrarErro(e.amigavel ? e.message : "Não consegui salvar. Tente de novo."); if (!e.amigavel) console.error(e); });
     };
   }
   function depoisDeEntrar(u) {
     if (u.status === "bloqueado") { apagarLS(SESSAO_KEY); telaEntrar("entrar", "Esta conta está bloqueada. Fale com o administrador."); return; }
     if (u.status !== "ativo") { telaEspera(u); return; }
     if (u.trocarSenha) { telaTrocaObrigatoria(u); return; }
-    liberar(u);
+    if (!u.rec) { telaRecObrigatoria(u); return; }
+    sucessoTela(function () { liberar(u); });
   }
   function liberar(u) {
-    atual = u; snapAcesso = assinatura(u); fecharTela(); desenharChip();
+    atual = u; snapAcesso = assinatura(u); injetarCss(); fecharTela(); desenharChip(); boasVindas(u);
     if (offMeuDoc) offMeuDoc();
     offMeuDoc = BACKEND.ouvirDoc("auth_usuarios/" + u.id, function (n) {
       if (!n || !atual) return;
@@ -416,8 +659,8 @@
   doc.addEventListener("click", function (e) { if (!e.target.closest || (!e.target.closest("#ax-pop") && !e.target.closest(".ax-av"))) fecharPop(); });
   doc.addEventListener("keydown", function (e) { if (e.key === "Escape") { var p = doc.getElementById("ax-pop"); if (p) { var b = botaoPop; fecharPop(); if (b) b.focus(); } } });
   function botaoConta(cls) {
-    var b = doc.createElement("button"); b.type = "button"; b.className = "ax-av " + cls; b.setAttribute("aria-haspopup", "menu"); b.setAttribute("aria-expanded", "false");
-    b.setAttribute("aria-label", "Conta de " + atual.nome); b.title = atual.nome; b.textContent = iniciais(atual.nome); b.onclick = function () { abrirPop(b); }; return b;
+    var b = doc.createElement("button"); b.type = "button"; b.className = "ax-av " + cls; b.setAttribute("aria-haspopup", "dialog"); b.setAttribute("aria-expanded", "false");
+    b.setAttribute("aria-label", "Meu perfil: " + atual.nome); b.title = atual.nome + " · configurações do perfil"; aplicarAvatar(b); b.onclick = function () { abrirPerfil(b); }; return b;
   }
   // Dois lugares: na barra lateral (quando um módulo está aberto) e no canto da tela inicial.
   function desenharChip() {
@@ -428,12 +671,99 @@
     var home = doc.getElementById("view-home");
     if (home) { var h = doc.createElement("div"); h.id = "ax-chip-home"; h.className = "ax-chip-home"; h.appendChild(botaoConta("ax-av-home")); home.insertBefore(h, home.firstChild); }
   }
+
+  /* ============ configurações do perfil (botão do usuário) ============ */
+  var CORES_AV = ["#3C659B", "#C2000C", "#167A45", "#B5530C", "#6B4EA0", "#0F7B8A", "#8A5A00", "#47545F"];
+  function aplicarAvatar(b, u, grande) {
+    u = u || atual; if (!b || !u) return;
+    b.textContent = ""; b.style.backgroundImage = ""; b.classList.remove("tem-foto");
+    if (u.avatarCor) b.style.background = u.avatarCor; else b.style.background = "";
+    if (u.foto) { b.classList.add("tem-foto"); b.style.backgroundImage = "url(" + u.foto + ")"; b.style.backgroundSize = "cover"; b.style.backgroundPosition = "center"; }
+    else b.textContent = iniciais(u.nome);
+  }
+  // Foto: recorta o centro, reduz para 160 px e guarda como JPEG pequeno (cerca de 8 KB) no próprio cadastro.
+  function fotoReduzida(file) {
+    return createImageBitmap(file).then(function (bmp) {
+      var lado = Math.min(bmp.width, bmp.height), cv = doc.createElement("canvas"); cv.width = cv.height = 160;
+      cv.getContext("2d").drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, 160, 160);
+      return cv.toDataURL("image/jpeg", 0.85);
+    });
+  }
+  function abrirPerfil(botao) {
+    if (!atual || doc.getElementById("ax-perfil")) return;
+    injetarCss(); fecharPop();
+    var hub = window.__hubApi || {}, cfgH = hub.cfg || {};
+    var rascunho = {foto: atual.foto || "", cor: atual.avatarCor || ""}, orig = JSON.stringify([atual.nome, atual.email || "", atual.telefone || "", atual.foto || "", atual.avatarCor || "", (atual.prefs || {}).inicio || ""]);
+    var mods = MODS.filter(function (m) { return nivelDe(atual, m); });
+    var inicios = [["", "Início (padrão)"]].concat(mods.map(function (m) { return [m, MODC[m] || m]; }));
+    var tema = cfgH.tema ? cfgH.tema() : "";
+    var d = doc.createElement("div"); d.className = "ax-dlg"; d.id = "ax-perfil"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "Configurações do perfil");
+    d.innerHTML = '<div class="ax-fundo" aria-hidden="true"><i></i><i></i><i></i></div><div class="ax-cartao ax-pf"><div class="ax-pf-topo"><span class="ax-av ax-pf-av" id="pf-av" aria-hidden="true"></span><div class="ax-pf-id"><h1 id="pf-tit"></h1><span id="pf-papel"></span></div><button type="button" class="ax-pf-x" id="pf-x" aria-label="Fechar">✕</button></div>' +
+      '<form id="pf-form" novalidate>' +
+      '<section><h2>Perfil</h2>' + campoFl("pf-nome", "Nome de exibição", "text", 'maxlength="60" autocomplete="name" required') + campoFl("pf-email", "E-mail", "email", 'maxlength="120" autocomplete="email"') + campoFl("pf-tel", "Telefone ou ramal", "text", 'maxlength="30" autocomplete="tel"') +
+      '<div class="ax-campo"><label>Foto e cor do avatar</label><div class="ax-pf-foto"><button type="button" class="ax-btn" id="pf-foto-b">Escolher foto</button><button type="button" class="ax-btn" id="pf-foto-x">Remover foto</button><input type="file" id="pf-foto" accept="image/*" hidden></div><div class="ax-pf-cores" role="group" aria-label="Cor do avatar">' + CORES_AV.map(function (c) { return '<button type="button" class="ax-pf-cor" data-cor="' + c + '" style="background:' + c + '" aria-label="Cor ' + c + '" aria-pressed="false"></button>'; }).join("") + '</div></div></section>' +
+      '<section><h2>Preferências</h2><div class="ax-campo" id="pf-tema-c"><label id="pf-tema-l">Tema</label><div class="ax-tema2" id="pf-tema" role="radiogroup" aria-labelledby="pf-tema-l"><button type="button" role="radio" aria-checked="false" data-v="light"><i class="sw claro"></i>Claro</button><button type="button" role="radio" aria-checked="false" data-v="dark"><i class="sw escuro"></i>Escuro</button></div></div>' +
+      '<div class="ax-campo"><label for="pf-inicio">Abrir o Hub direto em</label><select id="pf-inicio">' + inicios.map(function (i) { return '<option value="' + esc(i[0]) + '">' + esc(i[1]) + '</option>'; }).join("") + '</select></div>' +
+      (hub.abrirConfig ? '<div class="ax-pf-lin"><button type="button" class="ax-btn" id="pf-cfg-ass">Configurações do assistente</button><button type="button" class="ax-btn" id="pf-cfg-hub">Configurações do Hub</button></div>' : '') + '</section>' +
+      '<section><h2>Meu acesso</h2><ul class="ax-pf-ac">' + MODS.map(function (m) { return '<li><span>' + esc(MODC[m] || m) + '</span><b>' + esc(NIVN[nivelDe(atual, m) || ""] || "Sem acesso") + '</b></li>'; }).join("") + '</ul>' +
+      (atual.analista && Object.keys(atual.analista).some(function (k) { return atual.analista[k]; }) ? '<p class="ax-sub">Vinculado como analista: ' + esc(Object.keys(atual.analista).map(function (k) { return atual.analista[k] ? (MODC[k] || k) + ": " + atual.analista[k] : ""; }).filter(Boolean).join(" · ")) + '. Quem altera o acesso é o administrador.</p>' : '<p class="ax-sub">O acesso aos módulos é definido pelo administrador.</p>') + '</section>' +
+      '<section><h2>Segurança</h2><div class="ax-pf-lin"><button type="button" class="ax-btn" id="pf-senha">Trocar senha</button><button type="button" class="ax-btn" id="pf-rec">Recuperação de senha</button><button type="button" class="ax-btn" id="pf-sair">Sair deste aparelho</button></div></section>' +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><div class="ax-acoes"><button type="button" class="ax-btn" id="pf-cancel">Fechar</button><button type="submit" class="ax-btn prim ax-fx" id="pf-ok" style="flex:1" aria-label="Salvar perfil">' + BTN_FX.replace("@", "Salvar perfil") + '</button></div></form></div>';
+    doc.body.appendChild(d); cascata(d.querySelector(".ax-cartao"), 40);
+    var $ = function (id) { return d.querySelector("#" + id); };
+    $("pf-nome").value = atual.nome || ""; $("pf-email").value = atual.email || ""; $("pf-tel").value = atual.telefone || "";
+    var marcaTema = function (v) { [].forEach.call($("pf-tema").querySelectorAll("button"), function (b) { var on = b.getAttribute("data-v") === v; b.setAttribute("aria-checked", on ? "true" : "false"); b.tabIndex = on || (!v && b.getAttribute("data-v") === "light") ? 0 : -1; }); };
+    if (tema) marcaTema(tema); else $("pf-tema-c").hidden = true;
+    $("pf-inicio").value = (atual.prefs || {}).inicio || "";
+    var pintar = function () {
+      var nome = $("pf-nome").value.trim() || atual.nome, av = $("pf-av"); aplicarAvatar(av, {nome: nome, foto: rascunho.foto, avatarCor: rascunho.cor});
+      $("pf-tit").textContent = nome; $("pf-papel").textContent = papel(atual) + " · " + atual.login;
+      [].forEach.call(d.querySelectorAll(".ax-pf-cor"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-cor") === rascunho.cor)); });
+      $("pf-foto-x").hidden = !rascunho.foto;
+    };
+    pintar();
+    var fecha = function () { d.remove(); if (botao && botao.isConnected) botao.focus(); };
+    d.addEventListener("keydown", function (e) { if (e.key === "Escape") fecha(); });
+    d.addEventListener("mousedown", function (e) { if (e.target === d) fecha(); });
+    $("pf-x").onclick = fecha; $("pf-cancel").onclick = fecha;
+    $("pf-nome").addEventListener("input", pintar);
+    [].forEach.call(d.querySelectorAll(".ax-pf-cor"), function (b) { b.onclick = function () { rascunho.cor = rascunho.cor === b.getAttribute("data-cor") ? "" : b.getAttribute("data-cor"); pintar(); }; });
+    $("pf-foto-b").onclick = function () { $("pf-foto").click(); };
+    $("pf-foto-x").onclick = function () { rascunho.foto = ""; pintar(); };
+    $("pf-foto").onchange = function () {
+      var f = this.files && this.files[0]; this.value = ""; if (!f) return;
+      if (!/^image\//.test(f.type)) { mostrarErro("Escolha um arquivo de imagem."); return; }
+      fotoReduzida(f).then(function (u) { rascunho.foto = u; mostrarErro(""); pintar(); }).catch(function () { mostrarErro("Não consegui ler essa imagem. Tente outra."); });
+    };
+    $("pf-tema").onclick = function (e) { var b = e.target.closest("button[data-v]"); if (!b) return; marcaTema(b.getAttribute("data-v")); if (cfgH.setTema) cfgH.setTema(b.getAttribute("data-v")); };
+    var abre = function (aba) { return function () { fecha(); try { aba === "hub" ? hub.abrirConfig("geral") : hub.abrirConfig("assistente"); } catch (e) {} }; };
+    if ($("pf-cfg-ass")) { $("pf-cfg-ass").onclick = abre("ass"); $("pf-cfg-hub").onclick = abre("hub"); }
+    $("pf-senha").onclick = function () { fecha(); dialogoSenha(); };
+    $("pf-rec").onclick = function () { fecha(); dialogoRec(); };
+    $("pf-sair").onclick = function () { fecha(); sair(); };
+    setTimeout(function () { $("pf-nome").focus(); }, 30);
+    d.querySelector("#pf-form").onsubmit = function (ev) {
+      ev.preventDefault(); mostrarErro("");
+      var nome = $("pf-nome").value.trim().replace(/\s+/g, " "), email = $("pf-email").value.trim(), tel = $("pf-tel").value.trim(), inicio = $("pf-inicio").value;
+      if (nome.length < 2) { mostrarErro("Digite o seu nome."); $("pf-nome").focus(); return; }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { mostrarErro("Esse e-mail não parece certo."); $("pf-email").focus(); return; }
+      var novo = JSON.stringify([nome, email, tel, rascunho.foto, rascunho.cor, inicio]);
+      if (novo === orig) { mostrarErro("Nada mudou no perfil.", true); return; }
+      var bt = $("pf-ok"); ocupado(bt, true, "Salvando…");
+      var prefs = Object.assign({}, atual.prefs || {}, {inicio: inicio});
+      esperar(function () { return BACKEND.atualizar("auth_usuarios/" + atual.id, {nome: nome, email: email, telefone: tel, foto: rascunho.foto, avatarCor: rascunho.cor, prefs: prefs}); }).then(function () {
+        atual.nome = nome; atual.email = email; atual.telefone = tel; atual.foto = rascunho.foto; atual.avatarCor = rascunho.cor; atual.prefs = prefs;
+        orig = novo; desenharChip(); okBtn(bt, "Salvar perfil"); mostrarErro("Perfil salvo.", true);
+        BACKEND.registrar("perfil", atual.id, atual.id);
+      }).catch(function () { ocupado(bt, false, "Salvar perfil"); mostrarErro("Não consegui salvar o perfil. Tente de novo."); });
+    };
+  }
   function dialogoSenha() {
     injetarCss();
     var d = doc.createElement("div"); d.className = "ax-dlg"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "Trocar senha");
-    d.innerHTML = '<div class="ax-cartao"><h1>Trocar senha</h1><p class="ax-sub">Ao trocar, você sai dos outros aparelhos.</p><form id="ax-fs" novalidate>' + campo("ax-s0", "Senha atual", "password", 'autocomplete="current-password" required') + campo("ax-s1", "Nova senha", "password", 'autocomplete="new-password" required') + campo("ax-s2", "Repita a nova senha", "password", 'autocomplete="new-password" required') +
-      '<div class="ax-erro" id="ax-erro" role="alert"></div><div class="ax-acoes"><button type="button" class="ax-btn" id="ax-cancel">Cancelar</button><button type="submit" class="ax-btn prim" id="ax-oks" style="flex:1">Trocar senha</button></div></form></div>';
-    doc.body.appendChild(d); melhorarSenhas(d);
+    d.innerHTML = '<div class="ax-fundo" aria-hidden="true"><i></i><i></i><i></i></div><div class="ax-cartao"><h1>Trocar senha</h1><p class="ax-sub">Ao trocar, você sai dos outros aparelhos.</p><form id="ax-fs" novalidate>' + campoFl("ax-s0", "Senha atual", "password", 'autocomplete="current-password" required') + campoFl("ax-s1", "Nova senha", "password", 'autocomplete="new-password" required') + campoFl("ax-s2", "Repita a nova senha", "password", 'autocomplete="new-password" required') +
+      '<div class="ax-erro" id="ax-erro" role="alert"></div><div class="ax-acoes"><button type="button" class="ax-btn" id="ax-cancel">Cancelar</button><button type="submit" class="ax-btn prim ax-fx" id="ax-oks" style="flex:1" aria-label="Trocar senha">' + BTN_FX.replace("@", "Trocar senha") + '</button></div></form></div>';
+    doc.body.appendChild(d); melhorarSenhas(d); cascata(d.querySelector(".ax-cartao"), 60);
     var fecha = function () { d.remove(); };
     d.addEventListener("keydown", function (e) { if (e.key === "Escape") fecha(); });
     d.querySelector("#ax-cancel").onclick = fecha;
@@ -442,7 +772,7 @@
       ev.preventDefault(); mostrarErro("");
       if (d.querySelector("#ax-s1").value !== d.querySelector("#ax-s2").value) { mostrarErro("As senhas não são iguais."); return; }
       var bt = d.querySelector("#ax-oks"); ocupado(bt, true, "Salvando…");
-      mudarSenha(atual.id, d.querySelector("#ax-s1").value, true, d.querySelector("#ax-s0").value).then(function () { mostrarErro("Senha trocada.", true); setTimeout(fecha, 900); })
+      esperar(function () { return mudarSenha(atual.id, d.querySelector("#ax-s1").value, true, d.querySelector("#ax-s0").value); }).then(function () { mostrarErro("Senha trocada.", true); bt.classList.remove("carrega"); bt.classList.add("sucesso"); setTimeout(fecha, 1100); })
         .catch(function (e) { ocupado(bt, false, "Trocar senha"); mostrarErro(e.amigavel ? e.message : "Não consegui trocar a senha. Tente de novo."); });
     };
   }
@@ -469,8 +799,8 @@
     {id: "an_fiscal", nome: "Analista do Fiscal", niveis: {fiscal: "analista", cardapio: "consulta"}},
     {id: "an_portal", nome: "Analista do Portal do Cliente", niveis: {portal: "analista", cardapio: "consulta"}}
   ];
-  var ROTULO = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)", criado_admin: "teve a conta criada pelo administrador", dados_alterados: "teve nome, e-mail ou usuário corrigido", sessoes_encerradas: "teve as sessões encerradas"};
-  var GRUPOS = {entradas: ["login", "sair"], erros: ["senha_errada"], acessos: ["acesso_alterado", "aprovado", "bloqueado", "desbloqueado", "senha_redefinida", "dados_alterados", "sessoes_encerradas", "troca_senha"], contas: ["cadastro", "primeiro_admin", "criado_admin", "recusado", "excluido"]};
+  var ROTULO = {login: "entrou", sair: "saiu", senha_errada: "errou a senha", cadastro: "criou a conta", primeiro_admin: "criou a conta (primeiro administrador)", troca_senha: "trocou a senha", aprovado: "teve a conta aprovada", bloqueado: "foi bloqueado(a)", desbloqueado: "foi desbloqueado(a)", senha_redefinida: "teve a senha redefinida", acesso_alterado: "teve o acesso alterado", recusado: "teve o cadastro recusado", excluido: "foi excluído(a)", criado_admin: "teve a conta criada pelo administrador", dados_alterados: "teve nome, e-mail ou usuário corrigido", sessoes_encerradas: "teve as sessões encerradas", recuperacao_cadastrada: "cadastrou a recuperação de senha", senha_recuperada: "recuperou a senha (esqueci a senha)", recuperacao_errada: "errou os dados de recuperação"};
+  var GRUPOS = {entradas: ["login", "sair"], erros: ["senha_errada", "recuperacao_errada"], acessos: ["acesso_alterado", "aprovado", "bloqueado", "desbloqueado", "senha_redefinida", "dados_alterados", "sessoes_encerradas", "troca_senha", "recuperacao_cadastrada", "senha_recuperada"], contas: ["cadastro", "primeiro_admin", "criado_admin", "recusado", "excluido"]};
   var admin = {aba: null, lista: [], carregado: false, rasc: {}, prov: {}, msgs: {}, undo: {}, aberto: {}, sel: {}, hist: {}, destaque: "", busca: "", fMod: "", fNivel: "", fEsp: "", ordem: "nome", lote: {mod: "", nivel: "consulta"},
     off: null, raiz: null, analistas: {}, novo: null, criado: null, lg: {pessoa: "", tipo: "", dias: 7, mais: 120}, logCache: {}, pendCount: 0, avisouPend: false, toastT: null};
   var pendOuvintes = [];

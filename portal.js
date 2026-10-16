@@ -293,7 +293,7 @@
   // A filial (empresas.matrizId) não tem frentes, contatos nem etapas próprias: tudo fica na matriz e o
   // grupo conta como uma empresa. O banco chega inteiro em "bruto"; as telas usam state.* já sem as filiais.
   var bruto = {empresas:null, setores:null, contatos:null};
-  var grupos = {filiaisDe:{}, matrizDe:{}, porId:{}};
+  var grupos = {filiaisDe:{}, matrizDe:{}, porId:{}}, arquivadas = [];
   function definirDados(key, lista){
     if(!(key in bruto)){ state[key] = lista; return; }
     bruto[key] = lista;
@@ -308,6 +308,8 @@
     });
     Object.keys(filiaisDe).forEach(function(k){ filiaisDe[k].sort(function(a, b){ return String(a.cnpj || a.nome).localeCompare(String(b.cnpj || b.nome)); }); });
     grupos = {filiaisDe:filiaisDe, matrizDe:matrizDe, porId:porId};
+    // Empresas arquivadas só saem da lista de Consulta (Empresas); nas demais abas continuam normalmente.
+    arquivadas = emps.filter(function(e){ return e.arquivada && !matrizDe[e.id]; });
     state.empresas = emps.filter(function(e){ return !matrizDe[e.id]; });
     if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId]; });
     if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId]; });
@@ -924,6 +926,7 @@
       '<span class="ag-acoes">' +
         '<button type="button" class="ag-ok" data-action="agenda-concluir" data-id="'+c.id+'" data-tipo="'+(ehFunc?"funcionario":"contato")+'" title="Marcar o treinamento como concluído">✓ Treinado</button>' +
         '<button type="button" class="linkish ag-remarcar-btn" data-action="ag-remarcar">Remarcar</button>' +
+        '<button type="button" class="linkish ag-cancelar-btn" data-action="agenda-cancelar" data-id="'+c.id+'" data-tipo="'+(ehFunc?"funcionario":"contato")+'" title="Cancelar o agendamento (volta para pendente)">Cancelar</button>' +
         '<span class="ag-remarcar-campos" hidden>' +
         '<label class="ag-remarcar" title="Nova data">Nova data <input type="date" id="agd-'+(ehFunc?"func-":"")+c.id+'" class="ag-input '+(ehFunc?"func-ag-data":"cont-ag-data")+'" data-id="'+c.id+'" value="'+esc(c.agendadoPara || "")+'"></label>' +
         '<label class="ag-remarcar" title="Horário (opcional)"><input type="time" step="300" id="agd-'+(ehFunc?"func-":"")+c.id+'-h" class="ag-input ag-hora '+(ehFunc?"func-ag-data":"cont-ag-data")+(c.agendadoHora ? '' : ' vazio')+'" data-id="'+c.id+'" value="'+esc(c.agendadoHora || "")+'"></label>' +
@@ -944,6 +947,7 @@
       '<span class="ag-acoes">' +
         '<button type="button" class="ag-ok" data-action="agenda-concluir" data-tipo="etapa" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" title="Marcar o treinamento do analista como concluído">✓ Treinado</button>' +
         '<button type="button" class="linkish ag-remarcar-btn" data-action="ag-remarcar">Remarcar</button>' +
+        '<button type="button" class="linkish ag-cancelar-btn" data-action="agenda-cancelar" data-tipo="etapa" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" title="Cancelar o agendamento do treinamento do analista (volta para pendente)">Cancelar</button>' +
         '<span class="ag-remarcar-campos" hidden>' +
         '<label class="ag-remarcar" title="Nova data">Nova data <input type="date" id="agd-et-'+c.id+'" class="ag-input" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-etapa="treinamentoAnalista" value="'+esc(c.agendadoPara || "")+'"></label>' +
         '<label class="ag-remarcar" title="Horário (opcional)"><input type="time" step="300" id="agd-et-'+c.id+'-h" class="ag-input ag-hora'+(c.agendadoHora ? '' : ' vazio')+'" data-empresa="'+c.empresaId+'" data-setor="'+c.setor+'" data-etapa="treinamentoAnalista" value="'+esc(c.agendadoHora || "")+'"></label>' +
@@ -1600,6 +1604,7 @@
 
   function renderEmpresas(){
     var cont = $("#empresasList");
+    ensureArqUI();
 
     var fbox = $("#filters");
     fbox.innerHTML = '<button data-setor="todos" class="'+(ui.filtroSetor==="todos"?"on":"")+'">Todos</button>' +
@@ -1655,6 +1660,7 @@
     }
     Object.assign(achadasPorPessoa, matrizesPorBuscaFilial(qn, qd));
     var lista = state.empresas.filter(function(e){
+      if(e.arquivada) return false;
       if(qn && normBusca(e.nome).indexOf(qn) === -1 && !(qd.length >= 3 && String(e.cnpj || "").replace(/\D/g, "").indexOf(qd) !== -1) && !achadasPorPessoa[e.id]) return false;
       if(ui.filtroSetor !== "todos" && !(e.setoresDemanda && e.setoresDemanda[ui.filtroSetor])) return false;
       var docs = porEmpresa[e.id] || [];
@@ -1677,7 +1683,7 @@
     var sig = [ui.busca, ui.filtroSetor, ui.filtroAnalista, ui.soPendentes, ui.soImpedimento, ui.soSemAnalista, ui.soSemContato, ui.soConcluidas, ui.consOrdem].join("|");
     if(sig !== ui.consSig){ ui.consSig = sig; ui.consLimite = 50; }
 
-    $("#progressoCount").textContent = lista.length+" de "+state.empresas.length;
+    $("#progressoCount").textContent = lista.length+" de "+state.empresas.filter(function(e){ return !e.arquivada; }).length;
     ui.ultimaLista = lista.map(function(e){ return e.id; });
     salvarUI();
     renderBulkBar();
@@ -1696,6 +1702,7 @@
     $$("#consModoFiltros button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-modo") === ui.consModo); });
     cont.hidden = porEtapa;
     $("#empresasGwrap .thead").hidden = porEtapa;
+    aplicarVistaArq(cont);
     $("#consEtapaBar").hidden = !porEtapa;
     $("#consEtapaList").hidden = !porEtapa;
     if(porEtapa){
@@ -1762,6 +1769,64 @@
       ui.salvandoFiltro = false; renderEmpresas();
       mostrarToast("Filtro “"+nome+"” salvo neste navegador.");
     };
+  }
+
+  /* ---------- arquivar empresas ---------- */
+  function ensureArqUI(){
+    if(!$("#arq-css")){
+      var st = document.createElement("style"); st.id = "arq-css";
+      st.textContent = ".arq-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.arq-intro{color:var(--ink-3,#5F6D77);margin:6px 0 2px}.arq-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--rule,#DCE3E9);border-radius:12px;background:var(--surface,#fff)}.arq-lin b{display:block}.arq-lin small{color:var(--ink-3,#5F6D77)}.arq-vazio{padding:22px 6px;color:var(--ink-3,#5F6D77)}#btnArquivadas .arq-n{font-variant-numeric:tabular-nums}";
+      document.head.appendChild(st);
+    }
+    if(!$("#btnArquivadas")){
+      var ref = $("#btnSoConcluidas");
+      if(ref){ var b = document.createElement("button"); b.type = "button"; b.className = "toggle-chip"; b.id = "btnArquivadas"; b.setAttribute("data-action", "ver-arquivadas"); b.title = "Empresas arquivadas: saem só da lista de Consulta"; ref.parentNode.insertBefore(b, ref.nextSibling); }
+    }
+    if(!$("#empresasArq")){
+      var lst = $("#empresasList");
+      if(lst){ var d = document.createElement("div"); d.id = "empresasArq"; d.hidden = true; lst.parentNode.insertBefore(d, lst.nextSibling); }
+    }
+    if(!$("#bulkArquivar")){
+      var ac = $("#bulkBar .bulk-acoes");
+      if(ac){ var bb = document.createElement("button"); bb.type = "button"; bb.className = "fbtn"; bb.id = "bulkArquivar"; bb.setAttribute("data-action", "bulk-arquivar"); bb.textContent = "Arquivar selecionadas"; ac.appendChild(bb); }
+    }
+    var bt = $("#btnArquivadas");
+    if(bt){ bt.innerHTML = 'Arquivadas <span class="arq-n">(' + arquivadas.length + ')</span>'; bt.classList.toggle("on", !!ui.verArquivadas); bt.hidden = !arquivadas.length && !ui.verArquivadas; }
+  }
+  function aplicarVistaArq(cont){
+    var box = $("#empresasArq"); if(!box) return;
+    var ver = !!ui.verArquivadas;
+    box.hidden = !ver;
+    if(!ver) return;
+    cont.hidden = true; var th = $("#empresasGwrap .thead"); if(th) th.hidden = true;
+    var eb = $("#consEtapaBar"); if(eb) eb.hidden = true;
+    var lista = arquivadas.slice().sort(function(a, b){ return COLLATOR(String(a.nome || ""), String(b.nome || "")); });
+    box.innerHTML = '<p class="arq-intro">Empresas arquivadas saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>' +
+      (lista.length ? '<div class="arq-lista">' + lista.map(function(e){
+        var quando = e.arquivadaEm ? diaBR(String(e.arquivadaEm).slice(0, 10)) : "";
+        return '<div class="arq-lin"><div><b>' + esc(e.nome) + '</b><small>' + (e.cnpj ? 'CNPJ ' + esc(e.cnpj) + ' · ' : '') + 'arquivada' + (quando ? ' em ' + quando : '') + '</small></div><button type="button" class="fbtn" data-action="restaurar-empresa" data-id="' + e.id + '">Restaurar</button></div>';
+      }).join("") + '</div>' : '<div class="arq-vazio">Nenhuma empresa arquivada.</div>');
+  }
+  function gravarArquivo(ids, arquivar){
+    var agora = new Date().toISOString();
+    ids.forEach(function(id){
+      var e = todasEmpresas().find(function(x){ return x.id === id; }); if(!e) return;
+      var patch = arquivar ? {arquivada:true, arquivadaEm:agora, arquivadaPor:meuId || ""} : {arquivada:false, arquivadaEm:"", arquivadaPor:""};
+      Object.assign(e, patch);
+      if(dbRef) dbRef.collection("empresas").doc(id).update(patch).catch(function(){ mostrarToast("Não foi possível salvar em uma das empresas."); });
+      registrarAtividade({tipo:"empresa", empresaId:id, empresaNome:e.nome, para:arquivar ? "arquivada" : "restaurada"});
+      ui.selecionadas.delete(id); ui.expanded.delete(id);
+    });
+    aplicarGrupos(); renderAll();
+  }
+  function arquivarEmpresas(ids){
+    var nomes = ids.map(function(id){ var e = todasEmpresas().find(function(x){ return x.id === id; }); return e ? e.nome : ""; }).filter(Boolean);
+    if(!nomes.length) return;
+    var qtd = ids.length === 1 ? "“" + nomes[0] + "”" : ids.length + " empresas";
+    confirmar("Arquivar " + qtd + "? " + (ids.length === 1 ? "Ela sai" : "Elas saem") + " da lista de Consulta, mas continua" + (ids.length === 1 ? "" : "m") + " em Hoje, Foco, Impedimentos e relatórios. Dá para restaurar em Consulta, em Arquivadas.", function(){
+      gravarArquivo(ids, true);
+      mostrarToast(ids.length === 1 ? "Empresa arquivada." : ids.length + " empresas arquivadas.", "Desfazer", function(){ gravarArquivo(ids, false); mostrarToast("Arquivamento desfeito."); });
+    }, "Arquivar");
   }
   function renderBulkBar(){
     var ids = {};
@@ -1862,6 +1927,7 @@
             ? '<button type="button" class="linkish" data-action="abrir-foco-empresa" data-id="'+e.id+'">Abrir no Foco</button>'
             : '<button type="button" class="linkish" data-action="toggle-foco" data-id="'+e.id+'">★ Levar ao Foco</button>') +
           '<button type="button" class="linkish" data-action="imp-form-abrir" data-id="'+e.id+'">Registrar impedimento</button>' +
+          '<button type="button" class="linkish" data-action="arquivar-empresa" data-id="'+e.id+'" title="Tira a empresa só da lista de Consulta, sem apagar nada">Arquivar</button>' +
           '<button type="button" class="linkish" data-action="editar-empresa" data-id="'+e.id+'" aria-expanded="'+(editando?"true":"false")+'">'+(editando ? "Fechar cadastro" : "Editar cadastro")+'</button>' +
           '</span>' +
         '</div>' +
@@ -4002,7 +4068,68 @@
     loteRender++;
     try{ fn(); } finally { loteRender--; if(!loteRender) renderAll(); }
   }
+
+  /* ---------- a "próxima ação" do foco acompanha o treinamento agendado ---------- */
+  // Quando uma empresa em foco tem treinamento agendado (contatos ou treinamento do analista), a próxima ação, o prazo e o "aguardando"
+  // passam a descrever o agendamento; sem agendamento: sem contato do cliente = "Registrar contato", com contato = "Aguardando cliente". Quando o processo termina (todos treinados), volta o que estava antes. Edição manual depois disso é respeitada até a próxima mudança de etapa.
+  var sincAgendaT = null, sincAgendaBusy = false;
+  function agendaDaEmpresaFoco(e){
+    var l = [];
+    state.contatos.forEach(function(c){ if(c.empresaId === e.id && c.statusTreinamento === "agendado" && c.agendadoPara) l.push({data:c.agendadoPara, hora:c.agendadoHora || "", quem:c.nome || "contato", analista:false}); });
+    state.setores.forEach(function(sd){
+      if(sd.empresaId !== e.id) return;
+      var inf = null; try{ inf = etapaInfo(sd, "treinamentoAnalista", e.id); }catch(err){}
+      if(inf && inf.status === "agendado" && inf.agendadoPara) l.push({data:inf.agendadoPara, hora:inf.agendadoHora || "", quem:(sd.analistaNome || "analista") + " (treinamento do analista)", analista:true});
+    });
+    l.sort(function(a, b){ return (a.data + " " + (a.hora || "99:99")) < (b.data + " " + (b.hora || "99:99")) ? -1 : 1; });
+    return l;
+  }
+  function alvoAcaoAgenda(e){
+    var l = agendaDaEmpresaFoco(e);
+    if(!l.length){
+      // sem treinamento agendado: o processo manda. Sem contato do cliente → registrar contato; com contato ainda sem treinar → aguardando o cliente.
+      var cs = state.contatos.filter(function(c){ return c.empresaId === e.id && !c.exemplo; });
+      if(!cs.length) return {sig:"r", focoProxAcao:"Registrar contato", focoPrazo:"", focoAguardando:"", focoAguardandoOutro:""};
+      if(cs.some(function(c){ return c.statusTreinamento !== "concluido"; })) return {sig:"c", focoProxAcao:"Aguardando cliente", focoPrazo:"", focoAguardando:"cliente", focoAguardandoOutro:""};
+      return null;
+    }
+    var hj = hojeISO(), futuros = l.filter(function(x){ return x.data >= hj; }), atrasados = l.filter(function(x){ return x.data < hj; });
+    var nomesDe = function(g){ var n = g.map(function(x){ return x.quem; }).filter(function(v, i, a){ return a.indexOf(v) === i; }); return n.length > 2 ? n.slice(0, 2).join(", ") + " e mais " + (n.length - 2) : n.join(" e "); };
+    if(futuros.length){
+      var d0 = futuros[0].data, h0 = futuros[0].hora, g = futuros.filter(function(x){ return x.data === d0 && x.hora === h0; });
+      return {sig:"f|" + d0 + "|" + h0 + "|" + g.length, focoProxAcao:"Treinamento agendado para " + dataBR(d0).slice(0, 5) + (h0 ? " às " + h0 : "") + ": " + nomesDe(g), focoPrazo:d0, focoAguardando:"outro", focoAguardandoOutro:"treinamento agendado"};
+    }
+    var a0 = atrasados[0], ga = atrasados.filter(function(x){ return x.data === a0.data; });
+    return {sig:"a|" + a0.data + "|" + ga.length, focoProxAcao:"Treinamento atrasado (era para " + dataBR(a0.data).slice(0, 5) + "): confirmar ou remarcar com " + nomesDe(ga), focoPrazo:a0.data, focoAguardando:"cliente", focoAguardandoOutro:""};
+  }
+  function sincronizarAcoesComAgenda(){
+    if(!dbRef || carregando() || (typeof doCache !== "undefined" && doCache) || sincAgendaBusy) return;
+    sincAgendaBusy = true;
+    try{
+      state.empresas.forEach(function(e){
+        if(!e || !e.emFoco || e.ativo === false) return;
+        var alvo = alvoAcaoAgenda(e), patch = null, ATRS = ["focoProxAcao", "focoPrazo", "focoAguardando", "focoAguardandoOutro"];
+        if(alvo){
+          if(e.focoAutoSig === alvo.sig) return;
+          patch = {focoProxAcao:alvo.focoProxAcao, focoPrazo:alvo.focoPrazo, focoAguardando:alvo.focoAguardando, focoAguardandoOutro:alvo.focoAguardandoOutro, focoAutoSig:alvo.sig};
+          if(!e.focoAutoSig){ var ant = {}; ATRS.forEach(function(k){ ant[k] = e[k] || ""; }); patch.focoAutoAnterior = ant; patch.focoAutoTexto = alvo.focoProxAcao; }
+          else patch.focoAutoTexto = alvo.focoProxAcao;
+        } else if(e.focoAutoSig){
+          // sem agendamento: devolve o que havia antes, a não ser que a ação já tenha sido trocada à mão
+          var intacta = (e.focoProxAcao || "") === (e.focoAutoTexto || "");
+          patch = {focoAutoSig:"", focoAutoTexto:"", focoAutoAnterior:null};
+          if(intacta){ var a0 = e.focoAutoAnterior || {}; ATRS.forEach(function(k){ patch[k] = a0[k] || ""; }); }
+        }
+        if(!patch) return;
+        Object.keys(patch).forEach(function(k){ e[k] = patch[k]; });
+        try{ dbRef.collection("empresas").doc(e.id).update(patch); }catch(err){}
+      });
+    }catch(err){}
+    sincAgendaBusy = false;
+  }
+  function agendarSincAgenda(){ clearTimeout(sincAgendaT); sincAgendaT = setTimeout(function(){ var antes = JSON.stringify(state.empresas.map(function(e){ return e.focoAutoSig || ""; })); sincronizarAcoesComAgenda(); if(JSON.stringify(state.empresas.map(function(e){ return e.focoAutoSig || ""; })) !== antes) renderAll(); }, 1200); }
   function renderAll(){
+    agendarSincAgenda();
     if(loteRender) return;
     if(editandoData()){ renderAdiado = true; return; }
     keepFocus(function(){
@@ -4362,6 +4489,10 @@
       renderEmpresas();
       return;
     }
+    if(a === "arquivar-empresa"){ arquivarEmpresas([el.getAttribute("data-id")]); return; }
+    if(a === "bulk-arquivar"){ arquivarEmpresas(Array.from(ui.selecionadas)); return; }
+    if(a === "restaurar-empresa"){ gravarArquivo([el.getAttribute("data-id")], false); mostrarToast("Empresa restaurada."); return; }
+    if(a === "ver-arquivadas"){ ui.verArquivadas = !ui.verArquivadas; if(ui.verArquivadas && ui.consModo === "etapa") ui.consModo = "empresa"; renderEmpresas(); return; }
     if(a === "excluir-empresa"){
       var row2 = el.closest(".erow"), eid = row2.getAttribute("data-id");
       var emp = state.empresas.find(function(x){ return x.id === eid; });
@@ -4444,6 +4575,12 @@
       if(el.getAttribute("data-tipo") === "etapa") focoSetStatus(el.getAttribute("data-empresa"), el.getAttribute("data-setor"), "treinamentoAnalista", "concluido");
       else if(el.getAttribute("data-tipo") === "funcionario") definirStatusFuncionario(el.getAttribute("data-id"), "concluido");
       else definirStatusContato(el.getAttribute("data-id"), "concluido");
+      return;
+    }
+    if(a === "agenda-cancelar"){
+      if(el.getAttribute("data-tipo") === "etapa") focoSetStatus(el.getAttribute("data-empresa"), el.getAttribute("data-setor"), "treinamentoAnalista", "pendente");
+      else if(el.getAttribute("data-tipo") === "funcionario") definirStatusFuncionario(el.getAttribute("data-id"), "pendente");
+      else definirStatusContato(el.getAttribute("data-id"), "pendente");
       return;
     }
     if(a === "ver-analista"){ irParaFuncionario(el.getAttribute("data-nome")); return; }
@@ -5925,7 +6062,7 @@
       case "etapa": return {txt:rotuloItem(e.item), de:e.de, para:e.para};
       case "alinhamento": return {txt:"Alinhamento com o gestor" + (setorTxt ? " · " + setorTxt : ""), de:e.de, para:e.para};
       case "setor": return {txt:"Setor " + setorTxt + (e.para === "removido" ? " removido da empresa" : " adicionado à empresa")};
-      case "empresa": return {txt:"Empresa cadastrada"};
+      case "empresa": return {txt: e.para === "arquivada" ? "Empresa arquivada" : e.para === "restaurada" ? "Empresa restaurada do arquivo" : "Empresa cadastrada"};
       case "contato": return {txt:"Contato cadastrado: " + (e.nome || "")};
       case "treino-contato": return {txt:"Treinamento de " + (e.nome || "contato"), de:e.de, para:e.para};
       case "cadastro-contato": return {txt:"Cadastro no Onvio de " + (e.nome || "contato"), de:e.de, para:e.para};

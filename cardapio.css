@@ -150,3 +150,39 @@ input:focus{border-color:var(--blue-deep);box-shadow:0 0 0 3px var(--blue-pale);
 .wk.empty-day .wk-b{color:var(--ink-3);align-items:flex-start}
 .wk.free{opacity:.7}
 @media (max-width:760px){.week{grid-template-columns:1fr}}
+
+/* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
+:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
+:root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
+html{background:var(--page)}
+body{background:transparent}
+body::before,body::after,html::before{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;width:74vmax;height:74vmax}
+body::before{background:radial-gradient(closest-side,var(--fd1),transparent);left:-18vmax;top:-20vmax;animation:fd-respira 26s ease-in-out infinite}
+body::after{background:radial-gradient(closest-side,var(--fd2),transparent);right:-22vmax;bottom:-24vmax;animation:fd-respira 31s -9s ease-in-out infinite}
+html::before{background:radial-gradient(closest-side,var(--fd3),transparent);left:25%;top:30%;width:58vmax;height:58vmax;animation:fd-respira 36s -17s ease-in-out infinite}
+@keyframes fd-respira{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(7vmax,5vmax) scale(1.14)}66%{transform:translate(-5vmax,8vmax) scale(.92)}}
+@media (prefers-reduced-motion: reduce){body::before,body::after,html::before{animation:none}}
+
+/* Cardápio arredondado: blocos grandes bem arredondados, botões e campos um pouco menos, selos em pílula. */
+.detail,.day,.cell,.wk{border-radius:22px}
+.day[aria-pressed="true"]::before{border-radius:0 3px 3px 0}
+.detail::before{border-radius:22px 0 0 22px}
+.seg{border-radius:999px}.chip{padding-inline:15px}.nav .chip{border-radius:999px}
+.btn,input[type=text],input[type=number]{border-radius:14px}
+.btn.icon{border-radius:999px}
+.tag,.badge,.today-mark{border-radius:999px;padding-inline:9px}
+.wk-h{border-radius:22px 22px 0 0}
+.status{border-radius:14px}
+
+/* Fundo animado: fica numa camada própria e pausa enquanto a cascata de abertura roda. */
+:root[data-cascata] body::before,:root[data-cascata] body::after,:root[data-cascata]::before{animation-play-state:paused}
+
+/* Sombra em duas camadas nos blocos: uma curta, que assenta o bloco na página, e uma longa e suave, que dá profundidade. Só sombra; cores e fundo ficam como estão. */
+:root{--sh-bloco:0 1px 2px rgba(16,24,32,.09),0 14px 30px -10px rgba(16,24,32,.16);--sh-bloco-up:0 2px 3px rgba(16,24,32,.10),0 20px 38px -10px rgba(16,24,32,.22)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
+:root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
+.detail,.wk,.day{box-shadow:var(--sh-bloco)}
+.day.hol,.wk.hol,.wk.empty-day,.day.empty-day{box-shadow:none}
+.day[aria-pressed="true"]{box-shadow:inset 0 0 0 1px var(--blue-deep),var(--sh-bloco-up)}
+.day:hover:not(.hol){box-shadow:var(--sh-bloco-up)}

@@ -489,9 +489,13 @@
     try { await fn(); if (!--salvando) { setSave(`${ic('check', 'ic-sm')} Salvo`, 'ok'); saveTimer = setTimeout(() => setSave(''), 2500); } }
     catch (e) { salvando = Math.max(0, salvando - 1); setSave('Não salvo', 'err'); throw e; }
   }
+  // Motivo da última gravação que falhou: o assistente usa para explicar o erro em vez de só dizer "falhou".
+  let ultimaFalhaGrav = null;
+  const falhaPersist = (padrao) => Object.assign(new Error((ultimaFalhaGrav && ultimaFalhaGrav.message) || padrao || 'falhou'), { code: ultimaFalhaGrav && ultimaFalhaGrav.code || '' });
   async function persist(fn) {
-    try { await trackSave(fn); return true; }
+    try { await trackSave(fn); ultimaFalhaGrav = null; return true; }
     catch (e) {
+      ultimaFalhaGrav = e?.code === 'invalid_argument' ? { code: 'sem_permissao', message: 'Você não tem permissão para editar esta lista.' } : e?.code === 'quota_exceeded' ? { code: 'quota_exceeded', message: 'Limite de armazenamento atingido.' } : { code: e?.code || '', message: String(e?.message || '') };
       if (e?.code === 'invalid_argument') { state.readOnly = true; toast('Você não tem permissão para editar esta lista.'); render(); if (state.activeModule === 'dp') applyDpReadOnly(); }
       else if (e?.code === 'sem_permissao') { toast(e.message || 'Você não tem permissão para alterar isto.'); }
       else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido. Exclua registros antigos para continuar.');
@@ -510,13 +514,23 @@
   // "Uso do banco" é fixo do Hub: aparece junto das ferramentas sem ser gravado no banco.
   const USO_TOOL = { id:'uso-banco', name:'Uso do banco', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Mede quanto do banco de dados do artefato está em uso.', tags:['banco','armazenamento','limite'], moduleKey:'uso', virtual:true, favorite:false, newTab:false, order:9999, uses:0 };
   const USUARIOS_TOOL = { id:'usuarios-acesso', name:'Usuários', url:'', icon:'', category:'Atalhos', color:'#C2000C', description:'Aprova cadastros e define o nível de acesso de cada pessoa em cada módulo.', tags:['login','acesso','senha','permissões'], moduleKey:'usuarios', virtual:true, favorite:false, newTab:false, order:9998, uses:0 };
+  // "Configurações" é fixo do Hub (como "Uso do banco"): todos entram, e cada aba só mostra o que a pessoa pode usar.
+  const CONFIG_TOOL = { id:'configuracoes', name:'Configurações', url:'', icon:'', category:'Atalhos', color:'#5F6D77', description:'Configurações de cada sistema (DP, Contábil, Fiscal, Portal e Cardápio) e do assistente, num lugar só.', tags:['configurações','ajustes','preferências','assistente','tema'], moduleKey:'config', virtual:true, favorite:false, newTab:false, order:9997, uses:0 };
+  const EXTRA_TOOLS = [
+    { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
+  ];
+  // "Onvio" é fixo do Hub: abre o Onvio numa nova aba e fica ao lado esquerdo do Zappy.
+  const ONVIO_URL = 'https://onvio.com.br/staff/#/dashboard-core-center';
+  const ONVIO_TOOL = { id:'onvio', name:'Onvio', url:ONVIO_URL, icon:'', category:'Comunicação', color:'#5F6D77', description:'Abre o Onvio (central de trabalho) em uma nova aba.', tags:['onvio','portal','thomson reuters','staff'], newTab:true, order:0, favorite:false, uses:0, virtual:true };
+  const MODS_EXTRA = ['coord'];
   // ---------- níveis de acesso (auth.js): sem auth.js tudo funciona como antes ----------
   const MODS_ACESSO = ['dp', 'contabil', 'fiscal', 'portal', 'cardapio'];
   const AUTH = () => window.__auth || null;
   const nivelMod = (m) => AUTH() ? AUTH().nivel(m) : 'coord';
   const podeVerMod = (m) => !AUTH() || AUTH().podeVer(m);
   const soAdmin = (m) => m === 'uso' || m === 'usuarios';
-  const podeAbrirModulo = (m) => soAdmin(m) ? (!AUTH() || AUTH().ehAdmin()) : !MODS_ACESSO.includes(m) || podeVerMod(m);
+  const temCoord = () => !AUTH() || AUTH().ehAdmin() || MODS_ACESSO.some(m => AUTH().nivel(m) === 'coord');
+  const podeAbrirModulo = (m) => m === 'coord' ? temCoord() : soAdmin(m) ? (!AUTH() || AUTH().ehAdmin()) : !MODS_ACESSO.includes(m) || podeVerMod(m);
   // Quem gerencia a lista de ferramentas: administrador e coordenação do DP (que é quem abre o Hub como painel).
   const podeGerirFerramentas = () => !AUTH() || nivelMod('dp') === 'coord';
   // Analista do DP só edita as empresas em que é o responsável (ou o cobre numa ausência).
@@ -529,6 +543,12 @@
   };
   const toolsComUso = () => {
     let l = state.tools.some(t => t.moduleKey === 'uso') ? state.tools : [...state.tools, USO_TOOL];
+    if (!l.some(t => t.moduleKey === 'config')) l = [...l, CONFIG_TOOL];
+    if (!l.some(t => t.id === 'onvio' || /onvio\.com\.br\/staff/i.test(t.url || ''))) {
+      const z = l.find(t => t.id === 'zappy');
+      l = [...l, z ? { ...ONVIO_TOOL, order: z.order - 0.5, favorite: z.favorite } : { ...ONVIO_TOOL, order: 9999 }];
+    }
+    EXTRA_TOOLS.forEach(x => { if (!l.some(t => t.moduleKey === x.moduleKey)) l = [...l, x]; });
     if (AUTH()?.ehAdmin() && !l.some(t => t.moduleKey === 'usuarios')) l = [...l, USUARIOS_TOOL];
     return AUTH() ? l.filter(t => !t.moduleKey || podeAbrirModulo(t.moduleKey)) : l;
   };
@@ -588,10 +608,15 @@
   const TOOL_SVG = { 'gestta':['📈','gestta'], 'planilha-dp':['👥','dp'], 'planilha-fiscal':['🧾','fiscal'], 'planilha-contabil':['📒','contabil'], 'portal-cliente':['🧑‍💼','portal'], 'zimbra':['✉️','zimbra'], 'pasta-servidor':['🗄️','pasta'] };
   // O Zappy usa o logotipo do próprio ZapContábil (favicon do site).
   const ZAPPY_LOGO = 'data:image/png;base64,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';
+  // Onvio: só a logo circular (sem o nome).
+  const ONVIO_LOGO = 'data:image/png;base64,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';
   const norm2 = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   function toolIcon(t) {
     if (t.virtual && t.moduleKey === 'uso') return ic('banco');
     if (t.virtual && t.moduleKey === 'usuarios') return ic('user');
+    if (t.virtual && t.moduleKey === 'config') return ic('gear');
+    if (t.virtual && t.moduleKey === 'coord') return ic('grid');
+    if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
     if (t.id === 'zappy' && t.icon === '💬') return `<img class="brand-img" src="${ZAPPY_LOGO}" alt="" width="26" height="26">`;
@@ -661,15 +686,69 @@
   $('#ferramentas-tools').addEventListener('click', toolClick);
   $('#home-root').addEventListener('click', toolClick);
 
-  function openModule(key) {
+  function openModule(key, opcao) {
     document.activeElement?.blur();
     if (!podeAbrirModulo(key)) { toast('Você não tem acesso a este módulo.'); return; }
     closeRail();
     if (!FRAMES[key]) closeFrames();
     if (key === 'dp') openDpModule();
     else if (key === 'uso') openUsoModule();
+    else if (key === 'config') openConfigModule(opcao);
+    else if (MODS_EXTRA.includes(key)) openExtraModule(key);
     else if (key === 'usuarios') { if (window.__auth?.ehAdmin()) openUsuariosModule(); else toast('Só o administrador acessa a tela de usuários.'); }
     else if (FRAMES[key]) openFrame(key);
+    cascataModulo(key);
+  }
+
+  // Ao abrir um módulo, os blocos da tela sobem de baixo para cima em cascata (uma linha de cada vez).
+  const cascataUlt = {};
+  function cascataModulo(key) {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const agora = Date.now();
+    if (cascataUlt[key] && agora - cascataUlt[key] < 1500) return;
+    cascataUlt[key] = agora;
+    const raizDe = () => {
+      if (FRAMES[key]) { const f = document.getElementById(`${key}-frame`); try { return f && !f.hidden && f.contentDocument && f.contentDocument.body && f.contentDocument.readyState !== 'loading' ? f.contentDocument.body : null; } catch { return null; } }
+      return document.getElementById(MODS_EXTRA.includes(key) ? 'extra-root' : `view-${key}`);
+    };
+    const transp = (c) => /rgba\(0, 0, 0, 0\)|transparent/.test(c);
+    // Busca em largura até 7 níveis: não desce dentro de um bloco já escolhido e evita varrer a página inteira.
+    const acharBlocos = (raiz) => {
+      const doc = raiz.ownerDocument, win = doc.defaultView, alt = win.innerHeight || 800, out = [];
+      let nivel = [...raiz.children];
+      for (let prof = 0; prof < 7 && nivel.length && out.length < 30; prof++) {
+        const prox = [];
+        for (const e of nivel) {
+          if (e.tagName === 'SCRIPT' || e.tagName === 'STYLE') continue;
+          const r = e.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0 || r.top > alt + 80 || r.bottom < 0) continue;
+          const cs = win.getComputedStyle(e);
+          if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed' || cs.position === 'sticky') continue;
+          const caixa = !transp(cs.backgroundColor) || ['Top', 'Left'].some(l => parseFloat(cs[`border${l}Width`]) > 0 && !transp(cs[`border${l}Color`]));
+          if (caixa && r.width >= 90 && r.height >= 36 && r.height <= alt * 0.9) out.push({ e, top: r.top, left: r.left });
+          else for (const c of e.children) prox.push(c);
+        }
+        nivel = prox;
+      }
+      return out;
+    };
+    const tentar = (n) => {
+      const raiz = raizDe();
+      const blocos = raiz ? acharBlocos(raiz) : [];
+      if (blocos.length < 2 && n < 12) { setTimeout(() => { if (state.activeModule === key || FRAMES[key]) tentar(n + 1); }, 350); return; }
+      blocos.sort((a, b) => a.top - b.top || a.left - b.left);
+      const doc = raiz && raiz.ownerDocument;
+      let linha = -1, ref = -999, fim = 0;
+      const anims = [];
+      blocos.forEach(({ e, top }) => {
+        if (top - ref > 24) { linha++; ref = top; }
+        const atraso = Math.min(linha, 7) * 70;
+        try { anims.push(e.animate([{ opacity: 0, transform: 'translate3d(0,22px,0)' }, { opacity: 1, transform: 'translate3d(0,0,0)' }], { duration: 700, delay: atraso, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'backwards' })); fim = Math.max(fim, atraso + 700); } catch {}
+      });
+      // Pausa o fundo animado durante a entrada, para a página só desenhar uma coisa de cada vez.
+      if (doc && anims.length) { doc.documentElement.setAttribute('data-cascata', '1'); setTimeout(() => doc.documentElement.removeAttribute('data-cascata'), fim + 80); }
+    };
+    requestAnimationFrame(() => setTimeout(() => tentar(0), 40));
   }
 
   function goHome() {
@@ -815,11 +894,11 @@
   const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
-    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : '';
+    return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : state.activeModule === 'config' ? 'config' : MODS_EXTRA.includes(state.activeModule) ? state.activeModule : '';
   }
   function syncRoute() {
     const r = currentRoute();
-    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : '';
+    state.prefs.route = state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : state.activeModule === 'config' ? 'config' : MODS_EXTRA.includes(state.activeModule) ? state.activeModule : '';
     savePrefs();
     try { const h = r ? '#' + r : ''; if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search); } catch {}
   }
@@ -829,6 +908,8 @@
     if (FRAMES[parts[0]]) { if (!state.activeModule) renderHome(); openFrame(parts[0]); return; }
     closeFrames();
     if (parts[0] === 'uso') { openUsoModule(); return; }
+    if (parts[0] === 'config') { openConfigModule(parts[1]); return; }
+    if (MODS_EXTRA.includes(parts[0])) { if (podeAbrirModulo(parts[0])) openExtraModule(parts[0]); return; }
     if (parts[0] === 'usuarios') { if (window.__auth?.ehAdmin()) openUsuariosModule(); return; }
     if (parts[0] !== 'dp') return;
     if (parts[1] === 'empresa' && validId(parts[2] || '')) { pendingEmp = parts[2]; openDpModule(); tryPendingEmp(); return; }
@@ -844,6 +925,7 @@
     if (!f) {
       f = document.createElement('iframe');
       f.id = `${key}-frame`; f.className = 'portal-frame' + (FRAMES[key].rail ? ' com-rail' : ''); f.title = FRAMES[key].title; f.src = FRAMES[key].src; f.hidden = true;
+      f.addEventListener('load', () => { try { ligarErros(f.contentWindow, key); } catch {} });
       document.body.appendChild(f);
     }
     return f;
@@ -4800,7 +4882,7 @@
       const cobTxt = r.emps ? [r.quem.map(([q, n]) => `${escapeHtml(q)} (${n})`).join(', '), r.sem ? `<span class="ct-sem">${r.sem} sem cobertura</span>` : ''].filter(Boolean).join(' · ') : '<span class="dp-cell-sub">sem empresas ativas</span>';
       const pill = st === 'andamento' ? '<span class="pill pill-today">Em andamento</span>' : st === 'futura' ? '<span class="pill pill-soon">Futura</span>' : '<span class="pill pill-muted">Encerrada</span>';
       return `<tr class="${st === 'encerrada' ? 'inativa' : ''}"><td><b>${escapeHtml(a.analista)}</b>${a.obs ? `<div class="dp-cell-sub">${escapeHtml(a.obs)}</div>` : ''}</td><td><span class="ct-dot" style="--c:${COR_MOTIVO[a.motivo]}"></span>${escapeHtml(a.motivo)}</td><td>${fmtYmdBR(a.inicio)} a ${fmtYmdBR(a.fim)}</td><td>${cobTxt}</td><td>${pill}</td>
-        <td class="ct-acoes">${ro ? '' : `<button type="button" class="btn btn-sm" data-ct-aus="${escapeHtml(a.id)}">Editar</button>${st !== 'encerrada' ? `<button type="button" class="btn btn-sm" data-ct-prorrogar="${escapeHtml(a.id)}" title="Adiar o fim em 7 dias">+7 dias</button>` : ''}<button type="button" class="icon-btn" data-ct-aus-del="${escapeHtml(a.id)}" aria-label="Excluir ausência" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td></tr>`;
+        <td class="ct-acoes">${st !== 'encerrada' ? `<button type="button" class="btn btn-sm" data-ct-bastao="${escapeHtml(a.analista)}" title="Resumo da carteira de ${escapeHtml(a.analista)} para quem vai cobrir">Passagem de bastão</button>` : ''}${ro ? '' : `<button type="button" class="btn btn-sm" data-ct-aus="${escapeHtml(a.id)}">Editar</button>${st !== 'encerrada' ? `<button type="button" class="btn btn-sm" data-ct-prorrogar="${escapeHtml(a.id)}" title="Adiar o fim em 7 dias">+7 dias</button>` : ''}<button type="button" class="icon-btn" data-ct-aus-del="${escapeHtml(a.id)}" aria-label="Excluir ausência" title="Excluir">${ic('trash', 'ic-sm')}</button>`}</td></tr>`;
     };
     const tabela = (lista) => `<div class="ct-scroll"><table class="ct-table"><thead><tr><th>Analista</th><th>Motivo</th><th>Período</th><th>Cobertura</th><th>Situação</th><th></th></tr></thead><tbody>${lista.map(item).join('')}</tbody></table></div>`;
     const abertas = linhas.filter(a => statusAus(a, hojeS) !== 'encerrada'), enc = linhas.filter(a => statusAus(a, hojeS) === 'encerrada');
@@ -5050,6 +5132,8 @@
     if (aus) { if (state.readOnly) { state.dpCtModo = 'aus'; renderCartela(); } else abrirAus({ id: aus.dataset.ctAus }); return; }
     const del = t.closest('[data-ct-aus-del]');
     if (del) { excluirAus(del.dataset.ctAusDel); return; }
+    const bas = t.closest('[data-ct-bastao]');
+    if (bas) { const ah = window.__assistenteHub; if (ah && ah.perguntarNoChat) ah.perguntarNoChat('passagem de bastão de ' + bas.dataset.ctBastao); else toast('O assistente ainda está carregando. Tente de novo em instantes.'); return; }
     const pro = t.closest('[data-ct-prorrogar]');
     if (pro) { const a = state.dpCob.ausencias.find(x => x.id === pro.dataset.ctProrrogar); if (a) { const novoFim = ymd(addDays(parseYmd(a.fim), 7)); await salvarCob(c => { const x = c.ausencias.find(y => y.id === a.id); if (x) x.fim = novoFim; }, `Prorrogou ausência de ${a.analista} até ${fmtYmdBR(novoFim)}`); toast(`Ausência de ${a.analista} vai até ${fmtYmdBR(novoFim)}.`); } return; }
     const mes = t.closest('[data-ct-mes]');
@@ -5397,6 +5481,32 @@
     window.scrollTo(0, 0);
     window.__auth.montarUsuarios($('#usuarios-root'));
   }
+  const TIT_EXTRA = { coord: 'Painel da coordenação' };
+  function openExtraModule(key) {
+    document.activeElement?.blur();
+    $('#view-home').hidden = true;
+    state.activeModule = key;
+    syncShell(); closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-extra'; });
+    $('#extra-titulo').textContent = TIT_EXTRA[key];
+    renderFerramentas(); syncRoute();
+    window.scrollTo(0, 0);
+    carregarScriptExt('extras.js?v=11', 'Não foi possível carregar esta tela. Verifique a conexão.')
+      .then(() => window.__extras.montar(key, $('#extra-root')))
+      .catch((e) => { $('#extra-root').innerHTML = `<p class="dp-sec-note" style="padding:16px">${escapeHtml(e.message || 'Não foi possível abrir.')}</p>`; });
+  }
+  function openConfigModule(aba) {
+    document.activeElement?.blur();
+    $('#view-home').hidden = true;
+    state.activeModule = 'config';
+    syncShell(); closeRail();
+    $$('.module-view').forEach(el => { el.hidden = el.id !== 'view-config'; });
+    renderFerramentas(); syncRoute();
+    window.scrollTo(0, 0);
+    carregarScriptExt('config.js?v=1', 'Não foi possível carregar as configurações. Verifique a conexão.')
+      .then(() => window.__config.montar($('#config-root'), { aba }))
+      .catch((e) => { $('#config-root').innerHTML = `<p class="dp-sec-note" style="padding:16px">${escapeHtml(e.message || 'Não foi possível abrir as configurações.')}</p>`; });
+  }
   function openUsoModule() {
     document.activeElement?.blur();
     $('#view-home').hidden = true;
@@ -5497,13 +5607,213 @@
       has(_, p) { return p in raw; },
     });
   }
+  // ---------- registro de alterações: quem gravou o quê (um documento por dia em hub_log, 30 dias) ----------
+  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|dp_config\/(uso_banco|importacoes)$)/;
+  const LOG_DP = { equipe: 'a equipe de analistas', prazos_gerais: 'os prazos gerais', cobertura: 'ausências e cobertura', sindicatos: 'os sindicatos', ccts: 'as convenções', tipos_processo: 'os tipos de processo' };
+  const LOG_CAMPOS = { responsavel: 'responsável', historico: 'histórico', funcionarios: 'funcionários', lembretes: 'lembretes', prazos: 'prazos', estabelecimentos: 'estabelecimentos', situacao: 'situação', reserva: 'reserva' };
+  let logFila = Promise.resolve(), logRecentes = {}, logPodou = false, logRaw = null;
+  function logDescreve(path, op, data) {
+    const [col, id] = path.split('/');
+    if (col === 'dp_empresas') {
+      const e = findDpEmpresa(id), nome = e ? e.nome : (data && data.nome) || 'uma empresa';
+      if (op === 'delete') return ['DP', `Excluiu a empresa ${nome}`];
+      const ks = op === 'update' && data ? Object.keys(data).filter(k => k !== 'updatedAt').map(k => LOG_CAMPOS[k] || k).slice(0, 4) : [];
+      return ['DP', ks.length ? `Atualizou ${nome} (${ks.join(', ')})` : `Atualizou a empresa ${nome}`];
+    }
+    if (col === 'dp_config') return ['DP', `Alterou ${LOG_DP[id] || 'configurações'} do DP`];
+    if (col === 'cardapio_dias') return ['Cardápio', op === 'delete' ? `Removeu o cardápio de ${dmyIso(id)}` : `Cadastrou ou alterou o cardápio de ${dmyIso(id)}`];
+    if (col === 'tools') return ['Hub', 'Alterou a lista de ferramentas'];
+    const mod = /^ctb_/.test(col) ? 'Contábil' : /^fis_/.test(col) ? 'Fiscal' : /^(empresas|contatos|funcionarios|empresaSetores|setorAlinhamento|historico|auditoriaDominio)$/.test(col) ? 'Portal' : 'Outro';
+    const alvo = { ctb_emp: 'a carteira', ctb_comp: 'o fechamento', ctb_config: 'as configurações', ctb_ano: 'as obrigações anuais', fis_emp: 'a carteira', fis_comp: 'o fechamento', fis_config: 'as configurações', empresas: 'empresas', contatos: 'contatos', funcionarios: 'funcionários', empresaSetores: 'setores das empresas' }[col] || col;
+    return [mod, `${op === 'delete' ? 'Removeu' : 'Alterou'} ${alvo} (${mod})`];
+  }
+  const dmyIso = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split('-').reverse().join('/') : s;
+  function logAlt(path, op, data, prefixo) {
+    try {
+      if (!logRaw || LOG_PULAR.test(path)) return;
+      const quem = AUTH()?.usuario()?.nome || 'Alguém', [mod, t0] = logDescreve(path, op, data), t = (prefixo || '') + t0, k = quem + '|' + t, agora = Date.now();
+      if (logRecentes[k] && agora - logRecentes[k] < 45000) return;
+      logRecentes[k] = agora;
+      logFila = logFila.then(async () => {
+        const dia = ymd(hoje()), ref = logRaw.doc('hub_log/' + dia);
+        const snap = await ref.get(), itens = (snap && snap.exists !== false && snap.data ? snap.data().itens : null) || [];
+        itens.unshift({ em: agora, u: quem, m: mod, t });
+        await ref.set({ itens: itens.slice(0, 300) });
+        if (!logPodou) { logPodou = true; await logRaw.doc('hub_log/' + ymd(addDays(hoje(), -31))).delete().catch(() => {}); }
+      }).catch(() => {});
+    } catch {}
+  }
+  function logDb(raw) {
+    if (!raw || raw.__logado) return raw;
+    return new Proxy({}, {
+      get(_, p) {
+        if (p === '__logado') return true;
+        if (p === 'doc') return (path) => {
+          const ref = raw.doc(path);
+          if (LOG_PULAR.test(path)) return ref;
+          return new Proxy({}, { get(__, k) {
+            if (k === 'set' || k === 'update' || k === 'delete') return (...a) => { const r = undoGravar(path, k, ref, a, () => ref[k](...a)); Promise.resolve(r).then(() => logAlt(path, k, a[0])).catch(() => {}); return r; };
+            const v = ref[k]; return typeof v === 'function' ? v.bind(ref) : v;
+          } });
+        };
+        const v = raw[p]; return typeof v === 'function' ? v.bind(raw) : v;
+      },
+      has(_, p) { return p in raw; },
+    });
+  }
+  function ligarRegistro(dbNs) {
+    logRaw = dbNs;
+    try {
+      const usoOrig = window.claude.use.bind(window.claude);
+      if (!window.claude.__logado) {
+        window.claude.use = (n, ...r) => { const p = usoOrig(n, ...r); return n === 'db' ? Promise.resolve(p).then(ns => (ns ? logDb(ns) : ns)) : p; };
+        window.claude.__logado = true;
+      }
+    } catch {}
+  }
+
+  // ---------- desfazer: guarda o documento como estava antes de cada gravação desta pessoa (últimas 15, até 20 h) ----------
+  const UNDO_KEY = 'hub-undo-v1', UNDO_MAX = 15, UNDO_JANELA = 45000;
+  let undoLista = [], undoJanela = {}, undoLote = [], undoLoteAte = 0, undoPost = {}, undoPillT = null, undoEl = null;
+  const estavel = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.keys(v).sort().reduce((a, x) => (a[x] = v[x], a), {}) : v);
+  const undoDoc = (snap) => (snap && snap.exists !== false && snap.data ? (snap.data() || null) : null);
+  try { const j = JSON.parse(localStorage.getItem(UNDO_KEY) || '[]'); undoLista = (Array.isArray(j) ? j : []).filter(e => e && e.path && Date.now() - e.em < 72e6).slice(0, UNDO_MAX); } catch {}
+  function undoSalvar() {
+    try { localStorage.setItem(UNDO_KEY, JSON.stringify(undoLista.filter(e => JSON.stringify(e).length < 120000))); } catch {}
+    undoFab();
+  }
+  function undoGravar(path, k, ref, a, chamar) {
+    const agora = Date.now(), rec = undoJanela[path];
+    if (agora < undoLoteAte) return chamar();
+    let entrada = null;
+    const seguir = () => {
+      const r = chamar();
+      Promise.resolve(r).then(() => undoDepois(path, ref)).catch(() => { if (entrada) { undoLista = undoLista.filter(x => x !== entrada); undoSalvar(); } });
+      return r;
+    };
+    if (rec && agora - rec < UNDO_JANELA) { undoJanela[path] = agora; return seguir(); }
+    undoJanela[path] = agora;
+    undoLote = undoLote.filter(t => agora - t < 5000); undoLote.push(agora);
+    if (undoLote.length > 8) { undoLoteAte = agora + 5000; undoLista = undoLista.filter(e => agora - e.em > 5000); undoSalvar(); return chamar(); }
+    const pre = Promise.race([Promise.resolve(ref.get()).then(sn => ({ ok: true, antes: undoDoc(sn) })), new Promise(r => setTimeout(() => r({ ok: false }), 1500))]).catch(() => ({ ok: false }));
+    return pre.then(p => {
+      if (p.ok) {
+        const [m, t] = logDescreve(path, k, a[0]);
+        entrada = { id: agora + '-' + Math.random().toString(36).slice(2, 6), path, antes: p.antes, em: agora, m, t, post: null, pronto: false };
+        undoLista.unshift(entrada); undoLista = undoLista.slice(0, UNDO_MAX);
+      }
+      return seguir();
+    });
+  }
+  // Ponto de restauração compartilhado (hub_restauro): é o que permite ao administrador desfazer o que outra pessoa gravou.
+  function undoPublica(e) {
+    try {
+      if (!logRaw || !e || !e.id) return;
+      const u = AUTH()?.usuario(), base = { path: e.path, em: e.em, u: u?.nome || 'Alguém', uid: u?.id || '', m: e.m, t: e.t, post: e.post, pronto: !!e.pronto, desfeito: false };
+      const antes = e.antes == null ? null : JSON.stringify(e.antes);
+      if (antes && antes.length > 150000) { logRaw.doc('hub_restauro/' + e.id).set({ ...base, semAntes: true }).catch(() => {}); return; }
+      logRaw.doc('hub_restauro/' + e.id).set({ ...base, antes, criou: e.antes == null }).catch(() => {});
+    } catch {}
+  }
+  async function restaurarDeOutro(r) {
+    if (!logRaw || !r || r.desfeito || !AUTH()?.ehAdmin()) return false;
+    try {
+      if (r.semAntes) { toast('Esse registro é grande demais para ter ponto de restauração.'); return false; }
+      const ref = logRaw.doc(r.path), cur = undoDoc(await ref.get()), curS = cur == null ? null : estavel(cur);
+      if (r.pronto && curS !== r.post) {
+        const ok = await ask('Esse registro foi alterado depois de ' + r.u + ' (por ele, por outra pessoa ou por você). Desfazer mesmo assim também apaga essas alterações mais recentes.', [{ label: 'Cancelar', value: false }, { label: 'Desfazer mesmo assim', kind: 'btn-danger', value: true }]);
+        if (!ok) return false;
+      }
+      if (r.criou) await ref.delete(); else await ref.set(JSON.parse(r.antes));
+      await logRaw.doc('hub_restauro/' + r.id).update({ desfeito: true, desfeitoPor: AUTH()?.usuario()?.nome || '', desfeitoEm: Date.now() }).catch(() => {});
+      logAlt(r.path, r.criou ? 'delete' : 'set', null, 'Desfez (alteração de ' + r.u + '): ');
+      toast('Desfeito: ' + r.t + '. Se a tela não atualizou, reabra o módulo.');
+      return true;
+    } catch { toast('Não consegui desfazer essa alteração.'); return false; }
+  }
+  function undoDepois(path, ref) {
+    clearTimeout(undoPost[path]);
+    undoPost[path] = setTimeout(async () => {
+      try {
+        const cur = undoDoc(await ref.get()), e = undoLista.find(x => x.path === path);
+        if (e) { e.post = cur == null ? null : estavel(cur); e.pronto = true; undoSalvar(); undoPublica(e); undoPilula(e); }
+      } catch {}
+    }, 2000);
+  }
+  async function undoFazer(e) {
+    if (!logRaw) return;
+    try {
+      const ref = logRaw.doc(e.path), cur = undoDoc(await ref.get()), curS = cur == null ? null : estavel(cur);
+      if (e.pronto && curS !== e.post) {
+        const ok = await ask('Esse registro foi alterado depois (por você em outra tela ou por outra pessoa). Desfazer mesmo assim também apaga essas alterações mais recentes.', [{ label: 'Cancelar', value: false }, { label: 'Desfazer mesmo assim', kind: 'btn-danger', value: true }]);
+        if (!ok) return;
+      }
+      if (e.antes == null) await ref.delete(); else await ref.set(e.antes);
+      undoLista = undoLista.filter(x => x !== e); undoJanela[e.path] = 0; undoSalvar();
+      if (e.id) logRaw.doc('hub_restauro/' + e.id).update({ desfeito: true, desfeitoPor: AUTH()?.usuario()?.nome || '', desfeitoEm: Date.now() }).catch(() => {});
+      logAlt(e.path, e.antes == null ? 'delete' : 'set', e.antes, 'Desfez: ');
+      toast('Desfeito: ' + e.t + '. Se a tela não atualizou, reabra o módulo.');
+      undoFechaLista();
+      if (undoLista.length) undoPilula(null, true); else undoEsconde();
+    } catch { toast('Não consegui desfazer essa alteração.'); }
+  }
+  // As alterações desfazíveis agora ficam no Painel da coordenação (aba "Minhas alterações"); aqui só o atalho Ctrl+Z e o aviso à tela.
+  const undoOuvintes = [];
+  function undoAvisa() { undoOuvintes.slice().forEach(f => { try { f(); } catch {} }); }
+  function undoFab() { undoAvisa(); }
+  function undoPilula() { undoAvisa(); }
+  function undoEsconde() { undoAvisa(); }
+  function undoFechaLista() {}
+  document.addEventListener('keydown', (ev) => {
+    if (!((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && !ev.altKey && String(ev.key).toLowerCase() === 'z') || !undoLista.length) return;
+    const t = ev.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || document.querySelector('dialog[open]')) return;
+    ev.preventDefault();
+    const e = undoLista[0];
+    ask('Desfazer a última alteração? ' + e.m + ': ' + e.t, [{ label: 'Cancelar', value: false }, { label: 'Desfazer', kind: 'btn-primary', value: true }]).then(ok => { if (ok) undoFazer(e); });
+  });
+
+  // ---------- registro de erros de tela: o que quebrou no navegador de cada pessoa (hub_erros/<dia>, 30 dias) ----------
+  const ERRO_PULAR = /ResizeObserver loop|Script error\.?$|Non-Error promise rejection|play\(\) request|AbortError|^cancelado$|Failed to load resource|ERR_FAILED|net::ERR/i;
+  let erroVistos = {}, erroSessao = 0, erroFila = Promise.resolve(), erroPodou = false;
+  const baseArq = (u) => { try { return String(u || '').split('?')[0].split('/').pop() || ''; } catch { return ''; } };
+  const navegadorCurto = () => { const u = navigator.userAgent || '', m = /(Edg|OPR|Firefox|Chrome|Version)\/(\d+)/.exec(u); const nome = /Edg\//.test(u) ? 'Edge' : /OPR\//.test(u) ? 'Opera' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : 'Outro'; return nome + (m ? ' ' + m[2] : '') + (innerWidth < 700 ? ' (celular)' : ''); };
+  function registrarErro(msg, arq, lin, area) {
+    try {
+      msg = String(msg || '').replace(/\s+/g, ' ').replace(/^Uncaught /, '').trim().slice(0, 300);
+      if (!msg || ERRO_PULAR.test(msg) || erroSessao >= 25 || !logRaw) return;
+      const onde = area || state.frameModule || state.activeModule || 'Hub', a = baseArq(arq) ? baseArq(arq) + (lin ? ':' + lin : '') : '', chave = onde + '|' + msg + '|' + a, agora = Date.now();
+      if (erroVistos[chave] && agora - erroVistos[chave] < 600000) return;
+      erroVistos[chave] = agora; erroSessao++;
+      const quem = AUTH()?.usuario()?.nome || 'Alguém', nav = navegadorCurto();
+      erroFila = erroFila.then(async () => {
+        const dia = ymd(hoje()), ref = logRaw.doc('hub_erros/' + dia), snap = await ref.get();
+        const itens = (snap && snap.exists !== false && snap.data ? snap.data().itens : null) || [];
+        const ex = itens.find(i => i.k === chave);
+        if (ex) { ex.c = (ex.c || 1) + 1; ex.em = agora; if (!(ex.us || []).includes(quem)) (ex.us = ex.us || []).push(quem); if (!(ex.nv || []).includes(nav)) (ex.nv = ex.nv || []).push(nav); }
+        else itens.unshift({ k: chave, em: agora, m: onde, t: msg, a, c: 1, us: [quem], nv: [nav] });
+        await ref.set({ itens: itens.slice(0, 120) });
+        if (!erroPodou) { erroPodou = true; await logRaw.doc('hub_erros/' + ymd(addDays(hoje(), -31))).delete().catch(() => {}); }
+      }).catch(() => {});
+    } catch {}
+  }
+  function ligarErros(w, area) {
+    try {
+      if (!w || w.__erros) return; w.__erros = true;
+      w.addEventListener('error', (e) => { if (e && e.message && !(e.target && e.target !== w && e.target.tagName)) registrarErro(e.message, e.filename, e.lineno, area); });
+      w.addEventListener('unhandledrejection', (e) => { const r = e && e.reason; registrarErro((r && (r.message || r.toString && r.toString())) || 'Promessa rejeitada', r && r.stack ? (/(\S+\.js)[^\n]*?:(\d+)/.exec(r.stack) || [])[1] : '', r && r.stack ? (/(\S+\.js)[^\n]*?:(\d+)/.exec(r.stack) || [])[2] : '', area); });
+    } catch {}
+  }
+  ligarErros(window, '');
+  const notifBuf = [];
   async function startShared() {
     render();
     const [dbNs, dl, user] = await Promise.all([window.claude.use('db'), window.claude.use('downloads'), window.claude.use('user')]);
     downloads = dl;
     userNs = user;
     if (!dbNs) { startLocal(); return; }
-    db = guardarDb(dbNs);
+    ligarRegistro(dbNs);
+    db = guardarDb(logDb(dbNs));
     toolsStore = toolsDbStore;
     dpStore = dpDbStore;
     geraisStore = geraisDb;
@@ -5511,6 +5821,7 @@
       state.meId = await user.id();
       if ((await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
     }
+    carregarScriptExt('extras.js?v=11').then(() => window.__extras.iniciar()).catch(() => {});
     state.dpNivel = nivelMod('dp');
     if (state.dpNivel === 'consulta' || state.dpNivel === null) state.readOnly = true;
     if (state.dpNivel === 'analista' && !state.dpCarteira) state.dpCarteira = AUTH().analista('dp') || '';
@@ -5624,7 +5935,7 @@
       const x = findDpEmpresa(id); if (!x) throw new Error('empresa não encontrada');
       Object.assign(x, campos(x)); x.updatedAt = Date.now();
       renderDpActiveView();
-      if (!(await persist(() => dpStore.updateFields(x.id, { responsavel: x.responsavel, historico: x.historico, updatedAt: x.updatedAt })))) throw new Error('falhou');
+      if (!(await persist(() => dpStore.updateFields(x.id, { responsavel: x.responsavel, historico: x.historico, updatedAt: x.updatedAt })))) throw falhaPersist();
     };
     const quando = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     const nota = (x, texto) => { const h = [{ id: uid(), data: quando(), alteracao: texto, autor: autorId() }, ...x.historico]; return h.slice(0, 200); };
@@ -5680,7 +5991,7 @@
     return {
       titulo: 'Registrar ausência na Cartela', empresa: '',
       linhas: [`${analista} · ${motivo}`, `${fmtYmdBR(inicio)} a ${fmtYmdBR(fim)}`, padrao ? `Quem cobre: ${padrao} (${r.emps} empresa(s))` : 'Sem cobertura definida'], aviso: avisos.join(' '),
-      executar: async () => { if (!(await salvarCob(c => { c.ausencias.push(novo); }, `Registrou ausência: ${resumo}`))) throw new Error('falhou'); return 'Ausência registrada.'; },
+      executar: async () => { if (!(await salvarCob(c => { c.ausencias.push(novo); }, `Registrou ausência: ${resumo}`))) throw falhaPersist(); return 'Ausência registrada.'; },
       desfazer: async () => { await salvarCob(c => { c.ausencias = c.ausencias.filter(x => x.id !== novo.id); }, `Desfez a ausência: ${resumo}`); },
     };
   }
@@ -5877,13 +6188,89 @@
       return {
         titulo: 'Criar lembrete só seu', empresa: emp ? emp.nome : '',
         linhas: [`“${texto}”`, `${fmtDateStr(data)}${hora ? ' às ' + hora : ''}${rep !== 'nao' ? ' · ' + REPS[rep].toLowerCase() : ''}`], aviso: '',
-        executar: async () => { if (!(await meusWrite(() => meusStore.save(l)))) throw new Error('falhou'); setMeuLocal(l); refreshAll(); return 'Lembrete criado.'; },
+        executar: async () => { if (!(await meusWrite(() => meusStore.save(l)))) throw falhaPersist(); setMeuLocal(l); refreshAll(); return 'Lembrete criado.'; },
         desfazer: async () => { if (await meusWrite(() => meusStore.del(l.id))) { state.meus = state.meus.filter(x => x.id !== l.id); refreshAll(); } },
       };
     },
   };
+  // Lê um arquivo anexado ao assistente: imagem (segue como imagem), PDF (texto; se for digitalizado vira imagens das primeiras páginas), planilha, texto.
+  // OCR no navegador (Tesseract.js, português) para foto ou PDF digitalizado quando a IA da tela não enxerga imagens.
+  const URL_TESSERACT = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
+  // Reduz a imagem antes do OCR (lado maior 1500 px, cinza): é o que mais acelera a leitura.
+  async function prepararParaOcr(f) {
+    try {
+      const bmp = await createImageBitmap(f), m = Math.max(bmp.width, bmp.height), k = m > 1500 ? 1500 / m : 1;
+      const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(bmp.width * k)); cv.height = Math.max(1, Math.round(bmp.height * k));
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.filter = 'grayscale(1) contrast(1.15)'; cx.drawImage(bmp, 0, 0, cv.width, cv.height);
+      return await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9)) || f;
+    } catch { return f; }
+  }
+  const comTempo = (p, ms, msg) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+  async function ocrImagens(files, progresso) {
+    const avisa = (t) => { try { progresso && progresso(t); } catch {} };
+    avisa('Carregando o leitor de imagens (só na primeira vez)…');
+    // O leitor (Tesseract) e o idioma português vêm dos arquivos do próprio Hub (pasta ocr/): nada é baixado de fora, então é rápido e funciona mesmo com a rede restrita.
+    await comTempo(carregarScriptExt('ocr/tesseract.min.js?v=1').catch(() => carregarScriptExt(URL_TESSERACT, 'Não foi possível carregar o leitor de imagens (OCR). Verifique a conexão.')), 40000, 'O leitor de imagens demorou para carregar. Verifique a conexão.');
+    const T = window.Tesseract; if (!T || !T.createWorker) throw new Error('O leitor de imagens não carregou.');
+    let n = 0, atual = 0;
+    const logger = (m) => { if (m && m.status === 'recognizing text') avisa('Lendo a página ' + atual + ' de ' + files.length + '… ' + Math.round((m.progress || 0) * 100) + '%'); else if (m && /loading|initializ/.test(m.status || '')) avisa('Preparando o idioma português (só na primeira vez)…'); };
+    const base = new URL('ocr/', document.baseURI).href;
+    const mk = (o) => comTempo(T.createWorker('por', 1, { ...o, logger }), 60000, 'O idioma do leitor demorou para carregar. Tente de novo ou envie um arquivo com texto (PDF, planilha, .txt).');
+    // O pacote do português (gzip em base64) está nos arquivos do Hub; um worker embrulhado entrega esses bytes no lugar do download.
+    const b64 = (await comTempo(fetch(base + 'por.b64.txt').then(r => { if (!r.ok) throw new Error('sem idioma local'); return r.text(); }), 40000, 'O idioma do leitor demorou para carregar.')).trim();
+    const codigo = 'const D=Uint8Array.from(atob("' + b64 + '"),c=>c.charCodeAt(0));const F=self.fetch.bind(self);self.fetch=(u,o)=>/\\/por\\.traineddata(\\.gz)?(\\?.*)?$/.test(String(u&&u.url||u))?Promise.resolve(new Response(D,{status:200})):F(u,o);importScripts(' + JSON.stringify(base + 'worker.min.js') + ');';
+    const wurl = URL.createObjectURL(new Blob([codigo], { type: 'application/javascript' }));
+    const w = await mk({ workerPath: wurl, workerBlobURL: false, corePath: base, langPath: base, gzip: true, cacheMethod: 'none' })
+      .catch(() => mk({ langPath: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/por/4.0.0_best_int' }));
+    try {
+      let out = '';
+      for (const f of files) { atual = ++n; avisa('Lendo a página ' + atual + ' de ' + files.length + '…'); const img = await prepararParaOcr(f); const r = await comTempo(w.recognize(img), 90000, 'A leitura da imagem demorou demais. Tente uma foto menor ou envie um arquivo com texto.'); out += (r && r.data && r.data.text || '') + '\n\n'; }
+      return out;
+    } finally { try { await w.terminate(); } catch {} }
+  }
+  async function lerArquivoAnexo(file, opts) {
+    const nome = file.name || 'arquivo', ext = (nome.split('.').pop() || '').toLowerCase(), tipo = file.type || '', LIM = 30000;
+    const corta = (t) => { t = String(t || '').replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(); return t.length > LIM ? { texto: t.slice(0, LIM), truncado: true } : { texto: t, truncado: false }; };
+    if (/^image\//.test(tipo) || /^(png|jpe?g|webp|gif|heic|heif)$/.test(ext)) {
+      if (opts && opts.ocr) { const t = corta(await ocrImagens([file], opts.progresso)); if (t.texto.replace(/\s/g, '').length < 15) return { tipo: 'erro', nome, erro: 'Não consegui ler texto nessa imagem. Tente uma foto mais nítida, reta e bem iluminada.' }; return { tipo: 'texto', nome, ocr: true, ...t }; }
+      return { tipo: 'imagem', file };
+    }
+    if (ext === 'pdf' || tipo === 'application/pdf') {
+      if (opts && opts.progresso) opts.progresso('Abrindo o PDF…');
+      await comTempo(Promise.all([carregarScriptExt(URL_PDFJS), carregarScriptExt(URL_PDFJS_WORKER)]), 40000, 'O leitor de PDF demorou para carregar. Verifique a conexão.');
+      const lib = window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc = URL_PDFJS_WORKER;
+      const pdf = await comTempo(lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise, 40000, 'O PDF demorou demais para abrir.');
+      let texto = '';
+      for (let n = 1; n <= Math.min(pdf.numPages, 20); n++) {
+        const pg = await pdf.getPage(n), itens = (await pg.getTextContent()).items.filter(it => it.str && it.str.trim());
+        const linhas = []; itens.forEach(it => { const y = Math.round(it.transform[5] / 3); let l = linhas.find(q => q.y === y); if (!l) { l = { y, it: [] }; linhas.push(l); } l.it.push({ x: it.transform[4], s: it.str }); });
+        linhas.sort((a, b) => b.y - a.y);
+        texto += linhas.map(l => l.it.sort((a, b) => a.x - b.x).map(i => i.s).join(' ')).join('\n') + '\n\n';
+      }
+      if (texto.replace(/\s/g, '').length >= 60) return { tipo: 'texto', nome, paginas: pdf.numPages, ...corta(texto) };
+      const files = [];
+      for (let n = 1; n <= Math.min(pdf.numPages, opts && opts.ocr ? 2 : 3); n++) {
+        const pg = await pdf.getPage(n), vp = pg.getViewport({ scale: opts && opts.ocr ? 1.3 : 1.6 }), cv = document.createElement('canvas');
+        cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+        await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+        const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+        if (blob) files.push(new File([blob], nome.replace(/\.pdf$/i, '') + '-p' + n + '.png', { type: 'image/png' }));
+      }
+      if (opts && opts.ocr) { const t = corta(await ocrImagens(files, opts.progresso)); if (t.texto.replace(/\s/g, '').length < 15) return { tipo: 'erro', nome, erro: 'Não consegui ler texto nesse PDF digitalizado.' }; return { tipo: 'texto', nome, ocr: true, paginas: pdf.numPages, ...t, aviso: 'PDF digitalizado: li as primeiras ' + files.length + ' página(s) por OCR.' }; }
+      return { tipo: 'imagens', nome, files, aviso: 'PDF digitalizado (sem texto): usei as primeiras ' + files.length + ' página(s) como imagem.' };
+    }
+    if (/^(xlsx|xls|xlsm|ods)$/.test(ext)) {
+      await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o leitor de planilhas. Verifique a conexão.');
+      const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      return { tipo: 'texto', nome, ...corta(wb.SheetNames.slice(0, 6).map(n => '## Planilha ' + n + '\n' + window.XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n\n')) };
+    }
+    if (/^(csv|tsv|txt|json|md|xml|log)$/.test(ext) || /^text\//.test(tipo)) return { tipo: 'texto', nome, ...corta(await file.text()) };
+    return { tipo: 'erro', nome, erro: 'Não sei ler arquivos .' + (ext || '?') + '. Envie foto, PDF, planilha (xlsx/csv) ou texto.' };
+  }
   window.__hubApi = {
     versao: 1,
+    desfazer: { lista: () => undoLista.map(e => ({ m: e.m, t: e.t, em: e.em })), fazer: (i) => { const e = undoLista[i]; return e ? undoFazer(e) : Promise.resolve(); }, aoMudar: (cb) => { if (typeof cb === 'function') undoOuvintes.push(cb); }, restaurar: (r) => restaurarDeOutro(r) },
+    lerArquivo: (f, o) => lerArquivoAnexo(f, o),
     ativo: () => state.frameModule || state.activeModule || '',
     abrirModulo: (k) => openModule(k),
     inicio: () => goHome(),
@@ -5897,9 +6284,56 @@
     },
     modulos: () => ['dp', ...Object.keys(FRAMES)].filter(podeVerMod),
     nivel: (m) => nivelMod(m),
+    // Módulo Configurações (config.js): abre numa aba e dá acesso ao que mora no Hub e no DP.
+    abrirConfig: (aba) => openModule('config', aba),
+    db: () => db,
+    toast: (m) => toast(m),
+    meId: () => AUTH()?.usuario()?.id || state.meId || '',
+    meNome: () => AUTH()?.usuario()?.nome || '',
+    temCoord: () => temCoord(),
+    notificar: (n) => { if (window.__extras) window.__extras.notificar(n); else if (notifBuf.length < 20) notifBuf.push(n); },
+    notifPendentes: () => notifBuf.splice(0),
+    cfg: {
+      tema: () => currentTheme(),
+      setTema: (t) => { if (t !== 'light' && t !== 'dark') return; state.prefs.theme = t; applyTheme(); savePrefs(); },
+      ehAdmin: () => !AUTH() || AUTH().ehAdmin(),
+      dp: {
+        podeEditar: () => !state.readOnly && nivelMod('dp') === 'coord',
+        resumo: () => ({ empresas: state.dpEmpresas.filter(ativa).length, equipe: dpResponsaveis().length, gerais: state.dpGerais.length, sindicatos: state.dpSind.length, convencoes: state.dpCcts.length, ausencias: (state.dpCob.ausencias || []).length }),
+        equipe: () => dpResponsaveis(),
+        equipeAdd: (nome) => {
+          nome = String(nome || '').trim();
+          if (!nome) return 'Digite o nome do analista.';
+          if (state.readOnly || nivelMod('dp') !== 'coord') return 'Só a coordenação altera a equipe.';
+          if (dpResponsaveis().some(n => norm(n) === norm(nome))) return `${nome} já está na equipe.`;
+          salvarEquipe([...state.dpEquipe, nome]);
+          return '';
+        },
+        abrirGerais: () => openGerais(),
+        backup: () => $('#dp-btn-export').click(),
+        importar: () => $('#dp-import-input').click(),
+        abrir: (view) => { if (podeAbrirModulo('dp')) openDpModule(view); },
+        abrirConvencoes: () => { if (!podeAbrirModulo('dp')) return; state.dpConvCad = true; state.dpSindVisao = 'uso'; openDpModule('sindicatos'); },
+        abrirImportador: () => { if (!podeAbrirModulo('dp')) return; state.dpFerr = 'importador'; openDpModule('ferramentas'); },
+      },
+    },
   };
   // O assistente só entra depois do login (ele usa o nome e o nível de acesso da pessoa).
-  (window.__auth ? window.__auth.aguardar() : Promise.resolve()).then(() => carregarScriptExt('assistente.js?v=16')).catch(() => {});
+  // Assistente (Tax): carrega com nova tentativa e, se mesmo assim não aparecer, mostra um botão para tentar de novo (com o motivo).
+  let erroAssistente = '';
+  window.addEventListener('error', (e) => { if (e && /assistente\.js/.test(e.filename || '')) erroAssistente = (e.message || 'erro') + (e.lineno ? ' (linha ' + e.lineno + ')' : ''); });
+  const carregarAssistente = (n = 0) => carregarScriptExt(n ? 'assistente.js?v=38&t=' + n : 'assistente.js?v=35', 'Não foi possível carregar o assistente. Verifique a conexão.').catch((err) => { erroAssistente = err && err.message || erroAssistente; if (n < 2) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => carregarAssistente(n + 1)); throw err; });
+  const botaoReserva = () => {
+    if (document.getElementById('tx-mascote') || document.getElementById('tx-reserva')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'tx-reserva'; b.textContent = '💬 Assistente'; b.title = 'O assistente não apareceu' + (erroAssistente ? ' (' + erroAssistente + ')' : '') + '. Clique para tentar de novo.';
+    b.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:530;border:1px solid var(--rule-strong,#C2CCD5);background:var(--surface,#fff);color:var(--ink,#101820);border-radius:999px;padding:9px 14px;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2)';
+    b.onclick = () => {
+      b.textContent = 'Carregando…'; delete window.__assistenteHub;
+      carregarAssistente(Date.now()).then(() => setTimeout(() => { if (document.getElementById('tx-mascote')) { b.remove(); window.__assistenteHub && window.__assistenteHub.abrir && window.__assistenteHub.abrir(); } else { b.textContent = '💬 Assistente'; toast('O assistente não carregou' + (erroAssistente ? ': ' + erroAssistente : '') + '. Recarregue a página (Ctrl+F5).'); } }, 800)).catch(() => { b.textContent = '💬 Assistente'; toast('O assistente não carregou' + (erroAssistente ? ': ' + erroAssistente : '') + '. Verifique a conexão e recarregue a página.'); });
+    };
+    document.body.appendChild(b);
+  };
+  (window.__auth ? window.__auth.aguardar() : Promise.resolve()).then(() => carregarAssistente()).catch(() => {}).then(() => setTimeout(botaoReserva, 6000));
 
   loadPrefs();
   applyTheme();
@@ -5912,7 +6346,8 @@
   const iniciarApp = () => {
     AUTH()?.onPendentes?.(() => { renderFerramentas(); if (!state.activeModule && !state.frameModule) renderHome(); });
     if (HOSTED) startShared(); else startLocal();
-    const rotaInicial = location.hash.slice(1) || state.prefs.route || '';
+    const inicioPref = (window.__auth?.usuario?.()?.prefs || {}).inicio || '';
+    const rotaInicial = location.hash.slice(1) || inicioPref || state.prefs.route || '';
     if (rotaInicial) applyRoute(rotaInicial); else renderHome();
   };
   if (window.__auth) window.__auth.aguardar().then(iniciarApp); else iniciarApp();

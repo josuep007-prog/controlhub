@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="fiscal.css">
+<link rel="stylesheet" href="fiscal.css?v=2">
 <title>Fiscal · Control Hub</title>
 <script src="tema.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -114,7 +114,11 @@
           <div><button type="button" class="btn" id="bkBaixar">Baixar backup (.xlsx)</button></div>
         </div>
       </section>
-      <section class="pn-card pn-wide">
+      <section class="pn-card pn-wide" id="cfgPonteiro">
+        <div class="pn-card-head"><h3>Configurações</h3><span class="sub">ficam no módulo Configurações</span></div>
+        <div class="pn-card-body" style="gap:10px"><p class="note">Início do controle, prazos e demais ajustes do Fiscal agora ficam no módulo <b>Configurações</b>, junto com os dos outros sistemas e os do assistente.</p><div><button type="button" class="btn" data-abrir-config="fiscal">Abrir Configurações de Fiscal</button></div></div>
+      </section>
+      <section class="pn-card pn-wide" id="cfgCard">
         <div class="pn-card-head"><h3>Obrigações e prazos</h3><span class="sub">só a coordenação altera · os prazos padrão vêm marcados “conferir”: confira com a legislação do estado e do município de cada carteira</span></div>
         <div class="pn-card-body" style="gap:14px" id="cfgBox"></div>
       </section>

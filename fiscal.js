@@ -156,6 +156,9 @@ var S = {
 var PREF = "fis-prefs-v1";
 function lerPrefs(){ try{ return JSON.parse(localStorage.getItem(PREF) || "{}"); }catch(e){ return {}; } }
 function salvarPrefs(p){ try{ localStorage.setItem(PREF, JSON.stringify(Object.assign(lerPrefs(), p))); }catch(e){} }
+var MODO_CFG = /[?&]cfg=1(&|$)/.test(location.search);
+if(MODO_CFG){ salvarPrefs = function(){}; document.body.classList.add("modo-cfg"); }
+document.addEventListener("click", function(e){ var b = e.target.closest("[data-abrir-config]"); if(!b) return; try{ window.parent.__hubApi.abrirConfig(b.getAttribute("data-abrir-config")); }catch(x){} });
 
 /* ============ banco ============ */
 // Aberto dentro do Control Hub (quadro), usa a conexão da página principal. Ela só aceita objetos criados lá:
@@ -1549,6 +1552,6 @@ window.__assistente = {
     });
   });
   var v = VIEWS.indexOf(p.view) !== -1 ? p.view : "painel";
-  irPara(v);
+  irPara(MODO_CFG ? "cadastro" : v);
 })();
 })();

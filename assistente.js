@@ -34,7 +34,13 @@
   // Uso da IA por dia (neste navegador).
   var USO = "tx-uso-v1";
   function usoHoje() { var u = lerLS(USO, {}); return u.dia === ymd(hoje()) ? +u.n || 0 : 0; }
-  function contarUso() { var n = usoHoje() + 1; gravarLS(USO, {dia: ymd(hoje()), n: n}); gravarLS("tx-uso-tot", (+lerLS("tx-uso-tot", 0) || 0) + 1); return n; }
+  function contarUso() { var n = usoHoje() + 1; gravarLS(USO, {dia: ymd(hoje()), n: n}); gravarLS("tx-uso-tot", (+lerLS("tx-uso-tot", 0) || 0) + 1); try { mostrarUso(); } catch (e) {} return n; }
+  function mostrarUso() {
+    var l = doc.getElementById("tx-uso-l"); if (!l) return;
+    var lim = +cfgEquipe.limiteDia || 0, n = usoHoje();
+    l.textContent = iaOk ? "Perguntas à IA hoje: " + n + (lim ? " de " + lim : "") + (lim && n >= lim ? " (limite atingido)" : "") : "";
+    l.classList.toggle("tx-uso-alto", !!lim && n >= lim * 0.8);
+  }
   // Configuração da equipe (banco do Hub, editada pela coordenação; ver lote "equipe").
   var cfgEquipe = {limiteDia: 0, instrucoes: ""};
   // Departamentos: a coordenação liga a separação e diz, pessoa a pessoa, quais relatórios cada uma vê (ver o bloco "departamentos" mais abaixo).
@@ -257,11 +263,6 @@
   function casarEmpresas(t, ignorar) {
     var ix = indice(), toks = t.split(" ").filter(Boolean), dig = (t.replace(/[^\d ]/g, "").match(/\d{8,14}/) || [])[0], out = [];
     var tt0 = " " + t + " ";
-    Object.keys(apelidos).forEach(function (k) {
-      if (tt0.indexOf(" " + k + " ") === -1) return;
-      var ap = apelidos[k], g0 = ix.empresas.filter(function (g) { return (ap.cnpj && g.cnpj === ap.cnpj) || norm(g.nome) === norm(ap.empresa); })[0];
-      if (g0) out.push({g: g0, s: 3, apelido: true});
-    });
     ix.empresas.forEach(function (g) {
       if (out.some(function (o) { return o.g === g; })) return;
       if (dig && g.cnpj && g.cnpj.indexOf(dig) !== -1) { out.push({g: g, s: 2}); return; }
@@ -291,6 +292,8 @@
     {t: "Agenda do DP", m: "dp", k: "agenda dp lembrete lembretes meus criar dia calendario", a: "Na Agenda do DP, o calendário junta prazos gerais, rotinas das empresas, datas-base e eventos de funcionários. Clique num dia para ver tudo dele; o “+” no dia cria um lembrete só seu (pode repetir). Os seus lembretes ficam numa área privada: só você vê.", ir: {m: "dp", aba: "agenda"}},
     {t: "Prazos gerais do DP", m: "dp", k: "prazos gerais dp esocial fgts salario darf sugeridos", a: "Em Agenda → “Prazos gerais…” ficam as datas que valem para todas as empresas ativas (salários, eSocial, FGTS…). O botão “Adicionar prazos legais sugeridos” traz uma base para você conferir. Em cada empresa, desmarque o que ela não faz.", ir: {m: "dp", aba: "agenda"}},
     {t: "Convenções coletivas", m: "dp", k: "convencao convencoes cct sindicato data base reajuste vigencia dominio importar", a: "A aba Convenções controla CCTs, vigência, data-base e reajuste. Importe a lista de sindicatos do Domínio (PDF), cadastre as convenções e o sistema liga tudo pelo CNPJ. Ele avisa convenção vencendo, aditivo pendente e reajuste ainda não aplicado.", ir: {m: "dp", aba: "sindicatos"}},
+    {t: "Passagem de bastão nas férias", m: "dp", k: "passagem bastao repasse ferias ausencia cobertura carteira resumo cobrir analista", a: "Diga “passagem de bastão da Carla” (ou use o botão na Cartela, em Ausências e coberturas) e eu monto o resumo da carteira dela para quem vai cobrir: atrasos de hoje, vencimentos no período da ausência, o que está aguardando o cliente e as últimas observações. Vem um texto pronto para copiar; nada é enviado."},
+    {t: "Anexar foto, PDF ou planilha", k: "anexar anexo foto imagem pdf planilha arquivo documento ler cardapio clipe camera arrastar colar registrar", a: "No chat, use o 📎 (ou 📷 no celular) para anexar uma foto, PDF, planilha ou texto; também dá para arrastar o arquivo para o chat ou colar uma imagem. A IA lê o que está no anexo, diz o que identificou e prepara o registro no módulo certo (por exemplo, o cardápio da semana de uma foto), sempre num cartão para você conferir e confirmar. O arquivo em si não fica guardado, só o que você confirmar. Se algo estiver ilegível, ela pergunta em vez de inventar."},
     {t: "Cartela de clientes", m: "dp", k: "cartela clientes analista mover empresas ausencia ferias cobertura simular reserva", a: "Na Cartela você distribui as empresas entre os analistas: troque o responsável na linha, selecione várias para mover em lote ou arraste até o analista. Em “Ausências” registre férias e quem cobre; “Simular” testa mudanças sem salvar.", ir: {m: "dp", aba: "cartela"}},
     {t: "Importador Domínio", m: "dp", k: "importador dominio rpa lancamentos rubricas txt arquivo", a: "Em DP → Ferramentas, o Importador Domínio gera o arquivo .txt de RPA e lançamentos de rubricas, com conferência linha a linha antes de baixar.", ir: {m: "dp", aba: "ferramentas"}},
     {t: "Etapas do Portal do Cliente", m: "portal", k: "etapas portal habilitacao treinamento analista cadastro usuario cliente implantacao", a: "O Portal acompanha quatro etapas por setor: habilitação no Domínio, treinamento do analista, cadastro do usuário do cliente e treinamento dos clientes. Contato treinado já conta como habilitação concluída e usuário ativo.", ir: {m: "portal", aba: "dashboard"}},
@@ -301,12 +304,12 @@
     {t: "Datas ditas do seu jeito", k: "data datas periodo sexta que vem proximo mes dia 10 daqui a dias uteis fim do mes lembrete amanha semana", a: "Eu entendo datas como “sexta que vem”, “dia 10 do mês que vem”, “dia 5 de março”, “daqui a 3 dias úteis”, “próximo dia útil”, “fim do mês que vem” e “até sexta”. Vale para consultas e para lembretes (“me lembra sexta de ligar para o cliente”)."},
     {t: "Convenções pelo chat", m: "dp", k: "convencao convencoes cct piso data base reajuste contribuicao patronal taxa negocial sindicato beneficios vigencia", a: "Pergunte, por exemplo: “qual o piso do Comerciários?”, “quando é a data-base do sindicato X?” ou “qual a contribuição patronal da Importbras?”. Mostro piso, reajuste, benefícios e contribuições da convenção vigente; a contribuição patronal é uma estimativa com os dados do cadastro (funcionários, tributação e capital social), então confira na convenção. Para marcar o reajuste como aplicado: “marca o reajuste do Comerciários como aplicado”."},
     {t: "Ausências e resumo da segunda", m: "dp", k: "ausencias ferias afastamento analista equipe cobertura segunda resumo semana cardapio", a: "Pergunte “quem está de férias na equipe?” para ver as ausências de analistas na Cartela (com quem cobre). Na segunda de manhã, além do resumo do dia, eu mostro a semana: prazos, ausências e cardápio. Dá para desligar em Configurações → Avisos."},
+    {t: "Configurações do Hub e do assistente", k: "configuracoes configuracao configurar ajustes preferencias tema escuro claro mascote avisos equipe departamentos limite ia senha nivel acesso", a: "No módulo Configurações (na tela inicial ou na barra lateral) cada sistema tem a sua aba: Geral (tema, sua conta e atalhos), Departamento Pessoal (equipe, prazos gerais, convenções, backup), Contábil e Fiscal (início do controle, vencimentos e catálogo de obrigações), Portal do Cliente, Cardápio e Assistente (conversa, mascote, avisos e, para a coordenação, limite de IA, instruções, departamentos e ajuda da equipe). Só a coordenação altera as configurações de cada sistema."},
     {t: "Ações do DP pelo assistente", m: "dp", k: "dp trocar responsavel carteira passar transferir analista ausencia ferias afastamento licenca cobertura cobre anotar historico nota empresa tax assistente", a: "No DP eu também faço: “passa a Importbras para o Bruno” (troca o responsável), “anota no histórico da Importbras: cliente manda as variáveis dia 25” e “registra férias da Maria de 10/11 a 25/11, o Bruno cobre” (ausência com cobertura na Cartela). Mostro um cartão com o que vai mudar e só gravo depois do Confirmar; dá para Desfazer em seguida. Quem só consulta o DP não consegue gravar. Também marco o reajuste de convenção como aplicado (“marca o reajuste do Comerciários como aplicado”). Se a empresa estiver em mais de um módulo, eu pergunto em qual."},
     {t: "Login e níveis de acesso", k: "login senha entrar sair acesso nivel niveis permissao coordenador analista consulta administrador usuario cadastro trocar senha esqueci", a: "O Hub tem login próprio, separado da conta do Claude. Quem ainda não tem conta cria uma na tela de entrada e espera o administrador liberar. Cada pessoa tem um nível por módulo: Coordenador (edita tudo no módulo), Analista (edita só a própria carteira, pelo nome de analista ligado ao usuário) e Consulta (só vê). Sem nível, o módulo some do Hub. Para trocar a senha ou sair, clique no seu avatar (canto da tela inicial ou barra lateral). Esqueceu a senha? Peça ao administrador uma senha provisória: você será obrigado a trocá-la ao entrar. O administrador gerencia tudo em Usuários."},
     {t: "Relatórios por departamento", k: "departamento departamentos relatorio relatorios resumo permissao acesso ver coordenacao liberar equipe separar setor", a: "Quando a coordenação liga a separação por departamento (⚙ → Equipe → Relatórios por departamento), cada pessoa recebe e consulta só os relatórios dos departamentos marcados para ela: um resumo do dia separado para cada departamento, e as consultas, fichas, carga e IA limitadas a eles. Cardápio e lembretes pessoais continuam para todos. A coordenação (editores do Hub) vê tudo e pode pedir /resumo fiscal, /resumo dp, /resumo contabil, /resumo portal ou /resumo todos. Se a sua tela estiver vazia, é porque falta a coordenação liberar o seu departamento. Isso organiza o que o assistente mostra: quem tem acesso ao Hub ainda consegue abrir os módulos pelas telas."},
     {t: "Comandos rápidos do assistente", k: "comandos barra atalho slash hoje semana atrasos carga desfazer glossario", a: "No chat, digite / para ver os comandos: /hoje, /semana, /atrasos, /cliente, /cardapio, /empresa nome, /abrir tela, /carga (carga por analista), /glossario termo, /desfazer (desfaz o que eu gravei na última hora), /limpar e /config. Eles respondem na hora, sem gastar IA."},
     {t: "Ações em lote pelo assistente", k: "lote varias empresas todas de uma vez marcar em lote", a: "Peça, por exemplo, “marca o PGDAS-D como entregue para todas do Bruno” ou “marca a guia do DAS como enviada para as empresas X, Y e Z”. Eu mostro um cartão com a lista de tudo o que vai mudar; só gravo depois do Confirmar, e o Desfazer volta tudo."},
-    {t: "Apelidos de empresas", k: "apelido apelidos nome curto padaria", a: "Diga “a padaria do centro é a Panificadora Silva” e eu guardo o apelido (com confirmação) para toda a equipe usar nas próximas perguntas."},
     {t: "Busca global", k: "busca buscar pesquisar atalho procurar ctrl k", a: "Aperte “/” ou Ctrl+K em qualquer tela do Hub para buscar empresas, funcionários, lembretes e ferramentas. A última opção da busca manda o texto como pergunta para o assistente."},
     {t: "Tema claro e escuro", k: "tema escuro claro dark noite", a: "Use o botão “Tema” na barra lateral (ou a tecla T na tela inicial) para alternar entre claro e escuro."},
     {t: "Chamar o assistente", k: "tax assistente mascote chamar conversar atalho", a: "Eu ando pela tela como se o layout fosse chão e parede: caminho pelo topo dos cartões e botões, pulo degraus e caio quando o chão some. Clique num espaço vazio e eu vou até lá. Clicando em mim, abre a conversa; em “🎨 Visual” você troca o meu desenho. Aperte Ctrl+J para abrir a conversa a qualquer hora."}
@@ -440,8 +443,21 @@
 
   // Entende a frase e devolve a lista de blocos da resposta.
   // op: {forcarIA, imagens, oculto (texto que vai para a IA no lugar do digitado)}
+  // Abreviações de chat (“vc”, “hj”, “amnh”, “p/”) viram palavras inteiras antes de a frase ser entendida (pelas regras ou pela IA).
+  var ABREV = [["vc|vcs|vose", "você"], ["hj|oje", "hoje"], ["amnh|amnha|amh|amn|aman", "amanhã"], ["ontm", "ontem"], ["pq|pqe|porq", "por que"], ["tb|tbm|tmb", "também"],
+    ["q|qe", "que"], ["qdo|qnd|qndo", "quando"], ["qto|qt", "quanto"], ["qtos|qts", "quantos"], ["msm", "mesmo"], ["n|ñ|naum", "não"], ["mt|mto", "muito"], ["td|tdo", "tudo"], ["tds", "todos"], ["cmg", "comigo"],
+    ["pfv|pfvr|pf|plmds", "por favor"], ["dps|dpois", "depois"], ["dnv", "de novo"], ["nd", "nada"], ["oq", "o que"], ["ngm", "ninguém"], ["fz|fzr", "fazer"], ["tá|ta|tah", "está"],
+    ["rel|relat", "relatório"], ["pend|pends", "pendência"], ["func|funcs", "funcionário"], ["emp|empr", "empresa"], ["emps", "empresas"], ["cli|clt", "cliente"], ["docs", "documentos"], ["info|infos", "informação"],
+    ["prox|próx", "próximo"], ["sm", "semana"], ["fds", "fim de semana"], ["seg", "segunda"], ["qua", "quarta"], ["qui", "quinta"], ["sex", "sexta"], ["sab|sáb", "sábado"], ["hr|hrs", "hora"], ["ent", "entrega"], ["obrig", "obrigação"], ["venc|vencto", "vencimento"]];
+  var ABREV_RX = ABREV.map(function (x) { return [new RegExp("(^|[^A-Za-zÀ-ÿ0-9/])(?:" + x[0] + ")(?=$|[^A-Za-zÀ-ÿ0-9/])", "gi"), x[1]]; });
+  function expandirAbrev(texto) {
+    var o = String(texto).replace(/(^|\s)p\/(?=\s)/gi, "$1para").replace(/(^|\s)c\/(?=\s)/gi, "$1com").replace(/(^|\s)s\/(?=\s)/gi, "$1sem");
+    ABREV_RX.forEach(function (r) { o = o.replace(r[0], function (m, pre) { return pre + r[1]; }); });
+    return o;
+  }
   function responder(texto, op) {
     op = op || {};
+    texto = expandirAbrev(texto);
     var t = norm(texto);
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
@@ -455,7 +471,7 @@
     if (op.forcarRegras) return Promise.all([quemSou(), depsPronto()]).then(function () { return porRegras("Respondido pelas regras do assistente, sem IA."); });
     if (op.forcarIA && !iaOk) iniciarIA();
     return Promise.all([iaPronta, quemSou(), depsPronto()]).then(function () {
-      if (!iaOk) return op.imagens && op.imagens.length ? [T("Para ler imagens eu preciso da IA, que não está disponível agora.")] : semIA(iaAviso || "A IA não está disponível agora.");
+      if (!iaOk) return (op.imagens && op.imagens.length) || (op.docs && op.docs.length) ? [T("Para ler fotos e arquivos eu preciso da IA, que não está disponível agora.")] : semIA(iaAviso || "A IA não está disponível agora.");
       var lim = +cfgEquipe.limiteDia || 0;
       if (lim && usoHoje() >= lim && !op.forcarIA) return semIA("O limite de " + lim + " perguntas por dia à IA, definido pela coordenação, foi atingido.");
       var viaIA = function (tentativa) {
@@ -485,6 +501,7 @@
     return detectarAcao(tt, txt, casarEmpresas(tt, ign), detectarModulos(tt), periodo(tt), anaM);
   }
   function entender(texto, t) {
+    t = t.replace(/\bportal do cliente\b/g, "portal");
     var ix = indice(), nomesAna = ix.analistas;
     var anaMatch = casarAnalista(t, nomesAna);
     var ignorar = {};
@@ -516,9 +533,14 @@
     else if (RX.obrigado.test(t)) intent = "obrigado";
     else if (RX.quem.test(t)) intent = "quem";
     else if (RX.ajuda.test(t) && !emps.length) intent = "ajuda";
+    else if ((!emps.length || emps[0].s < 1) && /\btreinament\w*\b/.test(t) && !/\b(como|onde|configur\w*|cadastr\w*|marc\w*|agend(ar|e)|mudar|alterar)\b/.test(t)) { if (/\b(dp|pessoal|folha)\b/.test(t) && !/\bportal\b/.test(t)) mods = mods.filter(function (m) { return m !== "portal"; }); else if (!mods.length) mods = ["portal"]; intent = RX.atrasos.test(t) ? "atrasos" : "vencimentos"; }
     else if (emps.length && RX.conv.test(t) && !RX.convNao.test(t) && (!anaMatch.length || emps[0].s >= 1)) intent = "convencao";
     else if (emps.length && (!anaMatch.length || emps[0].s >= 1)) intent = "empresa";
     else if (navega && (mods.length || /\b(inicio|home|tela inicial)\b/.test(t) || detectarAba(t, carregados[mods[0]]))) intent = "navegar";
+    else if (analista && !emps.length && /\b(por ?que|porque|motivo)\b/.test(t) && /\b(sobrecarreg\w*|carga|ocupad\w*|atras\w*|cheio|muito)\b/.test(t)) intent = "explicar";
+    else if (!emps.length && /\b(bastao|repasse)\b/.test(t)) intent = "bastao";
+    else if (!emps.length && /\b(subiu|subiram|aumentou|aumentaram|caiu|cairam|diminuiu|diminuiram|piorou|melhorou|evolucao|comparad\w*|em relacao)\b/.test(t) && RX.atrasos.test(t)) intent = "evolucao";
+    else if (/\b(rascunho|modelo|texto|escreve|escreva|redige|redija|monta|monte)\b/.test(t) && /\b(e ?mail|mensagem|zappy|zap)\b/.test(t)) intent = "email";
     else if (!emps.length && ehComparacao(t)) intent = "comparar";
     else if (!emps.length && RX.conv.test(t) && !RX.convNao.test(t)) intent = "convencao";
     else if (!emps.length && RX.ausencia.test(t) && (/\b(analistas?|equipe|time|cobertura|cobrindo|cartela)\b/.test(t) || anaMatch.length)) intent = "ausencias";
@@ -553,6 +575,10 @@
       case "vencimentos": case "atrasos": case "cliente": case "carteira": return consulta(p);
       case "cardapio": return consulta(p);
       case "comparar": return comparar(p);
+      case "explicar": return explicar(p);
+      case "bastao": return bastao(p);
+      case "evolucao": return evolucao(p);
+      case "email": return rascunhoEmail(p, emps);
       case "convencao": return convencoes(p, emps);
       case "ausencias": return ausencias(p);
       default: return Promise.resolve(naoEntendi(p));
@@ -648,7 +674,7 @@
       return {tipo: "transferir", mod: alT.mod, emp: emps[0], params: {para: anas[0]}};
     }
     // ---- anotar na ficha / no histórico da empresa ----
-    if (/\b(anot\w*|registr\w*|adicion\w*|escrev\w*|poe|coloc\w*|deix\w*)\b/.test(t) && /\b(historico|ficha|observacao|observacoes|nota(?! fiscal))\b/.test(t)) {
+    if (/\b(anot\w*|registr\w*|adicion\w*|escrev\w*|poe|coloc\w*|deix\w*)\b/.test(t) && (/\b(historico|ficha|observacao|observacoes|nota(?! fiscal))\b/.test(t) || (/\banot\w*\b/.test(t) && (texto.indexOf(":") >= 0 || /\banot\w*\b.*\bque\b/.test(t)) && !/\b(lembrete|etapa|pendencia|entrega|imposto)\b/.test(t)))) {
       if (emps.length > 1 && emps[1].s >= emps[0].s * 0.92) return {tipo: "ambigua", emps: emps.slice(0, 5)};
       var alO = alvoModulo(mods, emps[0]);
       if (alO.ambig) return {tipo: "ambigua_mod", emp: emps[0], mods: alO.ambig, texto: texto};
@@ -792,7 +818,7 @@
     extras.push({tipo: "linhas", titulo: tit, nota: a && a.exemplo && a.exemplo() ? "dados de exemplo" : "", linhas: r.linhas.slice(0, 8).map(function (l) { return Object.assign({mod: mod}, l); }), todas: r.linhas.map(function (l) { return Object.assign({mod: mod}, l); }),
       mais: r.linhas.length > 8 && r.verTudo ? {rot: "Ver os " + r.total + " no " + MODN[mod], acao: function () { return abrirItem(mod, r.verTudo); }} : null});
   }
-  // Acha a empresa pelo texto (nome, CNPJ ou apelido). Devolve {g} ou {erro}.
+  // Acha a empresa pelo texto (nome ou CNPJ). Devolve {g} ou {erro}.
   function acharEmpresa(txt) {
     var es = casarEmpresas(norm(txt || ""), {});
     if (!es.length) return {erro: "Não achei a empresa “" + txt + "”."};
@@ -829,7 +855,7 @@
   // Ações feitas pelo assistente nesta sessão (para "desfazer tudo da última hora").
   var feitosSessao = [];
   function cartaoLote(planos, falhas, titulo) {
-    var linhas = planos.map(function (x) { return (x.plano.empresa ? x.plano.empresa + ": " : "") + (x.plano.linhas || [])[0]; });
+    var linhas = planos.map(function (x) { return (x.plano.empresa ? x.plano.empresa + ": " : "") + (x.plano.linhas || []).slice(0, /card[aá]pio/i.test(x.plano.titulo || "") ? 2 : 1).join(" — "); });
     if (linhas.length > 25) linhas = linhas.slice(0, 25).concat(["… e mais " + (planos.length - 25)]);
     return {tipo: "confirma", titulo: titulo, plano: {titulo: titulo + " (" + planos.length + ")", empresa: "", linhas: linhas, aviso: falhas.length ? falhas.length + " não entram: " + falhas.slice(0, 4).join(" · ") + (falhas.length > 4 ? "…" : "") : "",
       executar: function () {
@@ -900,17 +926,10 @@
     }
     return "Tipo de cálculo desconhecido.";
   }
-  // Apelidos de empresas cadastrados pela equipe (banco do Hub, coleção tax_apelidos).
-  var apelidos = {}, dbTax = null, dbTaxP = null;
+  var dbTax = null, dbTaxP = null;
   function usarDb() {
     if (!dbTaxP) dbTaxP = (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null)).then(function (d) { dbTax = d || null; return dbTax; }, function () { return null; });
     return dbTaxP;
-  }
-  function ouvirApelidos() {
-    usarDb().then(function (db) {
-      if (!db) return;
-      try { db.collection("tax_apelidos").onSnapshot(function (snap) { var m = {}; snap.docs.forEach(function (d) { var x = d.data() || {}; if (x.apelido && (x.empresa || x.cnpj)) m[norm(x.apelido)] = {empresa: x.empresa || "", cnpj: x.cnpj || ""}; }); apelidos = m; cache.indice = null; }, function () {}); } catch (e) {}
-    });
   }
   function slug(t) { return norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "x"; }
 
@@ -935,7 +954,7 @@
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
     var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "convencao_busca", "contribuicao", "ausencias", "funcionarios", "lembretes", "uso"];
     return [
-      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Só no DP também: convencao_busca (texto = nome do sindicato ou da convenção: piso, reajuste, data-base, vigência, benefícios e contribuição patronal), contribuicao (empresa: estimativa da contribuição patronal) e ausencias (férias/afastamentos de analistas no período, com cobertura). Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
+      {name: "consultar", description: "Consulta dados de um módulo do Control Hub. Só no DP também: convencao_busca (texto = nome do sindicato ou da convenção: piso, reajuste, data-base, vigência, benefícios e contribuição patronal), contribuicao (empresa: estimativa da contribuição patronal) e ausencias (férias/afastamentos de analistas no período, com cobertura). Tipos por módulo — todos (menos cardápio): vencimentos (entregas/prazos num período), atrasos, carteira (empresas por analista); fiscal/contabil/portal: pendencias (aguardando o cliente; no Fiscal ordenado por dias parado); fiscal e contabil: competencia (o que falta para fechar uma competência AAAA-MM, com resumo por analista para comparar meses), historico (empresa); fiscal: prazosConferir, feriados; contabil: fechado (fechado até de cada empresa), impostos (apurado/guia enviada por vencimento); portal: vencimentos = agenda de treinamentos agendados (contatos e analistas) no período, atrasos = treinamentos atrasados e impedimentos, funil (implantação), semTreinamento (contatos de clientes), onvio (usuários do PDF do Onvio para conferir); dp: historico (empresa), convencao (empresa: piso, reajuste, vigência), convencoes (todas, data-base), funcionarios (admissões recentes, férias, afastados), lembretes (os seus), uso (uso do banco); cardapio: cardapio. Datas AAAA-MM-DD; sem datas = hoje.",
         inputSchema: {type: "object", properties: {modulo: {type: "string", enum: MODS}, tipo: {type: "string", enum: TIPOS}, de: {type: "string"}, ate: {type: "string"}, analista: {type: "string"}, competencia: {type: "string", description: "AAAA-MM"}, empresa: {type: "string", description: "nome ou CNPJ (para historico/convencao/contribuicao)"}, texto: {type: "string", description: "para convencao_busca: sindicato ou convenção"}}, required: ["modulo", "tipo"]},
         execute: function (i) {
           return carregarTodos().then(function () { return modulo(i.modulo); }).then(function (a) {
@@ -948,7 +967,7 @@
             return r ? compacto(r, 25) : "Esse módulo não tem esse tipo de consulta.";
           });
         }},
-      {name: "empresa", description: "Ficha completa de uma empresa (pelo nome, CNPJ ou apelido) em todos os módulos onde ela existe: DP, Contábil, Fiscal e Portal.",
+      {name: "empresa", description: "Ficha completa de uma empresa (pelo nome ou CNPJ) em todos os módulos onde ela existe: DP, Contábil, Fiscal e Portal.",
         inputSchema: {type: "object", properties: {consulta: {type: "string"}}, required: ["consulta"]},
         execute: function (i) {
           return carregarTodos().then(function () {
@@ -1019,6 +1038,27 @@
             });
           });
         }},
+      {name: "preparar_cardapio_lote", description: "Prepara, num único cartão de confirmação, o cardápio de VÁRIOS dias lido de uma foto, PDF ou planilha anexada (semana ou mês). NÃO grava nada: diga que falta clicar em Confirmar. Cada item de dias: data AAAA-MM-DD (use o ano e o mês corretos pela data de hoje e pelo que está no documento), principal (prato principal, obrigatório), guarnicao, salada, sobremesa; para feriado/sem serviço use feriado (nome) sem principal. Só cadastre os dias que estiverem legíveis no documento e confirme com a pessoa o que não ficou claro.",
+        inputSchema: {type: "object", properties: {dias: {type: "array", items: {type: "object", properties: {data: {type: "string"}, principal: {type: "string"}, guarnicao: {type: "string"}, salada: {type: "string"}, sobremesa: {type: "string"}, feriado: {type: "string"}}, required: ["data"]}}}, required: ["dias"]},
+        execute: function (i) {
+          return carregarTodos().then(function () {
+            var dias = (i.dias || []).slice(0, 40), planos = [], falhas = [];
+            return dias.reduce(function (pr, d) {
+              return pr.then(function () {
+                var r = pedidoDe({tipo: "cardapio", data: d.data, principal: d.principal, guarnicao: d.guarnicao, salada: d.salada, sobremesa: d.sobremesa, feriado: d.feriado}, null);
+                if (r.erro) { falhas.push((d.data || "?") + ": " + r.erro); return null; }
+                return montarPlano(r.pd, "").then(function (m) {
+                  if (m.blocos) falhas.push((d.data || "?") + ": " + (m.erro || (m.blocos[0] && m.blocos[0].texto) || "não deu"));
+                  else planos.push(m);
+                });
+              });
+            }, Promise.resolve()).then(function () {
+              if (!planos.length) return "Nenhum dia pôde ser preparado: " + falhas.slice(0, 5).join("; ");
+              cartoes.push(cartaoLote(planos, falhas, "Cardápio lido do anexo"));
+              return "Cartão preparado com " + planos.length + " dia(s)" + (falhas.length ? "; " + falhas.length + " ficaram de fora (" + falhas.slice(0, 3).join("; ") + ")" : "") + ". Nada foi gravado: a pessoa precisa clicar em Confirmar.";
+            });
+          });
+        }},
       {name: "preparar_lote", description: "Prepara a MESMA alteração para várias empresas de uma vez, num único cartão de confirmação (com prévia em lista e Desfazer). Informe empresas (lista de nomes) ou um filtro (analista, modulo, so_atrasadas, so_aguardando_cliente). Mesmos campos de preparar_acao (tipos etapa, fechar, entrega, imposto, pendencia cobrado/recebida, transferir, observacao). Máximo 60 empresas.",
         inputSchema: {type: "object", properties: {tipo: {type: "string", enum: ["etapa", "fechar", "entrega", "imposto", "pendencia", "transferir", "observacao"]}, empresas: {type: "array", items: {type: "string"}}, filtro_analista: {type: "string"}, filtro_modulo: {type: "string", enum: ["fiscal", "contabil"]}, so_atrasadas: {type: "boolean"}, so_aguardando_cliente: {type: "boolean"}, modulo: {type: "string", enum: ["fiscal", "contabil"]}, etapa: {type: "string"}, obrigacao: {type: "string"}, imposto: {type: "string"}, valor: {type: "string"}, status: {type: "string"}, modo: {type: "string"}, texto: {type: "string"}, para: {type: "string"}, competencia: {type: "string"}}, required: ["tipo"]},
         execute: function (i) {
@@ -1052,20 +1092,6 @@
             });
           });
         }},
-      {name: "guardar_apelido", description: "Prepara (com confirmação) um apelido para uma empresa, usado pela equipe nas próximas perguntas (ex.: “padaria do centro” = Panificadora X).",
-        inputSchema: {type: "object", properties: {apelido: {type: "string"}, empresa: {type: "string"}}, required: ["apelido", "empresa"]},
-        execute: function (i) {
-          return carregarTodos().then(usarDb).then(function (db) {
-            if (!db) return "Sem banco para guardar apelidos.";
-            var f = acharEmpresa(i.empresa); if (f.erro) return f.erro;
-            var ap = String(i.apelido || "").trim().slice(0, 60); if (ap.length < 3) return "Apelido curto demais.";
-            var k = "tax_apelidos/" + slug(ap), antes = apelidos[norm(ap)];
-            cartoes.push({tipo: "confirma", titulo: "Guardar apelido", plano: {titulo: "Guardar apelido", empresa: f.g.nome, linhas: ["“" + ap + "” passa a significar " + f.g.nome + (antes ? " (antes: " + antes.empresa + ")" : "")], aviso: "Vale para toda a equipe.",
-              executar: function () { return db.doc(k).set({apelido: ap, empresa: f.g.nome, cnpj: f.g.cnpj || "", em: new Date().toISOString()}).then(function () { return "Apelido guardado."; }); },
-              desfazer: function () { return antes ? db.doc(k).set({apelido: ap, empresa: antes.empresa, cnpj: antes.cnpj, em: new Date().toISOString()}) : db.doc(k).delete(); }}});
-            return "Cartão de confirmação do apelido preparado. Nada foi gravado ainda.";
-          });
-        }}
     ].concat(FERRAMENTAS_EXTRA.map(function (fn) { return fn(cartoes); }));
   }
   var FERRAMENTAS_EXTRA = [];
@@ -1080,9 +1106,11 @@
   }
   function regrasIA() {
     var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial", p = lerPref();
-    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio) e Cardápio (refeitório).\n" +
+    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio e agenda de treinamentos dos clientes e dos analistas) e Cardápio (refeitório).\n" +
+      "Anexos (foto, PDF, planilha ou texto que a pessoa colou ou mandou): 1) diga em uma ou duas linhas o que identificou (tipo de documento e os dados principais); 2) registre no módulo certo usando SÓ as ferramentas de preparação, que mostram um cartão para a pessoa confirmar: cardápio (semana ou mês) → preparar_cardapio_lote; documento ou comprovante de uma empresa → preparar_acao tipo observacao com um resumo curto; documento que o cliente mandou → preparar_acao tipo pendencia com modo recebida; ausência/férias → preparar_acao tipo ausencia; qualquer outra coisa → resuma e pergunte onde registrar. 3) NUNCA invente dado que não esteja legível no anexo: o que estiver ilegível ou ambíguo, pergunte; não preencha campos em branco por suposição. 4) Para datas sem ano, use o ano e o mês de hoje (ou o seguinte, se o documento indicar). Os arquivos não ficam guardados: só o que for registrado pelos cartões.\n" +
+      "Treinamentos: pergunta sobre treinamentos (de hoje, da semana, atrasados) é do módulo portal, nunca do dp. Use consultar com modulo=portal: tipo vencimentos = treinamentos agendados no período (contatos de clientes e analistas); atrasos = treinamentos atrasados e impedimentos; semTreinamento = contatos ainda sem treinamento. Só use o dp para treinamentos se a pessoa disser DP/pessoal. Se a pessoa citar um módulo pelo nome (“no portal do cliente”, “no fiscal”), consulte exatamente esse módulo.\n" +
       "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "), " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
-      "Módulos que esta pessoa pode usar: " + H.modulos().map(function (k) { return MODN[k]; }).join(", ") + (AUTH() ? ". Ela não tem acesso aos outros: se pedirem algo deles, diga que o acesso não foi liberado e sugira falar com o administrador. " : ". ") + (AUTH() && AUTH().usuario() && !AUTH().ehAdmin() ? "Os níveis são Coordenador (edita tudo no módulo), Analista (edita só a própria carteira) e Consulta (só vê): se uma ação for recusada por permissão, explique isso com simpatia.\n" : "\n") +
+      "Quando a pergunta for genérica (\"como estamos?\", \"o que tenho pra hoje?\"), responda priorizando os módulos em que esta pessoa é coordenadora ou analista, e cite os demais só se pedirem. " + "Módulos que esta pessoa pode usar: " + H.modulos().map(function (k) { return MODN[k]; }).join(", ") + (AUTH() ? ". Ela não tem acesso aos outros: se pedirem algo deles, diga que o acesso não foi liberado e sugira falar com o administrador. " : ". ") + (AUTH() && AUTH().usuario() && !AUTH().ehAdmin() ? "Os níveis são Coordenador (edita tudo no módulo), Analista (edita só a própria carteira) e Consulta (só vê): se uma ação for recusada por permissão, explique isso com simpatia.\n" : "\n") +
       "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
       "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
       "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
@@ -1102,13 +1130,13 @@
     var tools = lista.map(function (t) {
       if (bytesTxt(t.description) <= 900) return t;
       guia.push("• " + t.name + ": " + t.description);
-      var curto = t.description.split(/(?<=[.:])\s/)[0];
+      var mc = /^[\s\S]*?[.:](?=\s)/.exec(t.description), curto = mc ? mc[0] : t.description;
       while (bytesTxt(curto) > 300) curto = curto.slice(0, Math.floor(curto.length * 0.8));
       return Object.assign({}, t, {description: curto.replace(/[\s:,;]+$/, "") + ". Veja o guia detalhado desta ferramenta nas instruções."});
     });
     var max = iaLimites && iaLimites.tools && +iaLimites.tools.maxCount || 0;
     if (max && tools.length > max) {
-      ["grafico", "glossario", "analistas", "mostrar_na_tela", "guardar_apelido", "agendar", "conferir_cadastros", "carga_analistas", "calcular"].forEach(function (n) {
+      ["grafico", "glossario", "analistas", "mostrar_na_tela", "agendar", "conferir_cadastros", "carga_analistas", "calcular"].forEach(function (n) {
         if (tools.length > max) tools = tools.filter(function (t) { return t.name !== n; });
       });
       if (tools.length > max) tools = tools.slice(0, max);
@@ -1125,8 +1153,11 @@
     else if (msgs) { tmp = doc.createElement("div"); tmp.className = "tx-m-b"; msgs.appendChild(tmp); proprio = true; }
     if (tmp) { tmp.innerHTML = dots; rolar(); }
     var fimBolha = function (falhou) { pensando(false); if (!tmp) return; if (proprio) tmp.remove(); else if (falhou) tmp.innerHTML = dots; };
-    var imgs = op.imagens && op.imagens.length ? op.imagens : null;
-    conversa.push({role: "user", content: texto + (imgs ? "\n(Anexei " + imgs.length + " imagem(ns) nesta mensagem: leia e use o que estiver nelas.)" : "")});
+    var imgs = op.imagens && op.imagens.length ? op.imagens : null, dcs = op.docs && op.docs.length ? op.docs : null;
+    var notaAnx = (imgs ? "\n(Anexei " + imgs.length + " imagem(ns) nesta mensagem: leia e use o que estiver nelas.)" : "") + (dcs ? "\n(Anexei " + dcs.length + " arquivo(s): " + dcs.map(function (d) { return d.nome; }).join(", ") + ".)" : "");
+    var corpoAnx = dcs ? dcs.map(function (d) { return "\n\n[ARQUIVO ANEXADO: " + d.nome + (d.ocr ? " (texto lido por OCR de imagem, pode ter erros de leitura: não invente o que estiver duvidoso)" : "") + (d.truncado ? " (só o começo)" : "") + "]\n" + d.texto + "\n[FIM DO ARQUIVO]"; }).join("") : "";
+    conversa.push({role: "user", content: texto + notaAnx + corpoAnx});
+    var idxAnx = dcs ? conversa.length - 1 : -1;
     if (conversa.length > 12) conversa = conversa.slice(-12);
     while (conversa.length && conversa[0].role !== "user") conversa.shift();
     var ferr = prepararFerramentas(ferramentasIA(extras));
@@ -1140,6 +1171,7 @@
       .then(function (r) {
         fimBolha(false); iaOcupada = false;
         var bruto = (r && r.text || "").trim() || "Pronto.", s = separarSeguintes(bruto), txt = s.texto || "Pronto.";
+        if (idxAnx >= 0 && conversa[idxAnx]) conversa[idxAnx].content = texto + notaAnx + "\n(o conteúdo do arquivo já foi lido na resposta acima)";
         conversa.push({role: "assistant", content: txt}); guardarConversa();
         var out = [{tipo: "md", texto: txt, acoes: true, pergunta: texto}].concat(extras);
         if (s.seg.length) out.push(CH(s.seg.map(function (x) { return {rot: x, enviar: x}; })));
@@ -1182,7 +1214,44 @@
     return [T("Eu consigo:\n• responder o que vence, o que está atrasado e quem está aguardando o cliente (DP, Contábil, Fiscal e Portal);\n• mostrar a situação de uma empresa pelo nome ou CNPJ;\n• ver a carteira de um analista;\n• dizer o cardápio do dia;\n• abrir qualquer tela (“abrir a agenda do Fiscal”);\n• tirar dúvidas de como usar."),
       CH(sugestoes().map(function (s) { return {rot: s, enviar: s}; }))];
   }
+  // As três entradas da ajuda que mais se parecem com a frase (para oferecer como opção).
+  function proximasAjudas(t) {
+    var toks = t.split(" ").filter(function (w) { return w.length >= 3 && VAZIAS.indexOf(" " + w + " ") === -1; });
+    if (!toks.length) return [];
+    return AJUDA.concat(ajudaEquipe).map(function (e) {
+      var base = norm(e.k + " " + e.t).split(" "), pt = 0;
+      toks.forEach(function (w) { if (base.indexOf(w) !== -1) pt += 2; else if (base.some(function (b) { return parecido(w, b); })) pt += 1; });
+      return {e: e, pt: pt};
+    }).filter(function (x) { return x.pt >= 1; }).sort(function (a, b) { return b.pt - a.pt; }).slice(0, 3).map(function (x) { return x.e; });
+  }
+  var VOC = "vencimento vencimentos vence vencem atraso atrasos atrasado atrasados alerta alertas carteira empresas empresa clientes ferias afastamento licenca ausencia ausencias convencao convencoes sindicato sindicatos piso reajuste pendencia pendencias fechamento fechar entrega entregas imposto impostos cardapio lembrete lembretes sobrecarregado sobrecarga comparar historico resumo analista analistas semana amanha hoje ontem proximo funcionarios cobranca rascunho email mensagem observacao anotar guia obrigacoes".split(" ");
+  function corrigirFrase(t) {
+    var voc = {}; VOC.forEach(function (w) { voc[w] = 1; });
+    indice().analistas.forEach(function (n) { norm(n).split(" ").forEach(function (w) { if (w.length >= 3) voc[w] = 1; }); });
+    indice().empresas.forEach(function (g) { g.tok.forEach(function (w) { if (w.length >= 4) voc[w] = 1; }); });
+    AJUDA.concat(ajudaEquipe).forEach(function (e) { norm(e.k).split(" ").forEach(function (w) { if (w.length >= 4) voc[w] = 1; }); });
+    var lista = Object.keys(voc), mudou = false;
+    var out = t.split(" ").map(function (w) {
+      if (w.length < 4 || voc[w] || /\d/.test(w) || VAZIAS.indexOf(" " + w + " ") !== -1 || STOP_COR.indexOf(" " + w + " ") !== -1) return w;
+      var lim = w.length >= 8 ? 2 : 1, melhor = null, dm = lim + 1, unico = true;
+      lista.forEach(function (c) { var d = lev(w, c, lim); if (d < dm) { dm = d; melhor = c; unico = true; } else if (d === dm && c !== melhor) unico = false; });
+      if (melhor && dm <= lim && unico) { mudou = true; return melhor; }
+      return w;
+    }).join(" ");
+    return mudou ? out : "";
+  }
+  var STOP_COR = " quem tem teve fazer mais menos muito pouco todos todas cada porque quando quanto quantos quantas onde como qual quais esta estao esse essa isso para sobre entre ainda ja ate dia dias mes meses ano anos";
   function naoEntendi(p) {
+    var corr = p && p.t ? corrigirFrase(p.t) : "";
+    if (corr) {
+      var rc = [T("Não entendi, mas talvez você tenha querido dizer:"), CH([{rot: "Você quis dizer: " + corr + "?", enviar: corr}])];
+      rc.naoEntendi = true; return rc;
+    }
+    var prox = p && p.t ? proximasAjudas(p.t) : [];
+    if (prox.length) {
+      var r2 = [T("Não tenho certeza do que você quis dizer. Algum destes?"), CH(prox.map(function (e) { return {rot: e.t, enviar: e.t}; }).concat([{rot: "Ver exemplos do que sei fazer", enviar: "o que você sabe fazer?"}]))];
+      r2.naoEntendi = true; return r2;
+    }
     var ch = sugestoes().map(function (s) { return {rot: s, enviar: s}; });
     var r = [T("Não entendi bem. Tente perguntar de outro jeito, por exemplo:"), CH(ch)];
     r.naoEntendi = true;
@@ -1237,6 +1306,123 @@
       if (ROT_N && totN) out.unshift({tipo: "md", texto: "**" + totN + " " + ROT_N[totN === 1 ? 0 : 1] + "**" + (p.intent === "vencimentos" ? " · " + rotPeriodo(per) : "") + (p.analista ? " de " + p.analista.split(" ")[0] : "") + (partes.length > 1 ? " — " + partes.join(" · ") : "")});
       out.unshift({tipo: "cab", texto: cab});
       if (vazios.length && !p.mods.length) out.push({tipo: "rodape", texto: "Sem itens em: " + vazios.join(", ") + "."});
+      var nf = notaFonte(mods); if (nf) out.push(nf);
+      return out;
+    });
+  }
+
+  /* ---------- rascunho de e-mail / mensagem (só texto para copiar: nada é enviado) ---------- */
+  function rascunhoEmail(p, emps) {
+    var t = p.t, tipo = /\b(guia|guias|boleto|darf|das|fgts|imposto)\b/.test(t) ? "guia" : /\b(ferias|aviso de ferias)\b/.test(t) ? "ferias" : "cobranca";
+    var g = emps && emps[0] ? emps[0].g : null;
+    if (!g) return Promise.resolve([T("De qual empresa? Por exemplo: “rascunho de e-mail de cobrança para a Importbras”."), CH([{rot: "Cobrança de documentos", enviar: "rascunho de e-mail de cobrança"}, {rot: "Envio de guia", enviar: "rascunho de e-mail de guia"}])]);
+    var ks = Object.keys(g.refs).filter(function (k) { return podeMod(k) && (k === "fiscal" || k === "contabil"); }), eu = euNome || "";
+    return Promise.all(ks.map(function (k) { return modulo(k).then(function (a) { var r = a && a.consultar("pendencias", {}); return r && r.linhas ? r.linhas.filter(function (l) { return norm(l.t) === norm(g.nome) || norm(l.t).indexOf(norm(g.nome).split(" ")[0]) === 0; }).map(function (l) { return String(l.sub || "").split(" · parado")[0]; }) : []; }).catch(function () { return []; }); })).then(function (r) {
+      var pend = [].concat.apply([], r).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 8), txt;
+      if (tipo === "guia") txt = "Assunto: Guia de [imposto] · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nSegue em anexo a guia de [imposto] da competência [mês/ano], com vencimento em [data].\nQualquer dúvida, é só responder esta mensagem.\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      else if (tipo === "ferias") txt = "Assunto: Aviso de férias · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nSegue o aviso de férias de [funcionário], com início em [data] e retorno em [data]. Pedimos a assinatura e a devolução do documento até [data].\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      else txt = "Assunto: Documentos pendentes · " + g.nome + "\n\nOlá, [nome]! Tudo bem?\n\nPara concluirmos o fechamento de [competência], ainda precisamos de:\n" + (pend.length ? pend.map(function (x) { return "- " + x; }).join("\n") : "- [liste os documentos]") + "\n\nSe puder nos enviar até [data], agradecemos.\n\nAtenciosamente,\n" + (eu || "[seu nome]") + "\nControlTax";
+      return [{tipo: "cab", texto: "Rascunho · " + ({cobranca: "cobrança de documentos", guia: "envio de guia", ferias: "aviso de férias"}[tipo]) + " · " + g.nome}, {tipo: "md", texto: "```\n" + txt + "\n```", acoes: true}, {tipo: "rodape", texto: "É só um texto para copiar: nada foi enviado. Confira os dados entre [colchetes] antes de mandar." + (tipo === "cobranca" && pend.length ? " As pendências vieram do que está registrado como aguardando o cliente." : "")}];
+    });
+  }
+
+
+  /* ---------- passagem de bastão: resumo da carteira de quem vai se ausentar, para quem cobre ---------- */
+  function bastao(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var ana = p.analista;
+    if (!ana) return Promise.resolve([T("De qual analista? Por exemplo: “passagem de bastão da Carla”."), CH(indice().analistas.slice(0, 6).map(function (n) { return {rot: n, enviar: "passagem de bastão de " + n}; }))]);
+    var pn = norm(ana).split(" ")[0], ehDela = function (n) { return norm(n || "").split(" ")[0] === pn; };
+    var ids = ["dp", "contabil", "fiscal", "portal"].filter(podeMod), hj = hoje();
+    var getAus = podeMod("dp") ? modulo("dp").then(function (a) { var r = a && a.consultar("ausencias", {de: ymd(hj), ate: ymd(addDias(hj, 120)), analista: ana}); return r && r.linhas ? r.linhas.filter(function (l) { return norm(l.t).indexOf(pn) === 0; })[0] || null : null; }).catch(function () { return null; }) : Promise.resolve(null);
+    return getAus.then(function (au) {
+      var ini = hj, fim = addDias(hj, 14), cobre = "", motivo = "", semAus = !au;
+      if (au) {
+        var m = /(\d{2})\/(\d{2})\/(\d{4})\s+a\s+(\d{2})\/(\d{2})\/(\d{4})/.exec(au.sub || "");
+        if (m) { ini = new Date(+m[3], +m[2] - 1, +m[1]); fim = new Date(+m[6], +m[5] - 1, +m[4]); if (ini < hj) ini = hj; }
+        var mc = /cobre:\s*([^·]+)/i.exec(au.sub || ""); cobre = mc ? mc[1].trim() : "";
+        motivo = (String(au.t || "").split(" · ")[1] || "").toLowerCase();
+      }
+      return Promise.all(ids.map(function (k) {
+        return modulo(k).then(function (a) {
+          if (!a || (a.exemplo && a.exemplo())) return null;
+          var s = function (tipo, pr) { try { return a.consultar(tipo, pr); } catch (e) { return null; } }, mk = function (r) { return r && r.linhas ? r.linhas.map(function (l) { return Object.assign({mod: k}, l); }) : []; };
+          var cart = s("carteira", {analista: ana}), emp = 0;
+          ((cart && cart.linhas) || []).forEach(function (l) { if (l.dados && ehDela(l.dados.analista)) emp += l.dados.empresas || 0; });
+          return {k: k, emp: emp, atr: mk(s("atrasos", {de: ymd(hj), ate: ymd(hj), analista: ana})), venc: mk(s("vencimentos", {de: ymd(ini), ate: ymd(fim), analista: ana})).filter(function (l) { return l.tom !== "ok"; }), pend: (k === "fiscal" || k === "contabil") ? mk(s("pendencias", {analista: ana})) : [], obs: k === "dp" ? mk(s("historico", {analista: ana})).slice(0, 5) : []};
+        }).catch(function () { return null; });
+      })).then(function (res) {
+        res = res.filter(Boolean);
+        var tem = res.filter(function (x) { return x.emp || x.atr.length || x.venc.length || x.pend.length; });
+        if (!tem.length) return [T("Não encontrei carteira de " + ana + " nos módulos a que você tem acesso.")];
+        var per = rotPeriodo({de: ini, ate: fim}), todos = function (c) { return [].concat.apply([], tem.map(function (x) { return x[c]; })); };
+        var L = function (l) { return "- " + (MODN[l.mod] ? MODN[l.mod] + ": " : "") + mascarar(l.t) + (l.sub ? " (" + mascarar(l.sub) + ")" : ""); };
+        var txt = "Passagem de bastão: " + ana + (cobre ? " → " + cobre : "") + "\n" + (semAus ? "Período considerado: " + per + " (não há ausência registrada na Cartela)" : "Período: " + per + (motivo ? " (" + motivo + ")" : "")) + "\n\nCarteira: " + tem.map(function (x) { return MODN[x.k] + " " + x.emp + " empresa(s)"; }).join(" · ");
+        var sec = function (tit, ls, max) { return ls.length ? "\n\n" + tit + " (" + ls.length + "):\n" + ls.slice(0, max || 10).map(L).join("\n") + (ls.length > (max || 10) ? "\n- … e mais " + (ls.length - (max || 10)) : "") : ""; };
+        txt += sec("Atrasos e alertas hoje", todos("atr")) + sec("Vencimentos no período", todos("venc")) + sec("Aguardando o cliente / pendências", todos("pend")) + sec("Últimas observações", todos("obs"), 5);
+        var out = [{tipo: "cab", texto: "Passagem de bastão · " + ana + (cobre ? " → " + cobre : "")},
+          {tipo: "md", texto: "**" + ana + "**" + (semAus ? ": não há ausência registrada; considerei " + per : " " + (motivo ? "(" + motivo + ") " : "") + "· " + per + (cobre ? " · cobre: **" + cobre + "**" : " · **sem cobertura definida**")) + ". Carteira: " + tem.map(function (x) { return MODN[x.k] + " " + x.emp; }).join(" · ") + " empresa(s)."}];
+        [["Atrasos e alertas hoje", "atr"], ["Vencimentos no período", "venc"], ["Aguardando o cliente", "pend"], ["Últimas observações", "obs"]].forEach(function (q) { var l = todos(q[1]); if (l.length) out.push(linhasBloco(q[0], l, 6)); });
+        out.push({tipo: "md", texto: "Texto para copiar e mandar a quem vai cobrir:\n```\n" + txt + "\n```", acoes: true});
+        out.push({tipo: "rodape", texto: "Resumo do que está no sistema agora; nada foi enviado. Confira antes de repassar."});
+        var nf = notaFonte(ids); if (nf) out.push(nf);
+        return out;
+      });
+    });
+  }
+
+  /* ---------- por que o analista está sobrecarregado ---------- */
+  function explicar(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    return cargaAnalistas().then(function (l) {
+      var pn = norm(p.analista).split(" ")[0], q = l.filter(function (x) { return norm(x.analista).split(" ")[0] === pn; })[0];
+      if (!q) return [T("Não achei a carteira de " + p.analista + " nos módulos a que você tem acesso.")];
+      var media = l.length ? l.reduce(function (a, x) { return a + x.pontos; }, 0) / l.length : 0, partes = [], tot = 0;
+      Object.keys(q.modulos).forEach(function (mn) {
+        var d = q.modulos[mn], at = (d.atrasadas || 0) * 3, cl = d.aguardandoCliente || 0, em = Math.round((d.empresas || 0) * 0.15 * 10) / 10, fr = Math.round((d.frentes || 0) * 0.3 * 10) / 10, sub = at + cl + em + fr;
+        partes.push({mn: mn, sub: sub, t: mn, s: (d.empresas || 0) + " empresa(s) · " + (d.atrasadas || 0) + " atraso(s) (×3 = " + at + ") · " + cl + " aguardando o cliente" + (fr ? " · " + (d.frentes || 0) + " frente(s) do Portal" : "")});
+        tot += sub;
+      });
+      partes.sort(function (a, b) { return b.sub - a.sub; });
+      var topo = partes[0], rel = media ? Math.round((q.pontos / media - 1) * 100) : 0;
+      var out = [{tipo: "md", texto: "**" + q.analista + ": " + (Math.round(q.pontos * 10) / 10).toLocaleString("pt-BR") + " pontos de carga**" + (media ? " (" + (rel >= 0 ? "+" : "") + rel + "% em relação à média da equipe, " + (Math.round(media * 10) / 10).toLocaleString("pt-BR") + ")" : "") + (topo ? ". O maior peso vem do **" + topo.mn + "**." : "")},
+        {tipo: "linhas", titulo: "De onde vem a carga · " + partes.length, linhas: partes.map(function (x) { return {t: x.mn + ": " + (Math.round(x.sub * 10) / 10).toLocaleString("pt-BR") + " pontos", sub: x.s}; }), todas: [], nota: ""}];
+      out[1].todas = out[1].linhas;
+      var ks = Object.keys(q.modulos).filter(function (mn) { return (q.modulos[mn].atrasadas || 0) > 0; }), pedidos = [];
+      var ids = ["dp", "contabil", "fiscal", "portal"].filter(function (k) { return ks.indexOf(MODN[k]) !== -1 && podeMod(k); });
+      ids.forEach(function (k) { pedidos.push(modulo(k).then(function (a) { var r = a && a.consultar("atrasos", {de: ymd(hoje()), ate: ymd(hoje()), analista: q.analista}); return r && r.linhas ? r.linhas.slice(0, 5).map(function (x) { return Object.assign({mod: k}, x); }) : []; }).catch(function () { return []; })); });
+      return Promise.all(pedidos).then(function (r) {
+        var it = [].concat.apply([], r);
+        if (it.length) out.push(linhasBloco("Principais atrasos de " + q.analista.split(" ")[0], it, 8));
+        out.push(CH([{rot: "Quem pode ajudar " + q.analista.split(" ")[0] + "?", enviar: "quem pode ajudar " + q.analista.split(" ")[0] + "?"}]));
+        var nf = notaFonte(["dp", "contabil", "fiscal", "portal"].filter(podeMod)); if (nf) out.push(nf);
+        return out;
+      });
+    });
+  }
+
+  /* ---------- evolução dos atrasos (histórico diário guardado neste navegador) ---------- */
+  var HIST_ATR = "tx-atrasos-v1";
+  function guardarHistorico(s) {
+    var h = lerLS(HIST_ATR, {}), d = ymd(hoje());
+    h[d] = Object.assign({}, s.atrasos);
+    var ks = Object.keys(h).sort(); while (ks.length > 150) delete h[ks.shift()];
+    gravarLS(HIST_ATR, h);
+  }
+  function evolucao(p) {
+    if (semDepartamento()) return Promise.resolve([T(TXT_SEM_DEP)]);
+    var t = p.t, dias = /\bmes passado|ultimo mes|30 dias\b/.test(t) ? 30 : /\bontem\b/.test(t) ? 1 : 7, rot = dias === 30 ? "no mês passado" : dias === 1 ? "ontem" : "na semana passada";
+    return situacao().then(function (s) {
+      var h = lerLS(HIST_ATR, {}), alvo = ymd(addDias(hoje(), -dias)), ks = Object.keys(h).sort(), ref = null;
+      ks.forEach(function (k) { if (k <= alvo) ref = k; });
+      if (!ref) ref = ks.filter(function (k) { return k < ymd(hoje()); })[0] || null;
+      if (!ref) return [T("Ainda não tenho histórico para comparar: passei a guardar o total de atrasos por dia a partir de hoje. Pergunte de novo daqui a alguns dias."), {tipo: "rodape", texto: "O histórico fica neste navegador."}];
+      var hojeT = {}, antT = h[ref] || {}, nomes = Object.keys(MODN).filter(function (k) { return k !== "cardapio" && podeMod(k); });
+      nomes.forEach(function (k) { hojeT[k] = s.atrasos[k] || 0; });
+      var somaH = 0, somaA = 0; nomes.forEach(function (k) { somaH += hojeT[k]; somaA += antT[k] || 0; });
+      var dif = somaH - somaA, gap = Math.round((hoje() - new Date(ref + "T12:00:00")) / 864e5);
+      var out = [{tipo: "md", texto: "**" + somaH + " atraso" + (somaH === 1 ? "" : "s") + " hoje**, contra **" + somaA + "** em " + ref.split("-").reverse().join("/") + (gap !== dias ? " (a data mais próxima de " + rot + " que tenho)" : " (" + rot + ")") + " — " + (dif > 0 ? "**subiu " + dif + "**" : dif < 0 ? "**caiu " + (-dif) + "**" : "**igual**") + "."},
+        {tipo: "grafico", titulo: "Atrasos por módulo: antes × hoje", itens: nomes.reduce(function (a, k) { a.push({rotulo: MODN[k] + " (antes)", valor: antT[k] || 0}); a.push({rotulo: MODN[k] + " (hoje)", valor: hojeT[k]}); return a; }, [])}];
       return out;
     });
   }
@@ -1404,7 +1590,31 @@
       legsA: ["....PP..PP....", "....P....P...."], legsB: [".....PPPP.....", ".....P..P....."]},
     calculadora: {nome: "Calculadora", body: "C", pal: {C: "#8A97A3", S: "#B8E0A8", K: "#3B4650", E: "#1D3B14"},
       rows: ["..CCCCCCCCCC..", "..CSSSSSSSSC..", "..CSESSSSESC..", "..CSSSSSSSSC..", "..CCCCCCCCCC..", "..CKCKCKCKCC..", "..CCCCCCCCCC..", "..CKCKCKCKCC..", "..CCCCCCCCCC.."],
-      legsA: ["...CC....CC...", "...CC....CC..."], legsB: ["....CC..CC....", "....CC..CC...."]}
+      legsA: ["...CC....CC...", "...CC....CC..."], legsB: ["....CC..CC....", "....CC..CC...."]},
+    robo: {nome: "Robozinho", body: "S", pal: {S: "#9FB3C8", R: "#E53935", K: "#44515E", E: "#0D2A4A"},
+      rows: ["......RR......", "......SS......", "..SSSSSSSSSS..", "..SSSSSSSSSS..", "..SEESSSSEES..", "..SEESSSSEES..", "..SSSSSSSSSS..", "..SKKKKKKKKS..", "..SSSSSSSSSS.."],
+      legsA: ["...SS....SS...", "...KK....KK..."], legsB: ["....SS..SS....", "....KK..KK...."]},
+    pinguim: {nome: "Pinguim", body: "W", pal: {K: "#26303A", W: "#F4F6F8", Y: "#F2A21B", E: "#26303A"},
+      rows: ["....KKKKKK....", "...KKKKKKKK...", "...KWWKKWWK...", "...KWEKKEWK...", "...KKKYYKKK...", "..KKWWWWWWKK..", "..KKWWWWWWKK..", "..KKWWWWWWKK..", "...KKWWWWKK..."],
+      legsA: ["...YY....YY...", "...YYY..YYY..."], legsB: ["...YY....YY...", "..YYY....YYY.."]},
+    panda: {nome: "Pandinha", body: "W", pal: {W: "#F7F7F7", K: "#23272B", E: "#FFFFFF"},
+      rows: ["..KK......KK..", "..KKWWWWWWKK..", "..WWWWWWWWWW..", ".WKKWWWWWWKKW.", ".WKEKWWWWKEKW.", ".WKKKWWWWKKKW.", "..WWWWKKWWWW..", "..WWWWWWWWWW..", "..KKWWWWWWKK.."],
+      legsA: ["...KK....KK...", "...KK....KK..."], legsB: ["....KK..KK....", "....KK..KK...."]},
+    dino: {nome: "Dininho", body: "G", pal: {G: "#5BBF5F", D: "#2E8B3A", L: "#CDEFA3", E: "#143018"},
+      rows: ["...D..D..D....", "..GGGGGGGGGG..", "..GGEGGGGEGG..", "..GGEGGGGEGG..", "..GGGGGGGGGG..", "..GGLLLLLLGG..", "...GLLLLLLG...", "...GGGGGGGG...", "...GGGGGGGG..."],
+      legsA: ["...GG....GG...", "...DD....DD..."], legsB: ["....GG..GG....", "....DD..DD...."]},
+    abelha: {nome: "Abelhinha", body: "Y", pal: {Y: "#F5C400", K: "#2B2B2B", W: "#DCEBFA", E: "#2B2B2B"},
+      rows: ["....K....K....", ".WW.YYYYYY.WW.", ".WW.YEYYEY.WW.", "..WYYYYYYYYW..", "...KKKKKKKK...", "...YYYYYYYY...", "...KKKKKKKK...", "....YYYYYY....", ".....KKKK....."],
+      legsA: ["...K.K..K.K...", "...K.K..K.K..."], legsB: ["....K.KK.K....", "....K.KK.K...."]},
+    sapo: {nome: "Sapinho", body: "G", pal: {G: "#4FBF4A", L: "#D9F2B0", K: "#1F5E22", E: "#10301A"},
+      rows: [".GGG......GGG.", ".GEG......GEG.", ".GGGGGGGGGGGG.", "GGGGGGGGGGGGGG", "GGGGGGGGGGGGGG", "GGKKKKKKKKKKGG", "GGGLLLLLLLLGGG", ".GGLLLLLLLLGG."],
+      legsA: ["..GG......GG..", "..GGG....GGG.."], legsB: ["...GG....GG...", "..GGG....GGG.."]},
+    foguete: {nome: "Foguetinho", body: "W", pal: {W: "#AFC0D2", R: "#D93025", E: "#1B2733", O: "#F28B1D", Y: "#FFD43B"},
+      rows: ["......RR......", ".....RRRR.....", "....WWWWWW....", "...WWEWWEWW...", "...WWEWWEWW...", "...WWWWWWWW...", "...WWWWWWWW...", "..RWWWWWWWWR..", "..RR.WWWW.RR.."],
+      legsA: ["....OO..OO....", "....Y....Y...."], legsB: ["....OO..OO....", "...Y..YY..Y..."]},
+    cafe: {nome: "Cafezinho", body: "W", pal: {W: "#6FA8DC", B: "#6B3E1F", S: "#B9C3CC", E: "#3A2412"},
+      rows: ["....S..S......", ".....S..S.....", "..BBBBBBBBBB..", "..WWWWWWWWWW..", "..WWEWWWWEWW..", "..WWWWWWWWWWWW", "..WWWWWWWWWWW.", "...WWWWWWWW...", "....WWWWWW...."],
+      legsA: ["....BB..BB....", "....BB..BB...."], legsB: ["...BB....BB...", "...BB....BB..."]}
   };
   var skinKey = "laranja";
   function skinDe(k) { return SKINS[k] || SKINS.laranja; }
@@ -1426,16 +1636,22 @@
     var corpo = runs(s.rows, 0, function (ch) { return ch === "E" ? p[s.body] : p[ch]; });
     var eo = runs(s.rows, 0, function (ch) { return p.E; }, function (ch) { return ch === "E"; });
     var ec = ""; s.rows.forEach(function (ln, j) { for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") ec += '<rect x="' + i + '" y="' + (j + 0.6) + '" width="1" height="0.4" fill="' + p.E + '"/>'; });
+    var eh = ""; s.rows.forEach(function (ln, j) { for (var i = 0; i < ln.length; i++) if (ln.charAt(i) === "E") eh += '<path d="M' + (i + 0.08) + ',' + (j + 0.85) + ' L' + (i + 0.5) + ',' + (j + 0.2) + ' L' + (i + 0.92) + ',' + (j + 0.85) + '" fill="none" stroke="' + p.E + '" stroke-width=".32" stroke-linecap="square" stroke-linejoin="miter" shape-rendering="geometricPrecision"/>'; });
     return '<svg viewBox="0 0 ' + COLS + ' ' + (n + 2) + '" width="100%" height="100%" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><g>' + corpo + '</g>' +
       '<g class="tx-lA">' + runs(s.legsA, n, function (ch) { return p[ch]; }) + '</g><g class="tx-lB">' + runs(s.legsB, n, function (ch) { return p[ch]; }) + '</g>' +
-      '<g class="tx-eo">' + eo + '</g><g class="tx-ec">' + ec + '</g></svg>';
+      '<g class="tx-eo">' + eo + '</g><g class="tx-ec">' + ec + '</g><g class="tx-eh">' + eh + '</g></svg>';
   }
   var CSS = '#tx-mascote{position:fixed;left:0;top:0;width:' + W + 'px;height:var(--tx-hm,44px);z-index:525;cursor:pointer;outline:none;will-change:transform;-webkit-tap-highlight-color:transparent;user-select:none}' +
     '#tx-mascote.tx-oculto,#tx-painel.tx-oculto{display:none}#tx-mascote.tx-poof{opacity:0;transition:opacity .16s}' +
     '#tx-mascote .tx-corpo{position:absolute;inset:0}#tx-mascote .tx-face{position:absolute;inset:0}#tx-mascote.tx-esq .tx-face{transform:scaleX(-1)}' +
     '#tx-mascote .tx-sombra{position:absolute;left:8px;right:8px;bottom:-2px;height:5px;border-radius:50%;background:rgba(16,24,32,.25)}' +
     '#tx-mascote:focus-visible .tx-corpo{filter:drop-shadow(0 0 2px #6BAAC9) drop-shadow(0 0 2px #6BAAC9)}#tx-mascote:hover .tx-corpo{filter:brightness(1.1)}' +
-    '#tx-mascote .tx-lB{visibility:hidden}#tx-mascote .tx-ec{visibility:hidden}' +
+    '#tx-mascote .tx-lB{visibility:hidden}#tx-mascote .tx-ec{visibility:hidden}#tx-mascote .tx-eh{visibility:hidden}' +
+    '#tx-mascote .tx-eo,#tx-mascote .tx-eh{transform-box:fill-box;transform-origin:50% 0}' +
+    '#tx-mascote.tx-feliz .tx-eo{animation:none;visibility:hidden}#tx-mascote.tx-feliz .tx-ec{animation:none;visibility:hidden}#tx-mascote.tx-feliz .tx-eh{visibility:visible}' +
+    '#tx-mascote.tx-triste .tx-eo{animation:none;transform:translateY(.3px) scaleY(.8)}' +
+    '#tx-mascote.tx-pensando .tx-eo{transform:translate(.25px,-.3px)}' +
+    '#tx-mascote.tx-sonolento:not(.tx-dorme):not(.tx-feliz) .tx-eo{animation:none;transform:scaleY(.45)}' +
     '#tx-mascote.tx-andando .tx-lA{animation:txVA .34s steps(1) infinite}#tx-mascote.tx-andando .tx-lB{animation:txVB .34s steps(1) infinite}' +
     '#tx-mascote.tx-andando .tx-corpo{animation:txBob .34s steps(1) infinite}' +
     '#tx-mascote.tx-pulo .tx-lA{visibility:hidden}#tx-mascote.tx-pulo .tx-lB{visibility:visible}' +
@@ -1480,6 +1696,11 @@
     '.tx-bloco{border:1px solid var(--rule,#DCE3E9);border-radius:8px;overflow:hidden;background:var(--surface,#fff)}' +
     '.tx-bloco h4{margin:0;padding:6px 10px;background:var(--surface-2,#F5F8FA);border-bottom:1px solid var(--rule,#DCE3E9);font:700 12px Archivo,sans-serif;display:flex;gap:8px;align-items:baseline}' +
     '.tx-bloco h4 small{font:500 11px "IBM Plex Sans",sans-serif;color:var(--sector-fiscal,#6A4FA0)}' +
+    '#tx-painel.tx-amp:not(.tx-doca){left:50%!important;top:50%!important;right:auto!important;bottom:auto!important;transform:translate(-50%,-50%);width:min(900px,94vw)!important;height:min(88vh,920px)!important;max-width:94vw;max-height:94vh;resize:none!important;animation:none}#tx-painel.tx-amp.tx-doca{width:min(860px,80vw)!important}' +
+    '#tx-painel.tx-amp #tx-msgs{font-size:14px;padding-left:18px;padding-right:18px}#tx-painel.tx-amp .tx-m-b{max-width:100%}#tx-painel.tx-amp .tx-lin span{font-size:12.5px}' +
+    '#tx-filtro-b{display:none;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--rule,#DCE3E9);background:var(--surface-2,#F5F8FA)}#tx-painel.tx-amp #tx-filtro-b:not([hidden]){display:flex}#tx-filtro{flex:1;min-width:0;font:inherit;padding:6px 10px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:8px;background:var(--surface,#fff);color:inherit}#tx-filtro-n{font-size:11.5px;color:var(--ink-3,#5F6D77);white-space:nowrap}#tx-amp-b{display:inline-flex}' +
+    '.tx-anx-d{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 9px;border:1px solid var(--rule,#DCE3E9);border-radius:8px;background:var(--surface-2,#F5F8FA);font-size:12px}.tx-anx-d button{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:12px;padding:0 2px}.tx-anx-av{align-self:center;font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-anx{flex-wrap:wrap}#tx-painel.tx-soltar{outline:3px dashed var(--blue-deep,#3C659B);outline-offset:-6px}' +
+    '.tx-lw{position:relative}.tx-lw+.tx-lw .tx-lin{border-top:1px solid var(--rule,#DCE3E9)}.tx-lw .tx-lin{padding-right:34px}.tx-lin-a{position:absolute;right:4px;top:3px;border:0;background:none;color:var(--ink-3,#5F6D77);font:700 16px/1 inherit;padding:4px 8px;border-radius:6px;cursor:pointer}.tx-lin-a:hover,.tx-lin-a[aria-expanded=true]{background:var(--surface-2,#F5F8FA);color:var(--ink,#1B2630)}.tx-acs{display:flex;flex-wrap:wrap;gap:5px;padding:2px 10px 8px 26px}' +
     '.tx-lin{display:grid;grid-template-columns:8px minmax(0,1fr);gap:8px;padding:7px 10px;border:0;border-top:1px solid var(--rule,#DCE3E9);width:100%;text-align:left;background:none;color:inherit;font:inherit;cursor:default}' +
     '.tx-lin:first-of-type{border-top:0}button.tx-lin{cursor:pointer}button.tx-lin:hover{background:var(--surface-2,#F5F8FA)}button.tx-lin:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:-2px}' +
     '.tx-lin i{width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--rule-strong,#C2CCD5)}.tx-lin.late i{background:var(--dp-late,#C2000C)}.tx-lin.warn i{background:var(--dp-today,#B5530C)}.tx-lin.ok i{background:var(--dp-ok,#167A45)}' +
@@ -1505,7 +1726,7 @@
     '.tx-cfg-it{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.35}.tx-cfg-it input[type=text],.tx-cfg-it select,.tx-cfg-it textarea{font:inherit;padding:4px 7px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-cfg-it textarea{width:100%;min-height:70px}.tx-cfg-area{flex-direction:column;align-items:stretch}' +
     '.tx-cfg-bool{flex-wrap:nowrap;align-items:flex-start}.tx-cfg-bool input{margin:2px 0 0;flex:none}' +
     '.tx-aj-form{display:flex;flex-direction:column;gap:5px;margin-top:4px}.tx-aj-form input,.tx-aj-form textarea{font:inherit;font-size:12.5px;padding:5px 8px;border:1px solid var(--rule-strong,#C2CCD5);border-radius:6px;background:var(--surface,#fff);color:var(--ink,#101820)}.tx-aj-form .tx-cb{align-self:flex-start}.tx-conf-l .tx-mini{margin-left:4px}' +
-    '.tx-cfg-uso{font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-cfg .tx-cb{align-self:flex-start;padding:4px 10px;font-size:12px}' +
+    '.tx-uso-alto{color:var(--status-warn,#B5530C)!important;font-weight:600}.tx-cfg-uso{font-size:11.5px;color:var(--ink-3,#5F6D77)}#tx-cfg .tx-cb{align-self:flex-start;padding:4px 10px;font-size:12px}' +
     '.tx-fixo{display:inline-flex;align-items:center;gap:2px}.tx-fixo-x{border:0;background:none;color:var(--ink-3,#5F6D77);cursor:pointer;font-size:11px;padding:2px 4px}' +
     '.tx-md{display:flex;flex-direction:column;gap:3px;align-self:stretch}.tx-acts{display:flex;flex-wrap:wrap;gap:2px;padding-left:4px}' +
     '.tx-mini{border:0;background:none;color:var(--ink-3,#5F6D77);font:600 11px "IBM Plex Sans",sans-serif;padding:3px 6px;border-radius:5px;cursor:pointer;line-height:1.2}.tx-mini:hover{background:var(--surface-3,#EAEFF3);color:var(--ink,#101820)}.tx-mini.on{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
@@ -1517,6 +1738,7 @@
     '#tx-anx{display:flex;gap:6px;padding:6px 8px 0}#tx-anx[hidden]{display:none}.tx-anx-i{position:relative}.tx-anx-i img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--rule,#DCE3E9)}.tx-anx-i button{position:absolute;top:-6px;right:-6px;border:0;border-radius:50%;width:18px;height:18px;font-size:10px;background:var(--ink,#101820);color:var(--surface,#fff);cursor:pointer}' +
     '#tx-painel form .tx-ib{background:none;color:var(--ink-2,#47545F);padding:0 7px;font-size:15px}#tx-painel form .tx-ib[hidden]{display:none}#tx-painel form .tx-ib.on{color:var(--brand-red,#C2000C);animation:txPensa 1s infinite}' +
     '.tx-graf{margin:0;border:1px solid var(--rule,#DCE3E9);border-radius:8px;padding:8px 10px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:5px}.tx-graf figcaption{font:700 12px Archivo,sans-serif;color:var(--ink-2,#47545F);margin-bottom:2px}' +
+    '.tx-graf{transition:transform .25s cubic-bezier(.2,.7,.2,1);transform-origin:center}.tx-graf:hover{transform:scale(1.02)}@media (prefers-reduced-motion:reduce){.tx-graf,.tx-graf:hover{transition:none;transform:none}}' +
     '.tx-gr{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:11.5px}.tx-gr-r{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2,#47545F)}.tx-gr-t{height:8px;background:var(--surface-3,#EAEFF3);border-radius:0 4px 4px 0;display:block}.tx-gr-t i{display:block;height:100%;background:var(--blue-deep,#3C659B);border-radius:0 4px 4px 0}.tx-gr b{font-variant-numeric:tabular-nums;color:var(--ink,#101820);font-weight:600}' +
     '#tx-painel.tx-grande{font-size:15px}#tx-painel.tx-grande .tx-lin span,#tx-painel.tx-grande .tx-rod{font-size:13px}#tx-painel.tx-grande .tx-chip{font-size:13.5px}' +
     '#tx-painel.tx-contraste{--surface:#fff;--surface-2:#fff;--surface-3:#e6e6e6;--ink:#000;--ink-2:#000;--ink-3:#222;--rule:#000;--rule-strong:#000;--blue-deep:#0033a0;--blue-pale:#d6e2ff}#tx-painel.tx-contraste .tx-t1,#tx-painel.tx-contraste .tx-bloco{border-width:2px}' +
@@ -1531,7 +1753,12 @@
     try { var r = b.getBoundingClientRect(), dx = 0; if (r.right > vw() - 8) dx = vw() - 8 - r.right; else if (r.left < 8) dx = 8 - r.left; b.style.marginLeft = dx + "px"; } catch (e) {}
   }
   function acordar() { dormiu = false; classe([], ["tx-dorme"]); clearTimeout(tSono); var hr = new Date().getHours(); tSono = setTimeout(adormecer, hr >= 19 || hr < 7 ? 40000 : 120000); }
-  function adormecer() { if (aberto || andando) { tSono = setTimeout(adormecer, 30000); return; } dormiu = true; classe(["tx-dorme"], ["tx-acena"]); }
+  function adormecer() {
+    if (aberto || andando) { tSono = setTimeout(adormecer, 30000); return; }
+    dormiu = true; classe(["tx-dorme"], ["tx-acena", "tx-feliz", "tx-triste"]);
+    var hr = new Date().getHours(); if ((hr >= 21 || hr < 5) && !adormecer.disse && !oculto) { adormecer.disse = 1; balao("Boa noite! Vou tirar um cochilo. 💤", 2600); }
+  }
+  function noiteOlhos() { if (!el) return; var hr = new Date().getHours(); el.classList.toggle("tx-sonolento", hr >= 21 || hr < 5); }
 
   /* ---------- física: o layout vira chão e parede ----------
      Plataformas = topo de cada bloco visível com fundo/borda/sombra (cartões, botões, tabelas, cabeçalhos…);
@@ -1881,7 +2108,8 @@
       {k: "fonteGrande", rot: "Letra maior no chat", tipo: "bool", ao: aplicarVisualPainel},
       {k: "contraste", rot: "Alto contraste no chat", tipo: "bool", ao: aplicarVisualPainel},
       {k: "doca", rot: "Chat fixo na lateral da tela", tipo: "bool", ao: aplicarVisualPainel},
-      {rot: "Desfazer o que o assistente gravou na última hora", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/desfazer"); desfazerRecentes().then(function (bl) { addBot(bl); }); }}
+      {k: "flutuar", rot: "Ampliar a janela do chat quando a resposta for grande", tipo: "bool", padrao: true},
+      {rot: "Desfazer o que o assistente gravou na última hora", tipo: "botao", soChat: true, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/desfazer"); desfazerRecentes().then(function (bl) { addBot(bl); }); }}
     ]}
   ];
   var COMANDOS = [
@@ -1897,7 +2125,7 @@
     var extra = (COMANDOS_EXTRA[c] || null);
     if (extra) return extra(resto);
     if (c === "limpar") { limparConversa(); return null; }
-    if (c === "config") { abrirConfig(); return null; }
+    if (c === "config") { try { H.abrirConfig("assistente"); } catch (e) {} return Promise.resolve([T("Abri as configurações do assistente no módulo Configurações.")]); }
     if (c === "empresa") return resto ? porRegrasDireto("empresa " + resto) : Promise.resolve([T("Diga o nome: /empresa Alfa Comércio")]);
     if (c === "abrir") return resto ? porRegrasDireto("abrir " + resto) : Promise.resolve([T("Diga a tela: /abrir fiscal agenda")]);
     if (dir && dir[1]) return porRegrasDireto(dir[1] + (resto ? " " + resto : ""));
@@ -1934,44 +2162,60 @@
     painel.innerHTML = '<header><span class="tx-av">' + svgSkin(skinKey) + '</span><div class="tx-t"><b></b><small id="tx-sub">assistente do Control Hub</small></div>' +
       '<button type="button" id="tx-fixos-b" title="Perguntas fixadas" aria-label="Perguntas fixadas">📌</button>' +
       '<button type="button" id="tx-visual" title="Mudar o visual" aria-label="Mudar o visual">🎨</button>' +
-      '<button type="button" id="tx-cfg-b" title="Configurações" aria-label="Configurações">⚙</button>' +
+      '<button type="button" id="tx-amp-b" title="Ampliar a janela" aria-label="Ampliar a janela" aria-pressed="false">⤢</button>' +
       '<button type="button" id="tx-doca-b" title="Fixar o chat na lateral" aria-label="Fixar o chat na lateral" aria-pressed="false">◨</button>' +
       '<button type="button" id="tx-fecha" aria-label="Fechar a conversa">✕</button></header>' +
       '<div id="tx-skins" class="tx-gaveta" hidden></div><div id="tx-cfg" class="tx-gaveta" hidden></div><div id="tx-fixos" class="tx-gaveta" hidden></div>' +
+      '<div id="tx-filtro-b" hidden><input id="tx-filtro" type="search" placeholder="Filtrar esta resposta…" aria-label="Filtrar a resposta" autocomplete="off"><span id="tx-filtro-n"></span></div>' +
       '<div id="tx-msgs" aria-live="polite"></div>' +
-      '<div id="tx-sug" role="listbox" hidden></div><div id="tx-anx" hidden></div>' +
-      '<form autocomplete="off"><button type="button" class="tx-ib" id="tx-clipe" title="Anexar imagem (print, foto de documento)" aria-label="Anexar imagem" hidden>📎</button><input type="file" id="tx-arq" accept="image/*" multiple hidden>' +
+      '<div id="tx-sug" role="listbox" hidden></div><div id="tx-anx" hidden></div><div id="tx-uso-l" class="tx-rod"></div>' +
+      '<form autocomplete="off"><button type="button" class="tx-ib" id="tx-clipe" title="Anexar foto, PDF, planilha ou texto (também dá para arrastar ou colar)" aria-label="Anexar arquivo" hidden>📎</button><input type="file" id="tx-arq" accept="image/*,.pdf,.csv,.tsv,.txt,.json,.md,.xlsx,.xls,.xlsm,.ods" multiple hidden>' +
+      '<button type="button" class="tx-ib" id="tx-cam" title="Tirar uma foto agora" aria-label="Tirar uma foto" hidden>📷</button><input type="file" id="tx-cam-in" accept="image/*" capture="environment" hidden>' +
       '<input id="tx-in" type="text" maxlength="600" placeholder="Pergunte, peça algo ou digite / para comandos" aria-label="Mensagem para o assistente" aria-autocomplete="list" aria-controls="tx-sug">' +
       '<button type="button" class="tx-ib" id="tx-mic" title="Falar a pergunta" aria-label="Falar a pergunta" hidden>🎤</button><button type="submit" id="tx-env">Enviar</button></form>';
     doc.body.appendChild(painel);
     msgs = $("#tx-msgs", painel);
+    mostrarUso();
     atualizarNome();
     $("#tx-fecha", painel).onclick = fecharPainel;
     $("#tx-visual", painel).onclick = abrirVisuais;
-    $("#tx-cfg-b", painel).onclick = abrirConfig;
     $("#tx-fixos-b", painel).onclick = abrirFixos;
+    $("#tx-amp-b", painel).onclick = function () { ampliar(!painel.classList.contains("tx-amp"), true); };
+    $("#tx-filtro", painel).addEventListener("input", filtrarGrande);
     $("#tx-doca-b", painel).onclick = function () { salvarPref({doca: !lerPref().doca}); aplicarVisualPainel(); };
     var inp = $("#tx-in", painel);
     $("form", painel).onsubmit = function (e) {
       e.preventDefault();
       if (sugAtivo()) { escolherSug(); return; }
-      var v = inp.value.trim(); if (!v && !anexos.length) return;
+      var v = inp.value.trim(); if (!v && !anexos.length && !docs.length) return;
+      if (lendoAnx) { avisoAnx("Espere terminar de ler o arquivo."); return; }
       inp.value = ""; fecharSug();
-      enviar(v || "O que tem nesta imagem?");
+      enviar(v || "Leia o que anexei, diga o que é e registre no módulo certo (com cartão para eu confirmar).");
     };
     inp.addEventListener("input", atualizarSug);
     inp.addEventListener("keydown", teclaSug);
     inp.addEventListener("blur", function () { setTimeout(fecharSug, 150); });
     inp.addEventListener("paste", function (e) {
-      var lim = limitesImagem(); if (!lim || !e.clipboardData) return;
-      var fs = [].slice.call(e.clipboardData.files || []).filter(function (f) { return /^image\//.test(f.type); });
-      if (fs.length) { e.preventDefault(); anexar(fs); }
+      if (!e.clipboardData) return;
+      var fs = [].slice.call(e.clipboardData.files || []);
+      if (fs.length && iaOk) { e.preventDefault(); anexar(fs); }
     });
-    $("#tx-clipe", painel).onclick = function () { $("#tx-arq", painel).click(); };
+    $("#tx-clipe", painel).onclick = function () {
+      if (!iaOk) { avisoAnx("Para ler fotos e arquivos eu preciso da IA, e ela não está disponível agora. Tente de novo em instantes."); if (!iaPronta || !iaNs) iniciarIA(); return; }
+      $("#tx-arq", painel).click();
+    };
     $("#tx-arq", painel).onchange = function () { anexar([].slice.call(this.files || [])); this.value = ""; };
+    $("#tx-cam", painel).onclick = function () {
+      if (!iaOk) { avisoAnx("Para ler fotos eu preciso da IA, e ela não está disponível agora."); return; }
+      $("#tx-cam-in", painel).click();
+    };
+    $("#tx-cam-in", painel).onchange = function () { anexar([].slice.call(this.files || [])); this.value = ""; };
+    painel.addEventListener("dragover", function (e) { if (e.dataTransfer && [].indexOf.call(e.dataTransfer.types || [], "Files") !== -1) { e.preventDefault(); painel.classList.add("tx-soltar"); } });
+    painel.addEventListener("dragleave", function (e) { if (e.target === painel) painel.classList.remove("tx-soltar"); });
+    painel.addEventListener("drop", function (e) { painel.classList.remove("tx-soltar"); if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return; e.preventDefault(); if (!iaOk) { avisoAnx("Para ler arquivos eu preciso da IA, que não está disponível agora."); return; } anexar([].slice.call(e.dataTransfer.files)); });
     if (SR) { $("#tx-mic", painel).hidden = false; $("#tx-mic", painel).onclick = ouvir; }
-    try { new ResizeObserver(function () { if (!aberto || lerPref().doca || !painel.style.width) return; salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); }).observe(painel); } catch (e) {}
-    painel.addEventListener("mouseup", function () { if (!lerPref().doca && (painel.style.width || painel.style.height)) salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); });
+    try { new ResizeObserver(function () { if (!aberto || lerPref().doca || !painel.style.width || painel.classList.contains("tx-amp")) return; salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); }).observe(painel); } catch (e) {}
+    painel.addEventListener("mouseup", function () { if (!lerPref().doca && !painel.classList.contains("tx-amp") && (painel.style.width || painel.style.height)) salvarPref({tam: {w: painel.offsetWidth, h: painel.offsetHeight}}); });
     aplicarVisualPainel();
   }
   function posicionarPainel() {
@@ -1993,12 +2237,26 @@
   function abrirConfig() {
     if (!painel) montarPainel();
     var box = gavetas("tx-cfg"); if (!box) return;
+    desenharConfig(box, false);
+    var mais = doc.createElement("button"); mais.type = "button"; mais.className = "tx-cb"; mais.textContent = "Abrir todas as configurações do Hub";
+    mais.onclick = function () { box.hidden = true; try { H.abrirConfig && H.abrirConfig("assistente"); } catch (e) {} }; box.appendChild(mais);
+  }
+  // Desenha as configurações num contêiner. emPagina = true quando é a página do módulo Configurações do Hub
+  // (os itens que só fazem sentido dentro do chat saem, e os editores abrem ali mesmo em vez de virar mensagem).
+  function desenharConfig(box, emPagina) {
     var p = lerPref();
     CFG.forEach(function (s) {
       if (s.so && !s.so()) return;
+      var itens = s.itens.filter(function (it) { return !(emPagina && it.soChat) && !(it.so && !it.so()); });
+      if (!itens.length) return;
       var h = doc.createElement("div"); h.className = "tx-cfg-sec"; h.textContent = s.sec; box.appendChild(h);
-      s.itens.forEach(function (it) {
-        if (it.so && !it.so()) return;
+      itens.forEach(function (it) {
+        if (emPagina && it.pagina) {
+          var dt = doc.createElement("details"); dt.className = "tx-cfg-it tx-cfg-det"; var sm = doc.createElement("summary"); sm.textContent = it.rot; dt.appendChild(sm);
+          var corpo = doc.createElement("div"); corpo.className = "tx-cfg-det-c"; dt.appendChild(corpo);
+          dt.addEventListener("toggle", function () { if (!dt.open || corpo.firstChild) return; var r = it.pagina(); if (r && r.then) { corpo.textContent = "Carregando…"; r.then(function (el) { corpo.textContent = ""; corpo.appendChild(el); }); } else if (r) corpo.appendChild(r); });
+          box.appendChild(dt); return;
+        }
         var lb = doc.createElement("label"); lb.className = "tx-cfg-it tx-cfg-" + it.tipo;
         if (it.tipo === "bool") {
           var c = doc.createElement("input"); c.type = "checkbox"; c.checked = it.padrao ? p[it.k] !== false : !!p[it.k];
@@ -2027,7 +2285,7 @@
     var uso = doc.createElement("div"); uso.className = "tx-cfg-uso";
     uso.textContent = "IA neste navegador: " + usoHoje() + " pergunta(s) hoje, " + (+lerLS("tx-uso-tot", 0) || 0) + " no total. Cada pergunta à IA usa o plano do Claude de quem pergunta." + (cfgEquipe.limiteDia ? " Limite da equipe: " + cfgEquipe.limiteDia + " por dia." : "");
     box.appendChild(uso);
-    var lim = doc.createElement("button"); lim.type = "button"; lim.className = "tx-cb"; lim.textContent = "Apagar esta conversa"; lim.onclick = function () { limparConversa(); box.hidden = true; }; box.appendChild(lim);
+    var lim = doc.createElement("button"); lim.type = "button"; lim.className = "tx-cb"; lim.textContent = "Apagar esta conversa"; lim.onclick = function () { limparConversa(); if (!emPagina) box.hidden = true; }; box.appendChild(lim);
   }
   function abrirFixos() {
     var box = gavetas("tx-fixos"); if (!box) return;
@@ -2081,10 +2339,90 @@
   function escolherSug() { var it = sugItens[sugIdx]; if (!it) return; var inp = $("#tx-in", painel); inp.value = it.valor; fecharSug(); inp.focus(); }
 
   /* ---- anexos (imagens para a IA) ---- */
-  function anexar(fs) {
-    var lim = limitesImagem(); if (!lim) return;
-    var tipos = lim.mediaTypes || [];
-    fs.forEach(function (f) { if ((!tipos.length || tipos.indexOf(f.type) !== -1) && anexos.length < (lim.maxCount || 1)) anexos.push(f); });
+  var docs = [], lendoAnx = 0, leituraId = 0, statusLeitura = "", cancelarLeitura = function () {};
+  var TXT_MAX_TOTAL = 40000, DOCS_MAX = 3;
+  function avisoAnx(t) { if (msgs) addBot([T("📎 " + t)], true); }
+  // Sem visão na IA da tela: foto vira texto por OCR e segue como arquivo de texto.
+  function lerComOcr(f) {
+    if (!H.lerArquivo) { avisoAnx("Esta tela não consegue enviar imagens para a IA. Envie PDF, planilha ou texto."); return; }
+    anexar([f], true);
+  }
+
+  /* ---- conferência de documentos: confronta o que está no arquivo com o cadastro ---- */
+  function cnpjOk(c) {
+    if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+    var dv = function (n) { var p = n === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2], t = 0; for (var i = 0; i < n; i++) t += +c[i] * p[i]; var r = t % 11; return r < 2 ? 0 : 11 - r; };
+    return dv(12) === +c[12] && dv(13) === +c[13];
+  }
+  var TIPOS_DOC = [[/fgts digital|guia do fgts|gfd|gre\b/i, "Guia do FGTS"], [/dctfweb|darf/i, "DARF / DCTFWeb"], [/documento de arrecada[cç][aã]o do simples|\bdas\b|simples nacional/i, "DAS (Simples Nacional)"], [/\bgps\b|guia da previd[eê]ncia/i, "GPS (INSS)"], [/recibo de pagamento|holerite|contracheque/i, "Recibo de pagamento"], [/nota fiscal|nfs-?e|danfe/i, "Nota fiscal"], [/extrato mensal|resumo da folha/i, "Extrato da folha"]];
+  function moedaNum(t) { return parseFloat(String(t).replace(/\./g, "").replace(",", ".")); }
+  function conferirDocumento(d) {
+    var tx = String(d.texto || ""), hoje = new Date(), hj = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    var tipo = ""; TIPOS_DOC.some(function (x) { if (x[0].test(tx)) { tipo = x[1]; return true; } });
+    var cn = [], vistos = {}, m, rx = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g;
+    while ((m = rx.exec(tx))) { var c = m[0].replace(/\D/g, ""); if (!vistos[c] && (/[./-]/.test(m[0]) || cnpjOk(c))) { vistos[c] = 1; cn.push(c); } }
+    var ix = indice().empresas, ln = [], ok = 0, aviso = 0, falha = 0, nomeEmp = "";
+    var mascara = function (c) { return c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5"); };
+    if (!cn.length) { ln.push("⚠️ Não encontrei CNPJ no documento" + (d.ocr ? " (a leitura por imagem pode ter falhado)" : "") + "."); aviso++; }
+    cn.slice(0, 6).forEach(function (c) {
+      if (!cnpjOk(c)) { ln.push("❌ CNPJ " + mascara(c) + " tem dígito verificador inválido" + (d.ocr ? " (pode ser erro de leitura da imagem)" : "") + "."); falha++; return; }
+      var g = ix.filter(function (x) { return x.cnpj === c; })[0], raiz = !g && ix.filter(function (x) { return x.cnpj && x.cnpj.slice(0, 8) === c.slice(0, 8); })[0];
+      if (g) { ln.push("✅ CNPJ " + mascara(c) + " é da empresa **" + g.nome + "** no cadastro."); ok++; if (!nomeEmp) nomeEmp = g.nome; }
+      else if (raiz) { ln.push("⚠️ CNPJ " + mascara(c) + " tem a mesma raiz de **" + raiz.nome + "**, mas é outro estabelecimento (filial ou matriz). Confira se é o certo."); aviso++; if (!nomeEmp) nomeEmp = raiz.nome; }
+      else { ln.push("⚠️ CNPJ " + mascara(c) + " não está no cadastro de nenhum módulo."); aviso++; }
+    });
+    if (cn.length > 6) ln.push("• Mais " + (cn.length - 6) + " CNPJs no arquivo não conferidos aqui.");
+    var cm = /(compet[eê]ncia|per[ií]odo de apura[cç][aã]o|refer[eê]ncia|m[eê]s\/ano)\D{0,25}?(\d{2})\/(\d{4})/i.exec(tx) || /\b(0[1-9]|1[0-2])\/(20\d{2})\b/.exec(tx), comp = null;
+    if (cm) { comp = cm.length === 4 ? {m: +cm[2], a: +cm[3]} : {m: +cm[1], a: +cm[2]}; if (comp.m < 1 || comp.m > 12) comp = null; }
+    if (comp) {
+      var dif = (hj.getFullYear() * 12 + hj.getMonth()) - (comp.a * 12 + comp.m - 1), tag = pad2(comp.m) + "/" + comp.a;
+      if (dif < 0) { ln.push("⚠️ Competência " + tag + " é futura. Confira se não é erro de digitação."); aviso++; }
+      else if (dif > 3) { ln.push("⚠️ Competência " + tag + " tem " + dif + " meses. Documento antigo, confirme se é o que você queria."); aviso++; }
+      else { ln.push("✅ Competência " + tag + (dif === 0 ? " (mês atual)." : dif === 1 ? " (mês anterior)." : ".")); ok++; }
+    } else if (tipo) { ln.push("⚠️ Não achei a competência (mês/ano) no documento."); aviso++; }
+    var vm = /vencimento\D{0,20}?(\d{2})\/(\d{2})\/(\d{4})/i.exec(tx);
+    if (vm) {
+      var dv = new Date(+vm[3], +vm[2] - 1, +vm[1]), dd = Math.round((dv - hj) / 864e5), ds = vm[1] + "/" + vm[2] + "/" + vm[3];
+      if (dd < 0) { ln.push("❌ Vencimento " + ds + " já passou há " + (-dd) + " dia(s): pode ter multa e juros."); falha++; }
+      else if (dd <= 3) { ln.push("⚠️ Vence " + (dd === 0 ? "hoje" : "em " + dd + " dia(s)") + " (" + ds + ")."); aviso++; }
+      else { ln.push("✅ Vencimento " + ds + " (em " + dd + " dias)."); ok++; }
+    }
+    var vs = [], rv = /(valor (?:total|do documento|a pagar|principal|do d[eé]bito)|total a recolher|total geral|l[ií]quido a receber|total)\D{0,25}?R?\$?\s*(\d{1,3}(?:\.\d{3})*,\d{2})/ig, mv;
+    while ((mv = rv.exec(tx)) && vs.length < 3) vs.push(mv[2]);
+    if (vs.length) { var nums = vs.map(moedaNum); ln.push("💰 Valor lido: R$ " + vs[0] + (vs.length > 1 && Math.abs(nums[0] - nums[1]) > 0.009 ? " (outro valor no documento: R$ " + vs[1] + ", confira o total)" : "")); if (nums[0] <= 0) { ln.push("⚠️ Valor zerado."); aviso++; } }
+    if (!tipo && !cn.length && !comp && !vs.length) return null;
+    var tit = falha ? "❌ Encontrei problemas" : aviso ? "⚠️ Confira estes pontos" : "✅ Tudo confere";
+    return {texto: "**Conferência de " + (d.nome || "documento") + "**" + (tipo ? " · " + tipo : "") + "\n" + tit + "\n" + ln.map(function (l) { return "• " + l; }).join("\n") + (d.ocr ? "\n_Lido por OCR: valores e números podem ter erros._" : ""), empresa: nomeEmp};
+  }
+  function anexar(fs, forcarDoc) {
+    var lim = limitesImagem(), tipos = lim && lim.mediaTypes || [];
+    fs.forEach(function (f) {
+      var ehImg = /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(f.name || "");
+      if (ehImg && !forcarDoc) {
+        if (!lim) { lerComOcr(f); return; }
+        if (tipos.length && tipos.indexOf(f.type) === -1) { avisoAnx("Tipo de imagem não aceito: " + (f.type || f.name)); return; }
+        if (anexos.length >= (lim.maxCount || 1)) { avisoAnx("Limite de imagens por mensagem: " + (lim.maxCount || 1)); return; }
+        anexos.push(f); return;
+      }
+      if (!H.lerArquivo) { avisoAnx("Leitura de arquivos indisponível nesta tela."); return; }
+      if (docs.length + lendoAnx >= DOCS_MAX) { avisoAnx("No máximo " + DOCS_MAX + " arquivos por mensagem."); return; }
+      lendoAnx++; var meuId = ++leituraId; statusLeitura = "Lendo " + (f.name || "o arquivo") + "…"; pintarAnexos();
+      var limite = new Promise(function (_, rej) { setTimeout(function () { rej(new Error("a leitura passou de " + (lim ? 2 : 3) + " minutos e foi interrompida. Envie um arquivo com texto (PDF, planilha ou .txt) ou uma foto menor")); }, (lim ? 2 : 3) * 60000); });
+      Promise.race([Promise.resolve(H.lerArquivo(f, {ocr: !lim, progresso: function (t) { if (meuId === leituraId) { statusLeitura = t; pintarAnexos(); } }})), limite, new Promise(function (_, rej) { cancelarLeitura = function () { rej(new Error("cancelado")); }; })]).then(function (r) {
+        if (meuId !== leituraId) return;
+        lendoAnx = Math.max(0, lendoAnx - 1);
+        if (!r || r.tipo === "erro") { avisoAnx((r && r.erro) || "Não consegui ler esse arquivo."); return; }
+        if (r.tipo === "imagens") { if (!lim) { avisoAnx("É um PDF digitalizado e não consegui ler o texto dele."); return; } (r.files || []).forEach(function (im) { if (anexos.length < (lim.maxCount || 1)) anexos.push(im); }); if (r.aviso) avisoAnx(r.aviso); return; }
+        if (r.tipo === "imagem") { anexar([r.file]); return; }
+        var usado = docs.reduce(function (t, d) { return t + d.texto.length; }, 0);
+        if (usado + r.texto.length > TXT_MAX_TOTAL) { r.texto = r.texto.slice(0, Math.max(0, TXT_MAX_TOTAL - usado)); r.truncado = true; }
+        if (!r.texto.trim()) { avisoAnx("O arquivo não tem texto legível."); return; }
+        docs.push({nome: r.nome, texto: r.texto, truncado: !!r.truncado, paginas: r.paginas || 0, ocr: !!r.ocr});
+        try { var cf = conferirDocumento(docs[docs.length - 1]); if (cf && msgs) addBot([{tipo: "md", texto: cf.texto}].concat(cf.empresa ? [CH([{rot: "Ver ficha de " + cf.empresa, enviar: "ficha da empresa " + cf.empresa}])] : []), true); } catch (e) {}
+        if (r.ocr) avisoAnx((r.aviso ? r.aviso + " " : "") + "O texto foi lido por reconhecimento de imagem (OCR) e pode ter erros: confira o cartão antes de confirmar.");
+        if (r.truncado) avisoAnx("Arquivo grande: li só o começo (" + Math.round(r.texto.length / 1000) + " mil caracteres).");
+      }).catch(function (e) { if (meuId !== leituraId && e && e.message === "cancelado") return; lendoAnx = Math.max(0, lendoAnx - 1); if (!(e && e.message === "cancelado")) avisoAnx("Não consegui ler " + (f.name || "o arquivo") + (e && e.message ? ": " + e.message : ".")); }).then(function () { pintarAnexos(); });
+    });
     pintarAnexos();
   }
   function pintarAnexos() {
@@ -2095,9 +2433,19 @@
       var x = doc.createElement("button"); x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Tirar anexo"); x.onclick = function () { anexos.splice(i, 1); pintarAnexos(); };
       w.appendChild(im); w.appendChild(x); a.appendChild(w);
     });
-    a.hidden = !anexos.length;
+    docs.forEach(function (d, i) {
+      var w = doc.createElement("span"); w.className = "tx-anx-d"; w.title = d.nome + (d.truncado ? " (li só o começo)" : "");
+      var t = doc.createElement("span"); t.textContent = "📄 " + (d.nome.length > 22 ? d.nome.slice(0, 20) + "…" : d.nome);
+      var x = doc.createElement("button"); x.type = "button"; x.textContent = "✕"; x.setAttribute("aria-label", "Tirar " + d.nome); x.onclick = function () { docs.splice(i, 1); pintarAnexos(); };
+      w.appendChild(t); w.appendChild(x); a.appendChild(w);
+    });
+    if (lendoAnx) {
+      var l = doc.createElement("span"); l.className = "tx-anx-d"; var lt = doc.createElement("span"); lt.textContent = "⏳ " + (statusLeitura || "Lendo o arquivo…"); l.appendChild(lt);
+      var lx = doc.createElement("button"); lx.type = "button"; lx.textContent = "Cancelar"; lx.setAttribute("aria-label", "Cancelar a leitura"); lx.onclick = function () { leituraId++; lendoAnx = 0; try { cancelarLeitura(); } catch (e) {} pintarAnexos(); }; l.appendChild(lx); a.appendChild(l);
+    }
+    a.hidden = !a.children.length;
   }
-  function atualizarClipe() { var c = painel && $("#tx-clipe", painel); if (c) c.hidden = !limitesImagem(); }
+  function atualizarClipe() { var c = painel && $("#tx-clipe", painel), cam = painel && $("#tx-cam", painel); if (c) c.hidden = false; if (cam) cam.hidden = false; }
 
   /* ---- voz: ditar a pergunta e ouvir a resposta ---- */
   var rec = null;
@@ -2126,14 +2474,69 @@
 
   function rolar() { msgs.scrollTop = msgs.scrollHeight; }
   function addUser(txt, semGuardar) { var d = doc.createElement("div"); d.className = "tx-m-u"; d.textContent = txt; msgs.appendChild(d); rolar(); if (!semGuardar) guardarHist("u", txt); }
+  /* ---------- respostas grandes: a própria janela do chat se amplia (uma janela só) ---------- */
+  function medida(blocos) {
+    var n = 0, linhas = 0, blocosConteudo = 0;
+    (blocos || []).forEach(function (b) {
+      if (b.tipo === "md" || b.tipo === "texto" || b.tipo === "ajuda") { n += String(b.texto || "").length; blocosConteudo++; }
+      else if (b.tipo === "linhas") { linhas += (b.linhas || []).length; blocosConteudo++; }
+      else if (b.tipo === "grafico") { linhas += (b.itens || []).length; blocosConteudo++; }
+    });
+    return {chars: n, linhas: linhas, blocos: blocosConteudo};
+  }
+  function ehGrande(blocos) {
+    if ((blocos || []).some(function (b) { return b.tipo === "confirma"; })) return false;
+    var m = medida(blocos);
+    return m.chars > 900 || m.linhas >= 7 || m.blocos >= 4 || (m.blocos >= 3 && m.linhas >= 5) || (m.chars > 500 && m.linhas >= 4);
+  }
+  var ampAuto = true, ultimaGrande = null;
+  function ampliar(sim, manual) {
+    if (!painel) return;
+    painel.classList.toggle("tx-amp", !!sim);
+    var b = $("#tx-amp-b", painel); if (b) { b.textContent = sim ? "⤡" : "⤢"; b.title = sim ? "Reduzir a janela" : "Ampliar a janela"; b.setAttribute("aria-label", b.title); b.setAttribute("aria-pressed", sim ? "true" : "false"); }
+    if (!sim) { if (manual) ampAuto = false; limparFiltro(); }
+  }
+  function limparFiltro() { var f = $("#tx-filtro", painel); if (f) f.value = ""; filtrarGrande(); var fb = $("#tx-filtro-b", painel); if (fb) fb.hidden = true; }
+  // Filtro da última resposta grande: esconde as linhas que não contêm o texto digitado.
+  function filtrarGrande() {
+    var f = $("#tx-filtro", painel), q = norm(f ? f.value : ""), n = 0, tot = 0;
+    if (!ultimaGrande || !ultimaGrande.isConnected) { var c = $("#tx-filtro-n", painel); if (c) c.textContent = ""; return; }
+    [].forEach.call(ultimaGrande.querySelectorAll(".tx-lw"), function (w) { tot++; var ok = !q || norm(w.textContent).indexOf(q) !== -1; w.hidden = !ok; if (ok) n++; });
+    [].forEach.call(ultimaGrande.querySelectorAll(".tx-bloco"), function (bl) { var ls = bl.querySelectorAll(".tx-lw"); if (ls.length) bl.hidden = q && ![].some.call(ls, function (w) { return !w.hidden; }); });
+    var c2 = $("#tx-filtro-n", painel); if (c2) c2.textContent = q ? n + " de " + tot : "";
+  }
   function addBot(blocos, semGuardar) {
     if (!blocos || !blocos.length) return null;
     var d = doc.createElement("div"); d.className = "tx-m-b";
     blocos.forEach(function (b) { var n = blocoDom(b); if (n) d.appendChild(n); });
     msgs.appendChild(d);
-    if (d.offsetHeight > msgs.clientHeight) msgs.scrollTop = d.offsetTop - msgs.offsetTop - 6; else rolar();
+    var grande = !semGuardar && painel && !painel.hidden && lerPref().flutuar !== false && ehGrande(blocos);
+    if (grande) {
+      ultimaGrande = d; var fb = $("#tx-filtro-b", painel), fi = $("#tx-filtro", painel); if (fi) fi.value = ""; filtrarGrande();
+      if (fb) fb.hidden = !d.querySelector(".tx-lw");
+      if (ampAuto) ampliar(true);
+    }
+    if (d.offsetHeight > msgs.clientHeight || grande) msgs.scrollTop = d.offsetTop - msgs.offsetTop - 6; else rolar();
     if (!semGuardar) guardarHist("b", textoDosBlocos(blocos));
     return d;
+  }
+  // Empresa de uma linha de resultado (pelo nome no título/subtítulo), só quando a correspondência é firme.
+  function empresaDaLinha(l) {
+    if (l.emp && l.emp.nome) return l.emp;
+    try {
+      var r = casarEmpresas(norm((l.t || "") + " " + (l.sub || "")), {});
+      return r.length && r[0].s >= 0.7 && !(r[1] && r[1].s >= r[0].s * 0.92) ? r[0].g : null;
+    } catch (e) { return null; }
+  }
+  function atalhosEmpresa(g, fechar) {
+    var m = doc.createElement("div"); m.className = "tx-acs";
+    var fc = !!(g.refs && (g.refs.fiscal || g.refs.contabil)), inp = $("#tx-in", painel);
+    function pre(txt) { return function () { fechar(); inp.value = txt; inp.focus(); }; }
+    function env(txt) { return function () { fechar(); enviar(txt); }; }
+    var it = [["Ficha", env(g.nome)], ["Anotar", pre("anota no histórico da " + g.nome + ": ")], ["Passar para…", pre("passa a " + g.nome + " para ")], ["Lembrete", pre("me lembra de " + g.nome + " dia ")]];
+    if (fc) { it.splice(2, 0, ["Pendência", pre("registra pendência da " + g.nome + ": ")]); it.push(["Cobrança (e-mail)", env("rascunho de e-mail de cobrança para " + g.nome)]); }
+    it.forEach(function (a) { var b = doc.createElement("button"); b.type = "button"; b.className = "tx-chip"; b.textContent = a[0]; b.onclick = a[1]; m.appendChild(b); });
+    return m;
   }
   function botaoMini(rot, titulo, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-mini"; x.textContent = rot; x.title = titulo; x.setAttribute("aria-label", titulo); x.onclick = function () { fn(x); }; return x; }
   function barraAcoes(b) {
@@ -2191,10 +2594,22 @@
       h.appendChild(ac);
       d.appendChild(h);
       b.linhas.forEach(function (l) {
+        var wrap = doc.createElement("div"); wrap.className = "tx-lw";
         var x = doc.createElement(l.abrir ? "button" : "div"); x.className = "tx-lin " + (l.tom || "");
         if (l.abrir) { x.type = "button"; x.title = "Abrir no " + MODN[l.mod]; x.onclick = function () { abrirItem(l.mod, l.abrir, l).then(function () { if (!l.abrir.empresa) setTimeout(function () { mostrarNaTela(String(l.t).split(" · ")[0].replace(/^(Treinamento|Impedimento|Admissão recente|Férias|Afastado|Sem analista|Sem CNPJ):\s*/, "")); }, 700); }); }; }
         x.innerHTML = "<i></i><div><b>" + esc(mascarar(l.t)) + "</b>" + (l.sub ? "<span>" + esc(mascarar(l.sub)) + "</span>" : "") + "</div>";
-        d.appendChild(x);
+        wrap.appendChild(x);
+        var emp = empresaDaLinha(l);
+        if (emp) {
+          var menu = null, bt = doc.createElement("button"); bt.type = "button"; bt.className = "tx-lin-a"; bt.textContent = "⋯"; bt.title = "Ações para " + emp.nome; bt.setAttribute("aria-label", "Ações para " + emp.nome); bt.setAttribute("aria-expanded", "false");
+          bt.onclick = function () {
+            if (menu) { menu.remove(); menu = null; bt.setAttribute("aria-expanded", "false"); return; }
+            menu = atalhosEmpresa(emp, function () { if (menu) { menu.remove(); menu = null; bt.setAttribute("aria-expanded", "false"); } });
+            wrap.appendChild(menu); bt.setAttribute("aria-expanded", "true");
+          };
+          wrap.appendChild(bt);
+        }
+        d.appendChild(wrap);
       });
       if (b.mais) { var m = doc.createElement("button"); m.type = "button"; m.className = "tx-mais"; m.textContent = b.mais.rot + " ›"; m.onclick = function () { var r = b.mais.acao(); if (r && r.then) r.catch(function () {}); }; d.appendChild(m); }
       return d;
@@ -2218,6 +2633,62 @@
   }
 
   // Cartão de confirmação: nada grava antes do clique em "Confirmar" (ou de um "sim" na conversa).
+  /* ---------- quando algo falha: o que aconteceu, por quê e o que fazer ---------- */
+  // Traduz um erro (texto, Error ou código) em {titulo, motivo, passos[], chips[]}. `ctx`: {acao, repetir, modulo, txt}
+  function explicarFalha(e, ctx) {
+    ctx = ctx || {};
+    var msg = String(e && (e.message || e.erro || e.text) || (typeof e === "string" ? e : "") || ""), cod = String(e && e.code || "");
+    var acao = ctx.acao ? ctx.acao.toLowerCase() : "concluir isso";
+    var r = {titulo: "Não consegui " + acao, motivo: "", passos: [], chips: []};
+    var tentar = ctx.repetir ? {rot: "Tentar de novo", acao: ctx.repetir} : (ctx.txt ? {rot: "Tentar de novo", enviar: ctx.txt} : null);
+    var abrirMod = ctx.modulo && MODN[ctx.modulo] ? {rot: "Abrir o " + MODN[ctx.modulo], acao: function () { return abrirItem(ctx.modulo, {}); }} : null;
+    if (cod === "sem_permissao" || /permiss|s[oó] a coordena|s[oó] de consulta|voc[eê] s[oó] altera|somente leitura|sem acesso|n[aã]o tem acesso|not_granted|forbidden|403/i.test(msg + " " + cod)) {
+      r.motivo = (/^[A-ZÁ-Ú][^]{8,}/.test(msg) && !/^(error|typeerror|not_granted|forbidden)/i.test(msg)) ? msg : "O seu acesso não permite essa alteração.";
+      r.semRepetir = true;
+      r.passos = ["Peça à coordenação para fazer a alteração ou liberar o seu acesso.", "Em Configurações do perfil, na seção “Meu acesso”, você vê o seu nível em cada módulo."];
+      var pedido = "Oi! O assistente não deixou eu " + acao + (ctx.detalhe ? " (" + ctx.detalhe + ")" : "") + ": " + r.motivo + " Pode fazer ou liberar o meu acesso? Obrigado.";
+      r.chips.push({rot: "Copiar pedido para a coordenação", acao: function () { return copiarTexto(pedido).then(function (ok) { return [T(ok ? "Copiei o pedido. É só colar numa mensagem para a coordenação." : "Não consegui copiar. O texto é: " + pedido)]; }); }});
+    } else if (cod === "quota_exceeded" || /limite de armazenamento|quota/i.test(msg)) {
+      r.motivo = "O banco de dados chegou ao limite de espaço.";
+      r.passos = ["Peça à coordenação para apagar registros antigos (veja o módulo “Uso do banco”).", "Depois tente de novo."];
+      if (tentar) r.chips.push(tentar);
+    } else if (/network|failed to fetch|offline|timeout|time-out|timed out|tempo|demor|conex|abort|ECONN|unavailable|session_expired/i.test(msg + " " + cod)) {
+      r.motivo = "A conexão com o banco ou com a IA falhou ou demorou demais.";
+      r.passos = ["Confira a internet e tente de novo em alguns segundos.", "Se continuar, recarregue a página (Ctrl+F5). O que já foi confirmado não se perde."];
+      if (tentar) r.chips.push(tentar);
+    } else if (cod === "rate_limited" || /rate|limite|ocupad|muitas|quota/i.test(msg + " " + cod)) {
+      r.motivo = "A IA está ocupada ou o limite de perguntas foi atingido.";
+      r.passos = ["Espere um minuto e tente de novo.", "Se for o limite do dia, “Responder pelas regras” ainda funciona para consultas simples."];
+      if (tentar) r.chips.push(tentar);
+    } else if (/n[aã]o ach|amb[ií]gu|mais de uma|n[aã]o encontr|n[aã]o est[aá] n|qual (empresa|analista|etapa|obriga)|n[aã]o existe|desconhecid/i.test(msg)) {
+      r.motivo = msg || "Não achei o que você citou, ou há mais de uma possibilidade.";
+      r.passos = ["Diga o nome completo da empresa ou o CNPJ.", "Se a empresa estiver em mais de um módulo, diga qual (“no Fiscal”)."];
+    } else if (/diga|falta|informe|obrigat|inv[aá]lid|formato|aaaa-mm-dd|qual [eé]|preciso d[eao]/i.test(msg)) {
+      r.motivo = msg;
+      r.passos = ["Complete o pedido com o que está faltando e envie de novo."];
+    } else if (/carregando|ainda n[aã]o|pronto|n[aã]o carreg/i.test(msg)) {
+      r.motivo = "O módulo ainda estava carregando os dados.";
+      r.passos = ["Aguarde alguns segundos e tente de novo."];
+      if (tentar) r.chips.push(tentar);
+    } else {
+      r.motivo = "Aconteceu um erro inesperado" + (msg ? " (" + msg.slice(0, 120) + ")" : "") + ".";
+      r.passos = ["Tente de novo. Nada foi gravado se o cartão não mostrou “Feito”.", "Se repetir, confira a tela do módulo e avise a coordenação com o texto que aparece em “Copiar detalhes”."];
+      if (tentar) r.chips.push(tentar);
+      var det = "Assistente — falha em “" + (ctx.acao || "ação") + "” em " + new Date().toLocaleString("pt-BR") + (msg ? ": " + msg : "") + (cod ? " [" + cod + "]" : "");
+      r.chips.push({rot: "Copiar detalhes", acao: function () { return copiarTexto(det).then(function (ok) { return [T(ok ? "Copiei os detalhes do erro." : "Não consegui copiar.")]; }); }});
+    }
+    if (abrirMod) r.chips.push(abrirMod);
+    try { registrarPergunta && ctx.txt && registrarPergunta(ctx.txt, "erro"); } catch (x) {}
+    r.resumo = r.motivo + (r.passos.length ? " " + r.passos[0] : "");
+    return r;
+  }
+  function blocosFalha(e, ctx) {
+    var r = explicarFalha(e, ctx);
+    var md = "**" + r.titulo + ".**\n\n**Por quê:** " + r.motivo + (r.passos.length ? "\n\n**O que fazer:**\n" + r.passos.map(function (p) { return "- " + p; }).join("\n") : "");
+    var out = [{tipo: "md", texto: md}];
+    if (r.chips.length) out.push(CH(r.chips));
+    return out;
+  }
   function cartaoConfirma(b) {
     var pl = b.plano, d = doc.createElement("div"); d.className = "tx-conf";
     var ctl = {feito: false};
@@ -2226,7 +2697,8 @@
       var h = doc.createElement("div"); h.className = "tx-conf-h"; h.textContent = estado === "ok" ? "Feito" : estado === "cancelado" ? "Cancelado" : estado === "desfeito" ? "Desfeito" : estado === "erro" ? "Não consegui" : (pl.titulo || "Confirmar");
       d.appendChild(h);
       d.className = "tx-conf" + (estado ? " tx-conf-" + estado : "");
-      if (estado === "ok" || estado === "erro" || estado === "desfeito") { var m = doc.createElement("div"); m.className = "tx-conf-l"; m.textContent = msg || ""; d.appendChild(m); }
+      if (estado === "ok" || estado === "erro" || estado === "desfeito") { var m = doc.createElement("div"); m.className = "tx-conf-l"; m.textContent = estado === "erro" && ctl.erroEx ? ctl.erroEx.motivo : (msg || ""); d.appendChild(m);
+        if (estado === "erro" && ctl.erroEx) { ctl.erroEx.passos.forEach(function (ps) { var pe = doc.createElement("div"); pe.className = "tx-conf-l"; pe.textContent = "• " + ps; d.appendChild(pe); }); } }
       else {
         if (pl.empresa) { var em = doc.createElement("div"); em.className = "tx-conf-e"; em.textContent = pl.empresa; d.appendChild(em); }
         (pl.linhas || []).forEach(function (l) { var x = doc.createElement("div"); x.className = "tx-conf-l"; x.textContent = l; d.appendChild(x); });
@@ -2236,12 +2708,16 @@
       function btn(rot, cls, fn) { var x = doc.createElement("button"); x.type = "button"; x.className = "tx-cb " + cls; x.textContent = rot; x.onclick = fn; bt.appendChild(x); return x; }
       if (!estado) { btn("Confirmar", "tx-cb-ok", ctl.confirmar); btn("Cancelar", "", ctl.cancelar); }
       else if (estado === "ok" && pl.desfazer) btn("Desfazer", "", ctl.desfazer);
+      else if (estado === "erro" && ctl.erroEx) {
+        if (!ctl.erroEx.semRepetir) btn("Tentar de novo", "tx-cb-ok", function () { ctl.feito = false; ctl.erroEx = null; ctl.confirmar(); });
+        ctl.erroEx.chips.filter(function (c) { return c.acao && c.rot !== "Tentar de novo"; }).forEach(function (c) { btn(c.rot, "", function () { var rr = c.acao(); if (rr && rr.then) rr.then(function (bl) { if (Array.isArray(bl)) addBot(bl); }).catch(function () {}); }); });
+      }
       if (bt.children.length) d.appendChild(bt);
     }
     ctl.confirmar = function () {
       if (ctl.feito) return Promise.resolve(); ctl.feito = true; if (pendente === ctl) pendente = null;
       d.classList.add("tx-conf-ocupado");
-      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); feitosSessao.push({t: Date.now(), plano: pl, ctl: ctl}); aoConfirmar(pl); }, function (e) { console.error(e); pintar("erro", "Não foi possível salvar. Nada foi alterado ou a gravação falhou: confira a tela do módulo."); });
+      return Promise.resolve().then(function () { return pl.executar(); }).then(function (msg) { pintar("ok", msg || "Pronto."); feitosSessao.push({t: Date.now(), plano: pl, ctl: ctl}); aoConfirmar(pl); }, function (e) { console.error(e); ctl.erroEx = explicarFalha(e, {acao: pl.titulo || "salvar a alteração", modulo: b.mod, detalhe: (pl.linhas || [])[0]}); pintar("erro", ctl.erroEx.resumo); });
     };
     ctl.cancelar = function () { if (ctl.feito) return; ctl.feito = true; if (pendente === ctl) pendente = null; pintar("cancelado", ""); };
     ctl.desfazer = function () { d.classList.add("tx-conf-ocupado"); return Promise.resolve().then(function () { return pl.desfazer(); }).then(function () { ctl.desfeito = true; pintar("desfeito", "Voltei ao que estava antes."); }, function () { pintar("erro", "Não consegui desfazer. Ajuste direto no módulo."); }); };
@@ -2258,22 +2734,22 @@
       var rc = comando(txt);
       if (rc && rc.then) {
         var pc = doc.createElement("div"); pc.className = "tx-m-b"; pc.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pc); rolar();
-        rc.then(function (bl) { pc.remove(); addBot(bl); }).catch(function () { pc.remove(); addBot([T("Não consegui executar esse comando.")]); });
+        rc.then(function (bl) { pc.remove(); addBot(bl); }).catch(function (e) { pc.remove(); addBot(blocosFalha(e, {acao: "executar o comando", txt: txt})); });
       }
       return;
     }
-    var imgs = anexos.slice(); anexos = []; if (painel) pintarAnexos();
+    var imgs = anexos.slice(), dcs = docs.slice(); anexos = []; docs = []; if (painel) pintarAnexos();
     contarPergunta();
     if (/esconde.?esconde/i.test(txt)) { addUser(txt); addBot([T("Valendo! Fecha os olhos… 🙈 Agora me ache e clique em mim.")]); setTimeout(comecarEsconde, 1200); return; }
-    addUser(txt + (imgs.length ? "  📎" + imgs.length : ""));
+    addUser(txt + (imgs.length ? "  📷" + imgs.length : "") + (dcs.length ? "  📄 " + dcs.map(function (d) { return d.nome; }).join(", ") : ""));
     var pensa = doc.createElement("div"); pensa.className = "tx-m-b"; pensa.innerHTML = '<div class="tx-t1 tx-pensa"><i></i><i></i><i></i></div>'; msgs.appendChild(pensa); rolar(); bolhaAtual = pensa;
     var temModulos = apisCarregadas().length >= H.modulos().length;
     var lento = setTimeout(function () { if (!temModulos && !iaOk) { var s = $(".tx-pensa", pensa); if (s) s.insertAdjacentHTML("afterend", '<span class="tx-rod" style="padding:9px 0">carregando os módulos…</span>'); } }, 900);
-    responder(txt, {forcarIA: op.forcarIA, forcarRegras: op.forcarRegras, oculto: op.oculto, imagens: imgs}).then(function (bl) {
+    responder(txt, {forcarIA: op.forcarIA, forcarRegras: op.forcarRegras, oculto: op.oculto, imagens: imgs, docs: dcs}).then(function (bl) {
       clearTimeout(lento); pensa.remove(); hist.push({u: txt}); addBot(bl);
       if (bl && bl.naoEntendi) registrarPergunta(txt, "nao_entendi");
       aoResponder(bl);
-    }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot([T("Tive um problema para responder agora. Tente de novo em instantes.")]); });
+    }).catch(function (e) { clearTimeout(lento); pensa.remove(); console.error(e); addBot(blocosFalha(e, {acao: "responder", txt: txt})); });
   }
   // Ganchos preenchidos por outras partes (mascote, avisos, equipe).
   var aoConfirmar = function () {}, aoSituacao = function () {};
@@ -2320,7 +2796,7 @@
     carregarTodos();
     setTimeout(function () { var i = $("#tx-in", painel); if (i) i.focus(); rolar(); }, 30);
   }
-  function fecharPainel() { if (!painel) return; aberto = false; painel.hidden = true; fecharSug(); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (el) el.focus({preventScroll: true}); }
+  function fecharPainel() { if (!painel) return; ampliar(false); ampAuto = true; aberto = false; painel.hidden = true; fecharSug(); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (el) el.focus({preventScroll: true}); }
 
 
   /* ---------- visuais ---------- */
@@ -2350,9 +2826,6 @@
       c.onclick = function () { salvarPref({chapeu: o[0]}); acKey = ""; atualizarAcessorios(); box.hidden = true; balao("Que tal? 😎", 1600); };
       box.appendChild(c);
     });
-    var cq = stats().conq || {}, cs = doc.createElement("div"); cs.className = "tx-conq";
-    cs.textContent = "Conquistas: " + Object.keys(CONQ).map(function (k) { return (cq[k] ? "🏆 " : "🔒 ") + CONQ[k].nome; }).join(" · ");
-    box.appendChild(cs);
     box.hidden = false;
   }
 
@@ -2382,8 +2855,9 @@
       var esconde = oculto || algumDialogo();
       el.classList.toggle("tx-oculto", esconde);
       if (painel) painel.classList.toggle("tx-oculto", algumDialogo() && !aberto ? true : false);
+      try { var rr = el.getBoundingClientRect(); if (!oculto && !esconde && (rr.right < 8 || rr.left > innerWidth - 8 || rr.bottom < 8 || rr.top > innerHeight - 8 || !isFinite(rr.left))) { colocarInicial(); } } catch (e) {}
     }, 600);
-    ligarQuadros(); agendarPasseio(); acordar(); ouvirApelidos(); iniciarAvisos(); atualizarBadge(); iniciarMascoteExtra(); iniciarEquipe();
+    [ligarQuadros, agendarPasseio, acordar, iniciarAvisos, atualizarBadge, iniciarMascoteExtra, iniciarEquipe].forEach(function (f) { try { f(); } catch (e) { try { console.error("Assistente (partida):", e); } catch (x) {} } });
     if (!oculto && !lerPref().visto) { salvarPref({visto: 1}); setTimeout(function () { balao("Oi! Sou o Tax. Clique em mim para conversar.", 5200); classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 2000); }, 1800); }
   }
 
@@ -2465,6 +2939,8 @@
     var e = $(".tx-emo", el); if (!e) return;
     var txt = {festa: "✨", alerta: "❗", suor: "💦", triste: "😟", amor: "💙", ok: "👍", achou: "🎉", porta: "🚪", sono: "💤"}[tipo] || "❔";
     e.textContent = txt; e.classList.remove("on"); void e.offsetWidth; e.classList.add("on");
+    var cara = /^(festa|achou|amor|ok)$/.test(tipo) ? "tx-feliz" : /^(triste|suor)$/.test(tipo) ? "tx-triste" : "";
+    if (cara && !dormiu) { clearTimeout(emote.tCara); classe([cara], ["tx-feliz", "tx-triste"].filter(function (c) { return c !== cara; })); emote.tCara = setTimeout(function () { classe([], ["tx-feliz", "tx-triste"]); }, tipo === "achou" || tipo === "festa" ? 2600 : 1800); }
     if (tipo === "festa" || tipo === "alerta" || tipo === "achou") { classe(["tx-acena"], []); setTimeout(function () { classe([], ["tx-acena"]); }, 1300); }
     som(tipo === "triste" ? "erro" : tipo === "achou" ? "achou" : tipo === "festa" ? "festa" : tipo === "alerta" ? "alerta" : "");
   };
@@ -2534,13 +3010,8 @@
     zerou: {nome: "Zerou os atrasos da carteira", premio: "festa"}
   };
   function stats() { return lerLS("tx-stats-v1", {perguntas: 0, acoes: 0, dias: [], conq: {}}); }
-  function conquistado(chapeu) { var c = stats().conq || {}; return Object.keys(c).some(function (k) { return CONQ[k] && CONQ[k].premio === chapeu; }); }
-  function conquistar(k) {
-    var s = stats(); s.conq = s.conq || {};
-    if (s.conq[k] || !CONQ[k]) return;
-    s.conq[k] = ymd(hoje()); gravarLS("tx-stats-v1", s);
-    setTimeout(function () { emote("festa"); balao("🏆 Conquista: " + CONQ[k].nome + "! Ganhei: " + CHAPEUS[CONQ[k].premio].nome + " (em 🎨 Visual).", 6000); }, 600);
-  }
+  function conquistado() { return true; }   // sem sistema de conquistas: todos os chapéus ficam livres
+  function conquistar() {}   // sistema de conquistas removido
   function contarPergunta() { var s = stats(); s.perguntas = (s.perguntas || 0) + 1; gravarLS("tx-stats-v1", s); if (s.perguntas === 1) conquistar("primeira"); if (s.perguntas >= 10) conquistar("perguntas10"); }
   function contarDia() {
     var s = stats(), h = ymd(hoje()); s.dias = s.dias || [];
@@ -2555,6 +3026,7 @@
   }
   aoConfirmar = function () { var s = stats(); s.acoes = (s.acoes || 0) + 1; gravarLS("tx-stats-v1", s); if (s.acoes >= 5) conquistar("acoes5"); emote("festa"); };
   aoSituacao = function (s, av) {
+    try { guardarHistorico(s); } catch (e) {}
     var t = totalAtrasos(s), ant = av.snapAnt && av.snapAnt.atrasos ? Object.keys(av.snapAnt.atrasos).reduce(function (x, k) { return x + (av.snapAnt.atrasos[k] || 0); }, 0) : 0;
     if (t === 0 && ant > 0) conquistar("zerou");
     if (t >= 15) setTimeout(function () { emote("suor"); }, 9000);
@@ -2612,7 +3084,8 @@
           var txt = (n.textContent || "").trim(); if (!txt || n.__ult === txt) return; n.__ult = txt;
           if (n.id === "toast" && !n.classList.contains("show")) return;
           if (/não foi poss|nao foi poss|erro|falhou|sem permiss|não tem permiss/i.test(txt)) emote("triste");
-          else if (/salv|registrad|criad|marcad|conclu|entreg|feito|pronto|importad|atualizad|aplicad/i.test(txt)) emote("ok");
+          else if (/conclu|entreg|feito|pronto|finaliz|zerou/i.test(txt)) emote("achou");
+          else if (/salv|registrad|criad|marcad|importad|atualizad|aplicad/i.test(txt)) emote("ok");
         }).observe(n, {childList: true, subtree: true, characterData: true, attributes: n.id === "toast"});
       } catch (e) {}
     };
@@ -2638,7 +3111,7 @@
     ultAtivo = a; atualizarAcessorios();
   }
   function iniciarMascoteExtra() {
-    ligarArrasto(); ligarDoc(doc, null); contarDia(); atualizarAcessorios();
+    ligarArrasto(); ligarDoc(doc, null); contarDia(); atualizarAcessorios(); noiteOlhos(); setInterval(noiteOlhos, 300000);
     setInterval(function () { H.quadros().forEach(function (f) { try { if (f.contentDocument && f.contentDocument.body) ligarDoc(f.contentDocument, f); } catch (e) {} }); vigiarModulo(); }, 1200);
     // ler junto (mouse parado) e seguir o mouse de longe
     setInterval(function () {
@@ -2677,7 +3150,8 @@
   function gravarAv(a) { gravarLS(AV, a); }
   function emFoco() { return (+lerPref().focoAte || 0) > Date.now(); }
   function opt(k) { return lerPref()["av_" + k] !== false; }
-  function algumAviso() { return ["resumo", "segunda", "sexta", "prazos", "lembretes", "cliente"].some(opt); }
+  function algumAviso() { return ["resumo", "segunda", "sexta", "prazos", "lembretes", "cliente", "parada", "ausencia"].some(opt); }
+  function horaResumo() { return +lerPref().av_hora || 0; }
   function diasUteisDepois(d, n) {
     var fer = feriadosEntre(d, addDias(d, n * 2 + 15)), c = new Date(d), k = 0;
     while (k < n) { c = addDias(c, 1); if (c.getDay() % 6 && !fer[ymd(c)]) k++; }
@@ -2722,6 +3196,22 @@
     });
   }
   function totalAtrasos(s) { return Object.keys(s.atrasos).reduce(function (t, k) { return t + (s.atrasos[k] || 0); }, 0); }
+  // Linha de rodapé com a origem dos dados: quais módulos foram lidos, a hora e se algum ainda carregava.
+  function notaFonte(mods) {
+    var nomes = [], carregando = [], exemplo = [];
+    (mods || []).forEach(function (k) {
+      var a = carregados[k]; if (!a) return;
+      nomes.push(MODN[k]);
+      if (a.pronto && !a.pronto()) carregando.push(MODN[k]);
+      else if (a.exemplo && a.exemplo()) exemplo.push(MODN[k]);
+    });
+    if (!nomes.length) return null;
+    var d = new Date(), hh = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    var t = "Consultado: " + nomes.join(", ") + " · dados lidos às " + hh + ".";
+    if (carregando.length) t += " " + carregando.join(" e ") + " ainda estava carregando: o resultado pode estar incompleto.";
+    if (exemplo.length) t += " " + exemplo.join(" e ") + " com dados de exemplo.";
+    return {tipo: "rodape", texto: t};
+  }
   function linhasBloco(titulo, ls, max) { return {tipo: "linhas", titulo: titulo + " · " + ls.length, linhas: ls.slice(0, max || 6), todas: ls, nota: ""}; }
   function mudancas(s, ant, mods) {
     if (!ant) return "";
@@ -2795,6 +3285,7 @@
     return out;
   }
   function avisar(curto, blocos) {
+    try { if (H.notificar) H.notificar({t: String(curto).replace(/^[^\wÀ-ú0-9]+/, ""), s: "Assistente", tipo: "tax"}); } catch (e) {}
     filaAvisos.push(blocos);
     if (aberto) { mostrarFila(); return; }
     atualizarBadge();
@@ -2810,7 +3301,7 @@
     situacao().then(function (s) {
       var av = lerAv(), agora = new Date();
       var novos = s.vencHoje.concat(s.prox).map(function (l) { return l.mod + "|" + l.t + "|" + l.data; });
-      if (opt("resumo") && !av.resumo) {
+      if (opt("resumo") && !av.resumo && agora.getHours() >= horaResumo()) {
         var r = montarResumo(s, "dia"); av.resumo = 1; novos.forEach(function (k) { av.alertados[k] = 1; });
         avisar(r.curto, r.blocos.concat(notaDoMes()));
       } else if (opt("prazos")) {
@@ -2846,6 +3337,17 @@
         if (carregados.dp && podeMod("dp") && !(carregados.dp.exemplo && carregados.dp.exemplo())) { var au = carregados.dp.consultar("ausencias", {de: ymd(h0), ate: ymd(sexta)}); if (au && au.linhas.length) { nAus = au.linhas.length; blS.push(linhasBloco("Ausências na equipe", au.linhas.map(function (l) { return Object.assign({mod: "dp"}, l); }))); } }
         if (carregados.cardapio && carregados.cardapio.consultar) { try { var cd = carregados.cardapio.consultar("cardapio", {de: ymd(h0), ate: ymd(sexta)}); var cdl = cd && cd.linhas ? cd.linhas.filter(function (l) { return !/ainda não cadastrado/.test(l.sub || ""); }) : []; if (cdl.length) blS.push(linhasBloco("Cardápio da semana", cdl.map(function (l) { return Object.assign({mod: "cardapio"}, l); }), 5)); } catch (e) {} }
         avisar("Semana de " + dm(h0) + ": " + itensS.length + " prazo(s)" + (nAus ? ", " + nAus + " ausência(s)" : "") + ".", blS);
+      }
+      // empresas paradas e ausências sem cobertura (sem IA: só regras sobre os dados dos módulos)
+      if (opt("parada") && !av.parada) {
+        var par = [];
+        ["fiscal", "contabil"].forEach(function (m) { var a = carregados[m]; if (!a || !podeMod(m) || (a.exemplo && a.exemplo())) return; var r; try { r = a.consultar("pendencias", {}); } catch (e) { return; } ((r && r.linhas) || []).forEach(function (l) { var mm = /parado h[aá] (\d+) dia/.exec(String(l.sub || "")); if (mm && +mm[1] >= 10) par.push(Object.assign({mod: m}, l, {dias: +mm[1]})); }); });
+        if (par.length) { par.sort(function (a, b) { return b.dias - a.dias; }); av.parada = 1; avisar("🕒 " + par.length + " empresa(s) parada(s) há 10 dias ou mais", [T("Sem movimento no “aguardando o cliente” há 10 dias ou mais:"), linhasBloco("Paradas", par, 8)]); }
+      }
+      if (opt("ausencia") && !av.aus && podeMod("dp") && carregados.dp && !(carregados.dp.exemplo && carregados.dp.exemplo())) {
+        var ua; try { ua = carregados.dp.consultar("ausencias", {de: ymd(hoje()), ate: ymd(addDias(hoje(), 7))}); } catch (e) { ua = null; }
+        var sem = ((ua && ua.linhas) || []).filter(function (l) { return l.tom === "warn"; });
+        if (sem.length) { av.aus = 1; avisar("⚠️ " + sem.length + " ausência(s) sem cobertura nos próximos 7 dias", [T("Defina quem cobre na Cartela do DP:"), linhasBloco("Sem cobertura", sem.map(function (l) { return Object.assign({mod: "dp"}, l); }), 6)]); }
       }
       // pendências do cliente que saíram de "aguardando" desde a última checagem
       if (opt("cliente") && av.pend) {
@@ -2916,6 +3418,9 @@
     {k: "av_resumo", rot: "Resumo do dia na primeira abertura", tipo: "bool", padrao: true},
     {k: "av_segunda", rot: "Resumo da semana na segunda de manhã (prazos, ausências e cardápio)", tipo: "bool", padrao: true},
     {k: "av_sexta", rot: "Resumo da semana na sexta à tarde", tipo: "bool", padrao: true},
+    {k: "av_hora", rot: "Resumo do dia a partir de:", tipo: "sel", opcoes: [["0", "ao abrir o Hub"], ["8", "8h"], ["9", "9h"], ["10", "10h"], ["13", "13h"]]},
+    {k: "av_parada", rot: "Avisar empresas paradas há 10 dias ou mais (Fiscal e Contábil)", tipo: "bool", padrao: true},
+    {k: "av_ausencia", rot: "Avisar ausência de analista sem cobertura nos próximos 7 dias (DP)", tipo: "bool", padrao: true},
     {k: "av_prazos", rot: "Avisar prazos chegando (2 dias úteis)", tipo: "bool", padrao: true},
     {k: "av_lembretes", rot: "Lembretes do DP no horário", tipo: "bool", padrao: true},
     {k: "av_cliente", rot: "Avisar quando sair pendência do cliente", tipo: "bool", padrao: true},
@@ -3099,16 +3604,17 @@
   CFG.push({sec: "Equipe (coordenação)", so: function () { return ehCoord; }, itens: [
     {rot: "Limite de perguntas à IA por pessoa/dia (0 = sem limite):", tipo: "texto", max: 4, valor: function () { return String(cfgEquipe.limiteDia || 0); }, salvar: function (v) { salvarCfgEquipe("limiteDia", Math.max(0, parseInt(v, 10) || 0)); }},
     {rot: "Instruções para a IA (tom, regras, termos internos):", tipo: "area", max: 1500, valor: function () { return cfgEquipe.instrucoes || ""; }, salvar: function (v) { salvarCfgEquipe("instrucoes", String(v).trim().slice(0, 1500)); }},
-    {rot: "Editar a base de ajuda da equipe", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Perguntas e respostas da equipe (entram na ajuda do assistente e da IA):")], true); var m = msgs.lastChild; m.appendChild(editorAjuda()); rolar(); }},
-    {rot: "Relatórios por departamento: quem vê o quê", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Separação dos relatórios por departamento (só a coordenação vê isto):")], true); var m = msgs.lastChild; m.appendChild(editorDeptos()); rolar(); }},
-    {rot: "Abrir o painel do assistente", tipo: "botao", ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/painel"); painelCoordenacao(30).then(function (bl) { addBot(bl); }); }}
+    {rot: "Editar a base de ajuda da equipe", tipo: "botao", pagina: function () { return editorAjuda(); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Perguntas e respostas da equipe (entram na ajuda do assistente e da IA):")], true); var m = msgs.lastChild; m.appendChild(editorAjuda()); rolar(); }},
+    {rot: "Relatórios por departamento: quem vê o quê", tipo: "botao", pagina: function () { return editorDeptos(); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addBot([T("Separação dos relatórios por departamento (só a coordenação vê isto):")], true); var m = msgs.lastChild; m.appendChild(editorDeptos()); rolar(); }},
+    {rot: "Painel do assistente: uso, perguntas e o que ele alterou", tipo: "botao", pagina: function () { return painelCoordenacao(30).then(function (bl) { var d = doc.createElement("div"); d.className = "tx-cfg-painel"; bl.forEach(function (b) { d.appendChild(blocoDom(b)); }); return d; }); }, ao: function () { var g = $("#tx-cfg", painel); if (g) g.hidden = true; addUser("/painel"); painelCoordenacao(30).then(function (bl) { addBot(bl); }); }}
   ]});
 
   window.__assistenteHub = {
     perguntar: function (t) { return responder(t); },
+    configurar: function (box) { desenharConfig(box, true); },
     perguntarNoChat: function (t) { if (oculto) mostrar(); if (!aberto) abrirPainel(); enviar(t); },
     nome: nomeTax,
-    mostrar: mostrar, abrir: abrirPainel, fechar: fecharPainel, versao: 1,
+    mostrar: mostrar, abrir: abrirPainel, fechar: fecharPainel, versao: 1, reparar: function () { try { oculto = false; el.classList.remove("tx-oculto"); colocarInicial(); acordar(); } catch (e) {} },
     estado: function () { return {aberto: aberto, oculto: oculto, andando: andando, dormiu: dormiu, pos: pos, modo: modo, pes: {x: fx, y: fy}, plataformas: plats.length}; },
     irPara: function (x, y) { chamar({x: x, y: y}); }, plataformas: function () { return plats.slice(); }, visual: function (k) { aplicarSkin(k); }, skins: function () { return Object.keys(SKINS); }
   };
