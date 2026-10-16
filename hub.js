@@ -6322,7 +6322,7 @@
   // Assistente (Tax): carrega com nova tentativa e, se mesmo assim não aparecer, mostra um botão para tentar de novo (com o motivo).
   let erroAssistente = '';
   window.addEventListener('error', (e) => { if (e && /assistente\.js/.test(e.filename || '')) erroAssistente = (e.message || 'erro') + (e.lineno ? ' (linha ' + e.lineno + ')' : ''); });
-  const carregarAssistente = (n = 0) => carregarScriptExt(n ? 'assistente.js?v=38&t=' + n : 'assistente.js?v=35', 'Não foi possível carregar o assistente. Verifique a conexão.').catch((err) => { erroAssistente = err && err.message || erroAssistente; if (n < 2) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => carregarAssistente(n + 1)); throw err; });
+  const carregarAssistente = (n = 0) => carregarScriptExt(n ? 'assistente.js?v=39&t=' + n : 'assistente.js?v=39', 'Não foi possível carregar o assistente. Verifique a conexão.').catch((err) => { erroAssistente = err && err.message || erroAssistente; if (n < 2) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => carregarAssistente(n + 1)); throw err; });
   const botaoReserva = () => {
     if (document.getElementById('tx-mascote') || document.getElementById('tx-reserva')) return;
     const b = document.createElement('button'); b.type = 'button'; b.id = 'tx-reserva'; b.textContent = '💬 Assistente'; b.title = 'O assistente não apareceu' + (erroAssistente ? ' (' + erroAssistente + ')' : '') + '. Clique para tentar de novo.';

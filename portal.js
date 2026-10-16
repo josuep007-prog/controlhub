@@ -7656,19 +7656,58 @@
         return {titulo: "Frentes por analista no Portal do Cliente", total: ks.length, linhas: ks.map(function(a){ return {t: a + ": " + por[a].length + " frente(s)", sub: "", tom: "", dados: {analista: a, frentes: por[a].length}}; })};
       }
       if(tipo === "funil"){
-        var cont = {}, nEmp = 0, lsF = [];
-        ETAPAS.forEach(function(et){ cont[et.key] = {etapa: et.label, concluido: 0, andamento: 0, agendado: 0, pendente: 0}; });
-        state.empresas.filter(function(x){ return x.ativo !== false; }).forEach(function(e2){
-          var docs2 = docsDe(e2.id), fr2 = frentesDaEmpresa(e2, docs2); if(!fr2.length) return;
-          nEmp++;
-          fr2.forEach(function(f){ ETAPAS.forEach(function(et){ var st = "pendente"; try{ st = etapaInfo(f, et.key, e2.id).status || "pendente"; }catch(err){} if(cont[et.key][st] != null) cont[et.key][st]++; }); });
-          if(!daAna(e2.id)) return;
-          var pr = Math.round(progressoEmpresa(e2, docs2) * 100);
-          if(pr < 100) lsF.push({t: e2.nome, sub: pr + "% concluído · " + fr2.map(function(f){ return SETOR_LABEL[f.setor] + (f.analistaNome ? " (" + f.analistaNome + ")" : ""); }).join(", "), tom: pr < 30 ? "late" : "", abrir: {aba: "progresso"}, dados: {progresso: pr}});
+        // Mesmo cálculo da tela Relatórios (relModel): etapas aplicáveis, treinamento e cadastro calculados pelos contatos,
+        // habilitação contada uma vez por empresa e contatos contados por pessoa (e-mail).
+        var relAntes = ui.rel, rm;
+        ui.rel = Object.assign({}, relAntes, {periodo:"tudo", setor:"todos", soFoco:false});
+        try{ rm = relModel(); } finally { ui.rel = relAntes; }
+        var hojeD = parseDia(hoje_), dias = function(ds){ var d = parseDia(ds); return d ? Math.round((hojeD - d) / 864e5) : null; };
+        // Data em que cada frente ficou completa = a última data das etapas concluídas dela.
+        var dataEtapa = function(f, key){
+          return key === "treinamentoCliente" ? statusClienteComputado(f.empresa.id, f.setor.key).data
+            : key === "cadastroUsuario" ? statusCadastroComputado(f.empresa.id, f.setor.key).data
+            : etapaInfo(f.doc, key, f.empresa.id).data;
+        };
+        var fimFrente = function(f){
+          if(f.prog < 0.999) return "";
+          var ult = ""; etapasAplicaveis(f.empresa, f.setor.key).forEach(function(et){ var d = String(dataEtapa(f, et.key) || "").slice(0, 10); if(d > ult) ult = d; });
+          return ult;
+        };
+        var empFim = {}, semDataEmp = 0;
+        rm.listaEmp.forEach(function(o){
+          if(!o.completa) return;
+          var ult = ""; o.frentes.forEach(function(f){ var d = fimFrente(f); if(d > ult) ult = d; });
+          if(ult) empFim[o.empresa.id] = ult; else semDataEmp++;
         });
-        lsF.sort(function(x, y){ return x.dados.progresso - y.dados.progresso; });
-        var cts = state.contatos.filter(function(c){ return !c.exemplo; });
-        return {titulo: "Implantação do Portal: empresas ainda não concluídas", total: lsF.length, linhas: lsF, resumo: {empresasEmImplantacao: nEmp, etapasPorFrente: ETAPAS.map(function(et){ return cont[et.key]; }), contatos: cts.length, contatosTreinados: cts.filter(function(c){ return c.statusTreinamento === "concluido"; }).length, contatosComUsuarioOnvio: cts.filter(function(c){ return c.cadastroOnvio && c.cadastroOnvio.status === "ativo"; }).length}};
+        var concluidasEm = function(n){ return Object.keys(empFim).filter(function(id){ var d = dias(empFim[id]); return d != null && d >= 0 && d < n; }).length; };
+        var c30 = concluidasEm(30), c90 = concluidasEm(90);
+        var etapasHist = {}, habVista = {};
+        rm.frentes.forEach(function(f){ etapasAplicaveis(f.empresa, f.setor.key).forEach(function(et){
+          if(et.porEmpresa){ if(habVista[f.empresa.id]) return; habVista[f.empresa.id] = true; }
+          if(statusDe(f.doc, et.key, f.empresa.id, f.setor.key) !== "concluido") return;
+          var d = dias(dataEtapa(f, et.key)); if(d != null && d >= 0 && d < 30) etapasHist[et.label] = (etapasHist[et.label] || 0) + 1;
+        }); });
+        var emImpl = rm.listaEmp.filter(function(o){ return !o.completa; });
+        var ritmoSem = c90 ? +(c90 / (90 / 7)).toFixed(1) : 0;
+        var lsF = emImpl.filter(function(o){ return daAna(o.empresa.id); }).map(function(o){
+          var pr = Math.round(o.prog * 100);
+          return {t: o.empresa.nome, sub: pr + "% concluído · " + o.frentes.map(function(f){ return f.setor.label + " " + Math.round(f.prog * 100) + "%" + (f.doc && f.doc.analistaNome ? " (" + f.doc.analistaNome + ")" : ""); }).join(", "), tom: pr < 30 ? "late" : "", abrir: {aba: "progresso"}, dados: {progresso: pr}};
+        }).sort(function(x, y){ return x.dados.progresso - y.dados.progresso; });
+        var K = rm.kpis;
+        return {titulo: "Implantação do Portal: empresas ainda não concluídas", total: lsF.length, linhas: lsF, resumo: {
+          comoContar: "Mesmos números da tela Relatórios do Portal. Empresas = empresas ativas com pelo menos um setor com demanda; frente = empresa × setor (Pessoal, Contábil, Fiscal). Etapas: habilitação conta uma vez por empresa; as demais, por frente. Contatos contados por pessoa (e-mail).",
+          empresas: {total: K.empresas, concluidas: K.empresasCompletas, emImplantacao: emImpl.length},
+          frentes: {total: K.frentes, concluidas: rm.frentesBreak.concluido, emAndamento: rm.frentesBreak.andamento, naoIniciadas: rm.frentesBreak.pendente},
+          progressoGeral: Math.round(K.progGeral * 100) + "%",
+          etapas: rm.etapas.map(function(o){ return {etapa: o.label, aplicaveis: o.aplic, concluidas: o.concluido, emAndamento: o.andamento, agendadas: o.agendado, pendentes: o.pendente}; }),
+          contatosClientes: {pessoas: K.contatos, treinadas: K.contTreinados},
+          analistasTreinados: {total: K.funcs, treinados: K.funcTreinados},
+          ritmo: {empresasConcluidasUltimos30dias: c30, empresasConcluidasUltimos90dias: c90, mediaPorSemana90dias: ritmoSem,
+            etapasConcluidasUltimos30dias: etapasHist, empresasConcluidasSemData: semDataEmp,
+            previsaoSemanasNoRitmoAtual: ritmoSem ? Math.ceil(emImpl.length / ritmoSem) : null,
+            observacao: "Ritmo calculado pela data da última etapa concluída de cada empresa. Empresas concluídas sem data registrada não entram no ritmo."},
+          impedimentos: K.impedimentos
+        }};
       }
       if(tipo === "semTreinamento"){
         var semT = state.contatos.filter(function(c){ return !c.exemplo && c.statusTreinamento !== "concluido" && daAna(c.empresaId, c.setores); });
