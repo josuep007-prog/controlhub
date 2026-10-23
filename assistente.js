@@ -1095,8 +1095,9 @@
     ].concat(FERRAMENTAS_EXTRA.map(function (fn) { return fn(cartoes); }));
   }
   var FERRAMENTAS_EXTRA = [];
-  var conversa = lerConversa(), iaAviso = "", iaFalha = "", bolhaAtual = null;
-  function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && Date.now() - c.t < 3 * 864e5 && Array.isArray(c.c) ? c.c : []; }
+  var conversa = lerConversa(), conversaDia = conversa.length ? Date.now() : 0, iaAviso = "", iaFalha = "", bolhaAtual = null;
+  // A conversa enviada à IA vale só para o dia: respostas de ontem falam em "hoje" e confundem a data.
+  function lerConversa() { var c = lerLS("tx-conv-v1", null); return c && c.t && ymd(new Date(c.t)) === ymd(new Date()) && Array.isArray(c.c) ? c.c : []; }
   function guardarConversa() { gravarLS("tx-conv-v1", {t: Date.now(), c: conversa.slice(-12)}); }
   // Última linha "» a | b | c" = próximas perguntas sugeridas pela IA (viram botões).
   function separarSeguintes(txt) {
@@ -1109,7 +1110,7 @@
     return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio e agenda de treinamentos dos clientes e dos analistas) e Cardápio (refeitório).\n" +
       "Anexos (foto, PDF, planilha ou texto que a pessoa colou ou mandou): 1) diga em uma ou duas linhas o que identificou (tipo de documento e os dados principais); 2) registre no módulo certo usando SÓ as ferramentas de preparação, que mostram um cartão para a pessoa confirmar: cardápio (semana ou mês) → preparar_cardapio_lote; documento ou comprovante de uma empresa → preparar_acao tipo observacao com um resumo curto; documento que o cliente mandou → preparar_acao tipo pendencia com modo recebida; ausência/férias → preparar_acao tipo ausencia; qualquer outra coisa → resuma e pergunte onde registrar. 3) NUNCA invente dado que não esteja legível no anexo: o que estiver ilegível ou ambíguo, pergunte; não preencha campos em branco por suposição. 4) Para datas sem ano, use o ano e o mês de hoje (ou o seguinte, se o documento indicar). Os arquivos não ficam guardados: só o que for registrado pelos cartões.\n" +
       "Treinamentos: pergunta sobre treinamentos (de hoje, da semana, atrasados) é do módulo portal, nunca do dp. Use consultar com modulo=portal: tipo vencimentos = treinamentos agendados no período (contatos de clientes e analistas); atrasos = treinamentos atrasados e impedimentos; semTreinamento = contatos ainda sem treinamento. Só use o dp para treinamentos se a pessoa disser DP/pessoal. Se a pessoa citar um módulo pelo nome (“no portal do cliente”, “no fiscal”), consulte exatamente esse módulo.\n" +
-      "Hoje é " + ymd(hoje()) + " (" + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "), " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
+      "Hoje é " + pad2(hoje().getDate()) + "/" + pad2(hoje().getMonth() + 1) + "/" + hoje().getFullYear() + " (" + ymd(hoje()) + ", " + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "); a data atual vale mais que qualquer data citada em mensagens anteriores da conversa. Use só números que vieram das ferramentas nesta resposta; se a ferramenta trouxer um resumo pronto (como o funil do portal), use os totais dele em vez de recalcular. " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
       "Quando a pergunta for genérica (\"como estamos?\", \"o que tenho pra hoje?\"), responda priorizando os módulos em que esta pessoa é coordenadora ou analista, e cite os demais só se pedirem. " + "Módulos que esta pessoa pode usar: " + H.modulos().map(function (k) { return MODN[k]; }).join(", ") + (AUTH() ? ". Ela não tem acesso aos outros: se pedirem algo deles, diga que o acesso não foi liberado e sugira falar com o administrador. " : ". ") + (AUTH() && AUTH().usuario() && !AUTH().ehAdmin() ? "Os níveis são Coordenador (edita tudo no módulo), Analista (edita só a própria carteira) e Consulta (só vê): se uma ação for recusada por permissão, explique isso com simpatia.\n" : "\n") +
       "Regras: responda em português do Brasil, curto e simpático (no máximo 4 frases ou uma lista curta), a não ser que peçam mais detalhes ou outro formato (tabela em markdown, tópicos, só o número). Use as ferramentas para qualquer dado; nunca invente empresas, datas ou números. " +
       "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
@@ -1162,7 +1163,10 @@
     while (conversa.length && conversa[0].role !== "user") conversa.shift();
     var ferr = prepararFerramentas(ferramentasIA(extras));
     var regras = regrasIA() + (ferr.guia ? "\n\nGuia detalhado das ferramentas (a lista de ferramentas traz só o resumo):\n" + ferr.guia : "");
-    var turnos = conversa.map(function (m, i) { return {role: m.role, content: i === 0 ? regras + "\n\n" + m.content : m.content}; });
+    if (conversa.length > 1 && ymd(new Date(conversaDia || Date.now())) !== ymd(new Date())) { conversa = conversa.slice(-1); }
+    conversaDia = Date.now();
+    var agora = new Date(), carimbo = "\n\n(Agora: " + agora.toLocaleDateString("pt-BR", {weekday: "long"}) + ", " + pad2(agora.getDate()) + "/" + pad2(agora.getMonth() + 1) + "/" + agora.getFullYear() + ", " + pad2(agora.getHours()) + "h" + pad2(agora.getMinutes()) + ".)";
+    var turnos = conversa.map(function (m, i) { var c = i === 0 ? regras + "\n\n" + m.content : m.content; return {role: m.role, content: i === conversa.length - 1 && m.role === "user" ? c + carimbo : c}; });
     var opts = {tools: ferr.tools, modelTier: "quick", cache: false, onText: function (u) { if (!tmp) return; var n = tmp.querySelector(".tx-ia"); if (!n) { tmp.innerHTML = '<div class="tx-t1 tx-ia"></div>'; n = tmp.firstChild; } n.innerHTML = mdHtml(String(u.text || "").replace(/\n?[ \t]*»[^\n]*$/, "")); rolar(); }};
     if (imgs) opts.images = imgs;
     contarUso(); atualizarSub();

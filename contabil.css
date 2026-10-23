@@ -375,7 +375,7 @@ body.modo-cfg #cfgCard .pn-card-head{display:none}
 body.modo-cfg #cfgCard .pn-card-body{padding:0}
 
 /* Fundo dos módulos: as cores da tela de login (manchas suaves e lentas). Muda só o fundo atrás dos blocos. */
-:root{--fd1:#B9D8F3;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.40)}
+:root{--fd1:#E4F0FB;--fd2:#F4B9BF;--fd3:rgba(107,178,225,.12)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}}
 :root[data-theme="dark"]{--fd1:#1B2B38;--fd2:#2C1416;--fd3:color-mix(in srgb,#4F8CB8 22%,transparent)}
 html{background:var(--page)}
