@@ -518,6 +518,7 @@
   const CONFIG_TOOL = { id:'configuracoes', name:'Configurações', url:'', icon:'', category:'Atalhos', color:'#5F6D77', description:'Configurações de cada sistema (DP, Contábil, Fiscal, Portal e Cardápio) e do assistente, num lugar só.', tags:['configurações','ajustes','preferências','assistente','tema'], moduleKey:'config', virtual:true, favorite:false, newTab:false, order:9997, uses:0 };
   const EXTRA_TOOLS = [
     { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
+    { id:'entrada-dados', name:'Entrada de dados', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'O que chega das extensões do navegador (Onvio e outras), para revisar antes de usar.', tags:['extensão','onvio','dados','importar'], moduleKey:'fontes', virtual:true, favorite:false, newTab:false, order:9995, uses:0 },
   ];
   // "Onvio" é fixo do Hub: abre o Onvio numa nova aba e fica ao lado esquerdo do Zappy.
   const ONVIO_URL = 'https://onvio.com.br/staff/#/dashboard-core-center';
@@ -616,6 +617,7 @@
     if (t.virtual && t.moduleKey === 'usuarios') return ic('user');
     if (t.virtual && t.moduleKey === 'config') return ic('gear');
     if (t.virtual && t.moduleKey === 'coord') return ic('grid');
+    if (t.virtual && t.moduleKey === 'fontes') return ic('download');
     if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
@@ -918,7 +920,7 @@
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' } };
   // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
   function preloadFrame(key) {
     let f = $(`#${key}-frame`);
@@ -5608,7 +5610,7 @@
     });
   }
   // ---------- registro de alterações: quem gravou o quê (um documento por dia em hub_log, 30 dias) ----------
-  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|dp_config\/(uso_banco|importacoes)$)/;
+  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|ing_|dp_config\/(uso_banco|importacoes)$)/;
   const LOG_DP = { equipe: 'a equipe de analistas', prazos_gerais: 'os prazos gerais', cobertura: 'ausências e cobertura', sindicatos: 'os sindicatos', ccts: 'as convenções', tipos_processo: 'os tipos de processo' };
   const LOG_CAMPOS = { responsavel: 'responsável', historico: 'histórico', funcionarios: 'funcionários', lembretes: 'lembretes', prazos: 'prazos', estabelecimentos: 'estabelecimentos', situacao: 'situação', reserva: 'reserva' };
   let logFila = Promise.resolve(), logRecentes = {}, logPodou = false, logRaw = null;
@@ -5806,6 +5808,55 @@
   }
   ligarErros(window, '');
   const notifBuf = [];
+  // ---------- entrada de dados: extensões do navegador ----------
+  // Só esta página tem o banco do Hub. A extensão (via um script no claude.ai) entrega aqui um lote por postMessage;
+  // a página confere o código de pareamento, valida o formato e grava em ing_lotes/<fonte>~<tipo> (um documento por fonte,
+  // sempre o mais recente). Cada módulo lê de lá. O Hub avisa "ola" a cada 5 s para a ponte saber que há quem receba.
+  const ING_FONTES = { onvio: ['solicitacoes'] };
+  const ING_MAX = 150000;
+  const ing = { cfg: null, criando: false };
+  const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
+  function ingToken() { const a = new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24).toUpperCase(); }
+  function ingValidar(d) {
+    if (!d || typeof d !== 'object') return 'formato';
+    if (!/^[A-Za-z0-9_-]{1,60}$/.test(String(d.id || ''))) return 'sem-id';
+    if (!ING_FONTES[d.fonte] || ING_FONTES[d.fonte].indexOf(d.tipoDado) === -1) return 'fonte-desconhecida';
+    if (!Array.isArray(d.colunas) || d.colunas.length < 1 || d.colunas.length > 30) return 'colunas';
+    if (typeof d.tabela !== 'string' || d.tabela.length > ING_MAX) return 'tamanho';
+    return '';
+  }
+  function ingCorpo(d, por) {
+    const pt = {}; Object.keys(d.porTipo && typeof d.porTipo === 'object' ? d.porTipo : {}).slice(0, 30).forEach(k => { pt[ingStr(k, 60)] = Number(d.porTipo[k]) || 0; });
+    return { fonte: d.fonte, tipoDado: d.tipoDado, titulo: ingStr(d.titulo, 100), usuario: ingStr(d.usuario, 80), extraidoEm: ingStr(d.extraidoEm, 40), recebidoEm: Date.now(), por: por || '',
+      colunas: d.colunas.map(c => ingStr(c, 60)), tabela: d.tabela, nLinhas: Number(d.nLinhas) || 0, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: !!d.cortado, porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) };
+  }
+  async function ingReceber(e) {
+    const d = e.data;
+    if (!d || d.ctlhub !== 1 || d.de !== 'ext' || d.tipo !== 'lote') return;
+    if (e.source !== window.top && e.source !== window.parent) return;
+    const ack = (ok, motivo, extra) => { try { e.source.postMessage(Object.assign({ ctlhub: 1, de: 'hub', tipo: 'ack', id: ingStr(d.id, 60), ok, motivo: motivo || '' }, extra || {}), '*'); } catch {} };
+    if (!ing.cfg) return ack(false, 'sem-config');
+    if (state.readOnly) return ack(false, 'somente-leitura');
+    if (!d.token || d.token !== ing.cfg.token) return ack(false, 'token');
+    const erro = ingValidar(d); if (erro) return ack(false, erro);
+    try { await db.doc(`ing_lotes/${d.fonte}~${d.tipoDado}`).set(ingCorpo(d, state.meId)); ack(true, '', { aceitos: Number(d.nLinhas) || 0 }); }
+    catch (err) { ack(false, 'gravacao', { mensagem: 'O Hub não conseguiu gravar: ' + ingStr(err && err.message, 120) }); }
+  }
+  function ingIniciar() {
+    db.doc('ing_config/cfg').onSnapshot((s) => {
+      ing.cfg = s.exists ? s.data() : null;
+      if (!s.exists && !state.readOnly && !ing.criando) {
+        ing.criando = true;
+        db.doc('ing_config/cfg').set({ token: ingToken(), criadoEm: Date.now() }).catch(() => { ing.criando = false; });
+      }
+    }, () => {});
+    const avisar = () => { if (document.hidden) return; try { window.top.postMessage({ ctlhub: 1, de: 'hub', tipo: 'ola' }, '*'); if (window.parent !== window.top) window.parent.postMessage({ ctlhub: 1, de: 'hub', tipo: 'ola' }, '*'); } catch {} };
+    avisar(); setInterval(avisar, 5000);
+    document.addEventListener('visibilitychange', avisar);
+    window.addEventListener('message', (e) => { const d = e.data; if (d && d.ctlhub === 1 && d.de === 'ponte' && d.tipo === 'busca') avisar(); });
+    window.addEventListener('message', ingReceber);
+  }
+
   async function startShared() {
     render();
     const [dbNs, dl, user] = await Promise.all([window.claude.use('db'), window.claude.use('downloads'), window.claude.use('user')]);
@@ -5825,6 +5876,7 @@
     state.dpNivel = nivelMod('dp');
     if (state.dpNivel === 'consulta' || state.dpNivel === null) state.readOnly = true;
     if (state.dpNivel === 'analista' && !state.dpCarteira) state.dpCarteira = AUTH().analista('dp') || '';
+    ingIniciar();
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {
@@ -6322,7 +6374,7 @@
   // Assistente (Tax): carrega com nova tentativa e, se mesmo assim não aparecer, mostra um botão para tentar de novo (com o motivo).
   let erroAssistente = '';
   window.addEventListener('error', (e) => { if (e && /assistente\.js/.test(e.filename || '')) erroAssistente = (e.message || 'erro') + (e.lineno ? ' (linha ' + e.lineno + ')' : ''); });
-  const carregarAssistente = (n = 0) => carregarScriptExt(n ? 'assistente.js?v=38&t=' + n : 'assistente.js?v=35', 'Não foi possível carregar o assistente. Verifique a conexão.').catch((err) => { erroAssistente = err && err.message || erroAssistente; if (n < 2) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => carregarAssistente(n + 1)); throw err; });
+  const carregarAssistente = (n = 0) => carregarScriptExt(n ? 'assistente.js?v=39&t=' + n : 'assistente.js?v=39', 'Não foi possível carregar o assistente. Verifique a conexão.').catch((err) => { erroAssistente = err && err.message || erroAssistente; if (n < 2) return new Promise(r => setTimeout(r, 1500 * (n + 1))).then(() => carregarAssistente(n + 1)); throw err; });
   const botaoReserva = () => {
     if (document.getElementById('tx-mascote') || document.getElementById('tx-reserva')) return;
     const b = document.createElement('button'); b.type = 'button'; b.id = 'tx-reserva'; b.textContent = '💬 Assistente'; b.title = 'O assistente não apareceu' + (erroAssistente ? ' (' + erroAssistente + ')' : '') + '. Clique para tentar de novo.';
