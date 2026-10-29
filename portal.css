@@ -1165,8 +1165,6 @@
   .imp-agu.tem{color:var(--ink); font-weight:600; border-color:var(--blue-deep);}
   .imp-emp-agu{font-size:12px; padding:5px 8px;}
   .imp-idade{flex:none; font-size:11.5px; color:var(--ink-3); white-space:nowrap; padding-top:2px; font-variant-numeric:tabular-nums;}
-  .imp-idade.velho{color:var(--brand-red); font-weight:600;}
-  .imp-idade.sem{font-style:italic;}
   .imp-resolver-form{display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; margin-top:8px;}
   .imp-resolver-nota{flex:1 1 240px; min-width:0;}
   .imp-resolvidos{margin-top:18px;}
@@ -1313,3 +1311,45 @@ html::before{background:radial-gradient(closest-side,var(--fd3),transparent);lef
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
 :root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
 .panel,.sblock,.fcard,.kpi,.fer-empresa,.cfm,.agd,.eedit{box-shadow:var(--sh-bloco)}
+
+
+/* Foco: botão para retirar um contato do cadastro (fica discreto até o mouse passar sobre a linha). */
+.ftc-retirar{all:unset;box-sizing:border-box;cursor:pointer;flex:none;width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-size:14px;line-height:1;color:var(--ink-3);opacity:.45;transition:opacity .15s,color .15s,background .15s}
+.ftc-item:hover .ftc-retirar,.ftc-retirar:focus-visible{opacity:1}
+.ftc-retirar:hover{color:var(--brand-red);background:var(--brand-red-soft,#FBEAEA)}
+.ftc-retirar:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:2px}
+
+/* Consulta: favoritar empresa (coração discreto ao lado do nome; fica cheio quando favoritada). */
+.favcoracao{all:unset;box-sizing:border-box;cursor:pointer;flex:none;font-size:15px;line-height:1;padding:0 4px 0 0;color:var(--ink-3);opacity:.5;transition:opacity .15s,color .15s,transform .15s}
+.erow:hover .favcoracao,.favcoracao.on,.favcoracao:focus-visible{opacity:1}
+.favcoracao.on{color:var(--brand-red)}
+.favcoracao:hover{color:var(--brand-red);transform:scale(1.12)}
+.favcoracao:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:2px;border-radius:4px}
+
+/* Impedimentos: motivo (dificuldade de contato x recusa explícita) */
+.imp-motivos{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px;}
+.imp-motivos .toggle-chip b{font-variant-numeric:tabular-nums; margin-left:2px;}
+.imp-mot{flex:none; font-size:11.5px; padding:3px 6px; color:var(--ink-3); max-width:170px;}
+.imp-mot.tem{color:var(--ink); font-weight:600;}
+.imp-mot.contato{border-color:var(--blue-deep);}
+.imp-mot.recusa{border-color:var(--brand-red); color:var(--brand-red);}
+
+/* Como o usuário será treinado: duas opções numa pílula; a escolhida acende com a cor do Hub */
+.mod-seg{display:inline-flex; gap:2px; margin:4px 0 2px 8px; padding:2px; vertical-align:middle; border-radius:999px; background:var(--surface-3,var(--track)); border:1px solid var(--rule-strong); box-shadow:inset 0 1px 2px rgba(0,0,0,.12);}
+.mod-op{display:inline-flex; align-items:center; gap:5px; font:inherit; font-size:11.5px; font-weight:600; line-height:1.4; padding:3px 11px 3px 9px; border:0; border-radius:999px; background:transparent; color:var(--ink-2); cursor:pointer; white-space:nowrap; transition:background .18s, color .18s, box-shadow .18s, transform .12s;}
+.mod-op svg{width:13px; height:13px; flex:none; opacity:.85;}
+.mod-op:hover{color:var(--ink); background:color-mix(in srgb,var(--ink) 8%,transparent);}
+.mod-op:active{transform:scale(.97);}
+.mod-op:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
+.mod-op.on{color:#fff; text-shadow:0 1px 1px rgba(0,0,0,.25);}
+.mod-op.on svg{opacity:1;}
+.mod-op.manual.on{background:linear-gradient(135deg,var(--brand-red),color-mix(in srgb,var(--brand-red) 62%,#5a0d10)); box-shadow:0 2px 8px -2px color-mix(in srgb,var(--brand-red) 70%,transparent);}
+.mod-op.chamada.on{background:linear-gradient(135deg,#3C93C9,#1F6091); box-shadow:0 2px 8px -2px rgba(60,147,201,.65);}
+.mod-seg.vazio{border-style:dashed; background:transparent; box-shadow:none;}
+.mod-seg .mod-op span, .ftc-who .mod-seg .mod-op span, .pmain .mod-seg .mod-op span{color:inherit; font:inherit; font-size:inherit; display:inline; margin:0; max-width:none;}
+
+/* Contato com o seletor "Só manual / Chamada": o seletor fica na própria linha, abaixo do nome, e a coluna do nome
+   nunca fica mais estreita que ele; sem espaço ao lado, os campos de cadastro e treino descem para a linha de baixo. */
+.prow .pmain:has(.mod-seg){flex:1 1 230px; min-width:min(100%, 220px);}
+.pmain .mod-seg{display:flex; width:fit-content; max-width:100%; margin:6px 0 4px;}
+.pmain .mod-seg ~ .tagwrap{margin-left:0;}

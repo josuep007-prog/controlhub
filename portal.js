@@ -1,3 +1,5 @@
+/* Cadastro único do Hub: empresa criada neste módulo também entra (ou é ligada) no cadastro único. Só avisa o Hub; nunca altera a empresa daqui. */
+function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== window && P.__cadastro; var d = String(cnpj || "").toUpperCase().replace(/[^0-9A-Z]/g, ""); if(C && C.registrar && d.length === 14) C.registrar({cnpj:cnpj, nome:nome, modulo:"portal", id:id}); }catch(x){} }
 (function(){
   "use strict";
   var $ = function(s,r){ return (r||document).querySelector(s); };
@@ -293,7 +295,17 @@
   // A filial (empresas.matrizId) não tem frentes, contatos nem etapas próprias: tudo fica na matriz e o
   // grupo conta como uma empresa. O banco chega inteiro em "bruto"; as telas usam state.* já sem as filiais.
   var bruto = {empresas:null, setores:null, contatos:null};
-  var grupos = {filiaisDe:{}, matrizDe:{}, porId:{}}, arquivadas = [];
+  var grupos = {filiaisDe:{}, matrizDe:{}, porId:{}}, arquivadas = [], semUso = [];
+  // Favoritos: uma lista por navegador (cada pessoa favorita o que usa). Não vai para o banco.
+  var FAV_KEY = "portal-favoritas-v1";
+  var favoritas = (function(){ try{ var v = JSON.parse(localStorage.getItem(FAV_KEY)); return Array.isArray(v) ? v : []; }catch(e){ return []; } })();
+  function gravaFavoritas(){ try{ localStorage.setItem(FAV_KEY, JSON.stringify(favoritas)); }catch(e){} }
+  function ehFavorita(id){ return favoritas.indexOf(id) >= 0; }
+  function alternaFavorita(id){
+    var i = favoritas.indexOf(id);
+    if(i >= 0) favoritas.splice(i, 1); else favoritas.push(id);
+    gravaFavoritas(); renderAll();
+  }
   function definirDados(key, lista){
     if(!(key in bruto)){ state[key] = lista; return; }
     bruto[key] = lista;
@@ -310,6 +322,8 @@
     grupos = {filiaisDe:filiaisDe, matrizDe:matrizDe, porId:porId};
     // Empresas arquivadas só saem da lista de Consulta (Empresas); nas demais abas continuam normalmente.
     arquivadas = emps.filter(function(e){ return e.arquivada && !matrizDe[e.id]; });
+    // Empresas sem necessidade de uso do portal do cliente: mesma regra, saem só da lista de Consulta.
+    semUso = emps.filter(function(e){ return e.semUsoPortal && !matrizDe[e.id]; });
     state.empresas = emps.filter(function(e){ return !matrizDe[e.id]; });
     if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId]; });
     if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId]; });
@@ -496,7 +510,7 @@
     selFunc:new Set(), ultimaListaFunc:[], selPessoas:new Set(), ultimaListaPessoas:[],
     busca:"", filtroSetor:"todos", filtroAnalista:null, soPendentes:false, soImpedimento:false, soSemAnalista:false, soSemContato:false, soConcluidas:false,
     treinoBusca:"", treinoStatus:"todos", treinoSoImpedimento:false,
-    impBusca:"", impTipo:"empresa", impResolvendo:null, confTudo:false, confAbertas:{}, tagMenuAberto:null, focoContatoForm:null, carteiraAddAberto:null,
+    impBusca:"", impMotivo:"todos", impTipo:"empresa", impResolvendo:null, confTudo:false, confAbertas:{}, tagMenuAberto:null, focoContatoForm:null, carteiraAddAberto:null,
     pessoasBusca:"", pessoasFiltroSetor:"todos", pessoasFiltroEmpresa:"", expandedPessoas:new Set(), pessoaVincularForm:null,
     focoModo:"empresa", focoOrdem:"recentes", focoBusca:"", focoEtapaFiltrosAbertos:false, focoEtapaSel:"habilitacaoDominio", focoEtapaStatus:"todos",
     focoEtapaSetor:"todos", focoEtapaAnalista:"", focoEtapaOrdem:"empresa", focoEtapaAtrasados:false,
@@ -839,16 +853,16 @@
 
     var bloqueios = [];
     ativas.forEach(function(e){
-      if(e.impedimento && e.impedimento.ativo) bloqueios.push({escopo:"Empresa", nome:e.nome, desc:e.impedimento.descricao, desde:e.impedimento.desde || "", aguardando:e.impedimento.aguardando || "", col:"empresas", docId:e.id, empresaId:e.id});
+      if(e.impedimento && e.impedimento.ativo) bloqueios.push({escopo:"Empresa", nome:e.nome, desc:e.impedimento.descricao, desde:e.impedimento.desde || "", aguardando:e.impedimento.aguardando || "", motivo:e.impedimento.motivo || "", col:"empresas", docId:e.id, empresaId:e.id});
     });
     state.setores.forEach(function(s){
       if(s.impedimento && s.impedimento.ativo){
         var e = state.empresas.find(function(x){ return x.id === s.empresaId; });
-        bloqueios.push({escopo:SETOR_LABEL[s.setor], nome:(e?e.nome:s.empresaNome) + " · " + SETOR_LABEL[s.setor], desc:s.impedimento.descricao, desde:s.impedimento.desde || "", aguardando:s.impedimento.aguardando || "", col:"empresaSetores", docId:s.id, empresaId:s.empresaId});
+        bloqueios.push({escopo:SETOR_LABEL[s.setor], nome:(e?e.nome:s.empresaNome) + " · " + SETOR_LABEL[s.setor], desc:s.impedimento.descricao, desde:s.impedimento.desde || "", aguardando:s.impedimento.aguardando || "", motivo:s.impedimento.motivo || "", col:"empresaSetores", docId:s.id, empresaId:s.empresaId});
       }
     });
     state.funcionarios.forEach(function(f){
-      if(f.impedimento && f.impedimento.ativo) bloqueios.push({escopo:"Equipe", nome:f.nome, desc:f.impedimento.descricao, desde:f.impedimento.desde || "", aguardando:f.impedimento.aguardando || "", col:"funcionarios", docId:f.id, funcNome:f.nome});
+      if(f.impedimento && f.impedimento.ativo) bloqueios.push({escopo:"Equipe", nome:f.nome, desc:f.impedimento.descricao, desde:f.impedimento.desde || "", aguardando:f.impedimento.aguardando || "", motivo:f.impedimento.motivo || "", col:"funcionarios", docId:f.id, funcNome:f.nome});
     });
     return {ativas:ativas, porEmpresa:porEmpresa, bloqueios:bloqueios};
   }
@@ -1001,7 +1015,6 @@
     data = data.charAt(0).toUpperCase() + data.slice(1);
     var nHoje = A.doDia(A.hoje).length, nAtr = A.atr.length, nSem = A.sem.length;
     var m = model(), nImp = m.bloqueios.length, nFoco = listaFoco().length;
-    var nImpVelho = m.bloqueios.filter(function(b){ var d = b.desde ? diasDesde(b.desde) : null; return d !== null && d >= 30; }).length;
     var partes = [];
     if(nAtr) partes.push(nAtr + " treinamento" + (nAtr === 1 ? "" : "s") + " atrasado" + (nAtr === 1 ? "" : "s"));
     var comp = function(n){ return n + " compromisso" + (n === 1 ? "" : "s"); };
@@ -1021,7 +1034,7 @@
         bloco(nAtr, "Atrasados", "vermelho", 'data-action="hoje-dia" data-dia="atrasados"', "Ver os treinamentos atrasados") +
         bloco(nHoje, "Para hoje", "azul", 'data-action="hoje-dia" data-dia="' + A.hoje + '"', "Ver os treinamentos de hoje") +
         bloco(nFoco, "Em foco", "escuro", 'data-action="ir-foco"', "Abrir a aba Foco") +
-        bloco(nImp, "Impedimentos" + (nImpVelho ? " · " + nImpVelho + " há +30 dias" : ""), "alerta", 'data-action="ir-impedimentos"', "Abrir a aba Impedimentos") +
+        bloco(nImp, "Impedimentos", "alerta", 'data-action="ir-impedimentos"', "Abrir a aba Impedimentos") +
       '</div>');
   }
 
@@ -1660,7 +1673,8 @@
     }
     Object.assign(achadasPorPessoa, matrizesPorBuscaFilial(qn, qd));
     var lista = state.empresas.filter(function(e){
-      if(e.arquivada) return false;
+      if(e.arquivada || e.semUsoPortal) return false;
+      if(ui.verFav && !ehFavorita(e.id)) return false;
       if(qn && normBusca(e.nome).indexOf(qn) === -1 && !(qd.length >= 3 && String(e.cnpj || "").replace(/\D/g, "").indexOf(qd) !== -1) && !achadasPorPessoa[e.id]) return false;
       if(ui.filtroSetor !== "todos" && !(e.setoresDemanda && e.setoresDemanda[ui.filtroSetor])) return false;
       var docs = porEmpresa[e.id] || [];
@@ -1683,7 +1697,7 @@
     var sig = [ui.busca, ui.filtroSetor, ui.filtroAnalista, ui.soPendentes, ui.soImpedimento, ui.soSemAnalista, ui.soSemContato, ui.soConcluidas, ui.consOrdem].join("|");
     if(sig !== ui.consSig){ ui.consSig = sig; ui.consLimite = 50; }
 
-    $("#progressoCount").textContent = lista.length+" de "+state.empresas.filter(function(e){ return !e.arquivada; }).length;
+    $("#progressoCount").textContent = lista.length+" de "+state.empresas.filter(function(e){ return !e.arquivada && !e.semUsoPortal; }).length;
     ui.ultimaLista = lista.map(function(e){ return e.id; });
     salvarUI();
     renderBulkBar();
@@ -1775,12 +1789,20 @@
   function ensureArqUI(){
     if(!$("#arq-css")){
       var st = document.createElement("style"); st.id = "arq-css";
-      st.textContent = ".arq-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.arq-intro{color:var(--ink-3,#5F6D77);margin:6px 0 2px}.arq-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--rule,#DCE3E9);border-radius:12px;background:var(--surface,#fff)}.arq-lin b{display:block}.arq-lin small{color:var(--ink-3,#5F6D77)}.arq-vazio{padding:22px 6px;color:var(--ink-3,#5F6D77)}#btnArquivadas .arq-n{font-variant-numeric:tabular-nums}";
+      st.textContent = ".arq-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.arq-intro{color:var(--ink-3,#5F6D77);margin:6px 0 2px}.arq-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--rule,#DCE3E9);border-radius:12px;background:var(--surface,#fff)}.arq-lin b{display:block}.arq-lin small{color:var(--ink-3,#5F6D77)}.arq-vazio{padding:22px 6px;color:var(--ink-3,#5F6D77)}#btnArquivadas .arq-n,#btnSemUso .arq-n{font-variant-numeric:tabular-nums}.arq-just{flex:1 1 100%;display:flex;flex-direction:column;gap:5px}.arq-just label{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:600;color:var(--ink-3,#5F6D77)}.arq-just textarea{width:100%;min-height:54px;resize:vertical;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--rule,#DCE3E9);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#101820)}.arq-just textarea:focus{outline:2px solid var(--blue-deep,#3C659B);outline-offset:1px}";
       document.head.appendChild(st);
     }
     if(!$("#btnArquivadas")){
       var ref = $("#btnSoConcluidas");
       if(ref){ var b = document.createElement("button"); b.type = "button"; b.className = "toggle-chip"; b.id = "btnArquivadas"; b.setAttribute("data-action", "ver-arquivadas"); b.title = "Empresas arquivadas: saem só da lista de Consulta"; ref.parentNode.insertBefore(b, ref.nextSibling); }
+    }
+    if(!$("#btnFav")){
+      var refF = $("#btnSemUso") || $("#btnArquivadas");
+      if(refF){ var bf = document.createElement("button"); bf.type = "button"; bf.className = "toggle-chip"; bf.id = "btnFav"; bf.setAttribute("data-action", "ver-favoritas"); bf.title = "Empresas favoritas deste navegador"; refF.parentNode.insertBefore(bf, refF.nextSibling); }
+    }
+    if(!$("#btnSemUso")){
+      var refA = $("#btnArquivadas");
+      if(refA){ var b2 = document.createElement("button"); b2.type = "button"; b2.className = "toggle-chip"; b2.id = "btnSemUso"; b2.setAttribute("data-action", "ver-sem-uso"); b2.title = "Empresas sem necessidade de uso do portal do cliente: saem só da lista de Consulta"; refA.parentNode.insertBefore(b2, refA.nextSibling); }
     }
     if(!$("#empresasArq")){
       var lst = $("#empresasList");
@@ -1790,22 +1812,42 @@
       var ac = $("#bulkBar .bulk-acoes");
       if(ac){ var bb = document.createElement("button"); bb.type = "button"; bb.className = "fbtn"; bb.id = "bulkArquivar"; bb.setAttribute("data-action", "bulk-arquivar"); bb.textContent = "Arquivar selecionadas"; ac.appendChild(bb); }
     }
+    if(!$("#bulkSemUso")){
+      var ac2 = $("#bulkBar .bulk-acoes");
+      if(ac2){ var b3 = document.createElement("button"); b3.type = "button"; b3.className = "fbtn"; b3.id = "bulkSemUso"; b3.setAttribute("data-action", "bulk-sem-uso"); b3.textContent = "Sem necessidade de uso"; ac2.appendChild(b3); }
+    }
+    var bfv = $("#btnFav");
+    if(bfv){ var nFav = favoritas.filter(function(id){ return state.empresas.some(function(e){ return e.id === id; }); }).length; bfv.innerHTML = 'Favoritas <span class="arq-n">(' + nFav + ')</span>'; bfv.classList.toggle("on", !!ui.verFav); bfv.hidden = !nFav && !ui.verFav; }
+    var bsu = $("#btnSemUso");
+    if(bsu){ bsu.innerHTML = 'Sem necessidade de uso <span class="arq-n">(' + semUso.length + ')</span>'; bsu.classList.toggle("on", !!ui.verSemUso); bsu.hidden = !semUso.length && !ui.verSemUso; }
     var bt = $("#btnArquivadas");
     if(bt){ bt.innerHTML = 'Arquivadas <span class="arq-n">(' + arquivadas.length + ')</span>'; bt.classList.toggle("on", !!ui.verArquivadas); bt.hidden = !arquivadas.length && !ui.verArquivadas; }
   }
   function aplicarVistaArq(cont){
     var box = $("#empresasArq"); if(!box) return;
-    var ver = !!ui.verArquivadas;
+    // Favoritas é só um filtro da própria lista de Consulta: a lista segue normal (abrir, cadastro, edição, etc.).
+    if(ui.verFav){ box.hidden = true; return; }
+    var vFav = false, vSem = !!ui.verSemUso, ver = !!ui.verArquivadas || vSem;
     box.hidden = !ver;
     if(!ver) return;
     cont.hidden = true; var th = $("#empresasGwrap .thead"); if(th) th.hidden = true;
     var eb = $("#consEtapaBar"); if(eb) eb.hidden = true;
-    var lista = arquivadas.slice().sort(function(a, b){ return COLLATOR(String(a.nome || ""), String(b.nome || "")); });
-    box.innerHTML = '<p class="arq-intro">Empresas arquivadas saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>' +
+    var fonte = vFav ? state.empresas.filter(function(e){ return ehFavorita(e.id) && !e.arquivada && !e.semUsoPortal; }) : vSem ? semUso : arquivadas, lista = fonte.slice().sort(function(a, b){ return COLLATOR(String(a.nome || ""), String(b.nome || "")); });
+    var campoEm = vSem ? "semUsoPortalEm" : "arquivadaEm", rot = vSem ? "sem necessidade de uso do portal" : "arquivada", acao = vSem ? "restaurar-sem-uso" : "restaurar-empresa", btn = vSem ? "Voltar ao uso" : "Restaurar";
+    if(vFav){
+      box.innerHTML = '<p class="arq-intro">Favoritas guardadas neste navegador. Continuam aparecendo na lista de Consulta.</p>' +
+        (lista.length ? '<div class="arq-lista">' + lista.map(function(e){
+          return '<div class="arq-lin"><div><b>' + esc(e.nome) + '</b><small>' + (e.cnpj ? 'CNPJ ' + esc(e.cnpj) : '') + '</small></div><button type="button" class="fbtn" data-action="toggle-fav-emp" data-id="' + e.id + '">Tirar dos favoritos</button></div>';
+        }).join("") + '</div>' : '<div class="arq-vazio">Nenhuma empresa favorita. Clique no marcador ao lado do nome de uma empresa para favoritar.</div>');
+      return;
+    }
+    box.innerHTML = (vSem ? '<p class="arq-intro">Empresas sem necessidade de uso do portal do cliente saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>'
+      : '<p class="arq-intro">Empresas arquivadas saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>') +
       (lista.length ? '<div class="arq-lista">' + lista.map(function(e){
-        var quando = e.arquivadaEm ? diaBR(String(e.arquivadaEm).slice(0, 10)) : "";
-        return '<div class="arq-lin"><div><b>' + esc(e.nome) + '</b><small>' + (e.cnpj ? 'CNPJ ' + esc(e.cnpj) + ' · ' : '') + 'arquivada' + (quando ? ' em ' + quando : '') + '</small></div><button type="button" class="fbtn" data-action="restaurar-empresa" data-id="' + e.id + '">Restaurar</button></div>';
-      }).join("") + '</div>' : '<div class="arq-vazio">Nenhuma empresa arquivada.</div>');
+        var quando = e[campoEm] ? diaBR(String(e[campoEm]).slice(0, 10)) : "";
+        return '<div class="arq-lin"><div><b>' + esc(e.nome) + '</b><small>' + (e.cnpj ? 'CNPJ ' + esc(e.cnpj) + ' · ' : '') + rot + (quando ? ' em ' + quando : '') + '</small></div><button type="button" class="fbtn" data-action="' + acao + '" data-id="' + e.id + '">' + btn + '</button>' +
+          (vSem ? '<div class="arq-just"><label for="sju-' + e.id + '"><span>Justificativa</span><span class="fsave" id="fs-sju-' + e.id + '"></span></label><textarea id="sju-' + e.id + '" class="sju-texto" data-id="' + e.id + '" rows="2" maxlength="500" placeholder="Por que esta empresa não precisa usar o portal do cliente?">' + esc(valorRascunho("ju:" + e.id, e.semUsoPortalJust || "")) + '</textarea></div>' : '') + '</div>';
+      }).join("") + '</div>' : '<div class="arq-vazio">' + (vSem ? 'Nenhuma empresa sem necessidade de uso do portal.' : 'Nenhuma empresa arquivada.') + '</div>');
   }
   function gravarArquivo(ids, arquivar){
     var agora = new Date().toISOString();
@@ -1818,6 +1860,27 @@
       ui.selecionadas.delete(id); ui.expanded.delete(id);
     });
     aplicarGrupos(); renderAll();
+  }
+  function gravarSemUso(ids, marcar){
+    var agora = new Date().toISOString();
+    ids.forEach(function(id){
+      var e = todasEmpresas().find(function(x){ return x.id === id; }); if(!e) return;
+      var patch = marcar ? {semUsoPortal:true, semUsoPortalEm:agora, semUsoPortalPor:meuId || ""} : {semUsoPortal:false, semUsoPortalEm:"", semUsoPortalPor:""};
+      Object.assign(e, patch);
+      if(dbRef) dbRef.collection("empresas").doc(id).update(patch).catch(function(){ mostrarToast("Não foi possível salvar em uma das empresas."); });
+      registrarAtividade({tipo:"empresa", empresaId:id, empresaNome:e.nome, para:marcar ? "sem_uso_portal" : "voltou_uso_portal"});
+      ui.selecionadas.delete(id); ui.expanded.delete(id);
+    });
+    aplicarGrupos(); renderAll();
+  }
+  function marcarSemUso(ids){
+    var nomes = ids.map(function(id){ var e = todasEmpresas().find(function(x){ return x.id === id; }); return e ? e.nome : ""; }).filter(Boolean);
+    if(!nomes.length) return;
+    var qtd = ids.length === 1 ? "“" + nomes[0] + "”" : ids.length + " empresas";
+    confirmar("Marcar " + qtd + " como sem necessidade de uso do portal do cliente? " + (ids.length === 1 ? "Ela sai" : "Elas saem") + " da lista de Consulta, mas continua" + (ids.length === 1 ? "" : "m") + " em Hoje, Foco, Impedimentos e relatórios. Dá para voltar em Consulta, em Sem necessidade de uso.", function(){
+      gravarSemUso(ids, true);
+      mostrarToast(ids.length === 1 ? "Empresa marcada como sem necessidade de uso do portal." : ids.length + " empresas marcadas como sem necessidade de uso do portal.", "Desfazer", function(){ gravarSemUso(ids, false); mostrarToast("Marcação desfeita."); });
+    }, "Marcar");
   }
   function arquivarEmpresas(ids){
     var nomes = ids.map(function(id){ var e = todasEmpresas().find(function(x){ return x.id === id; }); return e ? e.nome : ""; }).filter(Boolean);
@@ -1916,7 +1979,7 @@
     return '<div class="erow'+(aberto?" open":"")+(selec?" sel":"")+'" data-id="'+e.id+'">' +
       '<div class="erow-main" data-action="toggle">' +
         CHEV +
-        '<span class="ecol-name"><input type="checkbox" class="sel-emp" data-action="sel-empresa" data-id="'+e.id+'"'+(selec?" checked":"")+' aria-label="Selecionar '+esc(e.nome)+'" title="Selecionar para ações em lote"><button class="focostar'+(e.emFoco?" on":"")+'" data-action="toggle-foco" data-id="'+e.id+'" title="'+(e.emFoco?"Remover do foco":"Adicionar ao foco")+'">★</button><span class="ecol-txt"><span class="ename">'+esc(e.nome)+seloFiliais(e)+'</span>'+(sub.length?'<span class="esub">'+sub.join('')+'</span>':'')+(motivoImp?'<span class="eimp" title="'+esc(motivoImp)+'">'+esc(cortar(motivoImp, 80))+'</span>':'')+'</span></span>' +
+        '<span class="ecol-name"><input type="checkbox" class="sel-emp" data-action="sel-empresa" data-id="'+e.id+'"'+(selec?" checked":"")+' aria-label="Selecionar '+esc(e.nome)+'" title="Selecionar para ações em lote"><button class="favcoracao'+(ehFavorita(e.id)?" on":"")+'" data-action="toggle-fav-emp" data-id="'+e.id+'" aria-pressed="'+(ehFavorita(e.id)?"true":"false")+'" title="'+(ehFavorita(e.id)?"Tirar dos favoritos":"Favoritar empresa")+'" aria-label="'+(ehFavorita(e.id)?"Tirar dos favoritos":"Favoritar")+' '+esc(e.nome)+'">'+'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5h8v11L8 10.6 4 13.5z" fill="'+(ehFavorita(e.id)?"currentColor":"none")+'" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>'+'</button><button class="focostar'+(e.emFoco?" on":"")+'" data-action="toggle-foco" data-id="'+e.id+'" title="'+(e.emFoco?"Remover do foco":"Adicionar ao foco")+'">★</button><span class="ecol-txt"><span class="ename">'+esc(e.nome)+seloFiliais(e)+'</span>'+(sub.length?'<span class="esub">'+sub.join('')+'</span>':'')+(motivoImp?'<span class="eimp" title="'+esc(motivoImp)+'">'+esc(cortar(motivoImp, 80))+'</span>':'')+'</span></span>' +
         '<span class="erow-tracks">'+trilhas+'</span>' +
         '<span class="epct"><span class="epct-bar"><i style="width:'+Math.round(pct*100)+'%"></i></span><b>'+Math.round(pct*100)+'%</b></span>' +
       '</div>' +
@@ -1928,6 +1991,7 @@
             : '<button type="button" class="linkish" data-action="toggle-foco" data-id="'+e.id+'">★ Levar ao Foco</button>') +
           '<button type="button" class="linkish" data-action="imp-form-abrir" data-id="'+e.id+'">Registrar impedimento</button>' +
           '<button type="button" class="linkish" data-action="arquivar-empresa" data-id="'+e.id+'" title="Tira a empresa só da lista de Consulta, sem apagar nada">Arquivar</button>' +
+          '<button type="button" class="linkish" data-action="marcar-sem-uso" data-id="'+e.id+'" title="Empresa que não usa o portal do cliente: sai só da lista de Consulta">Sem necessidade de uso</button>' +
           '<button type="button" class="linkish" data-action="editar-empresa" data-id="'+e.id+'" aria-expanded="'+(editando?"true":"false")+'">'+(editando ? "Fechar cadastro" : "Editar cadastro")+'</button>' +
           '</span>' +
         '</div>' +
@@ -2144,8 +2208,8 @@
   function contatoFocoHTML(c, prefixo, hit, semEmail){
     var cst = STATUS_LABEL[c.statusTreinamento] ? c.statusTreinamento : "pendente";
     return '<div class="ftc-item'+(hit ? ' hit' : '')+'" data-contato-id="'+c.id+'">' +
-      '<div class="ftc-who"><button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>'+seloMesmaPessoa(c)+(semEmail ? '' : '<span>'+esc(c.email||"e-mail não informado")+'</span>')+'</div>' +
-      '<div class="ftc-ctl">' +
+      '<div class="ftc-who"><button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>'+seloMesmaPessoa(c)+modalidadeBadgeHTML(c)+(semEmail ? '' : '<span>'+esc(c.email||"e-mail não informado")+(c.telefone ? ' · '+esc(c.telefone) : '')+'</span>')+'</div>' +
+      '<button type="button" class="ftc-retirar" data-action="foco-contato-retirar" data-id="'+c.id+'" title="Retirar este contato do cadastro" aria-label="Retirar '+esc(c.nome)+' do cadastro">×</button>'+'<div class="ftc-ctl">' +
         '<select id="csel-'+prefixo+c.id+'" class="psel st-'+cst+'" data-action="cont-status" data-id="'+c.id+'" aria-label="Treinamento de '+esc(c.nome)+'">' + STATUS_CLIENTE.map(function(st){ return '<option value="'+st+'"'+(cst===st?" selected":"")+'>'+STATUS_LABEL[st]+'</option>'; }).join("") + '</select>' +
         (cst === "agendado" ? campoDataContato(c, prefixo) : '') +
       '</div>' +
@@ -2158,8 +2222,8 @@
   }
   function contatoCadastroFocoHTML(c, setorKey, prefixo, hit, semEmail){
     return '<div class="ftc-item'+(hit ? ' hit' : '')+'" data-contato-id="'+c.id+'">' +
-      '<div class="ftc-who"><button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>'+seloMesmaPessoa(c)+(semEmail ? '' : '<span>'+esc(c.email||"e-mail não informado")+'</span>')+'</div>' +
-      '<div class="ftc-ctl">'+cadastroSelectHTML(c, setorKey, prefixo)+'</div>' +
+      '<div class="ftc-who"><button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>'+seloMesmaPessoa(c)+modalidadeBadgeHTML(c)+(semEmail ? '' : '<span>'+esc(c.email||"e-mail não informado")+(c.telefone ? ' · '+esc(c.telefone) : '')+'</span>')+'</div>' +
+      '<button type="button" class="ftc-retirar" data-action="foco-contato-retirar" data-id="'+c.id+'" title="Retirar este contato do cadastro" aria-label="Retirar '+esc(c.nome)+' do cadastro">×</button>'+'<div class="ftc-ctl">'+cadastroSelectHTML(c, setorKey, prefixo)+'</div>' +
     '</div>';
   }
   var ICO_NOTA = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5.8 8.2h4.4M5.8 10.8h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
@@ -2196,6 +2260,7 @@
         ? '<form class="ftc-form" data-action="foco-contato-submit" data-docid="'+x.docId+'" data-empresa="'+e.id+'" data-setor="'+x.setor.key+'">' +
             '<input type="text" class="ftc-nome" list="pessoasDatalist" autocomplete="off" placeholder="Nome do contato" required>' +
             '<input type="text" class="ftc-email" placeholder="E-mail (opcional)">' +
+            '<input type="text" class="ftc-tel" placeholder="Telefone (opcional)" inputmode="tel">' +
             '<div class="ftc-form-btns"><button type="submit" class="fbtn">Salvar contato</button><button type="button" class="fbtn" data-action="foco-contato-cancelar">Cancelar</button></div>' +
           '</form>'
         : '<button type="button" class="linkish ftc-add" data-action="foco-contato-abrir" data-docid="'+x.docId+'">+ Cadastrar contato</button>';
@@ -2229,10 +2294,13 @@
     '</div>';
   }
 
+  var MOTIVOS_IMP = {contato:"Dificuldade de contato", recusa:"Recusa explícita do cliente"};
+  var MOTIVOS_CURTO = {contato:"Sem contato", recusa:"Recusa"};
+  function motivoPrefixo(imp){ return imp && MOTIVOS_CURTO[imp.motivo] ? MOTIVOS_CURTO[imp.motivo] + " · " : ""; }
   function impedimentoDaEmpresa(e, docs){
-    if(e.impedimento && e.impedimento.ativo) return e.impedimento.descricao || "Impedimento na empresa";
+    if(e.impedimento && e.impedimento.ativo) return motivoPrefixo(e.impedimento) + (e.impedimento.descricao || "Impedimento na empresa");
     var s = docs.find(function(x){ return x.impedimento && x.impedimento.ativo; });
-    return s ? (SETOR_LABEL[s.setor] || s.setor) + ": " + (s.impedimento.descricao || "impedimento") : "";
+    return s ? (SETOR_LABEL[s.setor] || s.setor) + ": " + motivoPrefixo(s.impedimento) + (s.impedimento.descricao || "impedimento") : "";
   }
 
   // O que falta no cadastro da empresa em foco: analista ou contato de cliente em algum setor com demanda.
@@ -2967,10 +3035,25 @@
   // desenhado (scope) — evita que o mesmo contato, aparecendo em dois lugares da página ao
   // mesmo tempo (o bloco da empresa E o cadastro dela em Contatos de clientes), tenha os dois
   // menus "+etiqueta" colidindo no mesmo id.
+  var MODALIDADES = {manual:"Só manual", chamada:"Treino em chamada"};
+  var ICO_MOD = {
+    manual:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.2c1.7-.5 3.4-.4 5 .6 1.6-1 3.3-1.1 5-.6v9c-1.7-.5-3.4-.4-5 .6-1.6-1-3.3-1.1-5-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 3.8v8.8" stroke="currentColor" stroke-width="1.4"/></svg>',
+    chamada:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 2.5h2l1 2.7-1.4 1c.7 1.5 1.8 2.6 3.3 3.3l1-1.4 2.7 1v2c0 .8-.7 1.4-1.5 1.4C7.2 12.3 3.7 8.8 2.8 4c0-.8.6-1.5 1.4-1.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
+  };
+  function modalidadeBadgeHTML(c){
+    var m = MODALIDADES[c.modalidade] ? c.modalidade : "";
+    function op(v, rot, dica){
+      return '<button type="button" class="mod-op '+v+(m === v ? ' on' : '')+'" data-action="set-modalidade" data-id="'+c.id+'" data-v="'+v+'" aria-pressed="'+(m === v)+'" title="'+dica+'">'+ICO_MOD[v]+'<span>'+rot+'</span></button>';
+    }
+    return '<span class="mod-seg'+(m ? '' : ' vazio')+'" role="group" aria-label="Como este usuário será treinado">' +
+      op("manual", "Só manual", m === "manual" ? "Só o manual será enviado. Clique para desmarcar." : "Marcar: basta enviar o manual") +
+      op("chamada", "Chamada", m === "chamada" ? "Treinamento em chamada. Clique para desmarcar." : "Marcar: precisa de treinamento em chamada") +
+    '</span>';
+  }
   function contatoTagsEtiquetaHTML(c, scope){
     var tagsHtml = (c.setores||[]).map(function(s){
       return '<span class="tag-badge tag-setor" style="--sc:var(--sector-'+s+')" data-action="toggle-setor-contato" data-id="'+c.id+'" data-setor="'+s+'" title="Clique para remover">'+SETOR_LABEL[s]+'</span>';
-    }).join("") + (c.socio ? '<span class="tag-badge tag-socio" data-action="toggle-socio" data-id="'+c.id+'" title="Clique para remover">Sócio</span>' : '');
+    }).join("") + modalidadeBadgeHTML(c) + (c.socio ? '<span class="tag-badge tag-socio" data-action="toggle-socio" data-id="'+c.id+'" title="Clique para remover">Sócio</span>' : '');
     var chaveMenu = scope+"::"+c.id;
     var menuAberto = ui.tagMenuAberto === chaveMenu;
     var tagMenu = '<div class="tagmenu" data-tagkey="'+esc(chaveMenu)+'"'+(menuAberto?'':' hidden')+'>' +
@@ -2991,7 +3074,7 @@
       return '<div class="prow" data-id="'+c.id+'" data-contato-id="'+c.id+'">' +
         '<div class="pmain">' +
           '<button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>' + seloMesmaPessoa(c) + contatoTagsEtiquetaHTML(c, docId) +
-          '<span class="pmain-sub">'+esc(c.email||"e-mail não informado")+'</span>' +
+          '<span class="pmain-sub">'+esc(c.email||"e-mail não informado")+(c.telefone ? ' · '+esc(c.telefone) : '')+'</span>' +
         '</div>' +
         '<div class="prow-ctl">' +
           cadastroSelectHTML(c, setorKey, "cag-") +
@@ -3008,6 +3091,7 @@
       ? '<form class="ftc-form" data-action="prog-contato-submit" data-docid="'+docId+'" data-empresa="'+empresa.id+'" data-setor="'+setorKey+'">' +
           '<input type="text" class="ftc-nome" list="pessoasDatalist" autocomplete="off" placeholder="Nome do contato" required>' +
           '<input type="text" class="ftc-email" placeholder="E-mail (opcional)">' +
+            '<input type="text" class="ftc-tel" placeholder="Telefone (opcional)" inputmode="tel">' +
           '<div class="ftc-form-btns"><button type="submit" class="fbtn">Salvar contato</button><button type="button" class="fbtn" data-action="foco-contato-cancelar">Cancelar</button></div>' +
         '</form>'
       : '<div class="sblock-contatos-add"><button type="button" class="linkish" data-action="foco-contato-abrir" data-docid="'+docId+'">+ Cadastrar contato</button></div>';
@@ -3238,7 +3322,17 @@
     populateImpAlvo();
     var box = $("#impList");
     var q = ui.impBusca.trim().toLowerCase();
+    var nMot = {todos:m.bloqueios.length, contato:0, recusa:0, sem:0};
+    m.bloqueios.forEach(function(b){ nMot[MOTIVOS_IMP[b.motivo] ? b.motivo : "sem"]++; });
+    var filtroBox = $("#impMotivos");
+    if(filtroBox){
+      filtroBox.innerHTML = [["todos","Todos"],["contato","Dificuldade de contato"],["recusa","Recusa explícita"],["sem","Sem classificação"]].filter(function(x){ return x[0] !== "sem" || nMot.sem; }).map(function(x){
+        return '<button type="button" class="toggle-chip'+(ui.impMotivo === x[0] ? ' on' : '')+'" data-action="imp-motivo" data-v="'+x[0]+'">'+x[1]+' <b>'+nMot[x[0]]+'</b></button>';
+      }).join("");
+    }
     var visiveis = m.bloqueios.filter(function(b){
+      var mb = MOTIVOS_IMP[b.motivo] ? b.motivo : "sem";
+      if(ui.impMotivo !== "todos" && ui.impMotivo !== mb) return false;
       if(!q) return true;
       return b.nome.toLowerCase().indexOf(q) !== -1 || (b.desc||"").toLowerCase().indexOf(q) !== -1;
     });
@@ -3252,16 +3346,9 @@
       box.innerHTML = '<div class="empty">Nenhum impedimento encontrado com essa busca.</div>';
       return;
     }
-    // Mais antigos primeiro; os registrados antes da data de início existir vão para o fim.
-    visiveis.sort(function(a, b){
-      if(!a.desde !== !b.desde) return a.desde ? -1 : 1;
-      return String(a.desde).localeCompare(String(b.desde)) || a.nome.localeCompare(b.nome, "pt-BR");
-    });
+    visiveis.sort(function(a, b){ return a.nome.localeCompare(b.nome, "pt-BR"); });
     box.innerHTML = visiveis.map(function(b){
       var goto = b.col === "funcionarios" ? ' data-goto-func="'+esc(b.funcNome||"")+'"' : ' data-goto-empresa="'+b.empresaId+'"';
-      var dias = b.desde ? diasDesde(b.desde) : null;
-      var idade = dias === null ? '<span class="imp-idade sem">sem data de início</span>'
-        : '<span class="imp-idade'+(dias >= 30 ? ' velho' : '')+'" title="Registrado em '+dataBR(b.desde)+'">'+(dias === 0 ? 'desde hoje' : 'há '+dias+' dia'+(dias === 1 ? '' : 's'))+'</span>';
       var chave = b.col+":"+b.docId;
       var resolvendo = ui.impResolvendo === chave;
       return '<div class="imp-row'+(resolvendo ? ' resolvendo' : '')+'">' +
@@ -3272,8 +3359,8 @@
             '<button type="submit" class="fbtn">Confirmar</button><button type="button" class="linkish" data-action="imp-resolver-cancelar">Cancelar</button>' +
           '</form>' : '') +
         '</div>' +
+        '<select class="imp-mot'+(b.motivo ? ' tem '+b.motivo : '')+'" data-col="'+b.col+'" data-docid="'+b.docId+'" aria-label="Tipo de impedimento"><option value="">Sem classificação</option><option value="contato"'+(b.motivo === "contato" ? ' selected' : '')+'>Dificuldade de contato</option><option value="recusa"'+(b.motivo === "recusa" ? ' selected' : '')+'>Recusa explícita</option></select>' +
         '<select class="imp-agu'+(b.aguardando ? ' tem' : '')+'" data-col="'+b.col+'" data-docid="'+b.docId+'" aria-label="Aguardando quem"><option value="cliente">Aguardando cliente</option><option value="analista">Aguardando analista</option><option value="escritorio">Aguardando escritório</option></select>'.replace('<option value="'+b.aguardando+'">', '<option value="'+b.aguardando+'" selected>').replace('<select', '<select').replace('aria-label="Aguardando quem">', 'aria-label="Aguardando quem"><option value="">Aguardando…</option>') +
-        idade +
         (resolvendo ? '' : '<button type="button" class="fbtn imp-resolver" data-action="imp-resolver-abrir" data-chave="'+esc(chave)+'">Resolver</button>') +
       '</div>';
     }).join("");
@@ -3395,7 +3482,8 @@
     var porChave = {}, ordem = [];
     contatosValidos().forEach(function(c){
       var k = chaveEmail(c) || ("id:"+c.id);
-      if(!porChave[k]){ porChave[k] = {chave:k, nome:c.nome, email:c.email||"", registros:[]}; ordem.push(porChave[k]); }
+      if(!porChave[k]){ porChave[k] = {chave:k, nome:c.nome, email:c.email||"", telefone:c.telefone||"", registros:[]}; ordem.push(porChave[k]); }
+      if(!porChave[k].telefone && c.telefone) porChave[k].telefone = c.telefone;
       porChave[k].registros.push(c);
     });
     return ordem;
@@ -3498,7 +3586,7 @@
     if(!visiveis.length){ box.innerHTML = '<div class="empty">Nenhum contato encontrado com esses filtros.</div>'; return; }
     box.innerHTML = visiveis.map(function(p){
       var aberto = ui.expandedPessoas.has(p.chave);
-      var sub = p.email || "e-mail não informado";
+      var sub = (p.email || "e-mail não informado") + (p.telefone ? " · " + p.telefone : "");
       var repP = p.registros.slice().sort(function(a, b){ return (RANK_TREINO[b.statusTreinamento] || 0) - (RANK_TREINO[a.statusTreinamento] || 0); })[0];
       var stP = STATUS_LABEL[repP.statusTreinamento] ? repP.statusTreinamento : "pendente";
       var chipP = '<span class="fchip st-'+stP+' pessoa-st">'+esc(rotuloStatus(stP, repP.agendadoPara, repP.agendadoHora))+'</span>';
@@ -4084,7 +4172,22 @@
     l.sort(function(a, b){ return (a.data + " " + (a.hora || "99:99")) < (b.data + " " + (b.hora || "99:99")) ? -1 : 1; });
     return l;
   }
+  // Analistas das frentes da empresa que ainda não fizeram o treinamento (e sem treinamento já agendado).
+  function analistasSemTreinamento(e){
+    var nomes = [];
+    state.setores.forEach(function(sd){
+      if(sd.empresaId !== e.id || (!sd.analistaId && !sd.analistaNome)) return;
+      if(!etapasAplicaveis(e, sd.setor).some(function(et){ return et.key === "treinamentoAnalista"; })) return;
+      var inf = null; try{ inf = etapaInfo(sd, "treinamentoAnalista", e.id); }catch(err){}
+      if(!inf || inf.status !== "pendente") return;
+      var n = (inf.func && inf.func.nome) || sd.analistaNome || "analista";
+      if(nomes.indexOf(n) < 0) nomes.push(n);
+    });
+    return nomes;
+  }
   function alvoAcaoAgenda(e){
+    var semT = analistasSemTreinamento(e);
+    if(semT.length) return {sig:"tr|" + semT.join("|"), focoProxAcao:"Treinar o analista", focoPrazo:"", focoAguardando:"analista", focoAguardandoOutro:""};
     var l = agendaDaEmpresaFoco(e);
     if(!l.length){
       // sem treinamento agendado: o processo manda. Sem contato do cliente → registrar contato; com contato ainda sem treinar → aguardando o cliente.
@@ -4101,6 +4204,25 @@
     }
     var a0 = atrasados[0], ga = atrasados.filter(function(x){ return x.data === a0.data; });
     return {sig:"a|" + a0.data + "|" + ga.length, focoProxAcao:"Treinamento atrasado (era para " + dataBR(a0.data).slice(0, 5) + "): confirmar ou remarcar com " + nomesDe(ga), focoPrazo:a0.data, focoAguardando:"cliente", focoAguardandoOutro:""};
+  }
+  // Avisa no sino (Hub) quando uma empresa em foco fica 3 dias ou mais com analista sem treinamento.
+  // Enquanto a situação não mudar, avisa de novo a cada 2 dias. A data do último aviso fica guardada neste navegador.
+  var AVISO_TREINO_KEY = "portal-avisos-treino-v1", AVISO_INTERVALO = 2 * 864e5;
+  var avisosTreino = (function(){ try{ return JSON.parse(localStorage.getItem(AVISO_TREINO_KEY)) || {}; }catch(e){ return {}; } })();
+  function gravaAvisosTreino(){ try{ localStorage.setItem(AVISO_TREINO_KEY, JSON.stringify(avisosTreino)); }catch(e){} }
+  function avisarTreinoAtrasado(){
+    var H = (window.parent && window.parent !== window && window.parent.__hubApi) || null;
+    if(!H || !H.notificar) return;
+    state.empresas.forEach(function(e){
+      if(!e || !e.emFoco || e.ativo === false) return;
+      var dias = diasEmFoco(e);
+      var nomes = analistasSemTreinamento(e);
+      if(!nomes.length || dias === null || dias < 3) return;
+      var chave = e.id + "|" + nomes.join("|"), agora = Date.now();
+      if(avisosTreino[chave] && agora - avisosTreino[chave] < AVISO_INTERVALO) return;
+      avisosTreino[chave] = agora; gravaAvisosTreino();
+      H.notificar({t:"Analista sem treinamento há " + dias + " dias em foco: " + e.nome + " (" + nomes.join(" e ") + ")", s:"Portal do Cliente", tipo:"tax", ir:"portal"});
+    });
   }
   function sincronizarAcoesComAgenda(){
     if(!dbRef || carregando() || (typeof doCache !== "undefined" && doCache) || sincAgendaBusy) return;
@@ -4124,6 +4246,7 @@
         Object.keys(patch).forEach(function(k){ e[k] = patch[k]; });
         try{ dbRef.collection("empresas").doc(e.id).update(patch); }catch(err){}
       });
+      avisarTreinoAtrasado();
     }catch(err){}
     sincAgendaBusy = false;
   }
@@ -4314,6 +4437,7 @@
       return;
     }
     if(a === "cons-mais"){ ui.consLimite = (ui.consLimite || 50) + 50; renderEmpresas(); return; }
+    if(a === "imp-motivo"){ ui.impMotivo = el.getAttribute("data-v"); renderImpedimentos(model()); return; }
     if(a === "imp-form-abrir" || a === "imp-form-cancelar"){
       var impId = a === "imp-form-abrir" ? el.getAttribute("data-id") : null;
       ui.impFormEmp = impId;
@@ -4492,7 +4616,13 @@
     if(a === "arquivar-empresa"){ arquivarEmpresas([el.getAttribute("data-id")]); return; }
     if(a === "bulk-arquivar"){ arquivarEmpresas(Array.from(ui.selecionadas)); return; }
     if(a === "restaurar-empresa"){ gravarArquivo([el.getAttribute("data-id")], false); mostrarToast("Empresa restaurada."); return; }
-    if(a === "ver-arquivadas"){ ui.verArquivadas = !ui.verArquivadas; if(ui.verArquivadas && ui.consModo === "etapa") ui.consModo = "empresa"; renderEmpresas(); return; }
+    if(a === "ver-arquivadas"){ ui.verArquivadas = !ui.verArquivadas; if(ui.verArquivadas){ ui.verSemUso = false; ui.verFav = false; if(ui.consModo === "etapa") ui.consModo = "empresa"; } renderEmpresas(); return; }
+    if(a === "marcar-sem-uso"){ marcarSemUso([el.getAttribute("data-id")]); return; }
+    if(a === "bulk-sem-uso"){ marcarSemUso(Array.from(ui.selecionadas)); return; }
+    if(a === "restaurar-sem-uso"){ gravarSemUso([el.getAttribute("data-id")], false); mostrarToast("Empresa voltou à lista de Consulta."); return; }
+    if(a === "toggle-fav-emp"){ alternaFavorita(el.getAttribute("data-id")); return; }
+    if(a === "ver-favoritas"){ ui.verFav = !ui.verFav; if(ui.verFav){ ui.verArquivadas = false; ui.verSemUso = false; if(ui.consModo === "etapa") ui.consModo = "empresa"; } renderEmpresas(); return; }
+    if(a === "ver-sem-uso"){ ui.verSemUso = !ui.verSemUso; if(ui.verSemUso){ ui.verArquivadas = false; ui.verFav = false; if(ui.consModo === "etapa") ui.consModo = "empresa"; } renderEmpresas(); return; }
     if(a === "excluir-empresa"){
       var row2 = el.closest(".erow"), eid = row2.getAttribute("data-id");
       var emp = state.empresas.find(function(x){ return x.id === eid; });
@@ -4651,6 +4781,14 @@
       confirmar("Excluir este funcionário do painel?", function(){ if(dbRef) dbRef.collection("funcionarios").doc(fid2).delete(); });
       return;
     }
+    if(a === "foco-contato-retirar"){
+      var rcid = el.getAttribute("data-id"), rc = state.contatos.find(function(x){ return x.id === rcid; });
+      confirmar("Retirar " + (rc ? "“" + rc.nome + "”" : "este contato") + " do cadastro? O contato sai também das outras frentes e empresas em que aparece.", function(){
+        if(!dbRef) return;
+        dbRef.collection("contatos").doc(rcid).delete().then(function(){ mostrarToast("Contato retirado do cadastro."); }).catch(function(){ mostrarToast("Não foi possível retirar o contato agora."); });
+      }, "Retirar");
+      return;
+    }
     if(a === "excluir-cont"){
       var cid = el.getAttribute("data-id");
       confirmar("Excluir este contato do painel?", function(){ if(dbRef) dbRef.collection("contatos").doc(cid).delete(); });
@@ -4665,6 +4803,17 @@
       // sem redesenhar a outra deixaria o menu antigo visivelmente "grudado" ali.
       renderEmpresas(); renderContatosCadastro();
       if(ui.tagMenuAberto) posicionarTagMenu(ui.tagMenuAberto);
+      return;
+    }
+    if(a === "set-modalidade"){
+      if(!dbRef) return;
+      var cmId = el.getAttribute("data-id"), cmV = el.getAttribute("data-v"), cmObj = state.contatos.find(function(x){ return x.id === cmId; });
+      if(!cmObj) return;
+      var cmNovo = cmObj.modalidade === cmV ? "" : cmV;
+      cmObj.modalidade = cmNovo;
+      dbRef.collection("contatos").doc(cmId).update({modalidade:cmNovo});
+      renderAll();
+      mostrarToast(cmObj.nome + ": " + (cmNovo === "manual" ? "só o manual" : cmNovo === "chamada" ? "treinamento em chamada" : "sem definição"));
       return;
     }
     if(a === "toggle-setor-contato"){
@@ -4836,11 +4985,21 @@
       if(el.value === "outro") requestAnimationFrame(function(){ var t = document.getElementById("fago-" + faId); if(t) t.focus(); });
       return;
     }
+    if(el.classList.contains("imp-mot")){
+      var imCol = el.getAttribute("data-col"), imId = el.getAttribute("data-docid");
+      var imLocal = imCol === "empresas" ? state.empresas.find(function(x){ return x.id === imId; }) : imCol === "funcionarios" ? state.funcionarios.find(function(x){ return x.id === imId; }) : state.setores.find(function(x){ return x.id === imId; });
+      if(imLocal && imLocal.impedimento){
+        imLocal.impedimento = Object.assign({}, imLocal.impedimento, {motivo:el.value});
+        dbRef.collection(imCol).doc(imId).update({impedimento:imLocal.impedimento});
+        renderImpedimentos(model());
+      }
+      return;
+    }
     if(el.classList.contains("imp-agu")){
       var iaCol = el.getAttribute("data-col"), iaId = el.getAttribute("data-docid");
       var iaLocal = iaCol === "empresas" ? state.empresas.find(function(x){ return x.id === iaId; }) : iaCol === "funcionarios" ? state.funcionarios.find(function(x){ return x.id === iaId; }) : state.setores.find(function(x){ return x.id === iaId; });
       if(iaLocal && iaLocal.impedimento) iaLocal.impedimento = Object.assign({}, iaLocal.impedimento, {aguardando:el.value});
-      dbRef.collection(iaCol).doc(iaId).update({impedimento:{aguardando:el.value}});
+      dbRef.collection(iaCol).doc(iaId).update({impedimento:(iaLocal && iaLocal.impedimento) || {aguardando:el.value}});
       el.classList.toggle("tem", !!el.value);
       return;
     }
@@ -4871,7 +5030,7 @@
         : rCol === "funcionarios" ? state.funcionarios.find(function(x){ return x.id === rId; })
         : state.setores.find(function(x){ return x.id === rId; });
       var rDesc = rLocal && rLocal.impedimento ? rLocal.impedimento.descricao || "" : "";
-      var rImp = {ativo:false, descricao:"", desde:"", resolvidoEm:hojeISO(), resolucao:rNota, descricaoAnterior:rDesc};
+      var rImp = {ativo:false, descricao:"", desde:"", resolvidoEm:hojeISO(), resolucao:rNota, descricaoAnterior:rDesc, motivo:(rLocal && rLocal.impedimento && rLocal.impedimento.motivo) || ""};
       if(rLocal) rLocal.impedimento = rImp;
       ui.impResolvendo = null;
       dbRef.collection(rCol).doc(rId).update({impedimento:rImp}).then(function(){ mostrarToast("Impedimento resolvido."); }, function(){ mostrarToast("Não foi possível salvar."); });
@@ -4886,7 +5045,7 @@
       var impDesc = impForm.querySelector(".imp-emp-desc").value.trim(), impSetor = impForm.querySelector(".imp-emp-alvo").value, impEmp = impForm.getAttribute("data-id");
       if(!impDesc) return;
       ui.impFormEmp = null;
-      gravarImpedimento(impSetor ? {col:"empresaSetores", empresaId:impEmp, setor:impSetor} : {col:"empresas", id:impEmp}, impDesc, impForm.querySelector(".imp-emp-agu").value);
+      gravarImpedimento(impSetor ? {col:"empresaSetores", empresaId:impEmp, setor:impSetor} : {col:"empresas", id:impEmp}, impDesc, impForm.querySelector(".imp-emp-agu").value, impForm.querySelector(".imp-emp-motivo").value);
       return;
     }
     var pvForm = ev.target.closest(".pessoa-vincular-form");
@@ -4952,13 +5111,14 @@
     var nome = form.querySelector(".ftc-nome").value.trim();
     if(!nome) return;
     var email = form.querySelector(".ftc-email").value.trim();
+    var telefone = form.querySelector(".ftc-tel") ? form.querySelector(".ftc-tel").value.trim() : "";
     if(contatoJaVinculado(nome, email, empresaId, setorKey)){
       mostrarToast(nome+" já está vinculado(a) a este setor.");
       return;
     }
     var emp = state.empresas.find(function(x){ return x.id === empresaId; });
     dbRef.collection("contatos").add({
-      nome:nome, email:email, empresaId:empresaId, empresaNome:emp?emp.nome:"",
+      nome:nome, email:email, telefone:telefone, empresaId:empresaId, empresaNome:emp?emp.nome:"",
       setores:[setorKey], statusTreinamento:"pendente",
       exemplo:false, criadoEm:new Date().toISOString()
     });
@@ -5238,6 +5398,14 @@
         local:function(v){ var d = acharSetor(docId); if(d){ d.etapas = Object.assign({}, d.etapas); d.etapas[etapa] = Object.assign({}, d.etapas[etapa], {obs:v}); } },
         salvar:function(v){ return garantirSetorDoc(emp, setor).then(function(id){ var p = {}; p[etapa] = {obs:v}; return dbRef.collection("empresaSetores").doc(id).update({etapas:p}); }); }
       };
+      if(el.classList.contains("sju-texto")){
+        var jId = el.getAttribute("data-id");
+        return {
+          k:"ju:"+jId,
+          local:function(v){ var em = todasEmpresas().find(function(x){ return x.id === jId; }); if(em) em.semUsoPortalJust = v; },
+          salvar:function(v){ return dbRef.collection("empresas").doc(jId).update({semUsoPortalJust:v, semUsoPortalJustEm:new Date().toISOString(), semUsoPortalJustPor:meuId || ""}); }
+        };
+      }
       if(el.classList.contains("fpa-texto")){
         var paId = el.getAttribute("data-id");
         return {
@@ -5288,7 +5456,7 @@
       if(c && rascunhos[c.k] !== undefined && timers[c.k]) gravar(c, ev.target.id);
     });
     document.addEventListener("keydown", function(ev){
-      if(ev.key === "Enter" && campo(ev.target)){ ev.preventDefault(); ev.target.blur(); }
+      if(ev.key === "Enter" && campo(ev.target) && ev.target.tagName !== "TEXTAREA"){ ev.preventDefault(); ev.target.blur(); }
     });
   })();
   $("#treinoSearch").addEventListener("input", function(){ ui.treinoBusca = this.value; renderTreinamento(); });
@@ -5320,6 +5488,7 @@
       nome:nome, cnpj:cnpjNovo, ativo:true, folhaAtiva:folha, precisaRubricas:rubricas,
       setoresDemanda:dem, impedimento:{ativo:false, descricao:""}, exemplo:false, criadoEm:new Date().toISOString()
     }).then(function(ref){
+      cadMestre(cnpjNovo, nome, ref.id);
       var stub = {id:ref.id, nome:nome};
       SETORES.forEach(function(s){ if(dem[s.key]) ensureSetorDoc(stub, s.key); });
       registrarAtividade({tipo:"empresa", empresaId:ref.id, empresaNome:nome});
@@ -5351,6 +5520,7 @@
     if(!eid){ var fce = $("#fc-empresa"); fce.setCustomValidity("Escolha uma empresa da lista."); fce.reportValidity(); fce.oninput = function(){ fce.setCustomValidity(""); }; return; }
     if(!nome || !eid) return;
     var email = $("#fc-email").value.trim();
+    var telefoneFc = $("#fc-tel") ? $("#fc-tel").value.trim() : "";
     if(contatoJaVinculado(nome, email, eid, null)){
       avisar(nome+" já está vinculado(a) a esta empresa.", "warn");
       return;
@@ -5358,7 +5528,7 @@
     var emp = state.empresas.find(function(x){ return x.id === eid; });
     var setores = SETORES.filter(function(s){ return $("#fc-"+s.key).checked; }).map(function(s){ return s.key; });
     dbRef.collection("contatos").add({
-      nome:nome, email:$("#fc-email").value.trim(), empresaId:eid, empresaNome:emp?emp.nome:"",
+      nome:nome, email:$("#fc-email").value.trim(), telefone:telefoneFc, empresaId:eid, empresaNome:emp?emp.nome:"",
       setores:setores, statusTreinamento:$("#fc-status").value,
       agendadoPara:$("#fc-status").value === "agendado" ? $("#fc-ag").value : "",
       exemplo:false, criadoEm:new Date().toISOString()
@@ -5378,7 +5548,7 @@
     var campo = $("#imp-alvo"), alvo = impAlvoMapa[campo.value.trim()], desc = $("#imp-desc").value.trim();
     if(!alvo){ campo.setCustomValidity("Escolha um item da lista de sugestões."); campo.reportValidity(); return; }
     if(!desc) return;
-    gravarImpedimento(alvo, desc, $("#imp-aguardando").value);
+    gravarImpedimento(alvo, desc, $("#imp-aguardando").value, $("#imp-motivo").value);
     this.reset();
     this.hidden = true;
     $$('[data-action="imp-novo-abrir"]').forEach(function(b){ b.hidden = false; });
@@ -5713,7 +5883,7 @@
           id = uniqueId(slugify(nome), idsEmpresa);
           data.impedimento = {ativo:false, descricao:""}; data.exemplo = false; data.criadoEm = new Date().toISOString();
           dadosEmpresaNova[id] = data;
-          agendar(function(){ return dbRef.collection("empresas").doc(id).set(data); }, function(){ resumo.empresasNovas++; });
+          agendar(function(){ return dbRef.collection("empresas").doc(id).set(data); }, function(){ resumo.empresasNovas++; cadMestre(dadosEmpresaNova[id] && dadosEmpresaNova[id].cnpj, nomeEmpresaImport[id], id); });
         }
         empresaPorNome[key] = {id:id, nome:nome};
         nomeEmpresaImport[id] = nome;
@@ -5986,8 +6156,8 @@
   }
 
   // Registra um impedimento (empresa, frente ou pessoa) já com a data de início.
-  function gravarImpedimento(alvo, desc, aguardando){
-    var imp = {ativo:true, descricao:desc, desde:hojeISO(), aguardando:aguardando || ""};
+  function gravarImpedimento(alvo, desc, aguardando, motivo){
+    var imp = {ativo:true, descricao:desc, desde:hojeISO(), aguardando:aguardando || "", motivo:MOTIVOS_IMP[motivo] ? motivo : ""};
     var local = alvo.col === "empresas" ? state.empresas.find(function(x){ return x.id === alvo.id; })
       : alvo.col === "funcionarios" ? state.funcionarios.find(function(x){ return x.id === alvo.id; })
       : state.setores.find(function(x){ return x.id === sid(alvo.empresaId, alvo.setor); });
@@ -5996,7 +6166,7 @@
       ? garantirSetorDoc(alvo.empresaId, alvo.setor).then(function(id){ return dbRef.collection("empresaSetores").doc(id).update({impedimento:imp}); })
       : dbRef.collection(alvo.col).doc(alvo.id).update({impedimento:imp});
     gravar.then(function(){ mostrarToast("Impedimento registrado."); }, function(){ mostrarToast("Não foi possível registrar o impedimento."); });
-    var ev0 = alvoImpedimento(alvo.col, alvo.col === "empresaSetores" ? sid(alvo.empresaId, alvo.setor) : alvo.id, {tipo:"impedimento", para:"registrado", texto:desc});
+    var ev0 = alvoImpedimento(alvo.col, alvo.col === "empresaSetores" ? sid(alvo.empresaId, alvo.setor) : alvo.id, {tipo:"impedimento", para:"registrado", texto:(MOTIVOS_IMP[motivo] ? MOTIVOS_IMP[motivo] + ": " : "") + desc});
     if(alvo.col === "empresaSetores"){ ev0.empresaId = alvo.empresaId; ev0.setor = alvo.setor; }
     registrarAtividade(ev0);
   }
@@ -6006,6 +6176,7 @@
     return '<form class="imp-emp-form" data-id="'+e.id+'">' +
       '<label class="imp-emp-onde">Onde <select class="imp-emp-alvo"><option value="">Empresa toda</option>' +
         setores.map(function(s){ return '<option value="'+s.key+'">Só no '+s.label+'</option>'; }).join("") + '</select></label>' +
+      '<select class="imp-emp-motivo" aria-label="Tipo de impedimento" required><option value="">Tipo…</option><option value="contato">Dificuldade de contato</option><option value="recusa">Recusa explícita do cliente</option></select>' +
       '<input type="text" class="imp-emp-desc" maxlength="200" placeholder="O que está travando? Ex.: cliente não enviou o certificado" required>' +
       '<select class="imp-emp-agu" aria-label="Aguardando quem"><option value="">Aguardando…</option><option value="cliente">Aguardando cliente</option><option value="analista">Aguardando analista</option><option value="escritorio">Aguardando escritório</option></select>' +
       '<button type="submit" class="fbtn">Registrar</button>' +
@@ -6062,7 +6233,7 @@
       case "etapa": return {txt:rotuloItem(e.item), de:e.de, para:e.para};
       case "alinhamento": return {txt:"Alinhamento com o gestor" + (setorTxt ? " · " + setorTxt : ""), de:e.de, para:e.para};
       case "setor": return {txt:"Setor " + setorTxt + (e.para === "removido" ? " removido da empresa" : " adicionado à empresa")};
-      case "empresa": return {txt: e.para === "arquivada" ? "Empresa arquivada" : e.para === "restaurada" ? "Empresa restaurada do arquivo" : "Empresa cadastrada"};
+      case "empresa": return {txt: e.para === "sem_uso_portal" ? "Empresa marcada como sem necessidade de uso do portal" : e.para === "voltou_uso_portal" ? "Empresa voltou a usar o portal" : e.para === "arquivada" ? "Empresa arquivada" : e.para === "restaurada" ? "Empresa restaurada do arquivo" : "Empresa cadastrada"};
       case "contato": return {txt:"Contato cadastrado: " + (e.nome || "")};
       case "treino-contato": return {txt:"Treinamento de " + (e.nome || "contato"), de:e.de, para:e.para};
       case "cadastro-contato": return {txt:"Cadastro no Onvio de " + (e.nome || "contato"), de:e.de, para:e.para};
