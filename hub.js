@@ -186,6 +186,20 @@
     }
     return n || String(nome || '').trim();
   }
+  // Nome padrão com nome e sobrenome: apelido de uma palavra só que é o começo da razão social ("A3") vira as duas primeiras palavras dela ("A3 Locações"),
+  // para não confundir com outras empresas que começam igual. Apelido já com duas palavras ou diferente da razão fica como está.
+  const NOME_CONECTOR = /^(de|da|do|das|dos|e|em)$/i;
+  const palavraNome = (p) => NOME_CONECTOR.test(p) ? p.toLowerCase() : (p.length <= 2 || /\d/.test(p)) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  function nomeComSobrenome(apelido, razao) {
+    const ap = nomeCurtoBase(apelido), rz = nomeCurtoBase(razao);
+    const pa = ap.split(' ').filter(Boolean), pr = rz.split(' ').filter(Boolean);
+    if (!pa.length) return rz;
+    if (pa.length === 1 && pr.length >= 2 && norm(pa[0]) === norm(pr[0])) {
+      const ate = NOME_CONECTOR.test(pr[1]) && pr.length >= 3 ? 3 : 2;
+      return [pa[0], ...pr.slice(1, ate).map(palavraNome)].join(' ');
+    }
+    return ap;
+  }
   const cnpjFinal = (c) => { const d = cnpjClean(c); return d.length === 14 ? d.slice(8, 12) + '-' + d.slice(12) : d.length === 11 ? 'CPF' : ''; };
   const apelidoOnvio = (e) => {
     try {
@@ -198,7 +212,7 @@
       return c ? c.apelido : '';
     } catch (_) { return ''; }
   };
-  const nomeCurto = (e) => cadGet(e.cnpj) ? cadNome(e.cnpj, e.nome) : `${nomeCurtoBase(apelidoOnvio(e) || e.nome)} | ${cnpjFinal(e.cnpj) || 'sem CNPJ'}`;      // o cadastro único manda; sem ele, o apelido do Onvio
+  const nomeCurto = (e) => cadGet(e.cnpj) ? cadNome(e.cnpj, e.nome) : `${nomeComSobrenome(apelidoOnvio(e), e.nome)} | ${cnpjFinal(e.cnpj) || 'sem CNPJ'}`;      // o cadastro único manda; sem ele, o apelido do Onvio
   const nomeEmpHtml = (e) => `<span title="${escapeHtml(e.nome)}">${escapeHtml(nomeCurto(e))}</span>`;
   function maskCnpj(v) {
     const d = cnpjClean(v).slice(0,14);
@@ -5598,7 +5612,7 @@
   }
   const cadGet = (cnpj) => state.cadastro.get(cad14(cnpj)) || null;
   // Nome no padrão do Hub (apelido resumido | final do CNPJ) a partir do cadastro único, quando a empresa está nele.
-  const cadNome = (cnpj, fallback) => { const c = cadGet(cnpj); if (!c) return fallback || ''; return `${nomeCurtoBase(c.apelido || c.razao || fallback)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`; };
+  const cadNome = (cnpj, fallback) => { const c = cadGet(cnpj); if (!c) return fallback || ''; return `${nomeComSobrenome(c.apelido, c.razao || fallback)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`; };
 
   // Lê os quatro cadastros como estão (crus, para o backup, e achatados, para a montagem).
   async function cadLerFontes(comExtras) {
@@ -5788,7 +5802,7 @@
   const cadEscrita = () => logRaw || db;        // grava sem encher o registro de alterações do dia: cada lote tem o seu registro em cad_trocas
   const cadNorm = (s) => norm(String(s || '')).replace(/[^a-z0-9]+/g, ' ').trim();
   const cadVinc = (mod, id) => state.cadIdx.get(mod + '|' + id) || '';
-  const cadFmtNome = (c, formato) => formato === 'razao' ? String(c.razao || '').trim() : `${nomeCurtoBase(c.apelido || c.razao)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`;
+  const cadFmtNome = (c, formato) => formato === 'razao' ? String(c.razao || '').trim() : `${nomeComSobrenome(c.apelido, c.razao)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`;
   async function cadLerCol(c) { return (await db.collection(c).get()).docs.map(d => ({ id: d.id, data: d.data() || {} })); }
   // Identidade de uma empresa de módulo: pelo vínculo do cadastro único; sem vínculo, pelo CNPJ do próprio registro; sem nada, os dados dele.
   function cadIdentidade(mod, id, fbNome, fbCnpj) {
@@ -6171,7 +6185,7 @@
     return out.slice();
   }
   // Cliente do Onvio no mesmo padrão das empresas: apelido (ou nome) resumido e " | final do CNPJ".
-  const ovNomeClienteCurto = (g) => { const c = ovClientes().get(g.cod); return nomeCurtoBase((c && c.apelido) || g.cli) + ' | ' + ((c && cnpjFinal(c.cnpj)) || 'sem CNPJ'); };
+  const ovNomeClienteCurto = (g) => { const c = ovClientes().get(g.cod); return nomeComSobrenome(c && c.apelido, g.cli) + ' | ' + ((c && cnpjFinal(c.cnpj)) || 'sem CNPJ'); };
   const ovSemVinculo = () => ovSemVinc().map(g => ({ k: g.k, cli: ovNomeClienteCurto(g), cliCompleto: g.cli, cod: g.cod, n: g.n, nEmp: g.nEmp || 0, cliente: (() => { const c = ovClientes().get(g.cod); return c ? { cnpj: c.cnpj || '', uf: c.uf || '', apelido: c.apelido || '' } : null; })(), parecidas: state.dpEmpresas.filter(e => ovParecido(g.k, e)).slice(0, 6).map(e => ({ id: e.id, nome: nomeCurto(e), nomeCompleto: e.nome })) }));
   // Cliente do Onvio que não existe no DP vira empresa nova (só a coordenação cadastra empresas). O CNPJ do cliente já liga as solicitações a ela.
   async function ovCriarEmpresa(k) {
