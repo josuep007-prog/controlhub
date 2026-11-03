@@ -1355,7 +1355,6 @@ html::before{background:radial-gradient(closest-side,var(--fd3),transparent);lef
 .pmain .mod-seg ~ .tagwrap{margin-left:0;}
 
 /* cadastro único: selo, ficha e atalhos (cantos retos) */
-.esub-cad{font-size:10.5px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:var(--blue-deep); border:1px solid color-mix(in srgb, var(--blue-deep) 40%, transparent); padding:0 5px; border-radius:0;}
 .cad-ficha{border:1px solid var(--rule); background:var(--surface-2); padding:10px 12px; margin:0 0 10px; font-size:12.5px; display:flex; flex-direction:column; gap:6px;}
 .cad-ficha.off{color:var(--ink-3);}
 .cad-ficha .cad-linha{color:var(--ink-2);}

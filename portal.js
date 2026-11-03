@@ -2020,7 +2020,6 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     frentesDaEmpresa(e, docs).forEach(function(f){ var n = String(resolverAnalista(f).nome || "").trim(); if(n && analistas.indexOf(n) === -1) analistas.push(n); });
     var sub = [];
     if(e.cnpj) sub.push('<span class="esub-cnpj">CNPJ '+esc(e.cnpj)+'</span>');
-    if(e.cadLigado) sub.push('<span class="esub-cad sepa" title="Nome e CNPJ vêm do cadastro único do Hub">cadastro único</span>');
     if(analistas.length) sub.push('<span class="eana sepa" title="Analistas: '+esc(analistas.join(", "))+'">'+esc(analistas.map(function(n){ return n.split(" ")[0]; }).join(", "))+'</span>');
 
     var semDemanda = !SETORES.some(function(s){ return e.setoresDemanda && e.setoresDemanda[s.key]; });
