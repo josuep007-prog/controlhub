@@ -1961,6 +1961,7 @@ html:has(body.in-module)::before{background:radial-gradient(closest-side,var(--f
 .ev-dest-i:first-of-type{border-top:0;} .ev-dest-i span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink);} .ev-dest-i small{color:var(--ink-3); text-align:right; font-variant-numeric:tabular-nums;}
 .ev-dest-i:hover span{color:var(--blue-deep); text-decoration:underline;} .ev-dest-i:focus-visible{outline:2px solid var(--blue-deep);}
 .ev-row{--cols:minmax(0,2fr) 104px 64px 64px 78px 64px 84px 104px; display:grid; grid-template-columns:var(--cols); align-items:center; gap:8px;}
+.list-card.ev-tab, #dp-func-cards .list-card{margin:0 0 14px; border-radius:2px; box-shadow:var(--sh-bloco);}
 .ev-th{all:unset; cursor:pointer; font:inherit;} .ev-th.on{color:var(--ink);} .ev-th:hover{color:var(--blue-deep);} .ev-th:focus-visible{outline:2px solid var(--blue-deep);}
 .ev-nome{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .ev-spark{width:96px; height:26px; display:block;} .ev-spark polyline{fill:none; stroke:var(--viz-1); stroke-width:1.6;} .ev-spark circle{fill:var(--viz-1);}
