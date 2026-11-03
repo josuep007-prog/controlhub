@@ -115,6 +115,7 @@
         <button type="button" class="dp-tab" role="tab" data-dp-view="funcionarios">Funcionários <span class="dp-tab-badge" id="dp-badge-func" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="sindicatos">Convenções <span class="dp-tab-badge" id="sd-badge" hidden></span></button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="cartela">Cartela de clientes <span class="dp-tab-badge" id="ct-badge" hidden></span></button>
+        <button type="button" class="dp-tab" role="tab" data-dp-view="relatorios">Relatórios</button>
         <button type="button" class="dp-tab" role="tab" data-dp-view="ferramentas">Ferramentas</button>
       </div>
 
@@ -190,6 +191,7 @@
           <input type="search" id="dp-func-search" placeholder="Buscar funcionário pelo nome…" autocomplete="off">
           <div class="dp-chips" id="dp-func-chips" role="group" aria-label="Filtrar por situação"></div>
           <button type="button" class="btn btn-sm" id="dp-btn-func-csv">Planilha (CSV)</button>
+          <label class="fn-datas" title="Experiência, férias, rescisão e período concessivo na Agenda, nos alertas e no Painel (só para você, neste navegador)"><input type="checkbox" id="dp-func-datas"> Datas e lembretes dos funcionários</label>
           <span class="dp-count" id="dp-func-count"></span>
         </div>
         <div class="ov-dif-view" id="dp-func-ovdif" hidden></div>
@@ -280,6 +282,10 @@
           </div>
         </div>
         </div>
+      </div>
+
+      <div class="dp-view" id="dp-view-relatorios" hidden>
+        <div id="dp-rel-root"></div>
       </div>
 
       <div class="dp-view" id="dp-view-ferramentas" hidden>

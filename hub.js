@@ -946,7 +946,7 @@
 
   // ---------- rotas: #dp/agenda, #dp/empresa/<id> ----------
   let pendingEmp = null;
-  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','ferramentas'];
+  const DP_VIEWS = ['painel','agenda','empresas','funcionarios','sindicatos','cartela','relatorios','ferramentas'];
   function currentRoute() {
     if (dlgDetail.open && dpAtual && !dpDraft) return `dp/empresa/${dpAtual.id}`;
     return state.activeModule === 'dp' ? `dp/${state.dpView}${state.dpView === 'ferramentas' && state.dpFerr ? '/' + state.dpFerr : ''}` : state.activeModule === 'uso' ? 'uso' : state.activeModule === 'usuarios' ? 'usuarios' : state.activeModule === 'config' ? 'config' : MODS_EXTRA.includes(state.activeModule) ? state.activeModule : '';
@@ -1102,6 +1102,10 @@
     feMemo.set(f, { sig, out: r });
     return r.slice();
   }
+  // Datas e lembretes dos funcionários (experiência, férias, rescisão, concessivo) na Agenda, nos alertas e no Painel: desligados por padrão;
+  // cada pessoa liga para si em DP › Funcionários (fica guardado neste navegador).
+  let relForcaPessoal = false;      // os Relatórios do DP sempre podem listar as datas dos funcionários
+  const funcDatasOn = () => relForcaPessoal || state.prefs.dpFuncDatas === true;
   function funcAlertas(f) {
     const t = hoje();
     return funcEventos(f).filter(ev => ev.janela).map(ev => ({ ...ev, dd: diffDays(ev.d, t) }))
@@ -1115,7 +1119,7 @@
     const t = hoje();
     const meses = [t.getMonth(), (t.getMonth() + 1) % 12];
     lista.filter(ativa).forEach(e => {
-      e.funcionarios.forEach(f => funcAlertas(f).forEach(a => out.push({ ...a, empresa:e, func:f, tab:'funcionarios' })));
+      if (funcDatasOn()) e.funcionarios.forEach(f => funcAlertas(f).forEach(a => out.push({ ...a, empresa:e, func:f, tab:'funcionarios' })));
       const bases = basesEmpresa(e);
       bases.forEach(b => {
         const mi = MESES.indexOf(b);
@@ -1178,7 +1182,7 @@
     });
     out.push(...eventosCct(from, to, ativas));
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
-    ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
+    if (funcDatasOn()) ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
     out.push(...ovEventos(from, to, ativas));
     return out.sort(porData);
   }
@@ -1442,6 +1446,7 @@
     else if (v === 'agenda') renderDpAgenda();
     else if (v === 'empresas') renderDp();
     else if (v === 'funcionarios') renderDpFuncionarios();
+    else if (v === 'relatorios') renderDpRelatorios();
     else if (v === 'cartela') renderCartela();
     else if (v === 'sindicatos') renderSindTab();
     else if (v === 'ferramentas') renderFerramentasDp();
@@ -1612,7 +1617,7 @@
     const funcBody = totalF
       ? `<div class="stack">${SIT_FUNC.filter(([s]) => cont[s]).map(([s, c]) => `<button type="button" style="flex:${cont[s]};background:${c}" data-go="funcionarios:${s}" ${tipAttr(`${s}\n${cont[s]} de ${totalF} (${Math.round(cont[s] / totalF * 100)}%)\nClique para ver a lista`)}></button>`).join('')}</div>
          <div class="stack-legend">${SIT_FUNC.map(([s, c]) => `<button type="button" data-go="funcionarios:${s}"><i style="background:${c}"></i><small>${s}</small><b>${cont[s]}</b></button>`).join('')}</div>
-         <div class="prox30"><div class="dp-cell-sub" style="font-weight:600">Próximos 30 dias</div>${proxPessoal.map(([l, n]) => `<button type="button" class="prox30-i" data-go="funcionarios"><span>${l}</span><b>${n}</b></button>`).join('')}</div>`
+         ${funcDatasOn() ? `<div class="prox30"><div class="dp-cell-sub" style="font-weight:600">Próximos 30 dias</div>${proxPessoal.map(([l, n]) => `<button type="button" class="prox30-i" data-go="funcionarios"><span>${l}</span><b>${n}</b></button>`).join('')}</div>` : '<div class="prox30"><div class="dp-cell-sub">Datas dos funcionários desligadas (ligue em Funcionários).</div></div>'}`
       : '<div class="empty-mini" style="padding:6px 0">Nenhum funcionário cadastrado nas empresas ativas.</div>';
     const funcCard = card('Funcionários por situação', totalF ? `${totalF} no total` : '', funcBody);
 
@@ -1745,7 +1750,8 @@
     const base = agendaEventos();
     const conta = (v) => base.filter(ev => !v || ev.tipo === v).length;
     const sel = $('#dp-ag-tipo-sel');
-    sel.innerHTML = AG_FILTROS.map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
+    if (!funcDatasOn() && state.dpAgTipo === 'pessoal') state.dpAgTipo = '';
+    sel.innerHTML = AG_FILTROS.filter(([v]) => v !== 'pessoal' || funcDatasOn()).map(([v, l]) => `<option value="${v}">${l} (${conta(v)})</option>`).join('');
     sel.value = state.dpAgTipo;
     sel.classList.toggle('on', !!state.dpAgTipo);
     const vis = base.filter(ev => !state.dpAgTipo || ev.tipo === state.dpAgTipo);
@@ -2087,6 +2093,7 @@
   }
   let funcBuscaT = null;
   $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); state.dpFuncLim = FUNC_PAG; clearTimeout(funcBuscaT); funcBuscaT = setTimeout(renderDpFuncionarios, 180); });
+  { const dt = $('#dp-func-datas'); if (dt) dt.addEventListener('change', () => { state.prefs.dpFuncDatas = dt.checked; savePrefs(); evCacheClear(); toast(dt.checked ? 'Datas dos funcionários ligadas na Agenda, nos alertas e no Painel.' : 'Datas dos funcionários desligadas.'); renderDpActiveView(); }); }
   $('#dp-func-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpFuncFiltro = c.dataset.f; state.dpFuncLim = FUNC_PAG; renderDpFuncionarios(); } });
   // ---------- funcionários: linha do tempo ----------
   // Janela: 2 semanas para trás e ~3 meses para frente. Cores seguem as situações do Painel (férias = laranja, desligamento = verde-água).
@@ -2158,45 +2165,513 @@
   const FN_ROT = { 'Ativo': ['ativo', 'ativos'], 'Férias': ['em férias', 'em férias'], 'Afastado': ['afastado', 'afastados'], 'Desligado': ['desligado', 'desligados'] };
   const FUNC_PAG = 48, FUNC_MAX_BUSCA = 40;
   const fnPlural = (n, s) => `${n} ${FN_ROT[s][n === 1 ? 0 : 1]}`;
-  // ---- evolução: quantos estavam ativos no fim de cada mês, pelas datas de admissão e de saída ----
+  // ---- evolução do quadro: quantos estavam ativos em cada data, pelas datas de admissão e de saída ----
   // Saída = data de rescisão ou, quando o Hub marcou Desligado pela lista do Onvio, o dia em que marcou (saidaEm). Desligado sem nenhuma das duas não dá para
-  // situar no tempo: fica de fora dos meses anteriores (o quadro avisa quantos são).
+  // situar no tempo: fica de fora dos meses anteriores (os quadros avisam quantos são). Quem não tem data de admissão conta como se sempre estivesse lá.
   const funcSaida = (f) => parseYmd(f.rescisao) || parseYmd(f.saidaEm) || null;
   function funcAtivoEm(f, d) {
-    const adm = parseYmd(f.admissao); if (!adm || adm > d) return false;
+    const adm = parseYmd(f.admissao); if (adm && adm > d) return false;
     if (funcStatus(f) !== 'Desligado') return true;
     const sai = funcSaida(f); return !!sai && sai > d;
   }
-  function funcSerie(emps, meses) {
-    const t = hoje(), out = [];
-    for (let k = meses - 1; k >= 0; k--) {
-      const ref = new Date(t.getFullYear(), t.getMonth() - k + 1, 0), d = k === 0 ? t : ref;        // fim do mês (hoje no mês atual)
-      let n = 0; emps.forEach(e => e.funcionarios.forEach(f => { if (funcAtivoEm(f, d)) n++; }));
-      out.push({ d, n, rot: ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][d.getMonth()] + '/' + String(d.getFullYear()).slice(2) });
+  const MES_ABR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const mesStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // Períodos (mês, trimestre ou ano) entre dois meses 'AAAA-MM'; os ativos de cada período contam no último dia dele (hoje, se ainda não terminou).
+  function evPeriodos(deMes, ateMes, grao) {
+    const [y0, m0] = String(deMes).split('-').map(Number), [y1, m1] = String(ateMes).split('-').map(Number);
+    if (!y0 || !m0 || !y1 || !m1) return [];
+    const ini0 = new Date(y0, m0 - 1, 1), fimTot = new Date(y1, m1, 0), t = hoje(), passo = grao === 'tri' ? 3 : grao === 'ano' ? 12 : 1, out = [];
+    let a = grao === 'tri' ? new Date(y0, Math.floor((m0 - 1) / 3) * 3, 1) : grao === 'ano' ? new Date(y0, 0, 1) : ini0;
+    while (a <= fimTot && out.length < 240) {
+      const b = new Date(a.getFullYear(), a.getMonth() + passo, 0), ini = a < ini0 ? ini0 : a, fim = b > fimTot ? fimTot : b;
+      if (ini > t) break;
+      const yy = String(a.getFullYear()).slice(2);
+      out.push({ ini, fim, ref: fim > t ? t : fim, parcial: fim > t, rot: grao === 'tri' ? `${Math.floor(a.getMonth() / 3) + 1}º tri/${yy}` : grao === 'ano' ? String(a.getFullYear()) : `${MES_ABR[a.getMonth()]}/${yy}` });
+      a = new Date(a.getFullYear(), a.getMonth() + passo, 1);
     }
     return out;
   }
-  function funcEvolucaoHtml(emps) {
-    const serie = funcSerie(emps, 24), max = Math.max(1, ...serie.map(x => x.n)), W = 720, H = 150, px = 34, pb = 22, passo = (W - px - 8) / (serie.length - 1);
-    const y = (n) => 8 + (H - pb - 8) * (1 - n / max), x = (i) => px + i * passo;
-    const pts = serie.map((s2, i) => `${x(i).toFixed(1)},${y(s2.n).toFixed(1)}`).join(' ');
-    const rot = serie.map((s2, i) => (i % 3 === 0 || i === serie.length - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${i === serie.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'}" class="fe-ax">${s2.rot}</text>` : '').join('');
-    const pontos = serie.map((s2, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(s2.n).toFixed(1)}" r="3" class="fe-pt"><title>${s2.rot}: ${s2.n} ativos</title></circle>`).join('');
-    const grade = [0, 0.5, 1].map(f => `<line x1="${px}" x2="${W - 4}" y1="${y(max * f).toFixed(1)}" y2="${y(max * f).toFixed(1)}" class="fe-gr"/><text x="${px - 4}" y="${(y(max * f) + 3).toFixed(1)}" text-anchor="end" class="fe-ax">${Math.round(max * f)}</text>`).join('');
-    const hoje_ = serie[serie.length - 1].n, m3 = serie[serie.length - 4].n, a1 = serie[serie.length - 13].n;
-    const dlt = (v) => { const d = hoje_ - v; return d === 0 ? '<span class="dp-cell-sub">igual</span>' : `<span class="fe-var ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`; };
-    // por empresa: ativos hoje, há 3 e há 12 meses
-    const t = hoje(), d3 = addDays(t, -91), d12 = addDays(t, -365);
-    const linhas = emps.map(e => { const c = (d) => e.funcionarios.filter(f => funcAtivoEm(f, d)).length; return { e, h: c(t), m3: c(d3), a1: c(d12) }; })
-      .filter(r => r.h || r.m3 || r.a1).sort((a, b) => (b.h - a.h) || byNome(a.e, b.e)).slice(0, state.dpFuncLim);
-    const dd = (r, v) => { const d = r.h - v; return d === 0 ? '—' : `<span class="fe-var ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`; };
-    const semData = emps.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) === 'Desligado' && !funcSaida(f)).length, 0);
-    return `<div class="fn-resumo fe-box"><div class="fn-res-t"><b>${hoje_}</b> ativos hoje <span class="dp-cell-sub">· ${dlt(m3)} em 3 meses · ${dlt(a1)} em 12 meses</span></div>
-      <svg viewBox="0 0 ${W} ${H}" class="fe-svg" role="img" aria-label="Quantidade de funcionários ativos por mês, últimos 24 meses">${grade}<polyline points="${pts}" class="fe-ln"/>${pontos}${rot}</svg>
-      ${semData ? `<div class="dp-cell-sub" style="margin-top:4px">${semData} desligado(s) sem data de saída não entram nos meses anteriores: a evolução passada pode estar um pouco baixa.</div>` : ''}</div>
-      <div class="list-card"><div class="dp-listhead" style="--cols:minmax(0,2fr) 90px 90px 90px"><span>Empresa</span><span>Ativos hoje</span><span>vs 3 meses</span><span>vs 12 meses</span></div>
-      <div class="dp-list">${linhas.map(r => `<div class="dp-row" style="--cols:minmax(0,2fr) 90px 90px 90px" role="button" tabindex="0" data-open-emp="${escapeHtml(r.e.id)}" data-tab="funcionarios"><div class="dp-cell-main">${nomeEmpHtml(r.e)}</div><div class="dp-mono">${r.h}</div><div>${dd(r, r.m3)}</div><div>${dd(r, r.a1)}</div></div>`).join('') || '<div class="dp-empty">Nenhuma empresa.</div>'}</div></div>`;
+  // Uma passada por empresa: ativos antes do 1º período e, em cada período, ativos no fim, admissões e desligamentos.
+  function evContar(emps, per) {
+    if (!per.length) return [];
+    const antes = addDays(per[0].ini, -1);
+    return emps.map(e => {
+      const fs = e.funcionarios.map(f => { const desl = funcStatus(f) === 'Desligado'; return { adm: parseYmd(f.admissao), desl, sai: desl ? funcSaida(f) : null }; });
+      const ativo = (x, d) => (!x.adm || x.adm <= d) && (!x.desl || (!!x.sai && x.sai > d));
+      const lin = per.map(p => {
+        let at = 0, ad = 0, de = 0;
+        fs.forEach(x => { if (ativo(x, p.ref)) at++; if (x.adm && x.adm >= p.ini && x.adm <= p.fim) ad++; if (x.sai && x.sai >= p.ini && x.sai <= p.fim) de++; });
+        return { at, ad, de };
+      });
+      const ini = fs.filter(x => ativo(x, antes)).length, fim = lin[lin.length - 1].at;
+      const ad = lin.reduce((n, l) => n + l.ad, 0), de = lin.reduce((n, l) => n + l.de, 0), media = (ini + fim) / 2;
+      return { e, ini, fim, lin, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
+        semSaida: fs.filter(x => x.desl && !x.sai).length, semAdm: fs.filter(x => !x.adm && !x.desl).length };
+    });
   }
+  function evTotal(linhas, per) {
+    const lin = per.map((p, i) => linhas.reduce((s, r) => ({ at: s.at + r.lin[i].at, ad: s.ad + r.lin[i].ad, de: s.de + r.lin[i].de }), { at: 0, ad: 0, de: 0 }));
+    const ini = linhas.reduce((n, r) => n + r.ini, 0), fim = lin.length ? lin[lin.length - 1].at : 0, ad = linhas.reduce((n, r) => n + r.ad, 0), de = linhas.reduce((n, r) => n + r.de, 0), media = (ini + fim) / 2;
+    return { lin, ini, fim, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
+      semSaida: linhas.reduce((n, r) => n + r.semSaida, 0), semAdm: linhas.reduce((n, r) => n + r.semAdm, 0) };
+  }
+  const evPct = (v) => v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  const evNum = (v) => v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`;
+  const evVar = (v) => v === 0 ? '<span class="ev-var">=</span>' : `<span class="ev-var ${v > 0 ? 'up' : 'down'}">${evNum(v)}</span>`;
+  // Gráfico: área com os ativos e, embaixo, admissões (para cima) e desligamentos (para baixo). Passar o mouse mostra os números de cada período.
+  function evGraficoHtml(per, tot, opt = {}) {
+    if (!per.length) return '<div class="dp-empty">Sem período para mostrar.</div>';
+    const W = opt.w || 900, H1 = opt.h || 190, H2 = opt.semMov ? 0 : 64, gap = H2 ? 16 : 0, px = 40, pr = 10, pt = 10, pb = 22, H = pt + H1 + gap + H2 + pb;
+    const n = per.length, passo = n > 1 ? (W - px - pr) / (n - 1) : 0, x = (i) => n > 1 ? px + i * passo : (px + W - pr) / 2;
+    const vals = tot.lin.map(l => l.at), maxV = Math.max(1, ...vals), minV = Math.min(...vals);
+    const base = minV > 0 && (maxV - minV) / maxV < 0.35 ? Math.max(0, Math.floor((minV - (maxV - minV) * 0.4) / 5) * 5) : 0;   // eixo não começa no zero quando a variação é pequena
+    const topo = Math.max(maxV, base + 1), y = (v) => pt + H1 * (1 - (v - base) / (topo - base));
+    const linha = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const area = `${x(0).toFixed(1)},${(pt + H1).toFixed(1)} ${linha} ${x(n - 1).toFixed(1)},${(pt + H1).toFixed(1)}`;
+    const marcas = [base, base + (topo - base) / 2, topo].map(v => Math.round(v));
+    const grade = [...new Set(marcas)].map(v => `<line x1="${px}" x2="${W - pr}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="ev-gr"/><text x="${px - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="ev-ax">${v}</text>`).join('');
+    const cada = Math.max(1, Math.ceil(n / (opt.rotulos || 12)));
+    const rot = per.map((p, i) => (i % cada === 0 || i === n - 1) && !(i !== n - 1 && n - 1 - i < Math.max(2, cada)) ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle'}" class="ev-ax">${p.rot}${p.parcial ? '*' : ''}</text>` : '').join('');
+    let mov = '';
+    if (H2) {
+      const z = pt + H1 + gap + H2 / 2, maxM = Math.max(1, ...tot.lin.map(l => Math.max(l.ad, l.de))), bw = Math.max(2, Math.min(14, (n > 1 ? passo : 40) * 0.36)), hM = (v) => v / maxM * (H2 / 2 - 2);
+      mov = `<line x1="${px}" x2="${W - pr}" y1="${z}" y2="${z}" class="ev-gr"/><text x="${px - 6}" y="${z - H2 / 2 + 9}" text-anchor="end" class="ev-ax">+${maxM}</text><text x="${px - 6}" y="${z + H2 / 2}" text-anchor="end" class="ev-ax">−${maxM}</text>` +
+        tot.lin.map((l, i) => (l.ad ? `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${(z - hM(l.ad)).toFixed(1)}" width="${bw.toFixed(1)}" height="${hM(l.ad).toFixed(1)}" class="ev-ad"/>` : '') + (l.de ? `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${z.toFixed(1)}" width="${bw.toFixed(1)}" height="${hM(l.de).toFixed(1)}" class="ev-de"/>` : '')).join('');
+    }
+    const pts = n <= 40 ? vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${n > 24 ? 2 : 3}" class="ev-pt"/>`).join('') : '';
+    const dados = per.map((p, i) => ({ r: p.rot + (p.parcial ? ' (até hoje)' : ''), a: tot.lin[i].at, ad: tot.lin[i].ad, de: tot.lin[i].de }));
+    const zonas = per.map((p, i) => { const l = i === 0 ? px - 4 : (x(i - 1) + x(i)) / 2, r = i === n - 1 ? W - pr + 4 : (x(i) + x(i + 1)) / 2; return `<rect x="${l.toFixed(1)}" y="0" width="${(r - l).toFixed(1)}" height="${H}" class="ev-zona" data-i="${i}" data-x="${x(i).toFixed(1)}"/>`; }).join('');
+    return `<div class="ev-chart" data-ev='${escapeHtml(JSON.stringify(dados))}' data-w="${W}" data-yat="${escapeHtml(JSON.stringify(vals.map(v => +y(v).toFixed(1))))}">
+      <svg viewBox="0 0 ${W} ${H}" class="ev-svg" role="img" aria-label="${escapeHtml(opt.label || 'Funcionários ativos por período')}">
+        <defs><linearGradient id="evg${opt.id || ''}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--viz-1)" stop-opacity=".28"/><stop offset="1" stop-color="var(--viz-1)" stop-opacity=".02"/></linearGradient></defs>
+        ${grade}<polygon points="${area}" fill="url(#evg${opt.id || ''})"/><polyline points="${linha}" class="ev-ln"/>${pts}${mov}${rot}
+        <line class="ev-cursor" x1="0" x2="0" y1="${pt}" y2="${pt + H1 + gap + H2}" style="display:none"/><circle class="ev-cursor-pt" r="4.5" cx="0" cy="0" style="display:none"/>${zonas}
+      </svg><div class="ev-tip" hidden></div></div>
+      <div class="ev-leg"><span><i class="ln"></i>Ativos no fim do período</span>${H2 ? '<span><i class="ad"></i>Admissões</span><span><i class="de"></i>Desligamentos</span>' : ''}${per.some(p => p.parcial) ? '<span class="dp-cell-sub">* período em andamento: conta até hoje</span>' : ''}</div>`;
+  }
+  // Dica do gráfico: segue o mouse (e o toque) por período.
+  function evDica(e) {
+    const z = e.target.closest && e.target.closest('.ev-zona'), ch = e.target.closest && e.target.closest('.ev-chart'); if (!ch) return;
+    const tip = $('.ev-tip', ch), cur = $('.ev-cursor', ch), cp = $('.ev-cursor-pt', ch);
+    if (!z) { tip.hidden = true; cur.style.display = cp.style.display = 'none'; return; }
+    let d; try { d = JSON.parse(ch.dataset.ev)[+z.dataset.i]; } catch { return; }
+    const yat = JSON.parse(ch.dataset.yat || '[]')[+z.dataset.i], xs = z.dataset.x, svg = $('svg', ch), esc = svg.getBoundingClientRect().width / +ch.dataset.w;
+    cur.setAttribute('x1', xs); cur.setAttribute('x2', xs); cur.style.display = ''; cp.setAttribute('cx', xs); cp.setAttribute('cy', yat); cp.style.display = '';
+    tip.innerHTML = `<b>${escapeHtml(d.r)}</b><span><i class="ln"></i>${d.a} ativo${d.a === 1 ? '' : 's'}</span><span><i class="ad"></i>${d.ad} admiss${d.ad === 1 ? 'ão' : 'ões'}</span><span><i class="de"></i>${d.de} desligamento${d.de === 1 ? '' : 's'}</span>`;
+    tip.hidden = false;
+    const left = +xs * esc, w = tip.offsetWidth, max = ch.clientWidth - w - 4;
+    tip.style.left = Math.max(4, Math.min(max, left + 12 > max ? left - w - 12 : left + 12)) + 'px';
+  }
+  document.addEventListener('mousemove', evDica);
+  document.addEventListener('mouseleave', (e) => { if (e.target && e.target.classList && e.target.classList.contains('ev-chart')) { const t = $('.ev-tip', e.target); if (t) t.hidden = true; } }, true);
+  const evSpark = (lin) => {
+    const v = lin.map(l => l.at), n = v.length, max = Math.max(...v), min = Math.min(...v), W = 96, H = 26;
+    if (n < 2) return '';
+    const y = (a) => max === min ? H / 2 : 3 + (H - 6) * (1 - (a - min) / (max - min)), x = (i) => 2 + i * (W - 4) / (n - 1);
+    const cls = v[n - 1] > v[0] ? 'up' : v[n - 1] < v[0] ? 'down' : '';
+    return `<svg viewBox="0 0 ${W} ${H}" class="ev-spark ${cls}" aria-hidden="true"><polyline points="${v.map((a, i) => `${x(i).toFixed(1)},${y(a).toFixed(1)}`).join(' ')}"/><circle cx="${x(n - 1).toFixed(1)}" cy="${y(v[n - 1]).toFixed(1)}" r="2.2"/></svg>`;
+  };
+  const evAviso = (t) => [t.semSaida ? `${t.semSaida} desligado(s) sem data de saída não entram nos períodos anteriores (a evolução passada pode estar um pouco baixa)` : '', t.semAdm ? `${t.semAdm} ativo(s) sem data de admissão contam como se sempre estivessem na empresa` : ''].filter(Boolean).join('. ');
+
+  // ---------- funcionários: visão Evolução ----------
+  const EV_PERIODOS = [[12, '12 meses'], [24, '24 meses'], [36, '3 anos'], [60, '5 anos']];
+  const EV_GRAOS = [['mes', 'Mês'], ['tri', 'Trimestre'], ['ano', 'Ano']];
+  const EV_COLS = [['nome', 'Empresa'], ['spark', 'Evolução'], ['ini', 'Início'], ['fim', 'Hoje'], ['vari', 'Variação'], ['pct', '%'], ['ad', 'Admissões'], ['de', 'Desligamentos']];
+  state.dpEvo = { meses: 24, grao: 'mes', ord: 'fim', dir: -1 };
+  function evJanela(meses) { const t = hoje(); return [mesStr(new Date(t.getFullYear(), t.getMonth() - meses + 1, 1)), mesStr(t)]; }
+  function funcEvolucaoHtml(emps) {
+    const E = state.dpEvo, [de, ate] = evJanela(E.meses), per = evPeriodos(de, ate, E.grao);
+    const linhas = evContar(emps, per), tot = evTotal(linhas, per);
+    const kpi = (v, l, s, cls = '') => `<div class="ev-kpi ${cls}"><b>${v}</b><span>${l}</span>${s ? `<small>${s}</small>` : ''}</div>`;
+    const ctl = `<div class="ev-ctl"><div class="seg" role="group" aria-label="Período">${EV_PERIODOS.map(([m, l]) => `<button type="button" data-ev-meses="${m}" class="${E.meses === m ? 'on' : ''}" aria-pressed="${E.meses === m}">${l}</button>`).join('')}</div>
+      <div class="seg" role="group" aria-label="Agrupar por">${EV_GRAOS.map(([g, l]) => `<button type="button" data-ev-grao="${g}" class="${E.grao === g ? 'on' : ''}" aria-pressed="${E.grao === g}">${l}</button>`).join('')}</div>
+      <button type="button" class="btn btn-sm" data-dp-rel-ir="quadro">Relatório do quadro…</button></div>`;
+    const kpis = `<div class="ev-kpis">${kpi(tot.fim, 'ativos hoje', `${emps.length} empresa${emps.length === 1 ? '' : 's'}`)}${kpi(evNum(tot.vari), `variação em ${EV_PERIODOS.find(p => p[0] === E.meses)[1]}`, `${evPct(tot.pct)} · eram ${tot.ini}`, tot.vari > 0 ? 'up' : tot.vari < 0 ? 'down' : '')}${kpi(tot.ad, 'admissões', 'no período', 'ad')}${kpi(tot.de, 'desligamentos', 'no período', 'de')}${kpi(tot.rot == null ? '—' : evPct(tot.rot).replace('+', ''), 'rotatividade', 'desligamentos ÷ média de ativos')}</div>`;
+    const top = (dir) => linhas.filter(r => dir > 0 ? r.vari > 0 : r.vari < 0).sort((a, b) => dir * (b.vari - a.vari) || byNome(a.e, b.e)).slice(0, 5);
+    const dest = (tit, l, cls) => `<div class="ev-dest"><h4>${tit}</h4>${l.length ? l.map(r => `<button type="button" class="ev-dest-i" data-open-emp="${escapeHtml(r.e.id)}" data-tab="funcionarios"><span>${nomeEmpHtml(r.e)}</span><b class="ev-var ${cls}">${evNum(r.vari)}</b><small>${r.ini} → ${r.fim}</small></button>`).join('') : '<div class="dp-cell-sub">Nenhuma no período.</div>'}</div>`;
+    const ordVal = (r) => E.ord === 'nome' ? null : E.ord === 'pct' ? (r.pct == null ? -Infinity : r.pct) : r[E.ord];
+    const vis = linhas.filter(r => r.ini || r.fim || r.ad || r.de).sort((a, b) => E.ord === 'nome' ? E.dir * -byNome(a.e, b.e) : (E.dir * (ordVal(a) - ordVal(b))) || byNome(a.e, b.e));
+    const pag = vis.slice(0, state.dpFuncLim), resto = vis.length - pag.length;
+    const cab = EV_COLS.map(([k, l]) => k === 'spark' ? `<span>${l}</span>` : `<button type="button" class="ev-th${E.ord === k ? ' on' : ''}" data-ev-ord="${k}">${l}${E.ord === k ? (E.dir < 0 ? ' ↓' : ' ↑') : ''}</button>`).join('');
+    const tabela = `<div class="list-card ev-tab"><div class="dp-listhead ev-row">${cab}</div><div class="dp-list">${pag.map(r => `<div class="dp-row ev-row" role="button" tabindex="0" data-open-emp="${escapeHtml(r.e.id)}" data-tab="funcionarios">
+        <div class="dp-cell-main ev-nome">${nomeEmpHtml(r.e)}</div><div>${evSpark(r.lin)}</div><div class="dp-mono">${r.ini}</div><div class="dp-mono"><b>${r.fim}</b></div><div>${evVar(r.vari)}</div><div class="dp-mono ev-pct">${evPct(r.pct)}</div><div class="dp-mono">${r.ad || '—'}</div><div class="dp-mono">${r.de || '—'}</div></div>`).join('') || '<div class="dp-empty">Nenhuma empresa com funcionários no período.</div>'}</div></div>` +
+      (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '');
+    const av = evAviso(tot);
+    return `${ctl}${kpis}<div class="fn-resumo ev-box"><div class="ev-box-t">Funcionários ativos <span class="dp-cell-sub">· ${per.length ? `${per[0].rot} a ${per[per.length - 1].rot}` : ''}</span></div>${evGraficoHtml(per, tot, { id: 'g', w: 1200, h: 230, rotulos: 14, label: 'Funcionários ativos, admissões e desligamentos por período' })}${av ? `<div class="dp-cell-sub ev-nota">${escapeHtml(av)}.</div>` : ''}</div>
+      <div class="ev-dests">${dest('Mais cresceram', top(1), 'up')}${dest('Mais reduziram', top(-1), 'down')}</div>${tabela}`;
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-ev-meses],[data-ev-grao],[data-ev-ord]'); if (!b || !$('#dp-func-cards') || !$('#dp-func-cards').contains(b)) return;
+    const E = state.dpEvo;
+    if (b.dataset.evMeses) { E.meses = +b.dataset.evMeses; if (E.meses <= 12 && E.grao === 'ano') E.grao = 'mes'; }
+    else if (b.dataset.evGrao) E.grao = b.dataset.evGrao;
+    else if (b.dataset.evOrd) { const k = b.dataset.evOrd; if (E.ord === k) E.dir = -E.dir; else { E.ord = k; E.dir = k === 'nome' ? 1 : -1; } }
+    renderDpFuncionarios();
+  });
+
+  // ---------- DP › Relatórios ----------
+  // Aba própria, no estilo da de Relatórios do Portal do Cliente: escolhe o tipo, monta o escopo (empresas, período e opções) e o relatório aparece na hora,
+  // com números de destaque, gráfico quando cabe e a tabela; sai em PDF, Excel, CSV ou impressão. Os modelos ficam guardados neste navegador.
+  const REL_METRICAS = [['at', 'Ativos no fim'], ['ad', 'Admissões'], ['de', 'Desligamentos'], ['saldo', 'Saldo (admissões − desligamentos)']];
+  const REL_TIPOS = [
+    { id: 'quadro', nome: 'Quadro de funcionários', desc: 'Ativos, admissões, desligamentos e rotatividade por empresa, em resumo ou período a período.' },
+    { id: 'movimento', nome: 'Admissões e desligamentos', desc: 'Quem entrou e quem saiu no período, empresa por empresa.' },
+    { id: 'ferias', nome: 'Férias', desc: 'Em férias, programadas, concessivos vencendo no período e férias vencidas.' },
+    { id: 'contratos', nome: 'Experiência e rescisões', desc: 'Fins de experiência, últimos dias e prazos de pagamento de rescisão no período.' },
+    { id: 'agenda', nome: 'Agenda do período', desc: 'Todas as datas do DP no período: rotinas, prazos gerais, lembretes, data-base, CCT, pessoal e Onvio.' },
+    { id: 'carteira', nome: 'Carteira de empresas', desc: 'Empresas por responsável, tributação e situação, com a quantidade de funcionários.' },
+    { id: 'convencoes', nome: 'Convenções e data-base', desc: 'Sindicato, data-base, fim da vigência da CCT e reajuste de cada empresa.' },
+    { id: 'pendencias', nome: 'Cadastro incompleto', desc: 'O que falta no cadastro de cada empresa: CNPJ, código, tributação, responsável, sindicato, admissões.' },
+  ];
+  const REL_COM_PERIODO = new Set(['quadro', 'movimento', 'ferias', 'contratos', 'agenda', 'convencoes']);
+  function relPadrao() { const [de, ate] = evJanela(12); return { tipo: 'quadro', emp: 'todas', sel: [], resp: '', trib: '', sit: 'ativas', soComFunc: true, de, ate, grao: 'mes', formato: 'resumo', metrica: 'at', total: true, busca: '', mov: 'ambos', ferias: 'todos', agTipos: ['prazo', 'geral', 'lembrete', 'database', 'sindical', 'pessoal', 'onvio'], agrupar: 'nenhum', soPendentes: true }; }
+  state.dpRel = relPadrao();
+  const relModelos = () => Array.isArray(state.prefs.dpRelModelos) ? state.prefs.dpRelModelos : [];
+  const relCom = (R) => ['quadro', 'movimento'].includes(R.tipo) && R.soComFunc;
+  function relEmpresas(R) {
+    let l = state.dpEmpresas.slice();
+    if (R.sit === 'ativas') l = l.filter(ativa);
+    if (R.emp === 'carteira') l = l.filter(naCarteira);
+    if (R.emp === 'sel') { const s = new Set(R.sel); l = l.filter(e => s.has(e.id)); }
+    if (R.resp) l = l.filter(e => R.resp === SEM_RESP ? !respEf(e) : respDe(e, R.resp));
+    if (R.trib) l = l.filter(e => (e.tributacao || '') === R.trib);
+    if (relCom(R)) l = l.filter(e => e.funcionarios.length);
+    return l.sort(byNome);
+  }
+  const relDe = (R) => { const [y, m] = R.de.split('-').map(Number); return new Date(y, m - 1, 1); };
+  const relAte = (R) => { const [y, m] = R.ate.split('-').map(Number); return new Date(y, m, 0); };
+  const relPeriodoTxt = (R) => `${fmtDMY(relDe(R))} a ${fmtDMY(relAte(R))}`;
+  const relValor = (l, m) => m === 'saldo' ? l.ad - l.de : l[m];
+  const relKpi = (v, l, s = '', cls = '') => ({ v, l, s, cls });
+  const relFmt = (v) => typeof v === 'number' ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : String(v ?? '');
+  // Cada gerador devolve { kpis, grafico?, cab, num (colunas numéricas), linhas: [{ id, c }], total?, titulo, sub, aviso? }.
+  const REL_GER = {
+    quadro(R, emps) {
+      const per = evPeriodos(R.de, R.ate, R.grao); if (!per.length) return { erro: 'O período escolhido ainda não começou.' };
+      const linhas = evContar(emps, per), tot = evTotal(linhas, per), met = REL_METRICAS.find(x => x[0] === R.metrica);
+      const kpis = [relKpi(tot.fim, 'ativos no fim', `eram ${tot.ini} no início`), relKpi(evNum(tot.vari), 'variação', evPct(tot.pct), tot.vari > 0 ? 'up' : tot.vari < 0 ? 'down' : ''), relKpi(tot.ad, 'admissões', '', 'ad'), relKpi(tot.de, 'desligamentos', '', 'de'), relKpi(tot.rot == null ? '—' : evPct(tot.rot).replace('+', ''), 'rotatividade', 'desligamentos ÷ média de ativos')];
+      const grafico = evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 200, rotulos: 14, label: 'Total do relatório por período' });
+      if (R.formato === 'resumo') {
+        const cab = ['Empresa', 'CNPJ', 'Responsável', `Ativos em ${fmtDMY(addDays(per[0].ini, -1))}`, `Ativos em ${fmtDMY(per[per.length - 1].ref)}`, 'Variação', 'Variação %', 'Admissões', 'Desligamentos', 'Rotatividade %'];
+        const lin = (r, a, b, c) => [a, b, c, r.ini, r.fim, r.vari, r.pct == null ? '' : +r.pct.toFixed(1), r.ad, r.de, r.rot == null ? '' : +r.rot.toFixed(1)];
+        return { kpis, grafico, cab, num: [3, 4, 5, 6, 7, 8, 9], linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e), r.e.cnpj || '', respEf(r.e) || '') })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`, '', '') : null,
+          titulo: 'Quadro de funcionários · resumo por empresa', aviso: evAviso(tot) };
+      }
+      const m = R.metrica, cab = ['Empresa', 'CNPJ', ...per.map(p => p.rot + (p.parcial ? '*' : ''))]; if (m !== 'at') cab.push('Total');
+      const lin = (r, a, b) => { const v = r.lin.map(l => relValor(l, m)); return [a, b, ...v, ...(m !== 'at' ? [v.reduce((x, y) => x + y, 0)] : [])]; };
+      return { kpis, grafico, cab, num: cab.map((_, i) => i).slice(2), linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e), r.e.cnpj || '') })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`, '') : null,
+        titulo: `Quadro de funcionários · ${met ? met[1].toLowerCase() : ''} por ${R.grao === 'tri' ? 'trimestre' : R.grao === 'ano' ? 'ano' : 'mês'}`, aviso: evAviso(tot) + (per.some(p => p.parcial) ? (evAviso(tot) ? '. ' : '') + '* período em andamento: conta até hoje' : '') };
+    },
+    movimento(R, emps) {
+      const a = relDe(R), b = relAte(R), out = [];
+      emps.forEach(e => e.funcionarios.forEach(f => {
+        const adm = parseYmd(f.admissao), sai = funcStatus(f) === 'Desligado' ? funcSaida(f) : null;
+        if (R.mov !== 'desl' && adm && adm >= a && adm <= b) out.push({ e, f, t: 'Admissão', d: adm });
+        if (R.mov !== 'adm' && sai && sai >= a && sai <= b) out.push({ e, f, t: 'Desligamento', d: sai });
+      }));
+      out.sort((x, y) => (x.d - y.d) || byNome(x.e, y.e) || ptCmp(x.f.nome || '', y.f.nome || ''));
+      const nA = out.filter(x => x.t === 'Admissão').length, nD = out.length - nA;
+      const per = evPeriodos(R.de, R.ate, R.grao), tot = per.length ? evTotal(evContar(emps, per), per) : null;
+      return { kpis: [relKpi(nA, 'admissões', '', 'ad'), relKpi(nD, 'desligamentos', '', 'de'), relKpi(evNum(nA - nD), 'saldo', '', nA > nD ? 'up' : nA < nD ? 'down' : ''), relKpi(new Set(out.map(x => x.e.id)).size, 'empresas com movimento')],
+        grafico: tot ? evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 170, rotulos: 14 }) : '', cab: ['Data', 'Movimento', 'Funcionário', 'Cargo', 'Empresa', 'CNPJ'], num: [],
+        linhas: out.map(x => ({ id: x.e.id, c: [fmtDMY(x.d), x.t, x.f.nome || '', x.f.cargo || '', nomeCurto(x.e), x.e.cnpj || ''] })), titulo: R.mov === 'adm' ? 'Admissões do período' : R.mov === 'desl' ? 'Desligamentos do período' : 'Admissões e desligamentos', aviso: tot ? evAviso(tot) : '' };
+    },
+    ferias(R, emps) {
+      const a = relDe(R), b = relAte(R), t = hoje(), out = [];
+      emps.forEach(e => e.funcionarios.forEach(f => {
+        if (funcStatus(f) === 'Desligado') return;
+        const fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), conc = funcEventos(f).find(ev => ev.tipo === 'concessivo');
+        const sit = [];
+        if (fi && ff && fi <= t && t <= ff) sit.push('Em férias');
+        if (fi && fi >= a && fi <= b && fi > t) sit.push('Programada no período');
+        else if (fi && fi >= a && fi <= b) sit.push('Saiu de férias no período');
+        if (conc && conc.d < t) sit.push('Vencidas');
+        else if (conc && conc.d >= a && conc.d <= b) sit.push('Concessivo vence no período');
+        if (!sit.length || (R.ferias === 'vencidas' && !sit.includes('Vencidas')) || (R.ferias === 'programadas' && !sit.some(x => /Programada|Saiu|Em férias/.test(x)))) return;
+        out.push({ e, f, fi, ff, conc: conc ? conc.d : null, sit, venc: sit.includes('Vencidas') });
+      }));
+      out.sort((x, y) => (y.venc - x.venc) || ((x.conc || x.fi || t) - (y.conc || y.fi || t)) || byNome(x.e, y.e));
+      const c = (s) => out.filter(x => x.sit.includes(s)).length;
+      return { kpis: [relKpi(c('Em férias'), 'em férias hoje'), relKpi(c('Programada no período') + c('Saiu de férias no período'), 'férias no período', '', 'ad'), relKpi(c('Concessivo vence no período'), 'concessivo vence no período', '', 'de'), relKpi(c('Vencidas'), 'férias vencidas', 'concessivo já encerrado', c('Vencidas') ? 'down' : '')],
+        cab: ['Funcionário', 'Empresa', 'Admissão', 'Início das férias', 'Fim das férias', 'Fim do concessivo', 'Situação'], num: [],
+        linhas: out.map(x => ({ id: x.e.id, c: [x.f.nome || '', nomeCurto(x.e), fmtDateStr(x.f.admissao), x.fi ? fmtDMY(x.fi) : '', x.ff ? fmtDMY(x.ff) : '', x.conc ? fmtDMY(x.conc) : '', x.sit.join(' · ')] })), titulo: 'Férias', aviso: 'O concessivo é calculado pela admissão (ou pelo período aquisitivo informado) e pelas últimas férias registradas no Hub' };
+    },
+    contratos(R, emps) {
+      const a = relDe(R), b = relAte(R), out = [];
+      emps.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => {
+        if (ev.d < a || ev.d > b || !/experiência|Último dia|rescisão/i.test(ev.txt)) return;
+        out.push({ e, f, ev });
+      })));
+      out.sort((x, y) => (x.ev.d - y.ev.d) || byNome(x.e, y.e));
+      const c = (re) => out.filter(x => re.test(x.ev.txt)).length;
+      return { kpis: [relKpi(c(/experiência \(45/), 'fins de experiência (45 dias)'), relKpi(c(/experiência \(90/), 'fins de experiência (90 dias)'), relKpi(c(/Último dia/), 'desligamentos', '', 'de'), relKpi(c(/pagar a rescisão/), 'rescisões a pagar')],
+        cab: ['Data', 'O quê', 'Funcionário', 'Admissão', 'Empresa', 'Responsável'], num: [],
+        linhas: out.map(x => ({ id: x.e.id, c: [fmtDMY(x.ev.d), x.ev.txt, x.f.nome || '', fmtDateStr(x.f.admissao), nomeCurto(x.e), respEf(x.e) || ''] })), titulo: 'Experiência e rescisões' };
+    },
+    agenda(R, emps) {
+      const a = relDe(R), b = relAte(R), tipos = new Set(R.agTipos), ids = new Set(emps.map(e => e.id));
+      relForcaPessoal = true; let evs; try { evs = eventosCalc(a, b, emps); } finally { relForcaPessoal = false; }
+      evs = evs.filter(ev => tipos.has(ev.tipo)).map(ev => ev.emps ? { ...ev, emps: ev.emps.filter(e => ids.has(e.id)) } : ev).filter(ev => !ev.emps || ev.emps.length);
+      const porTipo = {}; evs.forEach(ev => { porTipo[ev.tipo] = (porTipo[ev.tipo] || 0) + 1; });
+      return { kpis: [relKpi(evs.length, 'datas no período'), ...Object.keys(porTipo).sort((x, y) => porTipo[y] - porTipo[x]).slice(0, 4).map(k => relKpi(porTipo[k], TIPOS[k] || k))],
+        cab: ['Data', 'Dia', 'Tipo', 'O quê', 'Empresa', 'Detalhe'], num: [],
+        linhas: evs.map(ev => ({ id: ev.empresa ? ev.empresa.id : '', c: [fmtDMY(ev.d), wd(ev.d), TIPOS[ev.tipo] || ev.tipo, ev.titulo || '', ev.empresa ? nomeCurto(ev.empresa) : ev.emps ? `${ev.emps.length} empresa${ev.emps.length === 1 ? '' : 's'}` : '', String(ev.sub || '').replace(/\s+/g, ' ').slice(0, 160)] })), titulo: 'Agenda do período' };
+    },
+    carteira(R, emps) {
+      const at = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+      const linhas = emps.map(e => ({ e, r: respEf(e) || 'Sem responsável', n: at(e) }));
+      if (R.agrupar === 'resp') linhas.sort((x, y) => ptCmp(x.r, y.r) || byNome(x.e, y.e)); else if (R.agrupar === 'trib') linhas.sort((x, y) => ptCmp(x.e.tributacao || 'zz', y.e.tributacao || 'zz') || byNome(x.e, y.e));
+      const porResp = {}; linhas.forEach(x => { const k = x.r; porResp[k] = porResp[k] || { emp: 0, f: 0 }; porResp[k].emp++; porResp[k].f += x.n; });
+      const maxE = Math.max(1, ...Object.values(porResp).map(v => v.emp));
+      const grafico = `<div class="rel-barras">${Object.keys(porResp).sort((x, y) => porResp[y].emp - porResp[x].emp).map(k => `<div class="rel-barra"><span>${escapeHtml(k)}</span><i style="width:${Math.max(2, porResp[k].emp / maxE * 100).toFixed(1)}%"></i><b>${porResp[k].emp}</b><small>${porResp[k].f} func.</small></div>`).join('')}</div>`;
+      const totF = linhas.reduce((n, x) => n + x.n, 0);
+      return { kpis: [relKpi(linhas.length, 'empresas'), relKpi(linhas.filter(x => ativa(x.e)).length, 'ativas'), relKpi(totF, 'funcionários ativos'), relKpi(linhas.filter(x => x.r === 'Sem responsável').length, 'sem responsável', '', linhas.some(x => x.r === 'Sem responsável') ? 'down' : '')],
+        grafico, cab: ['Empresa', 'CNPJ', 'Código', 'Código Domínio', 'Tributação', 'Responsável', 'Situação', 'Data-base', 'Funcionários ativos'], num: [8],
+        linhas: linhas.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', x.e.cod || '', x.e.codigoDominio || '', x.e.tributacao || '', x.r, x.e.situacao || '', basesEmpresa(x.e).join(', '), x.n] })), total: R.total ? [`Total (${linhas.length} empresas)`, '', '', '', '', '', '', '', totF] : null, titulo: 'Carteira de empresas' };
+    },
+    convencoes(R, emps) {
+      const a = relDe(R), b = relAte(R), mesesP = new Set(); for (let d = new Date(a); d <= b; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) mesesP.add(MESES[d.getMonth()]);
+      const out = emps.map(e => { const ss = empresaSinds(e), bases = basesEmpresa(e); return { e, ss, bases, noPer: bases.some(x => mesesP.has(x)), vig: ss.map(s => parseYmd(s.vigFim)).filter(Boolean).sort((x, y) => x - y)[0] || null }; })
+        .filter(x => !R.soPendentes || x.noPer || (x.vig && x.vig >= a && x.vig <= b));
+      out.sort((x, y) => (MESES.indexOf(x.bases[0]) - MESES.indexOf(y.bases[0])) || byNome(x.e, y.e));
+      return { kpis: [relKpi(out.length, 'empresas'), relKpi(out.filter(x => x.noPer).length, 'com data-base no período', '', 'ad'), relKpi(out.filter(x => x.vig && x.vig >= a && x.vig <= b).length, 'CCT vence no período', '', 'de'), relKpi(out.filter(x => !x.ss.length).length, 'sem sindicato vinculado', '', out.some(x => !x.ss.length) ? 'down' : '')],
+        cab: ['Empresa', 'Sindicato(s)', 'Data-base', 'Fim da vigência da CCT', 'Reajuste', 'Responsável'], num: [],
+        linhas: out.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.ss.map(rotuloSind).join(' · ') || 'sem sindicato vinculado', x.bases.join(', ') || '—', x.ss.map(s => s.vigFim ? fmtDateStr(s.vigFim) : '').filter(Boolean).join(', '), x.ss.map(s => s.percentual || '').filter(Boolean).join(', '), respEf(x.e) || ''] })),
+        titulo: R.soPendentes ? 'Data-base e CCT no período' : 'Convenções e data-base', aviso: R.soPendentes ? 'Só as empresas com data-base ou fim de CCT entre ' + relPeriodoTxt(R) : '' };
+    },
+    pendencias(R, emps) {
+      const faltas = (e) => { const f = []; if (!cnpjValido(e.cnpj)) f.push(e.cnpj ? 'CNPJ/CPF inválido' : 'sem CNPJ'); if (!e.codigoDominio) f.push('sem código Domínio'); if (!e.tributacao) f.push('sem tributação'); if (!e.responsavel) f.push('sem responsável'); if (!empresaSinds(e).length && !basesEmpresa(e).length) f.push('sem sindicato/data-base'); const semAdm = e.funcionarios.filter(x => funcStatus(x) !== 'Desligado' && !x.admissao).length; if (semAdm) f.push(`${semAdm} funcionário(s) sem admissão`); return f; };
+      const out = emps.map(e => ({ e, f: faltas(e) })).filter(x => x.f.length).sort((x, y) => (y.f.length - x.f.length) || byNome(x.e, y.e));
+      const c = (re) => out.filter(x => x.f.some(t => re.test(t))).length;
+      return { kpis: [relKpi(out.length, 'empresas com pendência', `de ${emps.length}`, out.length ? 'down' : 'up'), relKpi(c(/CNPJ/), 'CNPJ'), relKpi(c(/código/), 'código Domínio'), relKpi(c(/tributação/), 'tributação'), relKpi(c(/responsável/), 'responsável'), relKpi(c(/sindicato/), 'sindicato/data-base')],
+        cab: ['Empresa', 'CNPJ', 'Responsável', 'Pendências', 'Quantas'], num: [4], linhas: out.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', respEf(x.e) || '', x.f.join(' · '), x.f.length] })), titulo: 'Cadastro incompleto' };
+    },
+  };
+  function relGerar() {
+    const R = state.dpRel, tipo = REL_TIPOS.find(t => t.id === R.tipo) || REL_TIPOS[0];
+    if (REL_COM_PERIODO.has(tipo.id) && (!R.de || !R.ate || R.de > R.ate)) return { erro: 'Escolha o período: o mês inicial precisa vir antes do final.' };
+    const emps = relEmpresas(R); if (!emps.length) return { erro: 'Nenhuma empresa com esses filtros.' };
+    const r = REL_GER[tipo.id](R, emps); if (r.erro) return r;
+    const sub = [REL_COM_PERIODO.has(tipo.id) ? relPeriodoTxt(R) : 'situação de hoje', `${emps.length} empresa${emps.length === 1 ? '' : 's'}`, R.emp === 'carteira' && state.dpCarteira ? 'carteira de ' + (state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira) : '', R.resp ? 'responsável: ' + (R.resp === SEM_RESP ? 'sem responsável' : R.resp) : '', R.trib, `gerado em ${fmtDMY(new Date())}`].filter(Boolean).join(' · ');
+    return { ...r, tipo: tipo.id, sub, R: JSON.parse(JSON.stringify(R)) };
+  }
+  // ---- tela ----
+  function relFiltrosHtml() {
+    const R = state.dpRel, resps = dpResponsaveis(), tribs = [...new Set([...TRIBUTACOES, ...state.dpEmpresas.map(e => e.tributacao).filter(Boolean)])];
+    const opt = (v, l, cur) => `<option value="${escapeHtml(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(l)}</option>`;
+    const seg = (k, lista) => `<div class="seg" role="group">${lista.map(([v, l]) => `<button type="button" data-rel-set="${k}" data-v="${escapeHtml(v)}" class="${R[k] === v ? 'on' : ''}" aria-pressed="${R[k] === v}">${escapeHtml(l)}</button>`).join('')}</div>`;
+    const q = norm(R.busca || ''), sel = new Set(R.sel);
+    const cand = R.emp === 'sel' ? state.dpEmpresas.filter(e => (R.sit !== 'ativas' || ativa(e)) && (!q || norm([e.nome, nomeCurto(e), e.cnpj, e.cod].join(' ')).includes(q))).sort(byNome) : [];
+    const comPer = REL_COM_PERIODO.has(R.tipo);
+    let opcoes = '';
+    if (R.tipo === 'quadro') opcoes = `${seg('formato', [['resumo', 'Resumo por empresa'], ['matriz', 'Período a período']])}
+      <div class="rel-linha"><label class="field">Agrupar por<select data-rel="grao">${EV_GRAOS.map(([g, l]) => opt(g, l, R.grao)).join('')}</select></label>${R.formato === 'matriz' ? `<label class="field">Em cada período<select data-rel="metrica">${REL_METRICAS.map(([v, l]) => opt(v, l, R.metrica)).join('')}</select></label>` : ''}</div>
+      <label class="rel-ck"><input type="checkbox" data-rel="total"${R.total ? ' checked' : ''}> Linha de total</label>`;
+    else if (R.tipo === 'movimento') opcoes = `${seg('mov', [['ambos', 'Admissões e desligamentos'], ['adm', 'Só admissões'], ['desl', 'Só desligamentos']])}<div class="rel-linha"><label class="field">Gráfico por<select data-rel="grao">${EV_GRAOS.map(([g, l]) => opt(g, l, R.grao)).join('')}</select></label></div>`;
+    else if (R.tipo === 'ferias') opcoes = seg('ferias', [['todos', 'Tudo'], ['programadas', 'Em férias e programadas'], ['vencidas', 'Só vencidas']]);
+    else if (R.tipo === 'agenda') opcoes = `<div class="rel-tipos-ag">${Object.keys(TIPOS).filter(k => k !== 'meu').map(k => `<label class="rel-ck"><input type="checkbox" data-rel-ag="${k}"${R.agTipos.includes(k) ? ' checked' : ''}> ${escapeHtml(TIPOS[k])}</label>`).join('')}</div>`;
+    else if (R.tipo === 'carteira') opcoes = `${seg('agrupar', [['nenhum', 'Por nome'], ['resp', 'Por responsável'], ['trib', 'Por tributação']])}<label class="rel-ck"><input type="checkbox" data-rel="total"${R.total ? ' checked' : ''}> Linha de total</label>`;
+    else if (R.tipo === 'convencoes') opcoes = `<label class="rel-ck"><input type="checkbox" data-rel="soPendentes"${R.soPendentes ? ' checked' : ''}> Só empresas com data-base ou fim de CCT no período</label>`;
+    else opcoes = '<p class="dp-cell-sub" style="margin:0">Mostra a situação de hoje.</p>';
+    const modelos = relModelos();
+    return `<div class="rel-form">
+      <div class="rel-bloco"><h4>Empresas</h4>
+        ${seg('emp', [['todas', 'Todas'], ['carteira', 'Da carteira escolhida'], ['sel', 'Escolher']])}
+        <div class="rel-linha"><label class="field">Responsável<select data-rel="resp">${opt('', 'Todos', R.resp)}${opt(SEM_RESP, 'Sem responsável', R.resp)}${resps.map(r => opt(r, r, R.resp)).join('')}</select></label>
+          <label class="field">Tributação<select data-rel="trib">${opt('', 'Todas', R.trib)}${tribs.map(t => opt(t, t, R.trib)).join('')}</select></label>
+          <label class="field">Situação<select data-rel="sit">${opt('ativas', 'Só ativas', R.sit)}${opt('todas', 'Incluir inativas', R.sit)}</select></label></div>
+        ${['quadro', 'movimento'].includes(R.tipo) ? `<label class="rel-ck"><input type="checkbox" data-rel="soComFunc"${R.soComFunc ? ' checked' : ''}> Só empresas com funcionários</label>` : ''}
+        ${R.emp === 'sel' ? `<div class="rel-esc"><div class="rel-esc-bar"><input type="search" data-rel="busca" placeholder="Buscar empresa, CNPJ ou código…" value="${escapeHtml(R.busca || '')}" autocomplete="off"><span class="dp-cell-sub">${sel.size} escolhida${sel.size === 1 ? '' : 's'}</span><button type="button" class="linkish" data-rel-marcar="1">Marcar as listadas</button><button type="button" class="linkish" data-rel-marcar="0">Limpar</button></div>
+          <div class="rel-esc-lista">${cand.slice(0, 300).map(e => `<label class="rel-ck"><input type="checkbox" data-rel-emp-id="${escapeHtml(e.id)}"${sel.has(e.id) ? ' checked' : ''}> ${escapeHtml(nomeCurto(e))} <small>${e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length} func.</small></label>`).join('') || '<div class="dp-cell-sub">Nenhuma empresa.</div>'}</div></div>` : ''}
+      </div>
+      <div class="rel-bloco"><h4>Período</h4>${comPer ? `
+        <div class="rel-linha"><label class="field">De<input type="month" data-rel="de" value="${escapeHtml(R.de)}"></label><label class="field">Até<input type="month" data-rel="ate" value="${escapeHtml(R.ate)}"></label></div>
+        <div class="rel-atalhos">${[['mes', 'Este mês'], ['prox', 'Próximo mês'], ['3m', 'Próximos 3 meses'], ['12m', 'Últimos 12 meses'], ['ano', 'Este ano'], ['ant', 'Ano passado']].map(([k, l]) => `<button type="button" class="linkish" data-rel-atalho="${k}">${l}</button>`).join('')}</div>` : '<p class="dp-cell-sub" style="margin:0">Este relatório mostra a situação de hoje.</p>'}
+        <h4 style="margin-top:6px">Opções</h4>${opcoes}
+      </div>
+      <div class="rel-acoes">
+        ${modelos.length ? `<select data-rel-modelo aria-label="Modelos salvos"><option value="">Modelos salvos…</option>${modelos.map((m, i) => `<option value="${i}">${escapeHtml(m.nome)}</option>`).join('')}</select><button type="button" class="linkish" data-rel-modelo-del>apagar modelo</button>` : ''}
+        <button type="button" class="btn btn-sm" data-rel-salvar>Salvar como modelo</button><span class="spacer"></span>
+        <button type="button" class="btn btn-sm btn-primary" data-rel-baixar="pdf">${ic('download', 'ic-sm')} Gerar PDF</button><button type="button" class="btn btn-sm" data-rel-baixar="xlsx">Gerar Excel</button><button type="button" class="btn btn-sm" data-rel-baixar="csv">CSV</button><button type="button" class="btn btn-sm" data-rel-imprimir>Imprimir</button>
+      </div></div>`;
+  }
+  function relResultadoHtml(res) {
+    if (res.erro) return `<div class="aviso-rel">${escapeHtml(res.erro)}</div>`;
+    const num = new Set(res.num), cel = (v, i) => `<td class="${num.has(i) ? 'rel-n' : ''}">${escapeHtml(relFmt(v))}</td>`;
+    const vazio = !res.linhas.length;
+    return `<div class="rel-res"><div class="rel-res-cab"><div><h3>${escapeHtml(res.titulo)}</h3><p class="dp-cell-sub">${escapeHtml(res.sub)}</p></div></div>
+      <div class="ev-kpis">${res.kpis.map(k => `<div class="ev-kpi ${k.cls}"><b>${escapeHtml(String(k.v))}</b><span>${escapeHtml(k.l)}</span>${k.s ? `<small>${escapeHtml(k.s)}</small>` : ''}</div>`).join('')}</div>
+      ${res.grafico ? `<div class="fn-resumo ev-box">${res.grafico}</div>` : ''}
+      ${vazio ? '<div class="dp-empty rel-vazio">Nada a listar com esses filtros.</div>' : `<div class="rel-tab-wrap"><table class="rel-tab"><thead><tr>${res.cab.map((c, i) => `<th class="${num.has(i) ? 'rel-n' : ''}">${escapeHtml(c)}</th>`).join('')}</tr></thead>
+      <tbody>${res.linhas.slice(0, 1500).map(l => `<tr${l.id ? ` data-open-emp="${escapeHtml(l.id)}" data-tab="${['quadro', 'movimento', 'ferias', 'contratos'].includes(res.tipo) ? 'funcionarios' : 'dados'}"` : ''}>${l.c.map(cel).join('')}</tr>`).join('')}</tbody>
+      ${res.total ? `<tfoot><tr>${res.total.map(cel).join('')}</tr></tfoot>` : ''}</table></div>${res.linhas.length > 1500 ? `<p class="dp-cell-sub">Mostrando 1.500 de ${res.linhas.length} linhas na tela; o PDF, o Excel e o CSV saem completos.</p>` : ''}`}
+      ${res.aviso ? `<p class="dp-cell-sub ev-nota">${escapeHtml(res.aviso)}.</p>` : ''}</div>`;
+  }
+  function renderDpRelatorios() {
+    const root = $('#dp-rel-root'); if (!root) return;
+    if (!state.dpLoaded) { root.innerHTML = '<div class="dp-empty">Carregando empresas…</div>'; return; }
+    const R = state.dpRel, res = relGerar(); state.dpRelRes = res;
+    const at = document.activeElement, foco = at && at.dataset && at.dataset.rel === 'busca' ? [at.selectionStart, at.selectionEnd] : null;
+    root.innerHTML = `<div class="rel-tipos" role="tablist" aria-label="Tipo de relatório">${REL_TIPOS.map(t => `<button type="button" role="tab" class="rel-tipo${R.tipo === t.id ? ' on' : ''}" aria-selected="${R.tipo === t.id}" data-rel-tipo="${t.id}"><b>${escapeHtml(t.nome)}</b><span>${escapeHtml(t.desc)}</span></button>`).join('')}</div>
+      ${relFiltrosHtml()}<div class="rel-status" id="dp-rel-status" hidden></div>${relResultadoHtml(res)}`;
+    if (foco) { const b = $('[data-rel="busca"]', root); if (b) { b.focus(); try { b.setSelectionRange(foco[0], foco[1]); } catch {} } }
+  }
+  function relStatus(msg) { const el = $('#dp-rel-status'); if (!el) return; el.hidden = !msg; el.textContent = msg || ''; }
+  // ---- arquivos ----
+  const relNomeArq = (res) => `dp-${res.tipo}-${REL_COM_PERIODO.has(res.tipo) ? res.R.de + '-a-' + res.R.ate : hojeArq()}`;
+  const relLinhasArq = (res) => [[res.titulo], [res.sub], [], res.cab, ...res.linhas.map(l => l.c), ...(res.total ? [res.total] : [])];
+  async function relBaixar(tipo) {
+    const res = state.dpRelRes; if (!res || res.erro) { toast('Ajuste os filtros: não há relatório para baixar.'); return; }
+    const nome = relNomeArq(res);
+    if (tipo === 'csv') { offerFile(`${nome}.csv`, toCsv(relLinhasArq(res)), 'text/csv'); return; }
+    try {
+      if (tipo === 'xlsx') {
+        relStatus('Montando a planilha…');
+        await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o gerador de planilhas. Use o CSV.');
+        const X = window.XLSX, rows = relLinhasArq(res), ws = X.utils.aoa_to_sheet(rows), wb = X.utils.book_new();
+        ws['!cols'] = res.cab.map((c, i) => ({ wch: Math.min(48, Math.max(10, String(c).length + 2, ...res.linhas.slice(0, 200).map(l => String(l.c[i] ?? '').length + 1))) }));
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, res.cab.length - 1) } }, { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(0, res.cab.length - 1) } }];
+        X.utils.book_append_sheet(wb, ws, 'Relatório');
+        const ind = X.utils.aoa_to_sheet([['Indicador', 'Valor', 'Detalhe'], ...res.kpis.map(k => [k.l, k.v, k.s || ''])]); ind['!cols'] = [{ wch: 34 }, { wch: 12 }, { wch: 36 }];
+        X.utils.book_append_sheet(wb, ind, 'Indicadores');
+        offerFile(`${nome}.xlsx`, new Uint8Array(X.write(wb, { bookType: 'xlsx', type: 'array' })), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      } else { relStatus('Montando o PDF…'); await relPdf(res, nome); }
+      relStatus('');
+    } catch (e) { relStatus(''); toast((e && e.message) || 'Não foi possível gerar o arquivo. Use o CSV.'); }
+  }
+  // PDF desenhado direto (jsPDF): cabeçalho com a marca, indicadores e a tabela, paginada, com o rodapé de cada página.
+  async function relPdf(res, nome) {
+    await carregarScriptExt('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'Não foi possível carregar o gerador de PDF. Use o Excel ou a impressão.');
+    const largo = res.cab.length > 7 || res.cab.length > 6 && res.linhas.some(l => l.c.join('').length > 90);
+    const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', orientation: largo ? 'landscape' : 'portrait', compress: true });
+    const W = pdf.internal.pageSize.getWidth(), H = pdf.internal.pageSize.getHeight(), M = 32, num = new Set(res.num);
+    const linhas = [...res.linhas.map(l => l.c), ...(res.total ? [res.total] : [])];
+    // larguras proporcionais ao conteúdo (com teto), somando a largura útil
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8);
+    const med = res.cab.map((c, i) => Math.min(220, Math.max(pdf.getTextWidth(String(c)) * 1.05 + 10, ...linhas.slice(0, 300).map(l => pdf.getTextWidth(relFmt(l[i])) + 10))));
+    const soma = med.reduce((a, b) => a + b, 0), larg = med.map(w => w / soma * (W - 2 * M));
+    let pag = 0, y = 0;
+    const cabecalho = () => {
+      pag++; if (pag > 1) pdf.addPage();
+      pdf.setFillColor(14, 21, 27); pdf.rect(0, 0, W, 46, 'F');
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(13); pdf.setTextColor(225, 21, 32); pdf.text('Control', M, 29); const cw = pdf.getTextWidth('Control');
+      pdf.setTextColor(127, 194, 222); pdf.text('Tax', M + cw, 29);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(143, 160, 173); pdf.text('Departamento Pessoal · Relatórios', M + cw + pdf.getTextWidth('Tax') + 14, 29);
+      y = 70;
+      if (pag === 1) {
+        pdf.setTextColor(16, 24, 32); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15); pdf.text(res.titulo, M, y); y += 16;
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(95, 109, 119); pdf.splitTextToSize(res.sub, W - 2 * M).forEach(t => { pdf.text(t, M, y); y += 12; }); y += 6;
+        const kw = (W - 2 * M - 8 * (res.kpis.length - 1)) / res.kpis.length;
+        res.kpis.forEach((k, i) => { const x = M + i * (kw + 8); pdf.setDrawColor(220, 227, 233); pdf.setFillColor(245, 248, 250); pdf.rect(x, y, kw, 44, 'FD'); pdf.setFillColor(42, 120, 214); pdf.rect(x, y, 2.5, 44, 'F');
+          pdf.setTextColor(16, 24, 32); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(14); pdf.text(String(k.v), x + 9, y + 19); pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(71, 84, 95); pdf.text(pdf.splitTextToSize(k.l, kw - 14)[0], x + 9, y + 31); if (k.s) { pdf.setTextColor(120, 134, 143); pdf.text(pdf.splitTextToSize(k.s, kw - 14)[0], x + 9, y + 40); } });
+        y += 60;
+      }
+      // cabeçalho da tabela
+      pdf.setFillColor(234, 239, 243); pdf.rect(M, y - 11, W - 2 * M, 17, 'F'); pdf.setFont('helvetica', 'bold'); pdf.setFontSize(7.5); pdf.setTextColor(71, 84, 95);
+      let x = M; res.cab.forEach((c, i) => { const t = pdf.splitTextToSize(String(c), larg[i] - 6)[0]; if (num.has(i)) pdf.text(t, x + larg[i] - 4, y, { align: 'right' }); else pdf.text(t, x + 4, y); x += larg[i]; });
+      y += 14;
+    };
+    const rodape = () => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7.5); pdf.setTextColor(120, 134, 143); pdf.text(`${res.titulo} · ${fmtDMY(new Date())}`, M, H - 18); pdf.text(`página ${pag}`, W - M, H - 18, { align: 'right' }); };
+    cabecalho();
+    if (!linhas.length) { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(95, 109, 119); pdf.text('Nada a listar com esses filtros.', M, y + 6); }
+    linhas.forEach((l, k) => {
+      const tot = res.total && k === linhas.length - 1;
+      pdf.setFont('helvetica', tot ? 'bold' : 'normal'); pdf.setFontSize(8);
+      const partes = l.map((v, i) => pdf.splitTextToSize(relFmt(v), larg[i] - 8).slice(0, 3)), alt = Math.max(...partes.map(p => p.length)) * 10 + 5;
+      if (y + alt > H - 34) { rodape(); cabecalho(); pdf.setFont('helvetica', tot ? 'bold' : 'normal'); pdf.setFontSize(8); }
+      if (tot) { pdf.setFillColor(234, 239, 243); pdf.rect(M, y - 9, W - 2 * M, alt, 'F'); } else if (k % 2) { pdf.setFillColor(248, 250, 252); pdf.rect(M, y - 9, W - 2 * M, alt, 'F'); }
+      pdf.setTextColor(16, 24, 32);
+      let x = M; partes.forEach((p, i) => { p.forEach((t, j) => { if (num.has(i)) pdf.text(t, x + larg[i] - 4, y + j * 10, { align: 'right' }); else pdf.text(t, x + 4, y + j * 10); }); x += larg[i]; });
+      pdf.setDrawColor(220, 227, 233); pdf.line(M, y - 9 + alt, W - M, y - 9 + alt);
+      y += alt;
+    });
+    if (res.aviso) { const t = pdf.splitTextToSize(res.aviso + '.', W - 2 * M); if (y + t.length * 10 + 10 > H - 34) { rodape(); cabecalho(); } pdf.setFont('helvetica', 'italic'); pdf.setFontSize(7.5); pdf.setTextColor(95, 109, 119); t.forEach((s, j) => pdf.text(s, M, y + 8 + j * 10)); }
+    rodape();
+    pdf.setProperties({ title: `${res.titulo} · ControlTax`, subject: res.sub, creator: 'Control Hub · Departamento Pessoal' });
+    await offerFile(`${nome}.pdf`, pdf.output('blob'), 'application/pdf');
+  }
+  function relImprimir() {
+    const res = state.dpRelRes; if (!res || res.erro) return;
+    const num = new Set(res.num), cel = (v, i) => `<td${num.has(i) ? ' style="text-align:right"' : ''}>${escapeHtml(relFmt(v))}</td>`;
+    $('#ct-print').innerHTML = `<h1>${escapeHtml(res.titulo)}</h1><p class="ct-pr-sub">${escapeHtml(res.sub)}</p><p class="ct-pr-sub">${res.kpis.map(k => `<b>${escapeHtml(String(k.v))}</b> ${escapeHtml(k.l)}`).join(' · ')}</p><table><thead><tr>${res.cab.map((c, i) => `<th${num.has(i) ? ' style="text-align:right"' : ''}>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>${res.linhas.map(l => `<tr>${l.c.map(cel).join('')}</tr>`).join('')}${res.total ? `<tr style="font-weight:700">${res.total.map(cel).join('')}</tr>` : ''}</tbody></table>${res.aviso ? `<p class="ct-pr-sub" style="margin-top:10px">${escapeHtml(res.aviso)}.</p>` : ''}`;
+    document.body.classList.add('ct-printing');
+    const off = () => { document.body.classList.remove('ct-printing'); $('#ct-print').innerHTML = ''; window.removeEventListener('afterprint', off); };
+    window.addEventListener('afterprint', off);
+    try { window.print(); } catch { off(); toast('Não foi possível abrir a impressão aqui. Use o PDF ou o Excel.'); return; }
+    setTimeout(() => window.addEventListener('pointerdown', off, { once: true }), 400);
+  }
+  // ---- interação ----
+  const naAbaRel = (el) => { const r = $('#dp-rel-root'); return !!(r && el && r.contains(el)); };
+  document.addEventListener('change', (e) => {
+    const t = e.target; if (!naAbaRel(t)) return;
+    const R = state.dpRel;
+    if (t.dataset.rel && t.dataset.rel !== 'busca') R[t.dataset.rel] = t.type === 'checkbox' ? t.checked : t.value;
+    else if (t.dataset.relEmpId) { const s = new Set(R.sel); if (t.checked) s.add(t.dataset.relEmpId); else s.delete(t.dataset.relEmpId); R.sel = [...s]; }
+    else if (t.dataset.relAg) { const s = new Set(R.agTipos); if (t.checked) s.add(t.dataset.relAg); else s.delete(t.dataset.relAg); R.agTipos = [...s]; }
+    else if (t.hasAttribute('data-rel-modelo') && t.value !== '') { const m = relModelos()[+t.value]; if (!m) return; state.dpRel = { ...relPadrao(), ...m.R, busca: '' }; toast(`Modelo “${m.nome}” aplicado.`); }
+    else return;
+    renderDpRelatorios();
+  });
+  let relBuscaT = null;
+  document.addEventListener('input', (e) => { const t = e.target; if (t && t.dataset && t.dataset.rel === 'busca' && naAbaRel(t)) { state.dpRel.busca = t.value; clearTimeout(relBuscaT); relBuscaT = setTimeout(renderDpRelatorios, 200); } });
+  document.addEventListener('click', async (e) => {
+    const ir = e.target.closest && e.target.closest('[data-dp-rel-ir]');
+    if (ir) { state.dpRel.tipo = ir.dataset.dpRelIr; openDpModule('relatorios'); return; }
+    const b = e.target.closest && e.target.closest('[data-rel-tipo],[data-rel-set],[data-rel-atalho],[data-rel-marcar],[data-rel-baixar],[data-rel-imprimir],[data-rel-salvar],[data-rel-modelo-del]');
+    if (!b || !naAbaRel(b)) return;
+    const R = state.dpRel, t = hoje(), y = t.getFullYear();
+    if (b.dataset.relTipo) R.tipo = b.dataset.relTipo;
+    else if (b.dataset.relSet) R[b.dataset.relSet] = b.dataset.v;
+    else if (b.dataset.relAtalho) {
+      const k = b.dataset.relAtalho;
+      if (k === '12m') [R.de, R.ate] = evJanela(12);
+      else if (k === 'mes') R.de = R.ate = mesStr(t);
+      else if (k === 'prox') R.de = R.ate = mesStr(new Date(y, t.getMonth() + 1, 1));
+      else if (k === '3m') { R.de = mesStr(t); R.ate = mesStr(new Date(y, t.getMonth() + 2, 1)); }
+      else if (k === 'ano') { R.de = `${y}-01`; R.ate = `${y}-12`; }
+      else { R.de = `${y - 1}-01`; R.ate = `${y - 1}-12`; }
+    } else if (b.dataset.relMarcar) { const s = new Set(R.sel), q = norm(R.busca || ''); state.dpEmpresas.filter(x => (R.sit !== 'ativas' || ativa(x)) && (!q || norm([x.nome, nomeCurto(x), x.cnpj, x.cod].join(' ')).includes(q))).forEach(x => { if (b.dataset.relMarcar === '1') s.add(x.id); else s.delete(x.id); }); R.sel = [...s]; }
+    else if (b.dataset.relBaixar) { relBaixar(b.dataset.relBaixar); return; }
+    else if (b.hasAttribute('data-rel-imprimir')) { relImprimir(); return; }
+    else if (b.hasAttribute('data-rel-salvar')) {
+      const nome = await askTexto('Nome do modelo (ex.: Férias vencidas da carteira da Ana)', ''); if (!nome) return;
+      const { busca, ...resto } = R, l = relModelos().filter(m => norm(m.nome) !== norm(nome)); l.push({ nome: nome.slice(0, 60), R: resto }); state.prefs.dpRelModelos = l.slice(-30); savePrefs(); toast('Modelo salvo neste navegador.');
+    } else if (b.hasAttribute('data-rel-modelo-del')) { const s = $('[data-rel-modelo]'); if (!s || s.value === '') { toast('Escolha o modelo na lista primeiro.'); return; } const l = relModelos().slice(), m = l.splice(+s.value, 1)[0]; state.prefs.dpRelModelos = l; savePrefs(); toast(`Modelo “${m.nome}” apagado.`); }
+    renderDpRelatorios();
+  });
+
+  // ---------- ficha da empresa: evolução do quadro ----------
+  state.dpFichaEvo = 24;
+  function renderFichaEvo() {
+    if (!dpAtual) return;
+    let el = $('#dp-func-evo');
+    if (!el) { const ref = $('#dp-section-funcionarios'); if (!ref || !ref.parentNode) return; el = document.createElement('div'); el.className = 'dlg-section'; el.id = 'dp-func-evo'; ref.parentNode.insertBefore(el, ref); }
+    if (dpDraft || !dpAtual.funcionarios.length) { el.innerHTML = ''; el.hidden = true; return; }
+    el.hidden = false;
+    const meses = state.dpFichaEvo, [de, ate] = evJanela(meses), per = evPeriodos(de, ate, meses > 36 ? 'tri' : 'mes');
+    const [r] = evContar([dpAtual], per); if (!r) { el.innerHTML = ''; return; }
+    const av = evAviso(r);
+    el.innerHTML = `<div class="dlg-section-title ev-ficha-t"><span>Evolução do quadro</span><div class="seg" role="group" aria-label="Período">${[[12, '12 meses'], [24, '24 meses'], [60, '5 anos']].map(([m, l]) => `<button type="button" data-ficha-evo="${m}" class="${meses === m ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+      <div class="ev-kpis ev-kpis-sm"><div class="ev-kpi"><b>${r.fim}</b><span>ativos hoje</span></div><div class="ev-kpi ${r.vari > 0 ? 'up' : r.vari < 0 ? 'down' : ''}"><b>${evNum(r.vari)}</b><span>no período</span><small>eram ${r.ini} · ${evPct(r.pct)}</small></div><div class="ev-kpi ad"><b>${r.ad}</b><span>admissões</span></div><div class="ev-kpi de"><b>${r.de}</b><span>desligamentos</span></div></div>
+      ${evGraficoHtml(per, r, { id: 'f', h: 140, w: 760, rotulos: 8, label: 'Funcionários ativos da empresa por mês' })}${av ? `<div class="dp-cell-sub ev-nota">${escapeHtml(av)}.</div>` : ''}`;
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-ficha-evo]'); if (b) { state.dpFichaEvo = +b.dataset.fichaEvo; renderFichaEvo(); } });
+  // Pergunta um texto curto na janela de confirmação do Hub (sem prompt nativo).
+  function askTexto(message, valor) {
+    const dlg = $('#dlg-ask'), msg = $('#ask-message'), actions = $('#ask-actions');
+    msg.textContent = message;
+    const inp = document.createElement('input'); inp.type = 'text'; inp.maxLength = 60; inp.value = valor || ''; inp.style.cssText = 'display:block;width:100%;margin-top:10px';
+    msg.appendChild(inp);
+    actions.innerHTML = '<span class="spacer"></span><button type="button" class="btn" data-v="0">Cancelar</button><button type="button" class="btn btn-primary" data-v="1">Salvar</button>';
+    return new Promise((resolve) => {
+      const done = (v) => { dlg.removeEventListener('close', onClose); actions.onclick = null; inp.onkeydown = null; if (dlg.open) dlg.close(); resolve(v); };
+      const onClose = () => done(null);
+      actions.onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) done(b.dataset.v === '1' ? (inp.value.trim() || null) : null); };
+      inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); done(inp.value.trim() || null); } };
+      dlg.addEventListener('close', onClose); dlg.showModal(); inp.focus();
+    });
+  }
+
   // uma passada só: situação e alertas de cada funcionário, somados por empresa
   function funcResumo(emps) {
     const cards = [], tot = { n: 0, ativos: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Desligado': 0 };
@@ -2237,7 +2712,9 @@
     const passa = (st, nAl, f) => !f ? st !== 'Desligado' : st === f;
     $$('[data-func-modo]').forEach(b => { const on = b.dataset.funcModo === state.dpFuncModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${v === '' ? tot.ativos : tot[v]}</span></button>`).join('');
-    $('#dp-func-search').placeholder = 'Buscar funcionário pelo nome…';
+    $('#dp-func-search').placeholder = tempo ? 'Filtrar empresas pelo nome, CNPJ ou código…' : 'Buscar funcionário ou empresa…';
+    $('#dp-func-chips').hidden = tempo;
+    const dt = $('#dp-func-datas'); if (dt) dt.checked = state.prefs.dpFuncDatas === true;
     if (!tot.n) {
       resumoEl.innerHTML = ''; cardsEl.hidden = true; $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false; $('#dp-func-count').textContent = '';
       container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return;
@@ -2247,16 +2724,27 @@
     const anim = dpAnim('funcionarios');
     // ---- busca por nome (em qualquer modo, resultado em lista curta) ----
     if (busca && !tempo) {
-      const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [];
-      emps.forEach(e => { const ne = norm(e.nome); e.funcionarios.forEach(f => { const hay = funcNorm(f) + ' ' + norm(f.cargo || '') + ' ' + ne; if (palavras.every(w => hay.includes(w))) ach.push({ f, e }); }); });
+      // a busca acha empresas (nome, nome do cadastro, CNPJ e códigos) e funcionários (nome e cargo; o nome da empresa ajuda a afinar)
+      const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [], qd = cnpjClean(q);
+      const empHay = (e) => norm([e.nome, nomeCurto(e), e.cod, e.codigoDominio, e.cnpj].join(' ')) + ' ' + cnpjClean(e.cnpj);
+      const empAch = emps.filter(e => palavras.every(w => empHay(e).includes(w)) || (qd.length >= 4 && /^\d+$/.test(qd) && cnpjClean(e.cnpj).includes(qd)))
+        .map(e => ({ e, at: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
+      emps.forEach(e => { const ne = empHay(e); e.funcionarios.forEach(f => { const pes = funcNorm(f) + ' ' + norm(f.cargo || ''), hay = pes + ' ' + ne; if (palavras.every(w => hay.includes(w)) && palavras.some(w => pes.includes(w))) ach.push({ f, e }); }); });
       const lista = ach.map(x => ({ ...x, status: funcStatus(x.f) })).filter(x => passa(x.status, 0, state.dpFuncFiltro))
         .sort((a, b) => ptCmp(a.f.nome || '', b.f.nome || '') || byNome(a.e, b.e));
-      const mostra = lista.slice(0, FUNC_MAX_BUSCA);
-      $('#dp-func-count').textContent = lista.length > mostra.length ? `${mostra.length} de ${lista.length} encontrados` : `${lista.length} encontrado(s)`;
+      const mostra = lista.slice(0, FUNC_MAX_BUSCA), empMostra = empAch.slice(0, 12);
+      $('#dp-func-count').textContent = `${empAch.length} empresa${empAch.length === 1 ? '' : 's'} · ${lista.length} funcionário${lista.length === 1 ? '' : 's'}`;
       cardsEl.hidden = true; $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false;
-      if (!lista.length) { container.innerHTML = '<div class="dp-empty">Ninguém com esse nome.</div>'; return; }
+      if (!lista.length && !empAch.length) { container.innerHTML = '<div class="dp-empty">Nenhuma empresa ou funcionário com esse nome.</div>'; return; }
       marcarAnim(container, anim);
-      container.innerHTML = mostra.map(({ f, e, status }) => {
+      const empHtml = empAch.length ? `<div class="fn-sec-h">Empresas <span>${empAch.length}</span></div>` + empMostra.map(({ e, at }) => `
+      <div class="dp-row fn-emp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
+        <div><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${escapeHtml(e.cnpj || 'sem CNPJ')}${e.situacao === 'Inativa' ? ' · inativa' : ''}</div></div>
+        <div class="dp-hide-sm dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')}</div>
+        <div class="dp-mono"><b>${at}</b> <span class="dp-cell-sub">ativo${at === 1 ? '' : 's'}</span></div>
+        <div><span class="fn-abrir">Abrir ›</span></div>
+      </div>`).join('') + (empAch.length > empMostra.length ? `<div class="fn-mais"><span class="dp-cell-sub">Mostrando ${empMostra.length} de ${empAch.length} empresas. Digite mais para afinar.</span></div>` : '') : '';
+      container.innerHTML = empHtml + (lista.length ? `<div class="fn-sec-h">Funcionários <span>${lista.length}</span></div>` : '') + mostra.map(({ f, e, status }) => {
         return `
       <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
         <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
@@ -2272,8 +2760,9 @@
     if (tempo) {
       cardsEl.hidden = false; $('#dp-func-tl').hidden = true;
       const w = busca ? norm(q).split(/\s+/).filter(Boolean) : [];
-      const sel = emps.filter(e => e.funcionarios.length && (!w.length || w.every(x => norm(e.nome).includes(x))));
+      const sel = emps.filter(e => e.funcionarios.length && (!w.length || w.every(x => (norm([e.nome, nomeCurto(e), e.cod, e.codigoDominio, e.cnpj].join(' ')) + ' ' + cnpjClean(e.cnpj)).includes(x))));
       $('#dp-func-count').textContent = `${sel.length} empresa(s)`;
+      $('#dp-func-count').textContent = `${sel.length} empresa${sel.length === 1 ? '' : 's'}`;
       cardsEl.innerHTML = funcEvolucaoHtml(sel);
       marcarAnim(cardsEl, anim, 'dp-anim', 2400); return;
     }
@@ -2281,13 +2770,13 @@
     $('#dp-func-tl').hidden = true; cardsEl.hidden = false;
     const f = state.dpFuncFiltro, qtd = (c) => f === 'Desligado' ? c['Desligado'] : c.ativos;
     let vis = cards.filter(c => qtd(c) > 0);
-    if (busca) { const w = norm(q).split(/\s+/).filter(Boolean); vis = vis.filter(c => { const ne = norm(c.e.nome); return w.every(x => ne.includes(x)); }); }
+    if (busca) { const w = norm(q).split(/\s+/).filter(Boolean); vis = vis.filter(c => { const ne = norm([c.e.nome, nomeCurto(c.e), c.e.cnpj].join(' ')); return w.every(x => ne.includes(x)); }); }
     vis.sort((a, b) => (qtd(b) - qtd(a)) || byNome(a.e, b.e));
     $('#dp-func-count').textContent = `${vis.length} empresa(s)`;
     if (!vis.length) { cardsEl.innerHTML = '<div class="dp-empty">Nenhuma empresa neste filtro.</div>'; return; }
     const pag = vis.slice(0, state.dpFuncLim), resto = vis.length - pag.length;
     const maxQ = Math.max(1, ...vis.map(qtd));
-    cardsEl.innerHTML = fnLegendaFaixas(vis, f === 'Desligado') + `<div class="fn-grid">${pag.map(c => funcCartao(c, maxQ)).join('')}</div>` + (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '') + '<div class="fn-dica">Para achar uma pessoa, digite o nome na busca.</div>';
+    cardsEl.innerHTML = fnLegendaFaixas(vis, f === 'Desligado') + `<div class="fn-grid">${pag.map(c => funcCartao(c, maxQ)).join('')}</div>` + (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '') + '<div class="fn-dica">Para achar uma pessoa ou uma empresa, digite o nome na busca.</div>';
     marcarAnim(cardsEl, anim);
   }
   document.addEventListener('click', (e) => { if (e.target.closest('[data-func-mais]') && $('#view-dp') && !$('#dp-view-funcionarios').hidden) { state.dpFuncLim += FUNC_PAG; renderDpFuncionarios(); } });
@@ -2530,7 +3019,7 @@
       return `<div class="dp-section-cell" style="flex:1.2"><span class="dp-section-cell-label">Próxima</span><span class="dp-section-cell-val"><span class="dp-mono">${d ? `${fmtDM(d)} ${wd(d)}` : 'informe o dia'}</span><br><span style="font-size:11px;color:var(--ink-3)">${escapeHtml(descreveRegra(row))}</span></span></div>`;
     }
     if (sec === 'funcionarios') {
-      const st = funcStatus(row); const al = funcAlertas(row)[0]; const ev = al || funcProx(row);
+      const st = funcStatus(row); const al = funcDatasOn() ? funcAlertas(row)[0] : null; const ev = al || (funcDatasOn() ? funcProx(row) : null);
       const rj = dpAtual && reajusteFunc(dpAtual, row);
       return (rj ? `<div class="dp-section-cell" style="flex:1.4 1 150px"><span class="dp-section-cell-label">Reajuste pela CCT</span><span class="dp-section-cell-val" title="${escapeHtml(rj.cct.titulo)}">${escapeHtml(rj.txt)}</span></div>` : '') + `<div class="dp-section-cell" style="flex:2 1 180px"><span class="dp-section-cell-label">Agora</span><span class="dp-section-cell-val"><span class="pill ${FUNC_PILL[st] || ''}">${escapeHtml(st)}</span>${ev ? `<span style="display:block;font-size:11.5px;margin-top:3px${al && al.nivel !== 'soon' ? ';color:var(--dp-late)' : ''}">${escapeHtml(ev.txt)} <b>${fmtDM(ev.d)}</b></span>` : ''}</span></div>`;
     }
@@ -2620,7 +3109,7 @@
     if (sec === 'estabelecimentos') atualizaDbHint();
     restoreInputs(el, keep);
     fillNames(el);
-    if (sec === 'funcionarios') { renderOvDifFicha(); aplicaBuscaFunc(); }
+    if (sec === 'funcionarios') { renderOvDifFicha(); aplicaBuscaFunc(); renderFichaEvo(); }
   }
   function renderDetail() {
     if (!dpAtual) return;
