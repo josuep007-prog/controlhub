@@ -232,10 +232,66 @@ function gravarMapas(itens){
     return gravar(S.existe.docs[path] ? ref.update(porDoc[path]) : ref.set(porDoc[path])).then(function(){ S.existe.docs[path] = true; });
   }));
 }
+/* Cadastro único do Hub: empresa criada ou salva neste módulo também entra (ou é ligada) no cadastro único. Só avisa o Hub; nunca altera a empresa daqui. */
+function cadMestre(lista, modulo){ try{ var P = window.parent, C = P && P !== window && P.__cadastro; if(!C || !C.registrar) return; lista.forEach(function(e){ if(e && cnpjDig(e.cnpj).length === 14) C.registrar({cnpj:e.cnpj, nome:e.nome, modulo:modulo, id:e.id, uf:e.uf}); }); }catch(x){} }
+
+/* Cadastro único do Hub (Hub 301): o nome e o CNPJ mostrados vêm de lá quando a empresa está ligada. O que está gravado aqui (nomeBanco) só muda
+   pela troca conferida na Entrada de dados do Hub; salvarEmpresas nunca grava o nome de exibição de uma empresa ligada. */
+function cadC(){ try{ var P = window.parent; return P && P !== window && P.__cadastro && P.__cadastro.identidade ? P.__cadastro : null; }catch(x){ return null; } }
+function aplicarIdentidade(mapa){
+  var C = cadC(); if(!mapa) return;
+  Object.keys(mapa).forEach(function(k){
+    var e = mapa[k]; if(!e || typeof e !== "object") return;
+    if(!("nomeBanco" in e)) e.nomeBanco = e.nome;
+    var i = null; try{ i = C && C.pronto() ? C.identidade("fis", e.id, e.nomeBanco, e.cnpj) : null; }catch(x){}
+    if(i && i.ligado){ e.nome = i.nome || e.nomeBanco; e.cadLigado = true; e.cadRazao = i.razao || ""; e.cadCnpj14 = i.cnpj14 || ""; }
+    else { e.nome = e.nomeBanco; e.cadLigado = false; e.cadRazao = ""; e.cadCnpj14 = ""; }
+  });
+}
+function fichaCadHTML(e){
+  var C = cadC(); if(!C || !C.pronto()) return "";
+  if(!e) return '<div class="cad-ficha"><label class="campo largo">Buscar no cadastro único <span class="note">(CNPJ ou nome; se a empresa estiver lá, nome e CNPJ vêm de lá)</span><input id="cadBusca" type="search" list="cadLista" autocomplete="off" placeholder="Digite para achar a empresa"></label><datalist id="cadLista"></datalist><span class="note" id="cadMsg"></span></div>';
+  if(!e.cadLigado) return '<div class="cad-ficha off"><b>Cadastro único</b> · esta empresa ainda não está ligada. A coordenação liga em <i>Entrada de dados → Cadastro único</i>; até lá nome e CNPJ são editados aqui.</div>';
+  var v = C.vinculos(e.cadCnpj14) || {}, rot = {dp:"DP", ctb:"Contábil", portal:"Portal do Cliente", fis:"Fiscal"}, chips = Object.keys(rot).map(function(m){
+    var ids = v[m] || []; if(!ids.length) return '<span class="cad-chip off">' + rot[m] + ': —</span>';
+    if(m === "fis") return '<span class="cad-chip on">' + rot[m] + ' (aqui)</span>';
+    return '<button type="button" class="cad-chip on" data-cad-abrir="' + m + '|' + esc(ids[0]) + '">' + rot[m] + ' · abrir</button>';
+  }).join("");
+  return '<div class="cad-ficha"><b>Cadastro único</b> · nome, CNPJ e códigos vêm de lá<span class="cad-linha">Razão social: <b>' + esc(e.cadRazao || e.nomeBanco) + '</b></span><span class="cad-chips">' + chips + '</span><span><button type="button" class="linkish" data-cad-editar="' + esc(e.cadCnpj14) + '">Editar no cadastro único</button></span></div>';
+}
+(function(){
+  var achados = {};
+  function campos(){ var f = document.getElementById("fForm"); return f ? {f:f, n:f.elements.nome, c:f.elements.cnpj, m:document.getElementById("cadMsg")} : null; }
+  document.addEventListener("input", function(ev){
+    if(!ev.target || ev.target.id !== "cadBusca") return;
+    var C = cadC(), k = campos(), q = ev.target.value; if(!C || !C.pronto() || !k) return;
+    var hit = achados[q];
+    if(hit){ k.n.value = hit.nome; k.c.value = hit.cnpj; k.n.readOnly = true; k.c.readOnly = true; if(k.m) k.m.textContent = "Empresa do cadastro único: nome e CNPJ não se editam aqui."; return; }
+    if(!q.trim()){ k.n.readOnly = false; k.c.readOnly = false; if(k.m) k.m.textContent = ""; return; }
+    var r = C.buscar(q, 12), dl = document.getElementById("cadLista"); achados = {};
+    if(dl) dl.innerHTML = r.map(function(x){ var v = x.cnpj + " · " + x.nome; achados[v] = x; return '<option value="' + esc(v) + '"></option>'; }).join("");
+  });
+  document.addEventListener("click", function(ev){
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-cad-editar],[data-cad-abrir]") : null; if(!t) return;
+    var C = cadC(); if(!C) return; ev.preventDefault();
+    if(t.getAttribute("data-cad-editar")) C.abrirEdicao(t.getAttribute("data-cad-editar"));
+    else { var p = String(t.getAttribute("data-cad-abrir")).split("|"); C.abrir(p[0], p[1]); }
+  });
+  var t0 = null, C0 = cadC();
+  if(C0 && C0.aoMudar) C0.aoMudar(function(){ clearTimeout(t0); t0 = setTimeout(function(){ try{ aplicarIdentidade(S.R.emp); renderTudo(); }catch(x){} }, 250); });
+})();
+function semIdentidade(e, ant){
+  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14") o[k] = e[k]; });
+  if(ant && ant.cadLigado){ o.nome = ant.nomeBanco; if(!cnpjDig(o.cnpj)) o.cnpj = ant.cnpj; e.nomeBanco = ant.nomeBanco; } else e.nomeBanco = e.nome;
+  return o;
+}
 function salvarEmpresas(lista){
-  lista.forEach(function(e){ e.atual = new Date().toISOString(); S.empresas[e.id] = e; });
+  var gravar = lista.map(function(e){ var ant = S.empresas[e.id]; e.atual = new Date().toISOString(); var o = semIdentidade(e, ant); S.empresas[e.id] = e; return o; });
+  aplicarIdentidade(S.empresas);
   renderTudo();
-  return gravarMapas(lista.map(function(e){ return [docEmp(e.id), e.id, e]; }));
+  var gravou = gravarMapas(gravar.map(function(o){ return [docEmp(o.id), o.id, o]; }));
+  cadMestre(lista, "fis");
+  return gravou;
 }
 function salvarCompEntrada(comp, eid, ent){ var m = {}; m[eid] = ent; return salvarCompVarias(comp, m); }
 function salvarCompVarias(comp, mapa){
@@ -1040,17 +1096,18 @@ function abrirFicha(id, aba){
   if(!e && !(S.coord || S.exemplo)){ toast("Só a coordenação cadastra empresas."); return; }
   fichaId = e ? e.id : null; fichaAba = e && aba ? aba : "dados";
   var x = e || normEmp({}, "");
-  var pode = e ? podeMarcar(e) : (S.exemplo || S.coord), dis = pode ? "" : " disabled";
+  var pode = e ? podeMarcar(e) : (S.exemplo || S.coord), dis = pode ? "" : " disabled", rol = e && e.cadLigado ? ' readonly title="Vem do cadastro único"' : '';
   var opt = function(lista, v, vazio){ return '<option value="">' + vazio + '</option>' + lista.map(function(o){ return '<option value="' + o.k + '"' + (o.k === v ? " selected" : "") + '>' + esc(o.l) + '</option>'; }).join(""); };
   var d = $("#dlgFicha");
   d.innerHTML = '<div class="dlg-head"><h2>' + esc(e ? e.nome : "Nova empresa") + '</h2>' + (e ? regPill(e.regime) : '') + '<button type="button" class="x" id="fFechar" aria-label="Fechar">✕</button></div>' +
     (e ? '<div class="ftabs" role="tablist">' + FICHA_ABAS.map(function(a){ return '<button type="button" class="ftab' + (a[0] === fichaAba ? " on" : "") + '" role="tab" data-faba="' + a[0] + '">' + a[1] + '</button>'; }).join("") + '</div>' : '') +
     '<form class="dlg-body" id="fForm" novalidate>' +
       '<div data-pane="dados"' + (fichaAba === "dados" ? "" : " hidden") + '>' +
+        fichaCadHTML(e) +
         (pode ? '' : '<p class="note" style="margin-bottom:10px">Só o analista da empresa ou a coordenação altera esta ficha.</p>') +
         '<div class="campos">' +
-          '<label class="campo largo">Empresa<input name="nome" required maxlength="160" value="' + esc(x.nome === "Sem nome" ? "" : x.nome) + '"' + dis + '></label>' +
-          '<label class="campo">CNPJ<input name="cnpj" maxlength="20" value="' + esc(x.cnpj) + '" placeholder="00.000.000/0000-00"' + dis + '></label>' +
+          '<label class="campo largo">Empresa<input name="nome" required maxlength="160" value="' + esc(x.nome === "Sem nome" ? "" : x.nome) + '"' + dis + rol + '></label>' +
+          '<label class="campo">CNPJ<input name="cnpj" maxlength="20" value="' + esc(x.cnpj) + '" placeholder="00.000.000/0000-00"' + dis + rol + '></label>' +
           '<label class="campo">Regime<select name="regime"' + dis + '>' + opt(REGS, x.regime, "—") + '</select></label>' +
           '<label class="campo">Atividade<select name="ativ"' + dis + '>' + opt(ATIVS, x.ativ, "—") + '</select></label>' +
           '<label class="campo">Inscrição estadual<input name="ie" maxlength="30" value="' + esc(x.ie) + '"' + dis + '></label>' +
@@ -1266,7 +1323,7 @@ $("#impLer").onclick = function(){
     box.hidden = false;
     if(!linhas || !linhas.length){ box.innerHTML = '<p class="note" style="color:var(--dp-late)">Não encontrei a linha de títulos. A planilha precisa ter as colunas Empresa e CNPJ (ou Regime).</p>'; planoImp = null; return; }
     var reais = S.R.emp, porCnpj = {}, porNome = {};
-    Object.keys(reais).forEach(function(k){ var e = reais[k]; if(e.excluida) return; if(cnpjDig(e.cnpj)) porCnpj[cnpjDig(e.cnpj)] = e; porNome[norm(e.nome)] = e; });
+    Object.keys(reais).forEach(function(k){ var e = reais[k]; if(e.excluida) return; if(cnpjDig(e.cnpj)) porCnpj[cnpjDig(e.cnpj)] = e; porNome[norm(e.nome)] = e; if(e.nomeBanco && !porNome[norm(e.nomeBanco)]) porNome[norm(e.nomeBanco)] = e; });
     var novas = [], atual = [], avisos = [], vistos = {};
     linhas.forEach(function(x, i){
       var dg = cnpjDig(x.cnpj), chave = dg || norm(x.nome);
@@ -1358,7 +1415,7 @@ function ligarBanco(){
   banco.collection("fis_emp").onSnapshot(function(snap){
     var m = {};
     snap.docs.forEach(function(d){ S.existe.docs["fis_emp/" + d.id] = true; var x = d.data() || {}; Object.keys(x).forEach(function(k){ if(x[k] && typeof x[k] === "object") m[k] = normEmp(x[k], k); }); });
-    S.R.emp = m; S.carregou.fis_emp = true; S.carregou.empresas = S.carregou.fis_comp;
+    S.R.emp = m; aplicarIdentidade(S.R.emp); S.carregou.fis_emp = true; S.carregou.empresas = S.carregou.fis_comp;
     aplicarFonte();
     if(!AUTH() && !S.eu && S.nomeConta && !S.exemplo){ S.eu = casarNome(S.nomeConta); if(S.eu){ S.fx.ana = S.ag.ana = S.em.ana = S.eu; } }
     renderTudo();

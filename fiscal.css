@@ -585,3 +585,12 @@ html::before{background:radial-gradient(closest-side,var(--fd3),transparent);lef
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}}
 :root[data-theme="dark"]{--sh-bloco:0 1px 2px rgba(0,0,0,.45),0 14px 30px -10px rgba(0,0,0,.6);--sh-bloco-up:0 2px 3px rgba(0,0,0,.5),0 20px 38px -10px rgba(0,0,0,.7)}
 .panel,.kpi-card,.pn-card,.list-card,.emp-card{box-shadow:var(--sh-bloco)}
+
+/* cadastro único: ficha e atalhos (cantos retos) */
+.cad-ficha{border:1px solid var(--rule); background:var(--surface-2); padding:10px 12px; margin:0 0 12px; font-size:12.5px; display:flex; flex-direction:column; gap:6px;}
+.cad-ficha.off{color:var(--ink-3);}
+.cad-ficha .cad-linha{color:var(--ink-2);}
+.cad-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.cad-chip{font:600 11.5px "IBM Plex Sans",sans-serif; padding:3px 8px; border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-3); border-radius:0;}
+.cad-chip.on{color:var(--ink); border-color:var(--blue-deep);}
+button.cad-chip.on{cursor:pointer;} button.cad-chip.on:hover{background:var(--blue-pale);}

@@ -90,12 +90,40 @@
   .panel{background:var(--surface); border:1px solid var(--rule); border-radius:var(--r); box-shadow:var(--shadow-1);}
   .pad{padding:16px 18px;}
   .note{font-size:12px; color:var(--ink-3); margin:0;}
+  /* cadastro único */
+  .cu-cards{display:flex; flex-wrap:wrap; gap:10px;} .cu-card{flex:1 1 150px; border:1px solid var(--rule); border-radius:var(--r); padding:10px 12px; background:var(--surface-2); display:flex; flex-direction:column; gap:2px;} .cu-card b{font:700 20px "Archivo",sans-serif;} .cu-card span{font-size:11px; color:var(--ink-3);} .cu-card.alerta{border-color:var(--viz-4);}
+  .cu-acoes{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+  .cu-det{border:1px solid var(--rule); border-radius:var(--r); background:var(--surface); margin-bottom:8px;} .cu-det > summary{cursor:pointer; padding:10px 12px; font-size:13px; list-style:none;} .cu-det > summary small{color:var(--ink-3); margin-left:6px;} .cu-n{display:inline-block; min-width:22px; text-align:center; padding:0 6px; border-radius:3px; background:var(--surface-2); border:1px solid var(--rule); font-size:11px; font-weight:700;}
+  .cu-corpo{max-height:340px; overflow-y:auto; border-top:1px solid var(--rule);} .cu-lin{padding:8px 12px; font-size:12.5px; border-bottom:1px solid var(--rule);} .cu-lin:last-child{border-bottom:0;} .cu-lin small{color:var(--ink-3);} .cu-sug{color:var(--ink-2);} .cu-uni{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;}
+
+
+  /* integração do cadastro único com os módulos (cantos retos) */
+  .cx-sec{margin-top:22px;}
+  .cx-l{display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--ink-2);} .cx-l small{font-weight:400; color:var(--ink-3);}
+  .cx-res{display:flex; flex-direction:column; gap:4px; margin:8px 0;}
+  .cx-item{display:flex; flex-direction:column; align-items:flex-start; gap:1px; text-align:left; border:1px solid var(--rule); background:var(--surface-2); padding:7px 10px; cursor:pointer; border-radius:0; font:inherit; color:var(--ink);} .cx-item span{font-size:11.5px; color:var(--ink-3);} .cx-item:hover{border-color:var(--blue-deep);}
+  .cx-form{margin-top:10px; border-top:1px solid var(--rule); padding-top:10px; display:flex; flex-direction:column; gap:10px;}
+  .cx-cab b{display:block; font-size:14px;} .cx-cab span{font-size:12px; color:var(--ink-3);}
+  .cx-grade{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;}
+  .cx-vins{display:flex; flex-direction:column; gap:4px; font-size:12.5px;} .cx-vin{display:flex; align-items:center; gap:10px; flex-wrap:wrap;} .cx-vin span{min-width:120px; color:var(--ink-3);} .cx-vin em{color:var(--ink-3);} .cx-vin code{font-family:"IBM Plex Mono",monospace; font-size:11.5px;}
+  .cx-barra{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;}
+  .cx-sel{display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--rule);}
+  .btn-l{background:none; border:none; color:var(--blue-deep); text-decoration:underline; cursor:pointer; font-size:12px; padding:2px 4px;} .btn-l:disabled{opacity:.45; cursor:default; text-decoration:none;}
+  .cx-av{font-size:11px; font-weight:700; color:var(--laranja); border:1px solid currentColor; padding:0 5px;}
+  .cx-lotes{display:flex; flex-direction:column; gap:6px; margin-top:8px;} .cx-lote{display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; border-top:1px solid var(--rule); padding-top:6px; font-size:12.5px;}
+  .mono{font-family:"IBM Plex Mono",monospace; font-size:12px;}
   .vazio{padding:34px 18px; text-align:center; color:var(--ink-3); font-size:13px;}
   .aviso{display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:var(--r); border:1px solid var(--rule-strong); background:var(--surface); font-size:13px;}
   .aviso.erro{border-color:var(--brand-red); background:var(--brand-red-soft);}
   .btn{background:var(--ink); color:var(--page); border:none; border-radius:var(--r); padding:8px 14px; font-weight:600; font-size:12px; cursor:pointer; white-space:nowrap;}
   .btn:disabled{opacity:.45; cursor:default;}
   .btn.verde{background:var(--verde); color:#fff;}
+  /* Importar o resumo colado: discreto, no azul claro do Hub, com ícone; só realça um pouco ao passar o mouse. */
+  .btn.btn-imp{display:inline-flex; align-items:center; gap:6px; padding:7px 13px 7px 11px; border-radius:6px; font-size:12px; color:var(--blue-deep);
+    background:color-mix(in srgb, var(--blue-pale) 70%, var(--surface)); border:1px solid color-mix(in srgb, var(--blue-deep) 30%, transparent); transition:background .15s, border-color .15s;}
+  .btn.btn-imp svg{width:14px; height:14px; flex:none; opacity:.9;}
+  .btn.btn-imp:hover:not(:disabled){background:var(--blue-pale); border-color:color-mix(in srgb, var(--blue-deep) 55%, transparent);}
+  .btn.btn-imp:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
   .fbtn{border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:var(--r); padding:5px 10px; font-size:11.5px; font-weight:600; cursor:pointer; white-space:nowrap;}
   .fbtn:hover{border-color:var(--blue-deep); color:var(--blue-deep);} .fbtn.on{background:var(--ink); color:var(--surface); border-color:var(--ink);}
   .fbtn:disabled{opacity:.45; cursor:default;}
@@ -282,11 +310,107 @@
   .bh em{font-style:normal; font-weight:700; text-align:right; font-variant-numeric:tabular-nums;}
   .leg-f{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:11.5px; color:var(--ink-3); margin-top:8px;} .leg-f i{display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-2px;}
   .tab-wrap{overflow:auto; max-height:520px; border-top:1px solid var(--rule);}
+  /* Barra de rolagem discreta: fina, sem setas e sem trilho; o polegar fica mais forte ao passar o mouse. */
+  .tab-wrap::-webkit-scrollbar{width:8px; height:8px;}
+  .tab-wrap::-webkit-scrollbar-track, .tab-wrap::-webkit-scrollbar-corner{background:transparent;}
+  .tab-wrap::-webkit-scrollbar-button{display:none; width:0; height:0;}
+  .tab-wrap::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--ink-3) 35%, transparent); border-radius:999px; border:2px solid transparent; background-clip:padding-box;}
+  .tab-wrap:hover::-webkit-scrollbar-thumb{background-color:color-mix(in srgb, var(--ink-3) 55%, transparent);}
+  .tab-wrap::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb, var(--ink-3) 80%, transparent);}
+  @supports not selector(::-webkit-scrollbar){ .tab-wrap{scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--ink-3) 45%, transparent) transparent;} }
   .g{display:inline-block; padding:0 6px; border-left:3px solid var(--c, var(--ink-3)); font-weight:700; font-size:11.5px; background:var(--surface-2);}
   .g.g1{--c:var(--ambar);} .g.g2{--c:#C2410C;} .g.g3{--c:var(--brand-red);}
+  .cad-ac{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;} .cad-ac .btn{padding:5px 10px; font-size:11.5px;}
+  .cad-de{color:var(--ink-3); text-decoration:line-through;} .cad-lig{display:flex; gap:6px; align-items:center; flex-wrap:wrap;} .cad-lig select{max-width:260px; font-size:12px; padding:5px 7px;}
+  .auto-bloco{padding:14px 16px 12px; margin-bottom:14px;}
+  .auto-bloco.ligada{border-color:var(--verde, #1a7f4b); box-shadow:inset 3px 0 0 var(--verde, #1a7f4b);}
+  .auto-bloco .ab-top{display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px;}
+  .auto-bloco h3{margin:0 0 2px; font-size:14px;}
+  .auto-bloco .note{display:block; max-width:62ch;}
+  .auto-bloco .sw{display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:13px; cursor:pointer;}
+  .auto-bloco .sw input{width:18px; height:18px;}
+  .auto-bloco .ab-tipos{display:flex; flex-wrap:wrap; gap:8px 22px; margin:12px 0 4px;}
+  .auto-bloco .ab-tipos .chk{display:grid; grid-template-columns:auto 1fr; column-gap:8px; align-items:start; text-align:left; font-size:12.5px; max-width:240px;}
+  .auto-bloco .ab-tipos .chk input{margin-top:2px;}
+  .auto-bloco .ab-tipos .chk .sub{grid-column:2; display:block; font-size:11.5px; color:var(--ink-2); font-weight:400;}
+  .auto-bloco .ab-pe{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:10px; padding-top:10px; border-top:1px solid var(--rule); font-size:12px; color:var(--ink-2);}
+  .cad-aviso{padding:10px 16px; font-size:12.5px; color:var(--ink-2); border-bottom:1px solid var(--rule); background:var(--ambar-soft);}
+  .cat{display:inline-block; font-size:11px; font-weight:700; padding:2px 7px; border-radius:3px; border:1px solid var(--rule-strong); color:var(--ink-2); background:var(--surface-2);}
+  .cat.pessoais{color:var(--brand-red); border-color:var(--brand-red);}
   .vazio-f{padding:26px 18px; color:var(--ink-3); font-size:13px;}
   textarea.colar{width:100%; min-height:90px; font:12px "IBM Plex Mono",monospace;}
   .linha-acoes{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+</style>
+<style>
+  /* ===== Entrada de dados: abas, resumo, decisões em lote ===== */
+  .navtabs button .nb{display:inline-block; min-width:18px; padding:0 5px; margin-left:6px; border-radius:99px; background:var(--brand-red); color:#fff; font:700 11px/18px "IBM Plex Sans",sans-serif; text-align:center;}
+  .ponte-st{font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:99px; white-space:nowrap; color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent);}
+  .ponte-st.f0{--c:#4ECC8B;} .ponte-st.f1{--c:#E2B04A;} .ponte-st.f3{--c:#FF8A8A;} .ponte-st.fni{--c:var(--masthead-ink-2);}
+  .resumo-topo{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap:12px;}
+  .kt{all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; gap:2px; padding:14px 16px; background:var(--surface); border:1px solid var(--rule); border-left:4px solid var(--c, var(--rule-strong)); border-radius:var(--r); box-shadow:var(--shadow-1); transition:border-color .15s, transform .15s;}
+  .kt:hover{border-color:var(--blue-deep); border-left-color:var(--c, var(--blue-deep));} .kt:focus-visible{outline:2px solid var(--blue-deep); outline-offset:2px;}
+  .kt b{font:700 22px/1.15 "Archivo",sans-serif; color:var(--ink);} .kt span{font-size:12.5px; font-weight:600; color:var(--ink-2);} .kt small{font-size:11.5px; color:var(--ink-3);}
+  .kt.alerta{--c:var(--brand-red);} .kt.alerta b{color:var(--brand-red);} .kt.ok{--c:var(--verde);} .kt.f0{--c:var(--verde);} .kt.f1{--c:var(--ambar);} .kt.f3{--c:var(--brand-red);}
+  .aba{display:flex; flex-direction:column; gap:22px;}
+  .aba-intro{margin:-8px 0 0;}
+  .cad-bloco{padding:0; overflow:hidden;}
+  .cb-top{display:flex; flex-direction:column; gap:3px; padding:14px 18px 12px; border-bottom:1px solid var(--rule);}
+  .cb-top h3{font:700 15px "Archivo",sans-serif;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; padding:0 16px 12px;}
+  .chipf{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); border-radius:99px; padding:4px 11px; font-size:12px; font-weight:600; cursor:pointer;}
+  .chipf em{font-style:normal; font-weight:700; color:var(--ink-3); font-variant-numeric:tabular-nums;}
+  .chipf i, .tp i{width:8px; height:8px; border-radius:50%; background:var(--c, var(--ink-3)); flex:none;}
+  .chipf:hover{border-color:var(--blue-deep); color:var(--blue-deep);}
+  .chipf.on{background:var(--ink); border-color:var(--ink); color:var(--surface);} .chipf.on em{color:inherit; opacity:.8;}
+  .ac-complementar{--c:#0F7A55;} .ac-corrigir{--c:#B5530C;} .ac-novo{--c:#2E7FA8;}
+  :root[data-theme="dark"] .ac-complementar{--c:#4ECC8B;} :root[data-theme="dark"] .ac-corrigir{--c:#FF9D42;} :root[data-theme="dark"] .ac-novo{--c:#6BAAC9;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ac-complementar{--c:#4ECC8B;} :root:not([data-theme="light"]) .ac-corrigir{--c:#FF9D42;} :root:not([data-theme="light"]) .ac-novo{--c:#6BAAC9;} }
+  .chips.acoes{padding-bottom:6px;} .chips.acoes .chipf.on{background:var(--c, var(--ink)); border-color:var(--c, var(--ink)); color:#fff;} :root[data-theme="dark"] .chips.acoes .chipf.on{color:#0B1015;}
+  .chips.acoes .chipf.on i{background:currentColor;}
+  .tp-novo{--c:#2E7FA8;} .tp-codigo{--c:#6A4FA0;} .tp-admissao{--c:#0F7A55;} .tp-ferias{--c:#C2410C;} .tp-rescisao{--c:#B5530C;} .tp-afastamento{--c:#9A6B00;}
+  :root[data-theme="dark"] .tp-novo{--c:#6BAAC9;} :root[data-theme="dark"] .tp-codigo{--c:#9478D6;} :root[data-theme="dark"] .tp-admissao{--c:#4ECC8B;} :root[data-theme="dark"] .tp-ferias{--c:#F0864F;} :root[data-theme="dark"] .tp-rescisao{--c:#FF9D42;} :root[data-theme="dark"] .tp-afastamento{--c:#E2B04A;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tp-novo{--c:#6BAAC9;} :root:not([data-theme="light"]) .tp-codigo{--c:#9478D6;} :root:not([data-theme="light"]) .tp-admissao{--c:#4ECC8B;} :root:not([data-theme="light"]) .tp-ferias{--c:#F0864F;} :root:not([data-theme="light"]) .tp-rescisao{--c:#FF9D42;} :root:not([data-theme="light"]) .tp-afastamento{--c:#E2B04A;} }
+  .tp{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--c); background:color-mix(in srgb, var(--c) 11%, transparent); padding:1px 8px; border-radius:99px; white-space:nowrap;}
+  .tp em{font-style:normal;}
+  .selbar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 16px; border-top:1px solid var(--rule); background:var(--surface-2);}
+  .selbar.ativa{background:color-mix(in srgb, var(--verde) 9%, var(--surface)); box-shadow:inset 3px 0 0 var(--verde);}
+  .selbar .sel-n{font-size:12.5px; color:var(--ink-2);} .selbar.ativa .sel-n{font-weight:600; color:var(--ink);}
+  .selbar .spacer{flex:1;}
+  .selbar .btn{padding:6px 12px;}
+  .dif-tbl td{vertical-align:middle;} .dif-tbl .ck{width:34px; text-align:center;} .dif-tbl .ck input, .vinc-tbl .ck input{width:16px; height:16px; cursor:pointer; accent-color:var(--verde);}
+  .dif-tbl tr.grp td{background:var(--surface-2); border-bottom:1px solid var(--rule); padding-top:9px; padding-bottom:9px;}
+  .dif-tbl tr.grp b{font-size:13px;} .g-resp{margin-left:10px; font-size:11.5px; color:var(--ink-3);} .g-n{margin-left:10px; font-size:11.5px; font-weight:600; color:var(--ink-3);}
+  .dif-tbl tr.dif.on td, .vinc-tbl tr.on td{background:color-mix(in srgb, var(--verde) 7%, var(--surface));}
+  .dif-tbl .fn{font-weight:600; white-space:nowrap;}
+  .tp-conf{--c:#B5530C;} :root[data-theme="dark"] .tp-conf{--c:#FF9D42;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tp-conf{--c:#FF9D42;} }
+  .dtx{display:block; margin-top:3px; font-size:12px; color:var(--ink-2);}
+  .mudanca{font-family:"IBM Plex Mono",monospace; font-size:12px; white-space:nowrap;} .mudanca .seta{margin:0 7px; color:var(--ink-3);}
+  .acs{text-align:right; white-space:nowrap;} .mais-td{text-align:center;}
+  .vazio-ok{display:flex; align-items:center; gap:12px; padding:18px;}
+  .vazio-ok .ok-ic{width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:50%; background:var(--verde-soft); color:var(--verde); font-weight:700;}
+  .vazio-ok b{display:block; font-size:13.5px;} .vazio-ok span{font-size:12.5px; color:var(--ink-3);}
+  .vinc-tbl select{max-width:280px; font-size:12px; padding:5px 7px;} .vinc-tbl .sub{margin-top:3px;}
+  .grupo-d{padding:0; overflow:hidden;}
+  .grupo-d > summary{list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 16px; border-left:4px solid var(--c);}
+  .grupo-d > summary::-webkit-details-marker{display:none;}
+  .grupo-d > summary:hover{background:var(--surface-2);}
+  .seta-d{width:8px; height:8px; border-right:2px solid var(--ink-3); border-bottom:2px solid var(--ink-3); transform:rotate(-45deg); transition:transform .15s; flex:none;}
+  .grupo-d[open] .seta-d{transform:rotate(45deg);}
+  .gd-desc{font-size:12.5px; color:var(--ink-2); flex:1 1 220px;} .gd-n{font-size:12px; font-weight:600; color:var(--ink-3);}
+  .idade-p{font-size:12px; font-weight:600; color:var(--c);}
+  .grupos-d{display:flex; flex-direction:column; gap:10px;}
+  dialog.dlg .lote-body p{margin:0 0 8px; font-size:13px; color:var(--ink-2);}
+  .tps{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;}
+  .lote-prog{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink-3);}
+  .lote-prog i{flex:1; height:6px; border-radius:99px; background:var(--track); overflow:hidden;} .lote-prog i b{display:block; height:100%; width:0; background:var(--verde); transition:width .2s;}
+  .lote-lista{list-style:none; margin:0; padding:0; max-height:46vh; overflow:auto; border:1px solid var(--rule); border-radius:var(--r);}
+  .lote-lista li{display:flex; align-items:center; gap:10px; padding:7px 12px; border-top:1px solid var(--rule); font-size:12.5px;} .lote-lista li:first-child{border-top:none;}
+  .lote-lista .li-tx{flex:1; min-width:0;} .lote-lista .li-tx b{display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} .lote-lista small{color:var(--ink-3);}
+  .lote-lista .li-st{font-size:11.5px; font-weight:700; white-space:nowrap; color:var(--ink-3);}
+  .lote-lista li.rodando{background:var(--surface-2);} .lote-lista li.ok .li-st{color:var(--verde);} .lote-lista li.erro .li-st{color:var(--brand-red); white-space:normal; text-align:right; max-width:50%;}
+  @media (max-width:700px){ .mudanca{white-space:normal;} .acs{white-space:normal;} .cad-ac{justify-content:flex-start;} }
+  @media (prefers-reduced-motion: reduce){ .kt, .seta-d, .lote-prog i b{transition:none;} }
 </style>
 </head>
 <body>
@@ -296,11 +420,45 @@
       <a class="hub-back" href="index.html" id="hubBack" title="Voltar ao Control Hub" aria-label="Voltar ao Control Hub"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Hub</a>
       <div class="brand"><img src="data:image/png;base64,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" alt=""><div><div class="wordmark"><span class="wm-c">Control</span><span class="wm-t">Tax</span></div><div class="brand-tag"><i></i> Entrada de dados · extensões do navegador</div></div></div>
     </div>
-    <div class="mh-dir"><span class="salv" id="salv" hidden></span><button type="button" class="theme-btn" id="temaBtn" aria-label="Alternar tema"></button></div>
+    <nav class="navtabs" role="tablist" aria-label="Seções da Entrada de dados"><button type="button" role="tab" data-aba-btn="decidir">Para decidir<span class="nb" id="nbDecidir" hidden></span></button><button type="button" role="tab" data-aba-btn="empresas">Cadastro único</button><button type="button" role="tab" data-aba-btn="recebido">O que chegou</button><button type="button" role="tab" data-aba-btn="conexao">Conexão</button></nav>
+    <div class="mh-dir"><span class="ponte-st fni" id="ponteSt">…</span><span class="salv" id="salv" hidden></span><button type="button" class="theme-btn" id="temaBtn" aria-label="Alternar tema"></button></div>
   </div>
 </header>
 <div class="wrap"><main>
   <div class="aviso erro" id="semBanco" hidden><div><b>Sem conexão com o banco do Hub.</b> Abra esta tela pelo Control Hub.</div></div>
+  <div class="resumo-topo" id="resumoTopo"></div>
+  <div class="aba" data-aba="decidir">
+  <section id="secCadastro">
+    <h2 class="sec">Conferir com o cadastro do DP <small id="cadSub"></small></h2>
+    <p class="note aba-intro">O Onvio só sugere. Nada muda no cadastro do DP sem você decidir aqui, e o que for aplicado fica no histórico da empresa. A coordenação decide em qualquer empresa; o analista, nas empresas da carteira dele. Marque várias para decidir em lote.</p>
+    <div id="autoBox"></div>
+    <div id="cadro"></div>
+    <div id="vincro" style="margin-top:16px"></div>
+  </section>
+  </div>
+  <div class="aba" data-aba="empresas" hidden>
+  <section>
+    <h2 class="sec">Cadastro único de empresas <small id="cuSub"></small></h2>
+    <p class="note aba-intro">Um cadastro de identidade por CNPJ (razão social, apelido do Onvio, código, UF, situação e onde a empresa está no Hub), ligado aos cadastros do DP, Contábil, Portal do Cliente e Fiscal <b>sem mexer neles</b>. A base são os clientes do Onvio; empresa do Hub que o Onvio não tem entra como <b>fora do Onvio</b>. Empresas do escritório ficam de fora. Cadastros duplicados ou sem CNPJ só são <b>propostos</b> abaixo: nada é fundido nem apagado sozinho.</p>
+    <div id="cuBox"></div>
+    <div id="cuLigar"></div>
+    <div id="cuEdit"></div>
+    <div id="cuTrocas"></div>
+  </section>
+  </div>
+  <div class="aba" data-aba="recebido" hidden>
+  <section>
+    <h2 class="sec">Resumo das pendentes <small id="fontesSub"></small></h2>
+    <p class="note" style="margin:-4px 0 10px">O resumo que a extensão manda a cada leitura (lista, situação, cliente, responsável, datas, dias parado e gravidade). A Cartela → Onvio do DP usa este resumo.</p>
+    <div id="fontes"></div>
+  </section>
+  <section>
+    <h2 class="sec">Dados completos <small id="dadosSub"></small></h2>
+    <p class="note" style="margin:0 0 10px">Tudo o que a extensão entrega além do resumo acima, em partes, para os módulos usarem. Fica guardado em <b>ing_dados</b> (descrição) e <b>ing_partes</b> (as linhas). Os conjuntos <b>pessoais</b> trazem CPF, salário, nomes e textos.</p>
+    <div id="dados"></div>
+  </section>
+  </div>
+  <div class="aba" data-aba="conexao" hidden>
   <section>
     <h2 class="sec">Pareamento <small>liga a extensão a este Hub</small></h2>
     <div class="panel pad">
@@ -314,20 +472,18 @@
     </div>
   </section>
   <section>
-    <h2 class="sec">Fontes <small id="fontesSub"></small></h2>
-    <div id="fontes"></div>
-  </section>
-  <section>
     <h2 class="sec">Se a ponte não funcionar <small>caminho de reserva</small></h2>
     <div class="panel pad">
       <p class="note" style="margin-bottom:8px">Na extensão, em Configurações → Control Hub, use <b>Copiar resumo</b> e cole aqui.</p>
       <textarea class="colar" id="colar" placeholder="Cole o resumo copiado da extensão" spellcheck="false"></textarea>
-      <div class="linha-acoes"><button type="button" class="btn" id="colarOk">Importar resumo colado</button><span class="note" id="colarMsg"></span></div>
+      <div class="linha-acoes"><button type="button" class="btn btn-imp" id="colarOk"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5v2h-5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10.5 3.5h1.5v10h-8v-10h1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.5v4.5M6 9l2 2 2-2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Importar resumo colado</button><span class="note" id="colarMsg"></span></div>
     </div>
   </section>
+  </div>
 </main></div>
 <div id="toasts" aria-live="polite"></div>
 <dialog class="dlg" id="dlgConf" style="width:min(460px, calc(100vw - 24px))"><div class="confirm-txt" id="confTxt"></div><div class="dlg-acoes"><button type="button" class="fbtn" id="confNao">Cancelar</button><button type="button" class="btn" id="confSim">Confirmar</button></div></dialog>
+<dialog class="dlg" id="dlgLote" style="width:min(640px, calc(100vw - 24px))" aria-labelledby="loteTit"><div class="dlg-head"><h2 id="loteTit">Em lote</h2></div><div class="dlg-body lote-body"><div id="loteResumo"></div><div class="lote-prog" id="loteProg" hidden><i><b id="loteBarra"></b></i><span id="loteCont"></span></div><ul class="lote-lista" id="loteLista"></ul></div><div class="dlg-acoes"><button type="button" class="fbtn" id="loteNao">Cancelar</button><button type="button" class="btn verde" id="loteSim">Confirmar</button></div></dialog>
 <script>
 (function(){
 "use strict";
@@ -383,6 +539,28 @@ function linhasDe(l){
   var cols = l.colunas, ix = {}; cols.forEach(function(c, i){ ix[c] = i; });
   return l.tabela ? l.tabela.split("\n").map(function(t){ var c = t.split("\t"); return { lista:c[ix["Lista"]] || "", num:c[ix["Nº"]] || "", sit:c[ix["Situação"]] || "", vez:c[ix["Vez"]] || "", cli:c[ix["Cliente"]] || "", resp:c[ix["Responsável"]] || "", aberta:c[ix["Aberta em"]] || "", ult:c[ix["Última movimentação"]] || "", parado:c[ix["Dias parado"]] || "", grav:c[ix["Gravidade"]] || "", bruto:c }; }) : [];
 }
+var dados = {};
+var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise" };
+var CAT_ORDEM = ["listas", "pessoais", "clientes", "escritorio", "documentos", "noticias", "analise"];
+var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão" };
+function renderDados(){
+  var ids = Object.keys(dados);
+  $("#dadosSub").textContent = ids.length ? ids.length + " conjunto" + (ids.length === 1 ? "" : "s") : "";
+  if(!ids.length){ $("#dados").innerHTML = '<div class="panel vazio-f">Nenhum conjunto completo recebido ainda. Na extensão, em Configurações → Control Hub, escolha o que enviar e clique em <b>Enviar tudo agora</b>.</div>'; return; }
+  var grupos = {};
+  ids.forEach(function(k){ var c = dados[k].categoria || "outros"; (grupos[c] = grupos[c] || []).push(k); });
+  var cats = CAT_ORDEM.filter(function(c){ return grupos[c]; }).concat(Object.keys(grupos).filter(function(c){ return CAT_ORDEM.indexOf(c) === -1; }));
+  $("#dados").innerHTML = cats.map(function(c){
+    var ks = grupos[c].sort(function(a, b){ return (dados[a].titulo || a).localeCompare(dados[b].titulo || b, "pt-BR"); });
+    var linhas = ks.reduce(function(s, k){ return s + (dados[k].nLinhas || 0); }, 0), rec = Math.max.apply(null, ks.map(function(k){ return dados[k].recebidoEm || 0; })), fx = rec ? faixaIdade(rec) : "fni";
+    return '<details class="panel grupo-d"' + (c === "listas" || c === "pessoais" ? " open" : "") + '><summary class="gd-top ' + fx + '"><span class="seta-d" aria-hidden="true"></span><span class="cat ' + esc(c) + '">' + esc(CAT_ROT[c] || c) + '</span><span class="gd-desc">' + esc(CAT_DESC[c] || "") + '</span><span class="gd-n">' + ks.length + ' conjunto' + (ks.length === 1 ? "" : "s") + ' · ' + linhas.toLocaleString("pt-BR") + ' linha' + (linhas === 1 ? "" : "s") + '</span><span class="idade">' + esc(quando(rec)) + '</span></summary>' +
+      '<div class="tab-wrap"><table class="tbl"><thead><tr><th>Conjunto</th><th class="num">Linhas</th><th class="num">Partes</th><th>Recebido</th><th>Lido por</th><th class="num">Colunas</th>' + (coord ? '<th></th>' : '') + '</tr></thead><tbody>' +
+      ks.map(function(k){ var d = dados[k], por = d.usuario || (d.por && nomes[d.por]) || "—";
+        return '<tr><td class="emp">' + esc(d.titulo || k) + '<div class="note mono">' + esc(k) + '</div></td><td class="num">' + (d.nLinhas || 0).toLocaleString("pt-BR") + (d.cortado ? ' <span class="note">(cortado de ' + (d.totalNaOrigem || 0) + ')</span>' : '') + '</td><td class="num">' + (d.partes || 0) + '</td><td><span class="idade-p ' + faixaIdade(d.recebidoEm || 0) + '">' + esc(quando(d.recebidoEm)) + '</span></td><td>' + esc(por) + '</td><td class="num">' + ((d.colunas && d.colunas.length) || 0) + '</td>' +
+          (coord ? '<td><button type="button" class="fbtn" data-descartar-dados="' + esc(k) + '">Descartar</button></td>' : '') + '</tr>'; }).join("") +
+      '</tbody></table></div></details>';
+  }).join("");
+}
 function barras(pares, max, cls){ return pares.map(function(p){ return '<span>' + esc(p[0]) + '</span><span class="b"><i style="width:' + Math.round(p[1] / max * 100) + '%"' + (cls ? ' class="' + cls + '"' : "") + '></i></span><em>' + p[1] + '</em>'; }).join(""); }
 function renderFonte(id, l){
   var rows = linhasDe(l), idade = faixaIdade(l.recebidoEm);
@@ -413,10 +591,12 @@ function renderFonte(id, l){
     (vis.length > filtros.limite ? '<tr><td colspan="9" style="text-align:center"><button type="button" class="fbtn" data-mais>Mostrar mais (' + (vis.length - filtros.limite) + ' restantes)</button></td></tr>' : '') + '</tbody></table></div></div>';
 }
 function render(){
-  $("#codigo").textContent = cfg && cfg.token ? cfg.token : (coord ? "gerando…" : "peça a quem edita o Hub");
+  $("#codigo").textContent = cfg && cfg.token && coord ? cfg.token : (coord ? "gerando…" : "peça a quem edita o Hub");
   $("#novo").hidden = !(coord && cfg && cfg.token);
   var ids = Object.keys(lotes);
   $("#fontesSub").textContent = ids.length ? ids.length + " fonte" + (ids.length === 1 ? "" : "s") + " conectada" + (ids.length === 1 ? "" : "s") : "";
+  renderDados();
+  renderTopo();
   var foco = document.activeElement && document.activeElement.id;
   $("#fontes").innerHTML = ids.length ? ids.map(function(id){ return renderFonte(id, lotes[id]); }).join("") : '<div class="panel vazio-f">Nada recebido ainda. Conecte a extensão (passos acima) e clique em <b>Enviar agora</b>.</div>';
   if(foco && $("#" + foco)){ var el = $("#" + foco); el.focus(); if(el.setSelectionRange && el.value != null) try{ el.setSelectionRange(el.value.length, el.value.length); }catch(e){} }
@@ -433,10 +613,12 @@ document.addEventListener("change", function(e){ if(e.target.id === "fVez"){ fil
 document.addEventListener("click", function(e){
   var t = e.target;
   if(t.closest("[data-mais]")){ filtros.limite += 200; render(); return; }
+  var dd = t.closest("[data-descartar-dados]");
+  if(dd){ var did = dd.getAttribute("data-descartar-dados"), m = dados[did]; confirmar("Descartar o conjunto " + did + "? A extensão envia de novo no próximo envio completo.", "Descartar").then(function(ok){ if(!ok) return; var ps = []; ["a", "b"].forEach(function(sl){ for(var i = 0; i < (m && m.partes || 0); i++) ps.push(db.doc("ing_partes/" + did + "~" + sl + i).delete().catch(function(){})); }); Promise.all(ps).then(function(){ return db.doc("ing_dados/" + did).delete(); }).then(function(){ toast("Conjunto descartado."); }, function(){ toast("Não foi possível descartar."); }); }); return; }
   var d = t.closest("[data-descartar]");
   if(d){ var id = d.getAttribute("data-descartar"); confirmar("Descartar o resumo recebido de " + id + "? A extensão envia outro na próxima leitura.", "Descartar").then(function(ok){ if(ok) db.doc("ing_lotes/" + id).delete().then(function(){ toast("Resumo descartado."); }, function(){ toast("Não foi possível descartar."); }); }); }
 });
-$("#copiar").onclick = function(){ if(!cfg || !cfg.token) return; (navigator.clipboard ? navigator.clipboard.writeText(cfg.token) : Promise.reject()).then(function(){ toast("Código copiado."); }, function(){ var r = document.createRange(); r.selectNodeContents($("#codigo")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selecionei o código: use Ctrl+C."); }); };
+$("#copiar").onclick = function(){ if(!cfg || !cfg.token || !coord) return; (navigator.clipboard ? navigator.clipboard.writeText(cfg.token) : Promise.reject()).then(function(){ toast("Código copiado."); }, function(){ var r = document.createRange(); r.selectNodeContents($("#codigo")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selecionei o código: use Ctrl+C."); }); };
 $("#novo").onclick = function(){ confirmar("Gerar outro código? As extensões já conectadas deixam de ser aceitas até receberem o novo.", "Gerar outro").then(function(ok){ if(!ok) return; var a = new Uint8Array(18); crypto.getRandomValues(a); var t = Array.from(a, function(b){ return b.toString(36).padStart(2, "0"); }).join("").slice(0, 24).toUpperCase(); db.doc("ing_config/cfg").set(clonar({token:t, criadoEm:Date.now()})).then(function(){ toast("Novo código gerado."); }, function(){ toast("Não foi possível gerar."); }); }); };
 $("#colarOk").onclick = function(){
   var d; try{ d = JSON.parse($("#colar").value); }catch(e){ $("#colarMsg").textContent = "Isso não é um resumo da extensão (JSON inválido)."; return; }
@@ -445,11 +627,612 @@ $("#colarOk").onclick = function(){
   db.doc("ing_lotes/" + d.fonte + "~" + d.tipoDado).set(clonar(c)).then(function(){ $("#colar").value = ""; $("#colarMsg").textContent = "Resumo importado."; }, function(){ $("#colarMsg").textContent = "Não foi possível gravar (sua conta pode só ler o Hub)."; });
 };
 
+/* ---- para decidir: aplicar os dados do Onvio no cadastro do DP é decisão só daqui ----
+   A lista e a execução vêm do Hub (window.parent.__hubApi.api("onvio")), que confere a permissão (coordenação em qualquer empresa,
+   analista só na carteira dele) e grava no cadastro com o histórico. Em lote: uma confirmação, uma de cada vez, com o resultado de cada. */
+var TIPOS_DIF = [["novo", "Funcionário novo"], ["codigo", "Código Domínio"], ["admissao", "Admissão"], ["ferias", "Férias"], ["feriasFim", "Fim das férias"], ["rescisao", "Rescisão"], ["afastamento", "Afastamento"], ["cnpj", "CNPJ da empresa"], ["uf", "UF da empresa"]];
+var ACOES = [["complementar", "Complementar", "preenche o que está vazio"], ["corrigir", "Corrigir", "o valor do Hub é diferente do Onvio"], ["novo", "Cadastro novo", "só existe no Onvio"]];
+var ROT_ACAO = {}, VERBO_ACAO = { complementar:"Complementar", corrigir:"Corrigir", novo:"Cadastrar" }; ACOES.forEach(function(a){ ROT_ACAO[a[0]] = a[1]; });
+var ROT_TIPO = {}; TIPOS_DIF.forEach(function(t){ ROT_TIPO[t[0]] = t[1]; });
+var cad = { busca:"", tipo:"", acao:"", emp:"", soMinhas:false, limite:80, limVinc:40, ouvindo:false, sel:{}, selV:{}, escolha:{}, difs:[], sem:[], coord:false, pessoais:true, empregados:false, listas:false, api:false };
+function hubOv(){ try{ var P = window.parent; return P !== window && P.__hubApi && P.__hubApi.api ? P.__hubApi.api("onvio") : null; }catch(e){ return null; } }
+function chaveDe(d){ return d.empId + "|" + d.chave; }
+function plural(n, um, varios){ return n + " " + (n === 1 ? um : varios); }
+var cadT = null;
+// Os dados do Onvio chegam em dezenas de conjuntos, um após o outro: espera a poeira baixar em vez de redesenhar a cada um.
+function agendarCadastro(){ clearTimeout(cadT); cadT = setTimeout(renderCadastro, 350); }
+// maior versão da extensão que já entregou algum conjunto (para saber se a falta da lista de empregados é versão velha ou envio interrompido)
+function versaoNum(v){ var p = String(v || "").split(".").map(function(x){ return parseInt(x, 10) || 0; }); return p[0] * 1e6 + (p[1] || 0) * 1e3 + (p[2] || 0); }
+function versaoMaior(man){ var m = ""; Object.keys(man || {}).forEach(function(k){ var v = man[k] && man[k].versaoExt; if(v && versaoNum(v) > versaoNum(m)) m = v; }); return m; }
+function lerDecisoes(){
+  var api = hubOv();
+  cad.api = !!api; cad.listas = false; cad.difs = []; cad.sem = [];
+  if(!api) return null;
+  if(!cad.ouvindo){ cad.ouvindo = true; try{ api.garantir(); api.aoMudar(agendarCadastro); }catch(e){} }
+  try{
+    cad.empregados = !!(api.temEmpregados && api.temEmpregados());
+    cad.cobertura = cad.empregados && api.cobertura ? api.cobertura() : null;
+    cad.versaoExt = versaoMaior(api.manifestos ? api.manifestos() : {});
+    cad.listas = !!api.temListas() || cad.empregados;
+    if(cad.listas){ cad.difs = api.difs(); cad.sem = api.semVinculo(); cad.difs.forEach(function(d){ if(d._h === undefined) d._h = norm([d.empNome, d.nome, d.txt, d.resp, ROT_TIPO[d.tipo]].join(" ")); }); }
+    cad.coord = !!api.ehCoordenacao(); cad.pessoais = !!api.temDadosPessoais();
+  }catch(e){}
+  var vivos = {};
+  cad.difs.forEach(function(d){ vivos[chaveDe(d)] = 1; });
+  Object.keys(cad.sel).forEach(function(k){ if(!vivos[k]) delete cad.sel[k]; });
+  var vk = {}; cad.sem.forEach(function(g){ vk[g.k] = 1; });
+  Object.keys(cad.selV).forEach(function(k){ if(!vk[k]) delete cad.selV[k]; });
+  return api;
+}
+function difsFiltradas(ignora){
+  var busca = cad.busca ? norm(cad.busca) : "";
+  return cad.difs.filter(function(d){
+    if(ignora !== "tipo" && cad.tipo && d.tipo !== cad.tipo) return false;
+    if(ignora !== "acao" && cad.acao && d.acao !== cad.acao) return false;
+    if(cad.emp && d.empId !== cad.emp) return false;
+    if(cad.soMinhas && !d.pode) return false;
+    return !busca || d._h.indexOf(busca) !== -1;
+  });
+}
+function renderAuto(api){
+  var box = $("#autoBox"); if(!box) return;
+  var a = null; try{ a = api && cad.listas && api.auto ? api.auto() : null; }catch(e){}
+  if(!a){ box.innerHTML = ""; return; }
+  var dis = cad.coord ? "" : " disabled", u = a.ultima;
+  function ck(t, rot, sub){ return '<label class="chk"><input type="checkbox" data-auto-tipo="' + t + '"' + (a.tipos[t] ? " checked" : "") + dis + '> <b>' + rot + '</b><span class="sub">' + sub + '</span></label>'; }
+  box.innerHTML = '<div class="panel auto-bloco' + (a.ligada ? " ligada" : "") + '"><div class="ab-top"><div><h3>Aplicar automaticamente</h3><span class="note">Com isto ligado, o Hub aplica sozinho, <b>sem pedir confirmação</b>, o que a extensão traz do Onvio. Cada pessoa com o Hub aberto aplica só onde pode alterar (a coordenação em qualquer empresa, o analista na carteira dele). Tudo fica no histórico da empresa; o que você marcar como “Ignorar” continua ignorado.' + (cad.coord ? '' : ' Só a coordenação liga ou desliga.') + '</span></div>' +
+    '<label class="sw"><input type="checkbox" id="autoLigar"' + (a.ligada ? " checked" : "") + dis + '><span>' + (a.ligada ? "Ligado" : "Desligado") + '</span></label></div>' +
+    '<div class="ab-tipos">' + ck("complementar", "Complementar", "preenche campos vazios do cadastro") + ck("corrigir", "Corrigir", "troca valores diferentes pelo do Onvio") + ck("novo", "Cadastrar funcionários novos", "quem está na folha do Onvio e não no DP") + ck("empresa", "Cadastrar empresas novas", "cliente do Onvio sem empresa no DP (só a coordenação)") + '</div>' +
+    (a.ligada && a.bloqueio ? '<div class="cad-aviso" style="margin:10px -16px 0">Pausado: ' + esc(a.bloqueio) + '. Decida à mão ou envie tudo de novo pela extensão.</div>' : '') + '<div class="ab-pe"><span>' + (u && u.em ? 'Última aplicação automática: <b>' + esc(quando(Date.parse(u.em))) + '</b> · ' + esc(u.resumo || (u.n + " alteração(ões)")) : 'Ainda não aplicou nada sozinho.') + '</span>' + (a.ligada ? '<button type="button" class="fbtn" id="autoAgora"' + (a.rodando ? " disabled" : "") + '>' + (a.rodando ? "Aplicando…" : "Aplicar agora") + '</button>' : '') + '<span>Roda enquanto o Hub estiver aberto em algum navegador.</span></div></div>';
+}
+function textoPrevisao(api){
+  var p = api.autoPrevisao().por;
+  return "Pendente agora: " + p.complementar + " complemento(s), " + p.corrigir + " correção(ões), " + p.novo + " cadastro(s) novo(s) de funcionário" + (cad.coord ? " e " + p.empresa + " empresa(s) nova(s)" : "") + "." + (p.confirmar ? " Mais " + p.confirmar + " funcionário(s) só da lista do Onvio ficam para conferir à mão: o Onvio não sabe de desligamento feito fora do portal." : "");
+}
+document.addEventListener("change", function(e){
+  var t = e.target, api = hubOv(); if(!api || !t || !t.closest || !t.closest("#autoBox")) return;
+  var cfg = api.auto();
+  if(t.id === "autoLigar"){
+    if(!t.checked){ api.autoSalvar(function(a){ a.ligada = false; }).then(function(r){ toast(r.ok ? "Aplicação automática desligada." : r.erro); renderCadastro(); }); return; }
+    confirmar("Ligar a aplicação automática?\n\nO Hub passa a aplicar sozinho, sem pedir confirmação, o que a extensão traz do Onvio:" + (cfg.tipos.complementar ? "\n• complementar campos vazios" : "") + (cfg.tipos.corrigir ? "\n• corrigir valores diferentes" : "") + (cfg.tipos.novo ? "\n• cadastrar funcionários novos" : "") + (cfg.tipos.empresa ? "\n• cadastrar empresas novas" : "") + "\n\n" + textoPrevisao(api) + " Isso será aplicado em seguida e fica no histórico de cada empresa.", "Ligar").then(function(ok){
+      if(!ok){ renderCadastro(); return; }
+      api.autoSalvar(function(a){ a.ligada = true; }).then(function(r){ toast(r.ok ? "Aplicação automática ligada." : r.erro); renderCadastro(); });
+    });
+    return;
+  }
+  var tipo = t.getAttribute("data-auto-tipo"); if(!tipo) return;
+  function salvar(){ api.autoSalvar(function(a){ a.tipos[tipo] = t.checked; }).then(function(r){ if(!r.ok) toast(r.erro); renderCadastro(); }); }
+  if(tipo === "empresa" && t.checked && cfg.ligada) confirmar("Cadastrar empresas novas automaticamente?\n\nTodo cliente do Onvio que não tem empresa no DP vira uma empresa nova, com o nome, o CNPJ e a UF do Onvio. Hoje seriam " + api.autoPrevisao().por.empresa + " empresa(s). Confira antes se os clientes são mesmo do DP.", "Ligar").then(function(ok){ if(ok) salvar(); else renderCadastro(); });
+  else salvar();
+});
+document.addEventListener("click", function(e){
+  var b = e.target.closest && e.target.closest("#autoAgora"); if(!b) return;
+  var api = hubOv(); if(!api) return; b.disabled = true; b.textContent = "Aplicando…";
+  api.autoAgora().then(function(r){ toast(r && r.ok ? (r.n ? r.n + " alteração(ões) aplicada(s)." : "Nada para aplicar agora.") : (r && r.motivo === "carregando" ? "Ainda carregando os dados do Onvio. Tente de novo em instantes." : r && r.motivo === "incompleto" ? "Pausado: " + (r.detalhe || "dados incompletos") + "." : "Não foi possível aplicar agora.")); renderCadastro(); });
+});
+function renderCadastro(){
+  var el = $("#cadro"), ev = $("#vincro"); if(!el) return;
+  var foco = document.activeElement && document.activeElement.id, api = lerDecisoes();
+  renderAuto(api);
+  var nDif = cad.difs.length, nSem = cad.sem.length;
+  $("#cadSub").textContent = cad.listas ? plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") : "";
+  var nb = $("#nbDecidir"); if(nb){ nb.textContent = nDif + nSem; nb.hidden = !(nDif + nSem); }
+  renderTopo();
+  if(!api){ el.innerHTML = '<div class="panel vazio-f">Abra esta tela pelo Control Hub para conferir os dados do Onvio com o cadastro do DP.</div>'; ev.innerHTML = ""; return; }
+  if(!cad.listas){ el.innerHTML = '<div class="panel vazio-f"><b>Ainda não chegaram as solicitações completas do Onvio.</b><br>Na extensão, em Configurações → Control Hub, clique em <b>Enviar tudo agora</b>. Elas aparecem aqui assim que o Hub receber.</div>'; ev.innerHTML = ""; return; }
+  if(abaAtual !== "decidir"){ cad.pendente = true; return; }
+  cad.pendente = false;
+  el.innerHTML = htmlDiferencas();
+  ev.innerHTML = htmlVinculos();
+  if(foco && $("#" + foco)){ var f = $("#" + foco); f.focus(); if(f.setSelectionRange && f.type === "search") try{ f.setSelectionRange(f.value.length, f.value.length); }catch(e){} }
+}
+function htmlDiferencas(){
+  var base = difsFiltradas("tipo"), vis = difsFiltradas(""), baseA = difsFiltradas("acao");
+  var porTipo = {}, porAcao = {}; base.forEach(function(d){ porTipo[d.tipo] = (porTipo[d.tipo] || 0) + 1; }); baseA.forEach(function(d){ porAcao[d.acao] = (porAcao[d.acao] || 0) + 1; });
+  var podeAlguma = cad.difs.some(function(d){ return d.pode; }), alguemNao = cad.difs.some(function(d){ return !d.pode; });
+  var empresas = {}; cad.difs.forEach(function(d){ empresas[d.empId] = d.empNome; });
+  var selN = Object.keys(cad.sel).length, selecionaveis = vis.filter(function(d){ return d.pode; });
+  var todasMarcadas = selecionaveis.length && selecionaveis.every(function(d){ return cad.sel[chaveDe(d)]; });
+  var h = '<div class="panel cad-bloco"><div class="cb-top"><h3>Diferenças com os cadastros do DP</h3><span class="note">O que já existe no Hub pode ser <b>complementado</b> (campo vazio) ou <b>corrigido</b> (valor diferente do Onvio); o que só existe no Onvio vira <b>cadastro novo</b>. Cada decisão fica no histórico da empresa; Ignorar some com a diferença sem mudar nada.</span></div>';
+  if(cad.empregados && cad.cobertura) h += '<div class="cad-aviso cob">Folha do Onvio: <b>' + cad.cobertura.ativos.toLocaleString("pt-BR") + ' empregados ativos</b> em <b>' + cad.cobertura.clientesComEmpregados + ' de ' + cad.cobertura.clientesLidos + ' clientes</b>. <b>Regra:</b> só é ativo quem está na lista de empregados do Onvio. Quem aparece só nas solicitações é desconsiderado, e quem está ativo no DP e sumiu da lista (em empresa que tem lista) é marcado como desligado. Empresa sem lista não recebe funcionário novo do Onvio.</div>';
+  if(!cad.pessoais) h += '<div class="cad-aviso">Os dados pessoais ainda não chegaram (a categoria <b>Pessoais</b> está desligada na extensão). Sem eles o Hub não sabe quem são os empregados das empresas, então não há diferenças de funcionários para conferir.</div>';
+  else if(!cad.empregados) h += (versaoNum(cad.versaoExt) >= versaoNum("0.53.0")
+    ? '<div class="cad-aviso">A extensão (versão ' + esc(cad.versaoExt) + ') já enviou, mas a <b>lista completa de empregados de cada empresa</b> não chegou: o envio parou antes dela. Na extensão, em <b>Configurações → Control Hub</b>, veja o motivo do último envio; com a versão 0.53.1 ou mais nova uma leitura recusada pelo Onvio não interrompe mais o envio. Por enquanto só aparecem os funcionários que têm alguma solicitação no portal.</div>'
+    : '<div class="cad-aviso">A <b>lista completa de empregados de cada empresa</b> ainda não chegou (precisa da extensão 0.53.0 ou mais nova e de um novo <b>Enviar tudo agora</b>). Por enquanto só aparecem os funcionários que têm alguma solicitação no portal.</div>');
+  if(!cad.difs.length){ return h + '<div class="vazio-ok"><span class="ok-ic" aria-hidden="true">✓</span><div><b>Nada para decidir nos cadastros.</b><span>O cadastro do DP bate com o que o Onvio mostra.</span></div></div></div>'; }
+  h += '<div class="barra">' +
+    '<input type="search" id="cBusca" placeholder="Buscar empresa, funcionário ou tipo…" value="' + esc(cad.busca) + '" autocomplete="off" aria-label="Buscar nas diferenças">' +
+    '<select id="cEmp" aria-label="Empresa"><option value="">Todas as empresas (' + Object.keys(empresas).length + ')</option>' + Object.keys(empresas).sort(function(a, b){ return empresas[a].localeCompare(empresas[b], "pt-BR"); }).map(function(id){ return '<option value="' + esc(id) + '"' + (cad.emp === id ? " selected" : "") + '>' + esc(empresas[id]) + '</option>'; }).join("") + '</select>' +
+    (alguemNao && podeAlguma ? '<label class="chk"><input type="checkbox" id="cMinhas"' + (cad.soMinhas ? " checked" : "") + '> Só as que eu posso aplicar</label>' : '') +
+    '<span class="cont">' + plural(vis.length, "diferença", "diferenças") + '</span></div>';
+  h += '<div class="chips acoes" role="group" aria-label="Filtrar pelo que fazer"><button type="button" class="chipf' + (!cad.acao ? " on" : "") + '" data-cad-acao="">Todas <em>' + baseA.length + '</em></button>' +
+    ACOES.filter(function(a){ return porAcao[a[0]]; }).map(function(a){ return '<button type="button" class="chipf ac-' + a[0] + (cad.acao === a[0] ? " on" : "") + '" data-cad-acao="' + a[0] + '" title="' + esc(a[2]) + '"><i></i>' + a[1] + ' <em>' + porAcao[a[0]] + '</em></button>'; }).join("") + '</div>' +
+    '<div class="chips" role="group" aria-label="Filtrar por tipo de dado"><button type="button" class="chipf' + (!cad.tipo ? " on" : "") + '" data-cad-tipo="">Todos os dados <em>' + base.length + '</em></button>' +
+    TIPOS_DIF.filter(function(t){ return porTipo[t[0]]; }).map(function(t){ return '<button type="button" class="chipf tp-' + t[0] + (cad.tipo === t[0] ? " on" : "") + '" data-cad-tipo="' + t[0] + '"><i></i>' + t[1] + ' <em>' + porTipo[t[0]] + '</em></button>'; }).join("") + '</div>';
+  if(podeAlguma) h += '<div class="selbar' + (selN ? " ativa" : "") + '" id="cSelBar"><label class="chk"><input type="checkbox" id="cTodas"' + (todasMarcadas ? " checked" : "") + (selecionaveis.length ? "" : " disabled") + '> Selecionar ' + (cad.tipo || cad.emp || cad.busca ? "as " + selecionaveis.length + " desta lista" : "todas as " + selecionaveis.length) + '</label>' +
+    '<span class="sel-n">' + (selN ? plural(selN, "selecionada", "selecionadas") : "Marque as diferenças para decidir várias de uma vez.") + '</span>' +
+    (selecionaveis.some(function(d){ return d.acao === "complementar"; }) ? '<button type="button" class="linkish" data-cad-selacao="complementar">Marcar só os complementos</button>' : '') +
+    '<span class="spacer"></span><button type="button" class="btn verde" id="cAplicarSel"' + (selN ? "" : " disabled") + '>' + verboSel() + (selN ? " " + selN : "") + '</button><button type="button" class="fbtn" id="cIgnorarSel"' + (selN ? "" : " disabled") + '>Ignorar' + (selN ? " " + selN : "") + '</button>' + (selN ? '<button type="button" class="linkish" id="cLimpar">Limpar seleção</button>' : '') + '</div>';
+  if(!vis.length) return h + '<div class="vazio-f">Nenhuma diferença com esses filtros.</div></div>';
+  var grupos = [], porEmp = {};
+  vis.slice(0, cad.limite).forEach(function(d){ var g = porEmp[d.empId]; if(!g){ g = porEmp[d.empId] = { id:d.empId, nome:d.empNome, resp:d.resp, itens:[] }; grupos.push(g); } g.itens.push(d); });
+  h += '<div class="tab-wrap"><table class="tbl dif-tbl"><thead><tr><th class="ck"></th><th>Funcionário ou empresa</th><th>O que fazer</th><th>No cadastro → no Onvio</th><th></th></tr></thead><tbody>' +
+    grupos.map(function(g){
+      var pode = g.itens.filter(function(d){ return d.pode; }), marc = pode.length && pode.every(function(d){ return cad.sel[chaveDe(d)]; });
+      return '<tr class="grp"><td class="ck">' + (pode.length ? '<input type="checkbox" data-sel-emp="' + esc(g.id) + '"' + (marc ? " checked" : "") + ' aria-label="Selecionar as de ' + esc(g.nome) + '">' : '') + '</td><td colspan="4"><b>' + esc(g.nome) + '</b>' + (g.resp ? '<span class="g-resp">' + esc(g.resp) + '</span>' : '') + '<span class="g-n">' + plural(g.itens.length, "diferença", "diferenças") + '</span></td></tr>' +
+        g.itens.map(function(d){ var k = chaveDe(d), on = !!cad.sel[k];
+          return '<tr class="dif' + (on ? " on" : "") + '" data-emp="' + esc(d.empId) + '" data-chave="' + esc(d.chave) + '"><td class="ck">' + (d.pode ? '<input type="checkbox" data-sel="' + esc(k) + '"' + (on ? " checked" : "") + ' aria-label="Selecionar ' + esc(d.nome) + '">' : '') + '</td>' +
+            '<td class="fn">' + esc(d.nome) + '</td><td><span class="tp ac-' + esc(d.acao) + '"><i></i>' + esc(ROT_ACAO[d.acao] || d.acao) + '</span> <span class="tp tp-' + esc(d.tipo) + '"><i></i>' + esc(ROT_TIPO[d.tipo] || d.tipo) + '</span><span class="dtx">' + esc(d.txt) + '</span>' + (d.confirmar ? '<span class="tp tp-conf"><i></i>conferir antes</span>' : '') + '</td>' +
+            '<td class="mudanca"><span class="cad-de">' + esc(d.antes) + '</span><span class="seta" aria-hidden="true">→</span><b>' + esc(d.depois) + '</b></td><td class="acs">' +
+            (d.pode ? '<div class="cad-ac"><button type="button" class="btn verde" data-cad-aplicar>' + esc(VERBO_ACAO[d.acao] || "Aplicar") + '</button><button type="button" class="fbtn" data-cad-ignorar>Ignorar</button></div>' : '<span class="note">só a coordenação ou o analista desta carteira</span>') + '</td></tr>'; }).join("");
+    }).join("") +
+    (vis.length > cad.limite ? '<tr><td colspan="5" class="mais-td"><button type="button" class="fbtn" data-cad-mais>Mostrar mais (' + (vis.length - cad.limite) + ' restantes)</button></td></tr>' : '') + '</tbody></table></div></div>';
+  return h;
+}
+function verboSel(){
+  var vs = {}; cad.difs.forEach(function(d){ if(cad.sel[chaveDe(d)]) vs[d.acao] = 1; });
+  var ks = Object.keys(vs); return ks.length === 1 ? VERBO_ACAO[ks[0]] : "Aplicar";
+}
+function htmlVinculos(){
+  var sem = cad.sem;
+  var h = '<div class="panel cad-bloco"><div class="cb-top"><h3>Clientes do Onvio sem empresa no DP</h3><span class="note">' + (sem.length ? (cad.coord ? 'Estes clientes vieram do portal e não existem no DP: <b>cadastre como empresa nova</b> (com o CNPJ e a UF do Onvio) ou, se já existem com outro nome, ligue a uma empresa do DP.' : 'Só a coordenação cadastra empresas novas e liga clientes às empresas do DP.') : '') + '</span></div>';
+  if(!sem.length) return h + '<div class="vazio-ok"><span class="ok-ic" aria-hidden="true">✓</span><div><b>Todos os clientes do Onvio estão ligados a uma empresa do DP.</b><span>Os novos aparecem aqui quando chegarem.</span></div></div></div>';
+  var selN = Object.keys(cad.selV).length;
+  var todas = hubOv() ? hubOv().empresas() : [];
+  var nomeDe = {}; todas.forEach(function(e){ nomeDe[e.id] = e.nome; });   // as 1.000 opções de cada linha pesavam dezenas de milhares de nós: o resto entra ao abrir a lista (encherLista)
+  if(cad.coord){
+    var comEscolha = Object.keys(cad.selV).filter(function(k){ return escolhaDe(k); }).length;
+    h += '<div class="selbar' + (selN ? " ativa" : "") + '"><label class="chk"><input type="checkbox" id="vTodas"' + (selN && selN === Math.min(sem.length, cad.limVinc) ? " checked" : "") + '> Selecionar todos</label><span class="sel-n">' + (selN ? plural(selN, "selecionado", "selecionados") + (comEscolha < selN ? ' · ' + plural(selN - comEscolha, "sem empresa escolhida", "sem empresa escolhida") : '') : 'As empresas sugeridas pelo nome já vêm escolhidas; confira antes de ligar.') + '</span><span class="spacer"></span>' +
+      '<button type="button" class="btn verde" id="vCriarSel"' + (selN ? "" : " disabled") + '>Cadastrar' + (selN ? " " + selN : "") + ' como novas</button><button type="button" class="fbtn" id="vLigarSel"' + (comEscolha ? "" : " disabled") + '>Ligar' + (comEscolha ? " " + comEscolha : "") + '</button><button type="button" class="fbtn" id="vForaSel"' + (selN ? "" : " disabled") + '>Não são do DP' + (selN ? " (" + selN + ")" : "") + '</button></div>';
+  }
+  h += '<div class="tab-wrap"><table class="tbl vinc-tbl"><thead><tr>' + (cad.coord ? '<th class="ck"></th>' : '') + '<th>Cliente no Onvio</th><th class="num">No Onvio</th>' + (cad.coord ? '<th>Empresa do DP</th><th></th>' : '') + '</tr></thead><tbody>' +
+    sem.slice(0, cad.limVinc).map(function(g){ var ids = {}, esc_ = escolhaDe(g.k); g.parecidas.forEach(function(e){ ids[e.id] = 1; });
+      var opts = '<option value="">Escolha a empresa…</option>' + (g.parecidas.length ? '<optgroup label="Parecidas pelo nome">' + g.parecidas.map(function(e){ return '<option value="' + esc(e.id) + '">' + esc(e.nome) + '</option>'; }).join("") + '</optgroup>' : '');
+      if(esc_ && !ids[esc_] && nomeDe[esc_]) opts += '<option value="' + esc(esc_) + '">' + esc(nomeDe[esc_]) + '</option>';
+      if(esc_) opts = opts.replace('<option value="' + esc(esc_) + '">', '<option value="' + esc(esc_) + '" selected>');
+      return '<tr data-k="' + esc(g.k) + '"' + (cad.selV[g.k] ? ' class="on"' : '') + '>' + (cad.coord ? '<td class="ck"><input type="checkbox" data-sel-v="' + esc(g.k) + '"' + (cad.selV[g.k] ? " checked" : "") + ' aria-label="Selecionar ' + esc(g.cli) + '"></td>' : '') +
+        '<td class="emp">' + esc(g.cli || "(sem nome)") + (g.cod ? '<span class="sub mono">código ' + esc(g.cod) + (g.cliente && g.cliente.cnpj ? ' · ' + esc(g.cliente.cnpj) : '') + (g.cliente && g.cliente.uf ? ' · ' + esc(g.cliente.uf) : '') + '</span>' : '') + '</td><td class="num">' + g.n + (g.nEmp ? '<span class="sub">' + plural(g.nEmp, "empregado ativo", "empregados ativos") + '</span>' : '') + '</td>' +
+        (cad.coord ? '<td><select data-cad-emp aria-label="Empresa do DP para ' + esc(g.cli) + '">' + opts + '</select>' + (g.parecidas.length === 1 && !cad.escolha[g.k] ? '<span class="sub">sugerida pelo nome: ligar em vez de cadastrar</span>' : '') + '</td><td class="acs"><div class="cad-ac"><button type="button" class="btn verde" data-cad-criar title="Cadastra no DP uma empresa nova com os dados deste cliente">Cadastrar como nova</button><button type="button" class="fbtn" data-cad-ligar>Ligar</button><button type="button" class="fbtn" data-cad-fora title="Não mostrar mais este cliente no DP">Não é do DP</button></div></td>' : '') + '</tr>'; }).join("") +
+    (sem.length > cad.limVinc ? '<tr><td colspan="5" class="mais-td"><button type="button" class="fbtn" data-cad-mais-vinc>Mostrar mais (' + (sem.length - cad.limVinc) + ' restantes)</button></td></tr>' : '') + '</tbody></table></div></div>';
+  return h;
+}
+// empresa escolhida para o cliente: a da pessoa, senão a única parecida pelo nome (só sugestão: ligar sempre pede confirmação)
+function escolhaDe(k){
+  if(k in cad.escolha) return cad.escolha[k];
+  var g = cad.sem.filter(function(x){ return x.k === k; })[0];
+  return g && g.parecidas.length === 1 ? g.parecidas[0].id : "";
+}
+function nomeEmpresa(id){ var api = hubOv(), e = api ? api.empresas().filter(function(x){ return x.id === id; })[0] : null; return e ? e.nome : ""; }
+function cadResultado(p, ok){ p.then(function(r){ toast(r && r.ok ? ok : ((r && r.erro) || "Não foi possível concluir.")); renderCadastro(); }, function(){ toast("Não foi possível concluir."); renderCadastro(); }); }
+
+/* ---- lote: confirma uma vez, executa uma de cada vez e mostra o resultado de cada ---- */
+var lote = { rodando:false, parar:false };
+function abrirLote(o){
+  // o: { titulo, resumo (HTML), botao, itens:[{rot, sub, fazer: () => Promise<{ok, erro}>}], aoFim }
+  var d = $("#dlgLote");
+  $("#loteTit").textContent = o.titulo;
+  $("#loteResumo").innerHTML = o.resumo;
+  $("#loteLista").innerHTML = o.itens.map(function(it, i){ return '<li data-i="' + i + '"><span class="li-tx"><b>' + esc(it.rot) + '</b>' + (it.sub ? '<small>' + esc(it.sub) + '</small>' : '') + '</span><span class="li-st"></span></li>'; }).join("");
+  $("#loteProg").hidden = true; $("#loteBarra").style.width = "0%"; $("#loteCont").textContent = "";
+  var sim = $("#loteSim"), nao = $("#loteNao");
+  sim.hidden = false; sim.disabled = false; sim.textContent = o.botao; nao.textContent = "Cancelar"; nao.disabled = false;
+  lote.rodando = false; lote.parar = false;
+  d.oncancel = function(e){ if(lote.rodando){ e.preventDefault(); } };
+  nao.onclick = function(){ if(lote.rodando){ lote.parar = true; nao.disabled = true; nao.textContent = "Parando…"; return; } d.close(); };
+  sim.onclick = function(){
+    lote.rodando = true; sim.disabled = true; nao.textContent = "Parar"; $("#loteProg").hidden = false;
+    var i = 0, ok = 0, erro = 0, total = o.itens.length;
+    var marca = function(j, cls, txt){ var li = $('#loteLista li[data-i="' + j + '"]'); if(!li) return; li.className = cls; $(".li-st", li).textContent = txt; if(cls === "rodando") li.scrollIntoView({ block:"nearest" }); };
+    var prox = function(){
+      if(i >= total || lote.parar){
+        lote.rodando = false; sim.hidden = true; nao.disabled = false; nao.textContent = "Fechar";
+        $("#loteCont").textContent = plural(ok, "feita", "feitas") + (erro ? " · " + plural(erro, "com erro", "com erro") : "") + (lote.parar && i < total ? " · " + plural(total - i, "não feita (parou)", "não feitas (parou)") : "");
+        toast(ok ? plural(ok, "decisão gravada", "decisões gravadas") + (erro ? ", " + erro + " com erro." : ".") : "Nenhuma decisão gravada.");
+        if(o.aoFim) o.aoFim();
+        renderCadastro();
+        return;
+      }
+      var j = i++; marca(j, "rodando", "gravando…");
+      Promise.resolve().then(function(){ return o.itens[j].fazer(); }).then(function(r){
+        if(r && r.ok){ ok++; marca(j, "ok", "✓ feito"); } else { erro++; marca(j, "erro", "✕ " + ((r && r.erro) || "não deu")); }
+      }, function(e){ erro++; marca(j, "erro", "✕ " + ((e && e.message) || "não deu")); }).then(function(){
+        $("#loteBarra").style.width = Math.round(i / total * 100) + "%"; $("#loteCont").textContent = i + " de " + total;
+        setTimeout(prox, 120);
+      });
+    };
+    prox();
+  };
+  d.showModal();
+}
+function resumoTipos(itens){
+  var c = {}, a = {}; itens.forEach(function(d){ c[d.tipo] = (c[d.tipo] || 0) + 1; a[d.acao] = (a[d.acao] || 0) + 1; });
+  return ACOES.filter(function(x){ return a[x[0]]; }).map(function(x){ return '<span class="tp ac-' + x[0] + '"><i></i>' + x[1] + ' <em>' + a[x[0]] + '</em></span>'; }).join(" ") + " " +
+    TIPOS_DIF.filter(function(t){ return c[t[0]]; }).map(function(t){ return '<span class="tp tp-' + t[0] + '"><i></i>' + t[1] + ' <em>' + c[t[0]] + '</em></span>'; }).join(" ");
+}
+function loteDiferencas(aplicar){
+  var api = hubOv(); if(!api) return;
+  var itens = cad.difs.filter(function(d){ return cad.sel[chaveDe(d)] && d.pode; });
+  if(!itens.length){ toast("Marque as diferenças primeiro."); return; }
+  var emps = {}; itens.forEach(function(d){ emps[d.empId] = 1; });
+  abrirLote({
+    titulo: (aplicar ? verboSel() + " " : "Ignorar ") + plural(itens.length, "diferença", "diferenças"),
+    botao: (aplicar ? verboSel() : "Ignorar") + " " + itens.length,
+    resumo: '<p>' + (aplicar ? 'Vai gravar no cadastro do DP, em ' : 'Vai deixar de mostrar estas diferenças, sem mudar o cadastro, em ') + plural(Object.keys(emps).length, "empresa", "empresas") + '. ' + (aplicar ? 'Complementar preenche o que está vazio, Corrigir troca pelo valor do Onvio e Cadastrar cria o funcionário novo. Cada uma fica registrada no histórico da empresa.' : '') + ' Uma de cada vez; você pode parar no meio.</p><div class="tps">' + resumoTipos(itens) + '</div>',
+    itens: itens.map(function(d){ return { rot: d.empNome + " · " + d.nome, sub: (ROT_ACAO[d.acao] || "") + " · " + (ROT_TIPO[d.tipo] || d.tipo) + ": " + d.antes + " → " + d.depois, fazer: function(){ return aplicar ? api.aplicar(d.empId, d.chave) : api.ignorar(d.empId, d.chave); } }; }),
+    aoFim: function(){ cad.sel = {}; }
+  });
+}
+function loteVinculos(modo){
+  var api = hubOv(); if(!api) return;
+  var fora = modo === "fora", criar = modo === "criar";
+  var ks = Object.keys(cad.selV), sem = {}; cad.sem.forEach(function(g){ sem[g.k] = g; });
+  var itens = ks.filter(function(k){ return sem[k] && (fora || criar || escolhaDe(k)); }).map(function(k){ return { g: sem[k], emp: fora ? "-" : escolhaDe(k) }; });
+  if(!itens.length){ toast(fora || criar ? "Marque os clientes primeiro." : "Escolha a empresa de cada cliente marcado."); return; }
+  if(criar){
+    abrirLote({
+      titulo: "Cadastrar " + plural(itens.length, "empresa nova", "empresas novas"), botao: "Cadastrar " + itens.length,
+      resumo: '<p>Cada cliente do Onvio vira uma empresa nova no DP, com o nome, o CNPJ e a UF que o Onvio traz (código e inscrições vão nas observações). As solicitações dele passam a aparecer na empresa. Fica registrado no histórico.</p>',
+      itens: itens.map(function(x){ return { rot: x.g.cli || "(sem nome)", sub: "cadastrar como empresa nova" + (x.g.cliente && x.g.cliente.cnpj ? " · " + x.g.cliente.cnpj : ""), fazer: function(){ return api.criarEmpresa(x.g.k); } }; }),
+      aoFim: function(){ cad.selV = {}; }
+    });
+    return;
+  }
+  abrirLote({
+    titulo: fora ? plural(itens.length, "cliente não é do DP", "clientes não são do DP") : "Ligar " + plural(itens.length, "cliente", "clientes"),
+    botao: fora ? "Confirmar " + itens.length : "Ligar " + itens.length,
+    resumo: '<p>' + (fora ? 'Estes clientes do Onvio deixam de aparecer no DP.' : 'Cada cliente fica ligado à empresa escolhida. Vale para todas as solicitações dele e para as próximas.') + '</p>',
+    itens: itens.map(function(x){ return { rot: x.g.cli || "(sem nome)", sub: fora ? "não é do DP" : "→ " + nomeEmpresa(x.emp), fazer: function(){ return api.ligar(x.g.k, x.emp); } }; }),
+    aoFim: function(){ cad.selV = {}; }
+  });
+}
+function encherLista(e){
+  var sel = e.target;
+  if(!sel || !sel.matches || !sel.matches("select[data-cad-emp]") || sel.getAttribute("data-cheio")) return;
+  var api = hubOv(); if(!api) return;
+  sel.setAttribute("data-cheio", "1");
+  var ja = {}; Array.prototype.forEach.call(sel.options, function(o){ ja[o.value] = 1; });
+  var g = document.createElement("optgroup"); g.label = "Todas as empresas";
+  api.empresas().forEach(function(x){ if(ja[x.id]) return; var o = document.createElement("option"); o.value = x.id; o.textContent = x.nome; g.appendChild(o); });
+  sel.appendChild(g);
+}
+document.addEventListener("focusin", encherLista, true);
+document.addEventListener("pointerdown", encherLista, true);
+var buscaT = null;
+document.addEventListener("input", function(e){ if(e.target.id === "cBusca"){ cad.busca = e.target.value; cad.limite = 80; clearTimeout(buscaT); buscaT = setTimeout(renderCadastro, 220); } });
+document.addEventListener("change", function(e){
+  var t = e.target;
+  if(t.id === "cEmp"){ cad.emp = t.value; cad.limite = 80; renderCadastro(); return; }
+  if(t.id === "cMinhas"){ cad.soMinhas = t.checked; renderCadastro(); return; }
+  if(t.id === "cTodas"){ difsFiltradas(false).filter(function(d){ return d.pode; }).forEach(function(d){ if(t.checked) cad.sel[chaveDe(d)] = 1; else delete cad.sel[chaveDe(d)]; }); renderCadastro(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-sel-emp")){ var id = t.getAttribute("data-sel-emp"); difsFiltradas(false).filter(function(d){ return d.pode && d.empId === id; }).forEach(function(d){ if(t.checked) cad.sel[chaveDe(d)] = 1; else delete cad.sel[chaveDe(d)]; }); renderCadastro(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-sel")){ var k = t.getAttribute("data-sel"); if(t.checked) cad.sel[k] = 1; else delete cad.sel[k]; renderCadastro(); return; }
+  if(t.id === "vTodas"){ cad.sem.slice(0, cad.limVinc).forEach(function(g){ if(t.checked) cad.selV[g.k] = 1; else delete cad.selV[g.k]; }); renderCadastro(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-sel-v")){ var kv = t.getAttribute("data-sel-v"); if(t.checked) cad.selV[kv] = 1; else delete cad.selV[kv]; renderCadastro(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-cad-emp")){ var tr = t.closest("tr[data-k]"); if(tr){ cad.escolha[tr.getAttribute("data-k")] = t.value; if(t.value) cad.selV[tr.getAttribute("data-k")] = 1; renderCadastro(); } return; }
+});
+document.addEventListener("click", function(e){
+  var t = e.target, api = hubOv(); if(!api || !t.closest) return;
+  if(t.closest("[data-cad-mais]")){ cad.limite += 120; renderCadastro(); return; }
+  if(t.closest("[data-cad-mais-vinc]")){ cad.limVinc += 60; renderCadastro(); return; }
+  var tp = t.closest("[data-cad-tipo]"); if(tp){ cad.tipo = tp.getAttribute("data-cad-tipo"); cad.limite = 80; renderCadastro(); return; }
+  if(t.closest("#cAplicarSel")){ loteDiferencas(true); return; }
+  if(t.closest("#cIgnorarSel")){ loteDiferencas(false); return; }
+  if(t.closest("#cLimpar")){ cad.sel = {}; renderCadastro(); return; }
+  if(t.closest("#vLigarSel")){ loteVinculos("ligar"); return; }
+  if(t.closest("#vForaSel")){ loteVinculos("fora"); return; }
+  if(t.closest("#vCriarSel")){ loteVinculos("criar"); return; }
+  var ac = t.closest("[data-cad-acao]"); if(ac){ cad.acao = ac.getAttribute("data-cad-acao"); cad.limite = 80; renderCadastro(); return; }
+  var sa = t.closest("[data-cad-selacao]"); if(sa){ var alvo = sa.getAttribute("data-cad-selacao"); difsFiltradas("").filter(function(d){ return d.pode && d.acao === alvo; }).forEach(function(d){ cad.sel[chaveDe(d)] = 1; }); renderCadastro(); return; }
+  var tr = t.closest("tr[data-emp]");
+  if(tr && (t.closest("[data-cad-aplicar]") || t.closest("[data-cad-ignorar]"))){
+    var emp = tr.getAttribute("data-emp"), ch = tr.getAttribute("data-chave"), d = cad.difs.filter(function(x){ return x.empId === emp && x.chave === ch; })[0];
+    if(!d){ toast("Essa diferença já não existe."); renderCadastro(); return; }
+    var aplicar = !!t.closest("[data-cad-aplicar]");
+    confirmar(d.empNome + "\n" + d.nome + ": " + d.txt + ".\n" + d.antes + " → " + d.depois + "\n\n" + (aplicar ? (d.acao === "novo" ? "Cadastrar no DP como novo? " : d.acao === "complementar" ? "Complementar o cadastro do DP? " : "Corrigir o cadastro do DP com o valor do Onvio? ") + "Fica registrado no histórico da empresa." : "Não mostrar mais esta diferença? O cadastro não muda."), aplicar ? (VERBO_ACAO[d.acao] || "Aplicar") : "Ignorar").then(function(ok){
+      if(!ok) return;
+      delete cad.sel[chaveDe(d)];
+      cadResultado(aplicar ? api.aplicar(emp, ch) : api.ignorar(emp, ch), aplicar ? "Aplicado e registrado no histórico." : "Diferença ignorada.");
+    });
+    return;
+  }
+  var tv = t.closest("tr[data-k]");
+  if(tv && (t.closest("[data-cad-ligar]") || t.closest("[data-cad-fora]") || t.closest("[data-cad-criar]"))){
+    var k = tv.getAttribute("data-k"), g = cad.sem.filter(function(x){ return x.k === k; })[0], nome = g ? (g.cli || "(sem nome)") : "";
+    if(t.closest("[data-cad-criar]")){
+      var inf = g && g.cliente ? "\n" + [g.cliente.cnpj, g.cliente.uf].filter(Boolean).join(" · ") : "";
+      confirmar("Cadastrar como empresa nova no DP:\n" + nome + inf + "\n\nFica registrado no histórico e as solicitações dele passam a aparecer na empresa.", "Cadastrar").then(function(ok){ if(ok){ delete cad.selV[k]; cadResultado(api.criarEmpresa(k), "Empresa cadastrada: " + nome + "."); } });
+      return;
+    }
+    if(t.closest("[data-cad-fora]")){
+      confirmar("Este cliente do Onvio não aparece mais no DP:\n" + nome, "Confirmar").then(function(ok){ if(ok){ delete cad.selV[k]; cadResultado(api.ligar(k, "-"), "Esse cliente não aparece mais no DP."); } });
+      return;
+    }
+    var id = tv.querySelector("[data-cad-emp]").value, nomeE = id ? nomeEmpresa(id) : "";
+    if(!nomeE){ toast("Escolha a empresa do DP."); return; }
+    confirmar("Ligar o cliente do Onvio\n" + nome + "\nà empresa do DP\n" + nomeE + "?\n\nVale para todas as solicitações dele e para as próximas.", "Ligar").then(function(ok){ if(ok){ delete cad.selV[k]; cadResultado(api.ligar(k, id), "Ligado a " + nomeE + "."); } });
+  }
+});
+
+
+/* ---- cadastro único de empresas ---- */
+var CU = { rel: null, ocupado: false, msg: "" };
+function hubCad(){ try{ var P = window.parent; return P !== window && P.__hubApi && P.__hubApi.api ? P.__hubApi.api("cadastro") : null; }catch(e){ return null; } }
+function cuLista(titulo, itens, linha, nota, max){
+  if(!itens || !itens.length) return "";
+  max = max || 40;
+  return '<details class="cu-det"><summary><b>' + esc(titulo) + '</b> <span class="cu-n">' + itens.length + '</span>' + (nota ? ' <small>' + esc(nota) + '</small>' : '') + '</summary><div class="cu-corpo">' + itens.slice(0, max).map(linha).join("") + (itens.length > max ? '<div class="note" style="padding:6px 10px">… e mais ' + (itens.length - max) + '.</div>' : "") + '</div></details>';
+}
+function renderCU(){
+  var el = $("#cuBox"); if(!el) return;
+  var api = hubCad();
+  if(!api){ el.innerHTML = '<div class="panel vazio-f">Abra esta tela pelo Control Hub.</div>'; return; }
+  var st = api.estado(), rel = CU.rel || st.relatorio, pode = api.podeGerir(), bk = st.backup;
+  $("#cuSub").textContent = st.mestre ? st.mestre + " empresas no cadastro" : "ainda não gerado";
+  var h = '<div class="panel pad cu-top">' +
+    '<div class="cu-cards"><div class="cu-card"><b>' + st.mestre + '</b><span>no cadastro único</span></div><div class="cu-card"><b>' + st.clientesOnvio + '</b><span>clientes do Onvio lidos</span></div><div class="cu-card' + (bk ? "" : " alerta") + '"><b>' + (bk ? quando(bk.em) : "—") + '</b><span>último backup' + (bk ? " · " + plural(bk.itens, "cadastro", "cadastros") : " (faça antes de gerar)") + '</span></div></div>' +
+    '<div class="cu-acoes"><button type="button" class="btn" id="cuRel"' + (CU.ocupado ? " disabled" : "") + '>Ver relatório (não grava)</button>' +
+    '<button type="button" class="btn" id="cuBkp"' + (CU.ocupado || !pode ? " disabled" : "") + '>Fazer backup dos cadastros</button>' +
+    '<button type="button" class="btn verde" id="cuGerar"' + (CU.ocupado || !pode || !bk ? " disabled" : "") + ' title="' + (pode ? (bk ? "" : "Faça o backup antes") : "Só a coordenação") + '">' + (st.mestre ? "Atualizar o cadastro único" : "Gerar o cadastro único") + '</button></div>' +
+    (CU.msg ? '<p class="note" style="margin-top:8px"><b>' + esc(CU.msg) + '</b></p>' : '') +
+    (pode ? '' : '<p class="note" style="margin-top:8px">Só a coordenação do DP gera o cadastro; você pode ver o relatório.</p>') + '</div>';
+  if(rel){
+    var c = rel.contagem || {};
+    h += '<div class="panel pad" style="margin-top:12px"><div class="cu-cards">' +
+      '<div class="cu-card"><b>' + (rel.previa == null ? c.mestre : rel.previa) + '</b><span>empresas no cadastro</span></div>' +
+      '<div class="cu-card"><b>' + (c.dp || 0) + ' · ' + (c.ctb || 0) + ' · ' + (c.portal || 0) + ' · ' + (c.fis || 0) + '</b><span>DP · Contábil · Portal · Fiscal</span></div>' +
+      '<div class="cu-card"><b>' + (rel.foraDoOnvio || []).length + '</b><span>fora do Onvio</span></div>' +
+      '<div class="cu-card"><b>' + (rel.semModulo || 0) + '</b><span>clientes do Onvio sem módulo</span></div></div>' +
+      (rel.indisponiveis && rel.indisponiveis.length ? '<p class="note" style="margin-top:8px">Não consegui ler: ' + esc(rel.indisponiveis.join(", ")) + '.</p>' : '') + '</div>' +
+      '<div style="margin-top:12px">' +
+      cuLista("Duplicadas no mesmo módulo", rel.duplicadas, function(d){ return '<div class="cu-lin"><b>' + esc(d.cnpj) + '</b> · ' + esc(d.modulo) + '<br><small>' + d.itens.map(function(i){ return esc(i.nome) + " (" + esc(i.id) + (i.funcionarios != null ? ", " + i.funcionarios + " func." : "") + ")"; }).join(" · ") + '</small><br><small class="cu-sug">Sugestão: ' + esc(d.sugestao) + '</small>' + (d.mod === "dp" && pode ? '<div class="cu-uni">' + d.itens.slice(1).map(function(i){ return '<button type="button" class="btn btn-sm" data-cu-unificar data-vence="' + esc(d.itens[0].id) + '" data-perde="' + esc(i.id) + '">Unificar ' + esc(i.id.length > 22 ? i.id.slice(0, 20) + "…" : i.id) + ' em ' + esc(d.itens[0].id.length > 22 ? d.itens[0].id.slice(0, 20) + "…" : d.itens[0].id) + '</button>'; }).join("") + '</div>' : '') + '</div>'; }, "mesmo CNPJ em mais de um cadastro; no DP você unifica um par por vez (mostra o que muda antes de gravar)") +
+      cuLista("Sem CNPJ completo", rel.semCnpj, function(d){ return '<div class="cu-lin"><b>' + esc(d.nome) + '</b> · ' + esc(d.modulo) + ' <small>(' + esc(d.id) + ')</small>' + (d.candidatos && d.candidatos.length ? '<br><small class="cu-sug">Parece ser: ' + d.candidatos.map(function(x){ return esc(x.nome) + " (" + esc(x.cnpj) + ")"; }).join(" · ") + '</small>' : '<br><small>Nenhum cliente do Onvio com esse nome.</small>') + '</div>'; }, "ficam fora do cadastro até ter CNPJ") +
+      cuLista("Empregadores domésticos", rel.domesticas, function(d){ return '<div class="cu-lin">' + esc(d.nome) + ' · ' + esc(d.modulo) + '</div>'; }, "sem CNPJ; ficam fora do cadastro de empresas") +
+      cuLista("Fora do Onvio", rel.foraDoOnvio, function(d){ return '<div class="cu-lin"><b>' + esc(d.nome) + '</b> · ' + esc(d.cnpj) + ' <small>(' + esc((d.modulos || []).join(", ") || "sem módulo") + ')</small></div>'; }, "estão no Hub e não são clientes do Onvio") +
+      cuLista("Nomes diferentes do cadastro", rel.nomesDiferentes, function(d){ return '<div class="cu-lin"><b>' + esc(d.nome) + '</b> · ' + esc(d.modulo) + '<br><small>cadastro único: ' + esc(d.razao) + ' (' + esc(d.cnpj) + ')</small></div>'; }, "o módulo usa outro nome para o mesmo CNPJ; o DP e esta tela já mostram o nome do cadastro único, os outros módulos mantêm o próprio", 30) +
+      cuLista("Empresas do escritório (fora do Hub)", rel.escritorio, function(n){ return '<div class="cu-lin">' + esc(n) + '</div>'; }, "ControlTax, Dynexa, Oficina e Diskcontador") +
+      '</div>';
+  } else h += '<p class="note" style="margin-top:12px">Clique em <b>Ver relatório</b> para ler os quatro cadastros e ver o que seria gerado (nada é gravado).</p>';
+  el.innerHTML = h;
+}
+async function cuRodar(fn, msgOk){
+  var api = hubCad(); if(!api) return;
+  CU.ocupado = true; CU.msg = "Lendo os cadastros…"; renderCU();
+  try{ var r = await fn(api); CU.msg = r && r.ok === false ? (r.erro || "Não foi possível concluir.") : msgOk(r); if(r && r.relatorio) CU.rel = r.relatorio; }
+  catch(e){ CU.msg = "Não foi possível concluir (" + (e && e.message || e) + ")."; }
+  CU.ocupado = false; renderCU(); try{ renderLigar(); renderTrocas(); }catch(e){}
+}
+var NOME_CAMPO = { cod:"código", tributacao:"tributação", responsavel:"responsável", reserva:"reserva", uf:"cidade/UF", dataBase:"data-base", contato:"contato", capitalSocial:"capital social", assocPatronal:"associação patronal", codigoDominio:"código Domínio", adiantamento:"adiantamento", fechamento:"fechamento", observacoes:"observações" };
+var NOME_LISTA = { estabelecimentos:"estabelecimento(s)", rubricas:"rubrica(s)", rpa:"RPA", pensao:"pensão(ões)", prazos:"prazo(s)", lembretes:"lembrete(s)", funcionarios:"funcionário(s)", historico:"nota(s) do histórico" };
+document.addEventListener("click", function(e){
+  var u = e.target.closest && e.target.closest("[data-cu-unificar]");
+  if(u){
+    var api0 = hubCad(); if(!api0 || CU.ocupado) return;
+    var ve = u.getAttribute("data-vence"), pe = u.getAttribute("data-perde");
+    api0.unificarDp(ve, pe, { simular:true }).then(function(p){
+      if(!p || p.ok === false){ CU.msg = (p && p.erro) || "Não foi possível conferir."; renderCU(); return; }
+      var ac = [].concat(p.acrescenta.campos.map(function(k){ return NOME_CAMPO[k] || k; }), Object.keys(p.acrescenta.linhas).filter(function(k){ return k !== "historico"; }).map(function(k){ return p.acrescenta.linhas[k] + " " + (NOME_LISTA[k] || k); }));
+      confirmar("Unificar no DP?\n\nFica: " + p.vence.nome + " (" + p.vence.id + ", " + plural(p.vence.funcionarios, "funcionário", "funcionários") + ")\nSai: " + p.perde.nome + " (" + p.perde.id + ", " + plural(p.perde.funcionarios, "funcionário", "funcionários") + ")\n\nPassa para a que fica: " + (ac.length ? ac.join(", ") : "nada (ela já tem tudo)") + "." + (p.vinculos ? "\nO vínculo do Onvio (" + p.vinculos + ") passa para a que fica." : "") + "\n\nA que sai é copiada em cad_backup antes de ser apagada. Lembretes pessoais ligados a ela perdem o vínculo com a empresa.", "Unificar").then(function(ok){
+        if(ok) cuRodar(function(a){ return a.unificarDp(ve, pe).then(function(r){ return r && r.ok ? a.relatorio().then(function(x){ r.relatorio = x.relatorio; return r; }) : r; }); }, function(r){ return "Unificadas: " + r.perde.nome + " foi juntada a " + r.vence.nome + "."; });
+      });
+    });
+    return;
+  }
+  var b = e.target.closest && e.target.closest("#cuRel,#cuBkp,#cuGerar"); if(!b) return;
+  if(b.id === "cuRel") cuRodar(function(a){ return a.relatorio(); }, function(r){ return "Relatório pronto: nada foi gravado."; });
+  else if(b.id === "cuBkp") confirmar("Copiar os cadastros de empresas do DP, Contábil, Portal e Fiscal, e os contatos e frentes do Portal, para o backup (cad_backup)?\n\nO backup anterior é substituído. Nada é alterado nos módulos. Este backup é exigido antes de trocar nomes.", "Fazer backup").then(function(ok){ if(ok) cuRodar(function(a){ return a.backup(); }, function(r){ return "Backup feito: " + plural(r.meta.itens, "cadastro", "cadastros") + " em " + plural(r.meta.pacotes, "pacote", "pacotes") + "."; }); });
+  else if(b.id === "cuGerar") confirmar("Gerar o cadastro único agora?\n\nSó entram os clientes do Onvio e as empresas do Hub com CNPJ completo (sem as do escritório). Os cadastros do DP, Contábil, Portal e Fiscal não são alterados; duplicadas e sem CNPJ continuam só como proposta.", "Gerar").then(function(ok){ if(ok) cuRodar(function(a){ return a.gerar(); }, function(r){ return "Cadastro único atualizado: " + plural(r.mudou, "empresa gravada", "empresas gravadas") + (r.falhou ? ", " + r.falhou + " com falha" : "") + "."; }); });
+});
+
+/* ---- integração do cadastro único com os módulos (Hub 301): editar, ligar, trocar nomes e desfazer ---- */
+var ROT_MOD = { dp:"DP", ctb:"Contábil", portal:"Portal do Cliente", fis:"Fiscal" };
+var MOD_DE_ROTULO = { "DP":"dp", "Contábil":"ctb", "Portal":"portal", "Portal do Cliente":"portal", "Fiscal":"fis" };
+var CX = { ed:"", msg:"", edMsg:"", ligMsg:"", troca:{ mod:"portal", formato:"padrao", plano:null, sel:{}, ocupado:false, msg:"", prog:"" }, lotesMsg:"" };
+function cxApi(){ var a = hubCad(); return a && a.buscar ? a : null; }
+function cxDig(v){ return String(v || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase(); }
+
+/* editar a identidade de uma empresa no cadastro único */
+function renderEdicao(){
+  var el = $("#cuEdit"); if(!el) return;
+  var api = cxApi();
+  if(!api){ el.innerHTML = ""; return; }
+  var st = api.estado();
+  if(!st.mestre){ el.innerHTML = ""; return; }
+  var pode = api.podeEditar();
+  var h = '<section class="cx-sec"><h2 class="sec">Editar uma empresa do cadastro único <small>razão social, apelido, código Domínio e UF</small></h2>' +
+    '<p class="note aba-intro">É aqui que se corrige o que os módulos mostram. O CNPJ e o código do Onvio vêm do Onvio. O que for editado à mão não é refeito pela atualização do cadastro. Para o nome <b>gravado</b> nos módulos acompanhar, use “Trocar os nomes gravados nos módulos”, mais abaixo.</p>' +
+    '<div class="panel pad"><label class="cx-l">Buscar empresa <input type="search" id="cxBusca" autocomplete="off" placeholder="CNPJ, razão social, apelido ou código" value="' + esc(CX.q || "") + '"></label><div id="cxRes" class="cx-res"></div><div id="cxForm"></div>' + (CX.edMsg ? '<p class="note" style="margin-top:8px"><b>' + esc(CX.edMsg) + '</b></p>' : '') + (pode ? '' : '<p class="note" style="margin-top:8px">Só a coordenação edita o cadastro único.</p>') + '</div></section>';
+  el.innerHTML = h;
+  cxResultados(); cxFormulario();
+}
+function cxResultados(){
+  var api = cxApi(), box = $("#cxRes"); if(!api || !box) return;
+  var q = $("#cxBusca") ? $("#cxBusca").value : "";
+  if(!q.trim()){ box.innerHTML = ""; return; }
+  var r = api.buscar(q, 8);
+  box.innerHTML = r.length ? r.map(function(x){ return '<button type="button" class="cx-item" data-cx-sel="' + esc(x.cnpj14) + '"><b>' + esc(x.razao) + '</b><span>' + esc(x.cnpj) + (x.apelido ? ' · ' + esc(x.apelido) : '') + '</span></button>'; }).join("") : '<p class="note">Nenhuma empresa encontrada.</p>';
+}
+function cxFormulario(){
+  var api = cxApi(), box = $("#cxForm"); if(!api || !box) return;
+  var c = CX.ed ? api.get(CX.ed) : null;
+  if(!c){ box.innerHTML = ""; return; }
+  var pode = api.podeEditar(), dis = pode ? "" : " disabled";
+  var vinc = c.vinculos || {}, linhas = Object.keys(ROT_MOD).map(function(m){
+    var ids = vinc[m] || [];
+    if(!ids.length) return '<div class="cx-vin"><span>' + ROT_MOD[m] + '</span><em>não está</em></div>';
+    return ids.map(function(id){ return '<div class="cx-vin"><span>' + ROT_MOD[m] + '</span><code>' + esc(String(id).slice(0, 30)) + '</code>' + (api.podeLigar(m) ? '<button type="button" class="btn-l" data-cx-desligar="' + m + '|' + esc(id) + '" title="Tira o vínculo; a empresa do módulo fica como está e o CNPJ dela volta a poder ser corrigido lá">Desligar</button>' : '') + '</div>'; }).join("");
+  }).join("");
+  box.innerHTML = '<div class="cx-form"><div class="cx-cab"><b>' + esc(c.razao) + '</b><span>' + esc(c.cnpj) + ' · ' + esc(c.situacao === "ativa" ? "cliente ativo no Onvio" : c.situacao === "inativa" ? "cliente inativo no Onvio" : "fora do Onvio") + (c.codigoOnvio ? ' · código Onvio ' + esc(c.codigoOnvio) : '') + '</span></div>' +
+    '<div class="cx-grade">' +
+    '<label class="cx-l">Razão social<input id="cxRazao" maxlength="160" value="' + esc(c.razao || "") + '"' + dis + '></label>' +
+    '<label class="cx-l"><span>Apelido <small>(resumido, usado no nome padrão)</small></span><input id="cxApelido" maxlength="80" value="' + esc(c.apelido || "") + '"' + dis + '></label>' +
+    '<label class="cx-l">Código Domínio<input id="cxDom" maxlength="20" value="' + esc(c.codigoDominio || "") + '"' + dis + '></label>' +
+    '<label class="cx-l">UF<input id="cxUf" maxlength="2" value="' + esc(c.uf || "") + '"' + dis + '></label></div>' +
+    '<p class="note">Nome padrão do Hub para esta empresa: <b>' + esc(api.nomePadrao(c.id)) + '</b></p>' +
+    '<div class="cx-vins"><b>Onde está ligada</b>' + linhas + '</div>' +
+    '<div class="cu-acoes"><button type="button" class="btn verde" id="cxSalvar"' + dis + '>Salvar no cadastro único</button></div></div>';
+}
+window.__abrirEdicaoCad = function(cnpj){ if(typeof abrirAba === "function") abrirAba("empresas", true); CX.ed = cnpj || ""; CX.q = ""; renderEdicao(); try{ window.scrollTo(0, 0); }catch(e){} };
+
+/* ligar empresas dos módulos que ficaram sem CNPJ */
+function renderLigar(){
+  var el = $("#cuLigar"); if(!el) return;
+  var api = cxApi(); if(!api){ el.innerHTML = ""; return; }
+  var rel = CU.rel || api.estado().relatorio, itens = rel && rel.semCnpj ? rel.semCnpj : [];
+  if(!itens.length){ el.innerHTML = ""; return; }
+  var h = '<section class="cx-sec"><h2 class="sec">Ligar empresas sem CNPJ completo <small>' + itens.length + '</small></h2>' +
+    '<p class="note aba-intro">Estas empresas existem nos módulos mas não têm CNPJ completo, então ficaram fora do cadastro único. Escolha a empresa certa (ou digite o CNPJ) e ligue: o CNPJ é gravado na empresa do módulo <b>só se ela não tiver um</b>; nada mais nela muda. Cada módulo é ligado pela sua própria coordenação.</p>' +
+    (CX.ligMsg ? '<p class="note"><b>' + esc(CX.ligMsg) + '</b></p>' : '') +
+    '<div class="panel"><div class="tab-wrap"><table class="tbl"><thead><tr><th>Empresa no módulo</th><th>Módulo</th><th>Ligar a</th><th></th></tr></thead><tbody>' +
+    itens.slice(0, 80).map(function(d, i){
+      var mod = MOD_DE_ROTULO[d.modulo] || "", pode = mod && api.podeLigar(mod);
+      var cands = (d.candidatos || []).map(function(x){ return '<option value="' + esc(cxDig(x.cnpj)) + '">' + esc(x.nome) + ' · ' + esc(x.cnpj) + '</option>'; }).join("");
+      return '<tr><td><b>' + esc(d.nome) + '</b><div class="note">' + esc(d.id) + '</div></td><td>' + esc(d.modulo) + '</td><td>' +
+        '<select data-cx-cand="' + i + '"' + (pode ? "" : " disabled") + '><option value="">' + ((d.candidatos || []).length ? "Parece ser…" : "sem sugestão") + '</option>' + cands + '</select> ' +
+        '<input type="text" data-cx-cnpj="' + i + '" placeholder="ou digite o CNPJ" maxlength="20"' + (pode ? "" : " disabled") + '></td>' +
+        '<td><button type="button" class="btn" data-cx-ligar="' + i + '"' + (pode ? "" : " disabled title=\"Só a coordenação do módulo liga\"") + '>Ligar</button></td></tr>';
+    }).join("") + '</tbody></table></div>' + (itens.length > 80 ? '<p class="note" style="padding:8px 12px">… e mais ' + (itens.length - 80) + ' (aparecem conforme as primeiras forem ligadas).</p>' : '') + '</div></section>';
+  el.innerHTML = h;
+}
+
+/* trocar os nomes gravados nos módulos, com conferência, backup e desfazer */
+function renderTrocas(){
+  var el = $("#cuTrocas"); if(!el) return;
+  var sc0 = $("#cuTrocas .tab-wrap"), rolou = sc0 ? sc0.scrollTop : 0;
+  var api = cxApi(); if(!api){ el.innerHTML = ""; return; }
+  var st = api.estado(); if(!st.mestre){ el.innerHTML = ""; return; }
+  var T = CX.troca, mods = api.modulosTroca || {};
+  var pode = api.podeLigar(T.mod), sem = api.backupOk ? api.backupOk() : "";
+  var h = '<section class="cx-sec"><h2 class="sec">Trocar os nomes gravados nos módulos <small>com conferência</small></h2>' +
+    '<p class="note aba-intro">Os módulos já <b>mostram</b> o nome do cadastro único nas empresas ligadas, sem gravar nada. Aqui você decide quando o nome <b>gravado</b> em cada módulo passa a ser o do cadastro. Antes de qualquer troca é preciso um backup de hoje (botão “Fazer backup” acima, que guarda também contatos e frentes do Portal). O nome antigo fica em <i>nomeAnterior</i> e cada lote pode ser desfeito. O DP não entra: ele já mostra o nome do cadastro em todas as telas.</p>' +
+    '<div class="panel pad"><div class="cx-barra"><label class="cx-l">Módulo <select id="cxMod">' + Object.keys(mods).map(function(m){ return '<option value="' + m + '"' + (m === T.mod ? " selected" : "") + '>' + esc(mods[m]) + '</option>'; }).join("") + '</select></label>' +
+    '<label class="cx-l">Nome a gravar <select id="cxFormato"><option value="padrao"' + (T.formato === "padrao" ? " selected" : "") + '>Padrão do Hub (apelido | final do CNPJ)</option><option value="razao"' + (T.formato === "razao" ? " selected" : "") + '>Razão social completa</option></select></label>' +
+    '<button type="button" class="btn" id="cxPlano"' + (T.ocupado ? " disabled" : "") + '>Ver o que mudaria (não grava)</button></div>' +
+    (sem ? '<p class="note" style="margin-top:8px;color:var(--brand-red)">' + esc(sem) + '</p>' : '') +
+    (pode ? '' : '<p class="note" style="margin-top:8px">Só a coordenação deste módulo troca os nomes.</p>') +
+    (T.msg ? '<p class="note" style="margin-top:8px"><b>' + esc(T.msg) + '</b></p>' : '') + (T.prog ? '<p class="note" id="cxProg">' + esc(T.prog) + '</p>' : '') + '</div>';
+  if(T.plano){
+    var itens = T.plano, marcados = itens.filter(function(i){ return T.sel[i.id]; }).length, deps = itens.reduce(function(n, i){ return n + (T.sel[i.id] ? i.nDeps : 0); }, 0);
+    h += '<div class="panel" style="margin-top:12px"><div class="cx-sel"><span><b>' + plural(itens.length, "empresa", "empresas") + '</b> com nome diferente do cadastro</span><button type="button" class="btn-l" id="cxTodas">Marcar todas</button><button type="button" class="btn-l" id="cxNenhuma">Desmarcar</button></div>' +
+      '<div class="tab-wrap" style="max-height:420px; overflow:auto"><table class="tbl"><thead><tr><th class="ck"></th><th>Nome gravado agora</th><th>Passa a ser</th><th>CNPJ</th><th></th></tr></thead><tbody>' +
+      itens.slice(0, 600).map(function(i){ return '<tr' + (T.sel[i.id] ? ' class="on"' : '') + '><td class="ck"><input type="checkbox" data-cx-ck="' + esc(i.id) + '"' + (T.sel[i.id] ? " checked" : "") + '></td><td>' + (i.mudaNome ? esc(i.nomeAtual) : '<em>(igual)</em>') + '</td><td><b>' + esc(i.nomeNovo) + '</b></td><td class="mono">' + esc(i.cnpj) + '</td><td>' + (i.duplicada ? '<span class="cx-av">CNPJ repetido no módulo</span> ' : '') + (i.nDeps ? '<span class="note">+ ' + i.nDeps + ' cópia(s) do nome</span>' : '') + '</td></tr>'; }).join("") +
+      '</tbody></table></div>' + (itens.length > 600 ? '<p class="note" style="padding:8px 12px">Mostrando as 600 primeiras; aplique e gere a lista de novo para ver as demais.</p>' : '') +
+      '<div class="selbar' + (marcados ? " ativa" : "") + '"><span class="sel-n">' + (marcados ? plural(marcados, "empresa marcada", "empresas marcadas") + (deps ? " · " + plural(deps, "cópia do nome em contatos/frentes", "cópias do nome em contatos/frentes") : "") : "Marque as empresas que podem ser trocadas") + '</span><span class="spacer"></span>' +
+      '<button type="button" class="btn verde" id="cxAplicar"' + (!marcados || T.ocupado || !pode || sem ? " disabled" : "") + '>Trocar os nomes marcados</button></div></div>';
+  }
+  var lotes = api.trocasLotes();
+  if(lotes.length){
+    h += '<div class="panel pad" style="margin-top:12px"><b>Trocas anteriores</b>' + (CX.lotesMsg ? '<p class="note"><b>' + esc(CX.lotesMsg) + '</b></p>' : '') + '<div class="cx-lotes">' +
+      lotes.map(function(l){ return '<div class="cx-lote"><span>' + esc(quando(l.em)) + ' · ' + esc((mods[l.mod] || l.mod)) + ' · ' + plural(l.n, "empresa", "empresas") + ' · ' + (l.formato === "razao" ? "razão social" : "padrão do Hub") + '</span>' +
+        (l.desfeito ? '<span class="note">desfeita ' + esc(quando(l.desfeitoEm || l.em)) + '</span>' : '<button type="button" class="btn-l" data-cx-desfazer="' + esc(l.id) + '"' + (api.podeLigar(l.mod) && !T.ocupado ? "" : " disabled") + '>Desfazer esta troca</button>') + '</div>'; }).join("") + '</div></div>';
+  }
+  h += '</section>'; el.innerHTML = h;
+  var sc1 = $("#cuTrocas .tab-wrap"); if(sc1) sc1.scrollTop = rolou;
+}
+async function cxPlano(){
+  var api = cxApi(), T = CX.troca; if(!api) return;
+  T.ocupado = true; T.msg = "Lendo os cadastros…"; T.plano = null; renderTrocas();
+  try{ var r = await api.trocasPlano(T.mod, T.formato);
+    if(r && r.ok){ T.plano = r.itens; T.sel = {}; r.itens.forEach(function(i){ if(!i.duplicada) T.sel[i.id] = true; }); T.msg = r.itens.length ? "" : "Todos os nomes já batem com o cadastro único."; }
+    else T.msg = (r && r.erro) || "Não foi possível montar a lista."; }
+  catch(e){ T.msg = "Não foi possível montar a lista (" + (e && e.message || e) + ")."; }
+  T.ocupado = false; renderTrocas();
+}
+async function cxAplicar(){
+  var api = cxApi(), T = CX.troca; if(!api || !T.plano) return;
+  var ids = T.plano.filter(function(i){ return T.sel[i.id]; }).map(function(i){ return i.id; }); if(!ids.length) return;
+  var ok = await confirmar("Trocar o nome gravado de " + plural(ids.length, "empresa", "empresas") + " do módulo " + (api.modulosTroca[T.mod] || T.mod) + "?\n\nO nome antigo fica guardado em cada empresa e no registro desta troca, que você pode desfazer. Nada é apagado.", "Trocar os nomes");
+  if(!ok) return;
+  T.ocupado = true; T.msg = ""; T.prog = "Gravando…"; renderTrocas();
+  try{ var r = await api.trocasAplicar(T.mod, ids, T.formato, function(f, t){ var p = $("#cxProg"); T.prog = "Gravando… " + f + " de " + t; if(p) p.textContent = T.prog; });
+    T.msg = r && r.erro ? r.erro : (r.ok ? "Pronto: " + plural(r.empresas, "empresa trocada", "empresas trocadas") + (r.pulados ? " · " + plural(r.pulados, "item mudou desde a lista e foi pulado", "itens mudaram desde a lista e foram pulados") : "") + "." : "Terminou com " + plural(r.falhas, "falha", "falhas") + ": confira a lista e use “Desfazer esta troca” se precisar.");
+    if(r && r.lote){ T.plano = null; T.sel = {}; } }
+  catch(e){ T.msg = "Não foi possível concluir (" + (e && e.message || e) + ")."; }
+  T.prog = ""; T.ocupado = false; renderTrocas();
+}
+document.addEventListener("input", function(e){
+  if(e.target && e.target.id === "cxBusca"){ CX.q = e.target.value; cxResultados(); }
+});
+document.addEventListener("change", function(e){
+  var t = e.target; if(!t) return;
+  if(t.id === "cxMod"){ CX.troca.mod = t.value; CX.troca.plano = null; CX.troca.msg = ""; renderTrocas(); }
+  else if(t.id === "cxFormato"){ CX.troca.formato = t.value; CX.troca.plano = null; CX.troca.msg = ""; renderTrocas(); }
+  else if(t.getAttribute && t.getAttribute("data-cx-ck") != null){ CX.troca.sel[t.getAttribute("data-cx-ck")] = t.checked; renderTrocas(); }
+  else if(t.getAttribute && t.getAttribute("data-cx-cand") != null){ var i = t.getAttribute("data-cx-cand"), inp = document.querySelector('[data-cx-cnpj="' + i + '"]'); if(inp && t.value) inp.value = t.value; }
+});
+document.addEventListener("click", async function(e){
+  var t = e.target && e.target.closest ? e.target.closest("[data-cx-sel],[data-cx-desligar],[data-cx-ligar],[data-cx-desfazer],#cxSalvar,#cxPlano,#cxAplicar,#cxTodas,#cxNenhuma") : null; if(!t) return;
+  var api = cxApi(); if(!api) return;
+  if(t.hasAttribute("data-cx-sel")){ CX.ed = t.getAttribute("data-cx-sel"); CX.edMsg = ""; cxFormulario(); return; }
+  if(t.id === "cxSalvar"){
+    var r = await api.editar(CX.ed, { razao:$("#cxRazao").value, apelido:$("#cxApelido").value, codigoDominio:$("#cxDom").value, uf:$("#cxUf").value });
+    CX.edMsg = r && r.ok ? (r.igual ? "Nada mudou." : "Salvo no cadastro único. Para o nome gravado nos módulos acompanhar, use “Trocar os nomes gravados nos módulos”.") : ((r && r.erro) || "Não foi possível salvar.");
+    renderEdicao(); renderTrocas(); return;
+  }
+  if(t.hasAttribute("data-cx-desligar")){
+    var p = t.getAttribute("data-cx-desligar").split("|");
+    var ok = await confirmar("Desligar esta empresa do cadastro único?\n\nA empresa do " + (ROT_MOD[p[0]] || p[0]) + " fica como está; só o vínculo some, e o CNPJ dela volta a poder ser corrigido no próprio módulo.", "Desligar");
+    if(!ok) return;
+    var r2 = await api.desligar(p[0], p.slice(1).join("|"));
+    CX.edMsg = r2 && r2.ok ? "Vínculo removido." : ((r2 && r2.erro) || "Não foi possível desligar.");
+    renderEdicao(); renderTrocas(); return;
+  }
+  if(t.hasAttribute("data-cx-ligar")){
+    var i = +t.getAttribute("data-cx-ligar"), rel = CU.rel || api.estado().relatorio, d = rel && rel.semCnpj ? rel.semCnpj[i] : null; if(!d) return;
+    var inp = document.querySelector('[data-cx-cnpj="' + i + '"]'), sel = document.querySelector('[data-cx-cand="' + i + '"]'), c = cxDig(inp && inp.value) || (sel && sel.value) || "";
+    if(c.length !== 14){ CX.ligMsg = "Escolha uma sugestão ou digite o CNPJ completo (14 caracteres)."; renderLigar(); return; }
+    var mod = MOD_DE_ROTULO[d.modulo];
+    var alvo = api.buscar(c, 1)[0];
+    var ok2 = await confirmar("Ligar “" + d.nome + "” (" + d.modulo + ") a " + (alvo ? alvo.razao + " (" + alvo.cnpj + ")" : c) + "?\n\nO CNPJ é gravado na empresa do módulo (ela não tem um). Nada mais nela muda.", "Ligar");
+    if(!ok2) return;
+    var r3 = await api.ligar(mod, d.id, c);
+    CX.ligMsg = r3 && r3.ok ? "Ligada: " + d.nome + "." : ((r3 && r3.erro) || "Não foi possível ligar.");
+    if(r3 && r3.ok){ try{ var x = await api.relatorio(); if(x && x.relatorio) CU.rel = x.relatorio; }catch(e2){} }
+    renderLigar(); renderCU(); return;
+  }
+  if(t.id === "cxPlano"){ cxPlano(); return; }
+  if(t.id === "cxTodas" || t.id === "cxNenhuma"){ var T = CX.troca; T.sel = {}; if(t.id === "cxTodas") (T.plano || []).forEach(function(i){ T.sel[i.id] = true; }); renderTrocas(); return; }
+  if(t.id === "cxAplicar"){ cxAplicar(); return; }
+  if(t.hasAttribute("data-cx-desfazer")){
+    var lote = t.getAttribute("data-cx-desfazer");
+    var ok3 = await confirmar("Desfazer esta troca de nomes?\n\nCada nome volta ao que estava antes, só onde ele ainda é o que foi gravado nesta troca (o que foi mudado depois por alguém não é tocado).", "Desfazer");
+    if(!ok3) return;
+    CX.troca.ocupado = true; CX.lotesMsg = "Desfazendo…"; renderTrocas();
+    try{ var r4 = await api.trocasDesfazer(lote); CX.lotesMsg = r4 && r4.erro ? r4.erro : (r4.ok ? "Desfeita: " + plural(r4.feitos, "item voltou", "itens voltaram") + (r4.pulados ? " · " + plural(r4.pulados, "foi pulado porque mudou depois", "foram pulados porque mudaram depois") : "") + "." : "Terminou com " + plural(r4.falhas, "falha", "falhas") + "; tente de novo."); }
+    catch(e3){ CX.lotesMsg = "Não foi possível desfazer (" + (e3 && e3.message || e3) + ")."; }
+    CX.troca.ocupado = false; renderTrocas(); return;
+  }
+});
+function renderIntegracao(){ renderEdicao(); renderLigar(); renderTrocas(); }
+
+/* ---- abas e resumo do topo ---- */
+var ABA_CHAVE = "controlhub-fontes-aba", abaAtual = "";
+function abrirAba(n, guardar){
+  abaAtual = n;
+  Array.prototype.forEach.call(document.querySelectorAll("[data-aba-btn]"), function(b){ var on = b.getAttribute("data-aba-btn") === n; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); });
+  Array.prototype.forEach.call(document.querySelectorAll(".aba"), function(p){ p.hidden = p.getAttribute("data-aba") !== n; });
+  if(guardar) try{ localStorage.setItem(ABA_CHAVE, n); }catch(e){}
+  if(n === "decidir" && cad.pendente) renderCadastro();
+  if(n === "empresas"){ renderCU(); renderIntegracao(); }
+}
+document.addEventListener("click", function(e){ var b = e.target.closest && e.target.closest("[data-aba-btn],[data-ir-aba]"); if(b){ abrirAba(b.getAttribute("data-aba-btn") || b.getAttribute("data-ir-aba"), true); window.scrollTo(0, 0); } });
+function ultimoEnvio(){ var m = 0; Object.keys(dados).forEach(function(k){ m = Math.max(m, dados[k].recebidoEm || 0); }); Object.keys(lotes).forEach(function(k){ m = Math.max(m, lotes[k].recebidoEm || 0); }); return m; }
+function renderTopo(){
+  var el = $("#resumoTopo"); if(!el) return;
+  var ult = ultimoEnvio(), fx = ult ? faixaIdade(ult) : "fni", nC = Object.keys(dados).length, pess = Object.keys(dados).some(function(k){ return dados[k].categoria === "pessoais"; });
+  var st = $("#ponteSt"); if(st){ st.className = "ponte-st " + fx; st.textContent = ult ? "último envio " + quando(ult) : (cfg && cfg.token ? "aguardando o primeiro envio" : "sem pareamento"); }
+  var nDif = cad.difs.length, nSem = cad.sem.length, minhas = cad.difs.filter(function(d){ return d.pode; }).length;
+  el.innerHTML =
+    '<button type="button" class="kt' + (nDif + nSem ? " alerta" : " ok") + '" data-ir-aba="decidir"><b>' + (nDif + nSem) + '</b><span>para decidir</span><small>' + (cad.listas ? plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") + (nDif && minhas < nDif ? " · " + minhas + " suas" : "") : "aguardando as solicitações completas") + '</small></button>' +
+    '<button type="button" class="kt ' + fx + '" data-ir-aba="recebido"><b>' + (ult ? quando(ult) : "—") + '</b><span>último envio da extensão</span><small>' + plural(nC, "conjunto completo", "conjuntos completos") + (pess ? " · com dados pessoais" : " · sem dados pessoais") + '</small></button>' +
+    '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · ver como conectar" : "gere o código em Conexão") + '</small></button>';
+}
+
 /* ---- início ---- */
 usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   if(!dbNs){ $("#semBanco").hidden = false; render(); return null; }
   db = { doc: function(p){ var r = dbNs.doc(p); return { onSnapshot:function(cb, er){ return r.onSnapshot(cb, er); }, set:function(o){ return r.set(clonar(o)); }, delete:function(){ return r.delete(); } }; }, collection: function(n){ var c = dbNs.collection(n); return { onSnapshot:function(cb, er){ return c.onSnapshot(cb, er); } }; } };
   db.doc("ing_config/cfg").onSnapshot(function(s){ cfg = s.exists ? s.data() : null; render(); }, function(){});
+  db.collection("ing_dados").onSnapshot(function(snap){ dados = {}; snap.docs.forEach(function(d){ dados[d.id] = d.data(); }); renderDados(); }, function(){});
   db.collection("ing_lotes").onSnapshot(function(snap){ lotes = {}; snap.docs.forEach(function(d){ lotes[d.id] = d.data(); }); buscarNomes(); render(); }, function(){});
   return usarCap("user").catch(function(){ return null; });
 }).then(function(u){
@@ -457,8 +1240,12 @@ usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ coord = !!ok; render(); });
   buscarNomes();
 });
+(function(){ var tries = 0, t = setInterval(function(){ tries++; var a = cxApi(), c = ""; try{ c = sessionStorage.getItem("controlhub-cad-editar") || ""; }catch(e){} if(!c || tries > 30){ clearInterval(t); return; } if(a && a.estado().mestre){ clearInterval(t); try{ sessionStorage.removeItem("controlhub-cad-editar"); }catch(e){} window.__abrirEdicaoCad(c); } }, 500); })();
+var abaGuardada = ""; try{ abaGuardada = localStorage.getItem(ABA_CHAVE) || ""; }catch(e){}
+abrirAba(["decidir", "empresas", "recebido", "conexao"].indexOf(abaGuardada) !== -1 ? abaGuardada : "decidir", false);
 render();
-setInterval(render, 60000);
+renderCadastro();
+setInterval(function(){ render(); renderCadastro(); if(abaAtual === "empresas" && !CU.ocupado) renderCU(); }, 60000);
 })();
 </script>
 </body>

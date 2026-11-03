@@ -111,20 +111,26 @@ var PRAZOS_PADRAO = {
     {k:"ecd",   l:"ECD",   tribs:["presumido","presumido_caixa","real_trim","real_mensal"], mes:6, dia:"ultimo_util"},
     {k:"ecf",   l:"ECF",   tribs:["presumido","presumido_caixa","real_trim","real_mensal","isenta"], mes:7, dia:"ultimo_util"},
     {k:"defis", l:"DEFIS", tribs:["simples"], mes:3, dia:31}
-  ]
+  ],
+  // prazo interno do fechamento: a competência fecha até este dia do mês seguinte (ou do 2º/3º mês seguinte)
+  fechPrazo: {dia:"ultimo_util", meses:1},
+  metaPct: 80, metaAna: {},
+  cobrDias: 7, paradoDias: 30
 };
 
 /* ============ estado ============ */
 var S = {
   empresas: {}, comps: {}, anos: {}, cfg: JSON.parse(JSON.stringify(PRAZOS_PADRAO)),
   existe: {docs:{}},
-  carregou: {empresas:false, ctb_emp:false, ctb_comp:false, ctb_ano:false},
+  carregou: {empresas:false, ctb_emp:false, ctb_comp:false, ctb_ano:false, ctb_lemb:false, aus:false},
   dpPorCnpj: {},
   view: "painel", eu: "", coord: false, meId: "", userNs: null, nomes: {},
   fx: {comp:"", busca:"", ana:"", trib:"", st:"", sel:new Set(), modo:"ate", faixa:""},
   ct: {busca:"", ana:"", trib:"", sis:"", sit:"clientes", modo:"lista", ord:"nome", dir:1, limite:100, sel:new Set()},
   ob: {ano:"", busca:"", ana:null, st:"", limite:100},
-  pz: {abertos:{}}
+  pz: {abertos:{}},
+  aus: [], lembs: {},
+  ag: {mes:"", dia:"", ana:null, tipo:"", busca:""}
 };
 var PREF = "ctb-prefs-v1";
 function lerPrefs(){ try{ return JSON.parse(localStorage.getItem(PREF) || "{}"); }catch(e){ return {}; } }
@@ -205,10 +211,66 @@ function gravarMapas(itens){
     return gravar(S.existe.docs[path] ? ref.update(porDoc[path]) : ref.set(porDoc[path])).then(function(){ S.existe.docs[path] = true; });
   }));
 }
+/* Cadastro único do Hub: empresa criada ou salva neste módulo também entra (ou é ligada) no cadastro único. Só avisa o Hub; nunca altera a empresa daqui. */
+function cadMestre(lista, modulo){ try{ var P = window.parent, C = P && P !== window && P.__cadastro; if(!C || !C.registrar) return; lista.forEach(function(e){ if(e && cnpjDig(e.cnpj).length === 14) C.registrar({cnpj:e.cnpj, nome:e.nome, modulo:modulo, id:e.id, uf:e.uf}); }); }catch(x){} }
+
+/* Cadastro único do Hub (Hub 301): o nome e o CNPJ mostrados vêm de lá quando a empresa está ligada. O que está gravado aqui (nomeBanco) só muda
+   pela troca conferida na Entrada de dados do Hub; salvarEmpresas nunca grava o nome de exibição de uma empresa ligada. */
+function cadC(){ try{ var P = window.parent; return P && P !== window && P.__cadastro && P.__cadastro.identidade ? P.__cadastro : null; }catch(x){ return null; } }
+function aplicarIdentidade(mapa){
+  var C = cadC(); if(!mapa) return;
+  Object.keys(mapa).forEach(function(k){
+    var e = mapa[k]; if(!e || typeof e !== "object") return;
+    if(!("nomeBanco" in e)) e.nomeBanco = e.nome;
+    var i = null; try{ i = C && C.pronto() ? C.identidade("ctb", e.id, e.nomeBanco, e.cnpj) : null; }catch(x){}
+    if(i && i.ligado){ e.nome = i.nome || e.nomeBanco; e.cadLigado = true; e.cadRazao = i.razao || ""; e.cadCnpj14 = i.cnpj14 || ""; }
+    else { e.nome = e.nomeBanco; e.cadLigado = false; e.cadRazao = ""; e.cadCnpj14 = ""; }
+  });
+}
+function fichaCadHTML(e){
+  var C = cadC(); if(!C || !C.pronto()) return "";
+  if(!e) return '<div class="cad-ficha"><label class="campo largo">Buscar no cadastro único <span class="note">(CNPJ ou nome; se a empresa estiver lá, nome e CNPJ vêm de lá)</span><input id="cadBusca" type="search" list="cadLista" autocomplete="off" placeholder="Digite para achar a empresa"></label><datalist id="cadLista"></datalist><span class="note" id="cadMsg"></span></div>';
+  if(!e.cadLigado) return '<div class="cad-ficha off"><b>Cadastro único</b> · esta empresa ainda não está ligada. A coordenação liga em <i>Entrada de dados → Cadastro único</i>; até lá nome e CNPJ são editados aqui.</div>';
+  var v = C.vinculos(e.cadCnpj14) || {}, rot = {dp:"DP", ctb:"Contábil", portal:"Portal do Cliente", fis:"Fiscal"}, chips = Object.keys(rot).map(function(m){
+    var ids = v[m] || []; if(!ids.length) return '<span class="cad-chip off">' + rot[m] + ': —</span>';
+    if(m === "ctb") return '<span class="cad-chip on">' + rot[m] + ' (aqui)</span>';
+    return '<button type="button" class="cad-chip on" data-cad-abrir="' + m + '|' + esc(ids[0]) + '">' + rot[m] + ' · abrir</button>';
+  }).join("");
+  return '<div class="cad-ficha"><b>Cadastro único</b> · nome, CNPJ e códigos vêm de lá<span class="cad-linha">Razão social: <b>' + esc(e.cadRazao || e.nomeBanco) + '</b></span><span class="cad-chips">' + chips + '</span><span><button type="button" class="linkish" data-cad-editar="' + esc(e.cadCnpj14) + '">Editar no cadastro único</button></span></div>';
+}
+(function(){
+  var achados = {};
+  function campos(){ var f = document.getElementById("fForm"); return f ? {f:f, n:f.elements.nome, c:f.elements.cnpj, m:document.getElementById("cadMsg")} : null; }
+  document.addEventListener("input", function(ev){
+    if(!ev.target || ev.target.id !== "cadBusca") return;
+    var C = cadC(), k = campos(), q = ev.target.value; if(!C || !C.pronto() || !k) return;
+    var hit = achados[q];
+    if(hit){ k.n.value = hit.nome; k.c.value = hit.cnpj; k.n.readOnly = true; k.c.readOnly = true; if(k.m) k.m.textContent = "Empresa do cadastro único: nome e CNPJ não se editam aqui."; return; }
+    if(!q.trim()){ k.n.readOnly = false; k.c.readOnly = false; if(k.m) k.m.textContent = ""; return; }
+    var r = C.buscar(q, 12), dl = document.getElementById("cadLista"); achados = {};
+    if(dl) dl.innerHTML = r.map(function(x){ var v = x.cnpj + " · " + x.nome; achados[v] = x; return '<option value="' + esc(v) + '"></option>'; }).join("");
+  });
+  document.addEventListener("click", function(ev){
+    var t = ev.target && ev.target.closest ? ev.target.closest("[data-cad-editar],[data-cad-abrir]") : null; if(!t) return;
+    var C = cadC(); if(!C) return; ev.preventDefault();
+    if(t.getAttribute("data-cad-editar")) C.abrirEdicao(t.getAttribute("data-cad-editar"));
+    else { var p = String(t.getAttribute("data-cad-abrir")).split("|"); C.abrir(p[0], p[1]); }
+  });
+  var t0 = null, C0 = cadC();
+  if(C0 && C0.aoMudar) C0.aoMudar(function(){ clearTimeout(t0); t0 = setTimeout(function(){ try{ aplicarIdentidade(S.empresas); renderTudo(); }catch(x){} }, 250); });
+})();
+function semIdentidade(e, ant){
+  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14") o[k] = e[k]; });
+  if(ant && ant.cadLigado){ o.nome = ant.nomeBanco; if(!cnpjDig(o.cnpj)) o.cnpj = ant.cnpj; e.nomeBanco = ant.nomeBanco; } else e.nomeBanco = e.nome;
+  return o;
+}
 function salvarEmpresas(lista){
-  lista.forEach(function(e){ e.atual = new Date().toISOString(); S.empresas[e.id] = e; });
+  var gravar = lista.map(function(e){ var ant = S.empresas[e.id]; e.atual = new Date().toISOString(); var o = semIdentidade(e, ant); S.empresas[e.id] = e; return o; });
+  aplicarIdentidade(S.empresas);
   renderTudo();
-  return gravarMapas(lista.map(function(e){ return [docEmp(e.id), e.id, e]; }));
+  var gravou = gravarMapas(gravar.map(function(o){ return [docEmp(o.id), o.id, o]; }));
+  cadMestre(lista, "ctb");
+  return gravou;
 }
 function salvarCompEntrada(comp, eid, entrada){ var m = {}; m[eid] = entrada; return salvarCompVarias(comp, m); }
 function salvarCompVarias(comp, mapa){
@@ -250,7 +312,33 @@ function casarNome(nomeConta){
   });
   return pts ? melhor : "";
 }
-function minha(e){ return !!S.eu && (norm(e.analista) === norm(S.eu) || norm(e.apoio) === norm(S.eu)); }
+/* ============ ausências e cobertura (como na Cartela do DP) ============ */
+function ausAtiva(a, dia){ return a.inicio <= dia && dia <= a.fim; }
+function ausenciaDe(nome, dia){ if(!nome) return null; return (S.aus || []).filter(function(a){ return norm(a.analista) === norm(nome) && ausAtiva(a, dia); })[0] || null; }
+// Quem responde pela empresa num dia: o analista, ou quem cobre a ausência dele.
+function coberturaDe(e, dia){
+  dia = dia || ymd(hoje());
+  var t = e.analista; if(!t) return {titular:"", efetivo:"", aus:null, coberta:false, sem:false};
+  var a = ausenciaDe(t, dia); if(!a) return {titular:t, efetivo:t, aus:null, coberta:false, sem:false};
+  var q = (a.porEmpresa && a.porEmpresa[e.id]) || a.padrao || "";
+  if(!q) return {titular:t, efetivo:"", aus:a, coberta:false, sem:true};
+  return {titular:t, efetivo:q, aus:a, coberta: norm(q) !== norm(t), sem:false};
+}
+function doAnalista(e, nome){ if(!nome) return true; var n = norm(nome); if(norm(e.analista) === n || norm(e.apoio) === n) return true; var c = coberturaDe(e); return c.coberta && norm(c.efetivo) === n; }
+function coberturasDe(nome){
+  if(!nome) return [];
+  var hj = ymd(hoje()), por = {};
+  listaEmpresas().forEach(function(e){ if(!CLIENTE[e.sit]) return; var c = coberturaDe(e, hj); if(c.coberta && norm(c.efetivo) === norm(nome)){ var k = c.titular; (por[k] = por[k] || {titular:k, n:0, fim:c.aus.fim}).n++; } });
+  return Object.keys(por).map(function(k){ return por[k]; });
+}
+function empresasDoTitular(nome){ return listaEmpresas().filter(function(e){ return CLIENTE[e.sit] && norm(e.analista) === norm(nome); }).sort(ordNome); }
+function resumoCobertura(a){
+  var emps = empresasDoTitular(a.analista), por = {}, sem = 0;
+  emps.forEach(function(e){ var q = (a.porEmpresa && a.porEmpresa[e.id]) || a.padrao || ""; if(!q) sem++; else por[q] = (por[q] || 0) + 1; });
+  var ks = Object.keys(por);
+  return (ks.length ? "cobertura de " + ks.map(function(k){ return k + (ks.length > 1 ? " (" + por[k] + ")" : ""); }).join(", ") : "nenhuma cobertura") + (sem ? " · " + sem + " sem cobertura" : "");
+}
+function minha(e){ return !!S.eu && doAnalista(e, S.eu); }
 function podeMarcar(e){
   if(AUTH()){ var n = nivelAcesso(); if(n === "coord") return true; if(n === "analista") return minha(e); return false; }
   return S.coord || minha(e);
@@ -262,6 +350,7 @@ function motivoNegado(itens){
   if(n !== "analista") return "Seu acesso ao Contábil é só de consulta.";
   for(var i = 0; i < itens.length; i++){
     var col = itens[i][0].split("/")[0], e = S.empresas[itens[i][1]];
+    if(col === "ctb_lemb"){ if(!(lembPode(itens[i][2]) && lembPode(S.lembs[itens[i][1]]))) return "Você só altera os seus lembretes ou os das empresas da sua carteira."; continue; }
     if(col === "ctb_comp" || col === "ctb_emp" || col === "ctb_ano"){ if(!e || !minha(e)) return "Você só altera as empresas da sua carteira."; }
     else return "Só a coordenação altera as configurações.";
   }
@@ -288,7 +377,7 @@ function normEmp(x, id){
     sit: SIT[x.sit] ? x.sit : "ativa", sitData: parseYmd(x.sitData) ? x.sitData : "",
     semFolha: !!x.semFolha, semImob: !!x.semImob,
     semInfo: Array.isArray(x.semInfo) ? x.semInfo.filter(function(k){ return ETAPAS.some(function(et){ return et.k === k; }); }) : [],
-    contatos: t(x.contatos, 600), obs: t(x.obs, 1200),
+    contatos: t(x.contatos, 600), obs: t(x.obs, 1200), pasta: t(x.pasta, 300),
     criado: t(x.criado, 40), atual: t(x.atual, 40), excluida: !!x.excluida
   };
 }
@@ -438,6 +527,558 @@ function compPendencia(e){ return abertasDe(e)[0] || compEmFechamento(); }
 function diasParado(ent){ var u = (ent.cobr && ent.cobr.length ? ent.cobr[ent.cobr.length - 1] : "") || ent.pendEm; var d = parseYmd(u); return d ? diasEntre(d, hoje()) : 0; }
 function stImp(comp, e, k){ var v = (entrada(comp, e.id).v || {})[k]; return v && v[0] ? v[0] : ""; }
 
+/* ============ cobrança do cliente, cópia e produtividade ============ */
+function mostrarTexto(txt){
+  var d = $("#dlgConf"), t = $("#confTxt"), sim = $("#confSim"), nao = $("#confNao");
+  t.innerHTML = '<p style="margin:0 0 8px">Não consegui copiar sozinho. Selecione o texto e copie (Ctrl+C):</p><textarea style="width:100%; min-height:200px" readonly>' + esc(txt) + '</textarea>';
+  sim.textContent = "Fechar"; nao.hidden = true;
+  var fim = function(){ d.close(); nao.hidden = false; };
+  sim.onclick = fim; d.oncancel = function(e){ e.preventDefault(); fim(); };
+  d.showModal(); var ta = $("textarea", t); ta.focus(); ta.select();
+}
+function copiar(txt, ok, acao, fn){
+  var feito = function(){ toast(ok || "Copiado.", acao, fn); };
+  var reserva = function(){
+    var ta = document.createElement("textarea"); ta.value = txt; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed; left:-9999px; top:0";
+    document.body.appendChild(ta); ta.select();
+    var foi = false; try{ foi = document.execCommand("copy"); }catch(e){}
+    ta.remove();
+    if(foi) feito(); else mostrarTexto(txt);
+  };
+  try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(feito, reserva); return; } }catch(e){}
+  reserva();
+}
+// Pendências do cliente registradas em qualquer competência controlada.
+function pendsCliente(e){
+  return compsControle().filter(function(c){ return naComp(e, c) && entrada(c, e.id).pend; }).map(function(c){ return {comp:c, ent:entrada(c, e.id)}; });
+}
+function msgCobranca(e){
+  var ps = pendsCliente(e); if(!ps.length) return "";
+  var itens = ps.map(function(p){ return "• " + compRot(p.comp) + ": " + p.ent.pend; });
+  return "Olá, tudo bem?\n\nPara concluirmos o fechamento contábil da empresa " + e.nome + (e.cnpj ? " (CNPJ " + e.cnpj + ")" : "") + ", ainda precisamos do seguinte:\n\n" + itens.join("\n") +
+    "\n\nPedimos, por gentileza, o envio assim que possível. Qualquer dúvida, estamos à disposição.\n\nObrigado(a)" + (S.eu ? ",\n" + S.eu : ",") + "\nControlTax";
+}
+function registrarCobrancaHoje(e){
+  if(!podeMarcar(e)){ toast("Só o analista da empresa ou a coordenação registra cobranças."); return Promise.resolve(); }
+  var hj = ymd(hoje()), ps = pendsCliente(e);
+  return ps.reduce(function(pr, p){ return pr.then(function(){
+    var ent = JSON.parse(JSON.stringify(p.ent)), cb = ent.cobr || [];
+    if(cb[cb.length - 1] === hj) return;
+    ent.cobr = cb.concat([hj]).slice(-20);
+    return salvarCompEntrada(p.comp, e.id, ent);
+  }); }, Promise.resolve()).then(function(){ toast("Cobrança de hoje registrada para “" + e.nome + "”."); }, function(){});
+}
+function copiarCobranca(e){
+  var msg = msgCobranca(e);
+  if(!msg){ toast("“" + e.nome + "” não tem pendência do cliente registrada."); return; }
+  copiar(msg, "Mensagem de cobrança copiada.", podeMarcar(e) ? "Registrar cobrança de hoje" : "", function(){ registrarCobrancaHoje(e); });
+}
+// Cobranças paradas: pendência do cliente sem cobrança (ou pedido) há mais de N dias.
+function cobrancasParadas(lista, dias){
+  var out = [];
+  lista.forEach(function(e){ var ps = pendsCliente(e); if(!ps.length) return; var d = Math.max.apply(null, ps.map(function(p){ return diasParado(p.ent); })); if(d >= dias) out.push({e:e, dias:d, ps:ps, cobr: ps.reduce(function(n, p){ return n + ((p.ent.cobr || []).length); }, 0)}); });
+  return out.sort(function(a, b){ return b.dias - a.dias || ordNome(a.e, b.e); });
+}
+// Produtividade pela data das marcações: etapas concluídas e competências fechadas entre duas datas (AAAA-MM-DD).
+function produtividade(de, ate){
+  var por = {};
+  Object.keys(S.comps).forEach(function(c){
+    var mapa = S.comps[c] || {};
+    Object.keys(mapa).forEach(function(id){
+      var ent = mapa[id] || {}, x = function(){ return (por[id] = por[id] || {etapas:0, fechadas:0}); };
+      if(ent.e) Object.keys(ent.e).forEach(function(k){ var v = ent.e[k]; if(v && v[0] === "c" && v[1] && v[1] >= de && v[1] <= ate) x().etapas++; });
+      if(ent.fechadaEm && ent.fechadaEm >= de && ent.fechadaEm <= ate) x().fechadas++;
+    });
+  });
+  return por;
+}
+function somaProd(por, lista){ return lista.reduce(function(t, e){ var p = por[e.id]; if(p){ t.etapas += p.etapas; t.fechadas += p.fechadas; } return t; }, {etapas:0, fechadas:0}); }
+function inicioMes(){ var h = hoje(); return ymd(new Date(h.getFullYear(), h.getMonth(), 1)); }
+function diasAtras(n){ var d = hoje(); d.setDate(d.getDate() - n); return ymd(d); }
+// Prazo interno do fechamento: a competência deve fechar até o fim do mês seguinte.
+function cfgF(){ var c = S.cfg || {}, p = PRAZOS_PADRAO; return {fp: c.fechPrazo || p.fechPrazo, meta: c.metaPct != null ? +c.metaPct : p.metaPct, cobr: +c.cobrDias || p.cobrDias, parado: +c.paradoDias || p.paradoDias, metaAna: c.metaAna || {}}; }
+function metaDe(a){ var m = cfgF(), v = m.metaAna[norm(a)]; return v != null && v !== "" && isFinite(+v) ? +v : m.meta; }
+function corMeta(p, meta){ return p >= meta ? "f0" : p >= meta - 20 ? "f1" : "f3"; }
+function prazoFech(comp){ var fp = cfgF().fp, due = compShift(comp, +fp.meses || 1); return ymd(dataPrazo(+due.slice(0, 4), +due.slice(5, 7) - 1, fp.dia, fp.dia === "ultimo_util" ? "" : "exato")); }
+function prazoRot(){ var fp = cfgF().fp; return (fp.dia === "ultimo_util" ? "último dia útil" : "dia " + fp.dia) + " do " + (+fp.meses > 1 ? fp.meses + "º mês seguinte" : "mês seguinte") + " à competência"; }
+function evolucao(n){
+  var cs = compsControle().filter(function(c){ return c <= compEmFechamento(); }).slice(-n), ctrl = listaEmpresas();
+  return cs.map(function(c){
+    var base = ctrl.filter(function(e){ return naComp(e, c); }), r = {comp:c, total:base.length, fechadas:0, noPrazo:0, fora:0, abertas:0};
+    base.forEach(function(e){ var s = resumo(e, c); if(!s.fechada){ r.abertas++; return; } r.fechadas++; var f = s.ent.fechadaEm; if(f && f <= prazoFech(c)) r.noPrazo++; else r.fora++; });
+    return r;
+  });
+}
+function entregasPendentes(lista){
+  var h = hoje(), de = new Date(h), ate = new Date(h); de.setDate(de.getDate() - 45); ate.setDate(ate.getDate() + 5);
+  var ids = {}; lista.forEach(function(e){ ids[e.id] = true; });
+  var guias = 0, guiasAtr = 0, obr = 0;
+  vencimentosImpostos(de, ate).forEach(function(v){ var p = v.pendentes.filter(function(e){ return ids[e.id]; }).length; guias += p; if(v.data < h) guiasAtr += p; });
+  var de2 = new Date(h); de2.setDate(de2.getDate() - 120); var ate2 = new Date(h); ate2.setDate(ate2.getDate() + 30);
+  vencimentosAnuais(de2, ate2).forEach(function(v){ obr += v.pendentes.filter(function(e){ return ids[e.id]; }).length; });
+  return {guias:guias, guiasAtr:guiasAtr, obr:obr};
+}
+
+/* ============ relatórios para impressão (PDF) ============ */
+function imprimir(html){
+  var box = $("#ctbPrint"); if(!box){ box = document.createElement("div"); box.id = "ctbPrint"; document.body.appendChild(box); }
+  box.innerHTML = html;
+  try{ if($("#dlgFicha").open) $("#dlgFicha").close(); }catch(e){}
+  document.body.classList.add("ctb-printing");
+  var off = function(){ document.body.classList.remove("ctb-printing"); box.innerHTML = ""; window.removeEventListener("afterprint", off); };
+  window.addEventListener("afterprint", off);
+  setTimeout(function(){
+    try{ window.print(); }catch(e){ off(); toast("Não foi possível abrir a impressão aqui. Use a exportação em planilha."); return; }
+    setTimeout(function(){ window.addEventListener("pointerdown", off, {once:true}); }, 400);
+  }, 50);
+}
+function rpCab(titulo, sub){ return '<div class="rp-head"><div><h1>' + esc(titulo) + '</h1><p>' + esc(sub) + '</p></div><div class="rp-marca">ControlTax · Contábil</div></div>'; }
+var RP_ST = {c:'<span class="rp-ok">✓</span>', a:'<span class="rp-and">…</span>', n:'<span class="rp-na">–</span>', "":'<span class="rp-atr">●</span>'};
+function relatorioEmpresaHtml(e){
+  var r = fimEmp(e) ? resumoAte(e) : null, tb = TRIB[e.trib];
+  var info = [["CNPJ", e.cnpj || "—"], ["Tributação", (tb ? tb.l : "—") + (e.tribAnt && TRIB[e.tribAnt] ? " (antes " + TRIB[e.tribAnt].c + " até " + e.tribMud + ")" : "")], ["Sistema", (e.sistema || "—") + (e.migrado ? " desde " + e.migrado : "")], ["Analista", (e.analista || "—") + (e.apoio ? " · apoio " + e.apoio : "")],
+    ["Situação", SIT[e.sit].l + (e.sitData ? " em " + dataBR(e.sitData) : "")], ["Cliente desde", e.desde ? dataBR(e.desde) : "—"], ["Grupo econômico", e.grupo || "—"], ["Fechado até", r ? (r.faixa === "ni" && !r.ate ? "falta informar" : rotAte(r.ate) + " · " + rotAtraso(r.meses)) : "—"]];
+  var h = '<div class="rp">' + rpCab(e.nome, "Relatório da empresa · emitido em " + dataBR(ymd(hoje())) + " · fechamento de " + compRot(compEmFechamento()).toLowerCase()) +
+    '<div class="rp-info">' + info.map(function(i){ return '<div><span>' + esc(i[0]) + '</span><b>' + esc(i[1]) + '</b></div>'; }).join("") + '</div>';
+  if(r){
+    h += '<h2>Até onde cada etapa está concluída</h2><table><thead><tr><th>Etapa</th><th>Concluída até</th><th>Atraso</th></tr></thead><tbody>' + ETAPAS.map(function(et){
+      var a = ateEtapa(e, et.k), fx = faixaEtapa(e, et.k);
+      return '<tr><td>' + esc(et.l) + '</td><td>' + esc(fx === "na" ? "não se aplica" : fx === "ni" && !a ? "falta informar" : rotAte(a)) + '</td><td>' + (fx === "na" || (fx === "ni" && !a) ? "—" : '<span class="' + (atrasoDe(e, a) > 1 ? "rp-atr" : "rp-ok") + '">' + esc(rotAtraso(atrasoDe(e, a))) + '</span>') + '</td></tr>';
+    }).join("") + '</tbody></table>';
+  }
+  var cs = compsControle().filter(function(c){ return c <= compAtual() && naComp(e, c); }).slice(-12).reverse();
+  if(cs.length){
+    h += '<h2>Últimas competências</h2><table><thead><tr><th>Competência</th>' + ETAPAS.map(function(et){ return '<th class="c">' + esc(et.c) + '</th>'; }).join("") + '<th>Situação</th><th>Pendência do cliente</th><th>Observações das etapas</th></tr></thead><tbody>' + cs.map(function(c){
+      var s = resumo(e, c), ob = s.ent.ob || {};
+      var sit = s.fechada ? (s.ent.sm ? "sem movimento" : "fechada" + (s.ent.fechadaEm ? " em " + dataBR(s.ent.fechadaEm) : "")) : (compAtrasada(c) ? '<span class="rp-atr">atrasada</span>' : "em aberto");
+      return '<tr><td>' + esc(compRot(c)) + '</td>' + ETAPAS.map(function(et){ var st = stEtapa(s.ent, e, et.k); return '<td class="c">' + (st === "" && !compAtrasada(c) ? '<span class="rp-na">●</span>' : RP_ST[st]) + '</td>'; }).join("") + '<td>' + sit + '</td><td>' + esc(s.ent.pend || "") + (s.ent.pend ? '<div class="rp-nota">desde ' + esc(dataBR(s.ent.pendEm) || "—") + ((s.ent.cobr || []).length ? " · " + s.ent.cobr.length + " cobrança(s)" : "") + '</div>' : '') + '</td><td>' + esc(Object.keys(ob).map(function(k){ var et = ETAPAS.filter(function(x){ return x.k === k; })[0]; return (et ? et.c : k) + ": " + ob[k]; }).join(" · ")) + '</td></tr>';
+    }).join("") + '</tbody></table><p class="rp-nota">✓ concluída · … em andamento · – não se aplica · ● pendente (vermelho = competência atrasada)</p>';
+  }
+  var anos = [String(hoje().getFullYear() - 1), String(hoje().getFullYear())], obs = [];
+  anos.forEach(function(a){ (S.cfg.anuais || []).forEach(function(d){ if(obrigAplica(e, d, a)){ var s = stObrig(a, e, d.k); obs.push(d.l + " " + a + ": " + (s === "c" ? "entregue" : s === "a" ? "em andamento" : s === "n" ? "não se aplica" : "pendente") + " (prazo " + dataBR(ymd(prazoAnual(d, a))) + ")"); } }); });
+  if(obs.length) h += '<h2>Obrigações anuais</h2><p>' + esc(obs.join(" · ")) + '</p>';
+  if(e.obs) h += '<h2>Observações</h2><p style="white-space:pre-wrap">' + esc(e.obs) + '</p>';
+  return h + '</div>';
+}
+
+/* ============ janela auxiliar (ausência e lembrete) ============ */
+function dlgAux(){ var d = $("#dlgAux"); if(!d){ d = document.createElement("dialog"); d.className = "dlg"; d.id = "dlgAux"; document.body.appendChild(d); } return d; }
+var MOTIVOS = ["Férias", "Afastamento", "Licença", "Outro"];
+function normAus(a){
+  if(!a || !a.analista || !/^\d{4}-\d{2}-\d{2}$/.test(a.inicio || "") || !/^\d{4}-\d{2}-\d{2}$/.test(a.fim || "")) return null;
+  var pe = {}; if(a.porEmpresa && typeof a.porEmpresa === "object") Object.keys(a.porEmpresa).forEach(function(k){ if(a.porEmpresa[k]) pe[k] = String(a.porEmpresa[k]).slice(0, 60); });
+  return {id: String(a.id || uid()), analista: String(a.analista).slice(0, 60), inicio: a.inicio, fim: a.fim, motivo: MOTIVOS.indexOf(a.motivo) !== -1 ? a.motivo : "Outro", padrao: String(a.padrao || "").slice(0, 60), porEmpresa: pe, obs: String(a.obs || "").slice(0, 200), criado: String(a.criado || ""), autor: String(a.autor || "")};
+}
+function salvarAus(lista){
+  if(!S.coord){ toast("Só a coordenação registra ausências."); return Promise.reject(new Error("sem permissão")); }
+  S.aus = lista; renderTudo();
+  return gravar(banco.doc("ctb_config/aus").set({lista: lista}));
+}
+function abrirAus(id){
+  if(!S.coord){ toast("Só a coordenação registra ausências."); return; }
+  var a = id ? (S.aus || []).filter(function(x){ return x.id === id; })[0] : null;
+  var x = a || {analista: "", inicio: ymd(hoje()), fim: ymd(hoje()), motivo: "Férias", padrao: "", porEmpresa: {}, obs: ""};
+  var as = analistas(), d = dlgAux();
+  var opA = function(v, vazio){ return '<option value="">' + vazio + '</option>' + as.map(function(n){ return '<option' + (norm(n) === norm(v) ? " selected" : "") + '>' + esc(n) + '</option>'; }).join(""); };
+  d.innerHTML = '<div class="dlg-head"><h2>' + (a ? "Editar ausência" : "Registrar ausência") + '</h2><button type="button" class="x" data-aux-fechar aria-label="Fechar">✕</button></div>' +
+    '<form class="dlg-body" id="ausForm" novalidate><div class="campos">' +
+      '<label class="campo">Analista ausente<select name="analista">' + opA(x.analista, "Escolha…") + '</select></label>' +
+      '<label class="campo">Motivo<select name="motivo">' + MOTIVOS.map(function(m){ return '<option' + (m === x.motivo ? " selected" : "") + '>' + m + '</option>'; }).join("") + '</select></label>' +
+      '<label class="campo">Primeiro dia<input type="date" name="inicio" value="' + esc(x.inicio) + '"></label>' +
+      '<label class="campo">Último dia<input type="date" name="fim" value="' + esc(x.fim) + '"></label>' +
+      '<label class="campo largo">Quem cobre (padrão)<select name="padrao">' + opA(x.padrao, "Ninguém (deixar sem cobertura)") + '</select></label>' +
+      '<div class="campo largo">Empresas do analista<span class="note" style="font-weight:400">Deixe “= padrão” para quem cobre igual a todas, ou escolha outra pessoa para dividir. O apoio cadastrado na empresa já vem escolhido.</span><div class="aus-emps" id="ausEmps"></div></div>' +
+      '<label class="campo largo">Observação<input name="obs" maxlength="200" value="' + esc(x.obs) + '" placeholder="Ex.: atestado de 15 dias"></label>' +
+    '</div></form>' +
+    '<div class="dlg-acoes">' + (a ? '<button type="button" class="linkish red esq" id="ausExcluir">Excluir ausência</button>' : '') + '<button type="button" class="fbtn" data-aux-fechar>Cancelar</button><button type="button" class="btn" id="ausSalvar">Salvar</button></div>';
+  var f = $("#ausForm", d).elements;
+  var pintarEmps = function(){
+    var nome = f.analista.value, emps = nome ? empresasDoTitular(nome) : [], pe = (a && norm(a.analista) === norm(nome)) ? a.porEmpresa : null;
+    $("#ausEmps", d).innerHTML = emps.length ? emps.map(function(e){
+      var v = pe ? (pe[e.id] || "") : (e.apoio && norm(e.apoio) !== norm(nome) ? e.apoio : "");
+      return '<span title="' + esc(e.nome) + '">' + esc(e.nome) + '</span><select data-aus-emp="' + esc(e.id) + '"><option value="">= padrão</option>' + as.filter(function(n){ return norm(n) !== norm(nome); }).map(function(n){ return '<option' + (norm(n) === norm(v) ? " selected" : "") + '>' + esc(n) + '</option>'; }).join("") + '</select>';
+    }).join("") : '<span class="note" style="grid-column:1/-1; padding:8px">' + (nome ? "Nenhuma empresa cliente com esse analista." : "Escolha o analista.") + '</span>';
+  };
+  pintarEmps();
+  f.analista.onchange = pintarEmps;
+  $$("[data-aux-fechar]", d).forEach(function(b){ b.onclick = function(){ d.close(); }; });
+  if($("#ausExcluir", d)) $("#ausExcluir", d).onclick = function(){
+    confirmar("Excluir a ausência de " + a.analista + " (" + dataBR(a.inicio) + " a " + dataBR(a.fim) + ")?", "Excluir").then(function(ok){ if(!ok) return; d.close(); var antes = S.aus.slice(); salvarAus(S.aus.filter(function(y){ return y.id !== a.id; })).then(function(){ toast("Ausência excluída.", "Desfazer", function(){ salvarAus(antes); }); }, function(){}); });
+  };
+  $("#ausSalvar", d).onclick = function(){
+    var nome = f.analista.value, ini = f.inicio.value, fim = f.fim.value;
+    if(!nome){ toast("Escolha o analista ausente."); f.analista.focus(); return; }
+    if(!ini || !fim || fim < ini){ toast("Confira as datas: o último dia não pode ser antes do primeiro."); f.fim.focus(); return; }
+    if(norm(f.padrao.value) === norm(nome)){ toast("Quem cobre não pode ser o próprio analista ausente."); return; }
+    var conflito = (S.aus || []).filter(function(y){ return (!a || y.id !== a.id) && norm(y.analista) === norm(nome) && y.inicio <= fim && y.fim >= ini; })[0];
+    if(conflito){ toast(nome + " já tem ausência de " + dataBR(conflito.inicio) + " a " + dataBR(conflito.fim) + "."); return; }
+    var pe = {}; $$("[data-aus-emp]", d).forEach(function(s){ if(s.value) pe[s.getAttribute("data-aus-emp")] = s.value; });
+    var novo = normAus({id: a ? a.id : uid(), analista: nome, inicio: ini, fim: fim, motivo: f.motivo.value, padrao: f.padrao.value, porEmpresa: pe, obs: f.obs.value.trim(), criado: a ? a.criado : new Date().toISOString(), autor: S.meId || ""});
+    var quem = [novo.padrao].concat(Object.keys(pe).map(function(k){ return pe[k]; })).filter(Boolean);
+    var avisos = quem.filter(function(q, i){ return quem.indexOf(q) === i; }).filter(function(q){ return (S.aus || []).some(function(y){ return y.id !== novo.id && norm(y.analista) === norm(q) && y.inicio <= fim && y.fim >= ini; }); });
+    var lista = (S.aus || []).filter(function(y){ return y.id !== novo.id; }).concat([novo]);
+    d.close();
+    salvarAus(lista).then(function(){ toast("Ausência de " + nome + " salva." + (avisos.length ? " Atenção: " + avisos.join(", ") + " também estará ausente nesse período." : "")); }, function(){});
+  };
+  if(!d.open) d.showModal();
+}
+
+/* ============ lembretes do Contábil ============ */
+var REP_ROT = {nao:"Não repete", mensal:"Todo mês", anual:"Todo ano"};
+function docLemb(id){ return "ctb_lemb/b" + balde(id, 2); }
+function normLemb(x, id){
+  var t = function(v, n){ return String(v == null ? "" : v).trim().slice(0, n); };
+  var fe = {}; if(x.feitos && typeof x.feitos === "object") Object.keys(x.feitos).forEach(function(k){ if(x.feitos[k] && /^\d{4}-\d{2}-\d{2}$/.test(k)) fe[k] = true; });
+  return {id: id || x.id, texto: t(x.texto, 200), data: /^\d{4}-\d{2}-\d{2}$/.test(x.data || "") ? x.data : ymd(hoje()), rep: REP_ROT[x.rep] ? x.rep : "nao",
+    empresa: t(x.empresa, 80), para: t(x.para, 60), obs: t(x.obs, 500), autor: t(x.autor, 80), autorNome: t(x.autorNome, 60), feitos: fe, criado: t(x.criado, 40), excluido: !!x.excluido};
+}
+function lembPode(L){
+  if(!L || !L.id) return true;
+  if(!AUTH() || nivelAcesso() === "coord") return true;
+  if(nivelAcesso() !== "analista") return false;
+  return (S.meId && L.autor === S.meId) || (S.eu && norm(L.para) === norm(S.eu)) || (L.empresa && S.empresas[L.empresa] && minha(S.empresas[L.empresa]));
+}
+function lembretes(){ return Object.keys(S.lembs || {}).map(function(k){ return S.lembs[k]; }).filter(function(L){ return !L.excluido; }); }
+// Datas em que o lembrete aparece entre duas datas (AAAA-MM-DD).
+function ocorrencias(L, de, ate){
+  var out = [], d0 = parseYmd(L.data); if(!d0) return out;
+  if(L.rep === "nao"){ if(L.data >= de && L.data <= ate) out.push(L.data); return out; }
+  var y = +de.slice(0, 4), m = +de.slice(5, 7) - 1, yF = +ate.slice(0, 4), mF = +ate.slice(5, 7) - 1;
+  for(var i = 0; i < 400 && (y < yF || (y === yF && m <= mF)); i++){
+    if(L.rep === "mensal" || m === d0.getMonth()){
+      var ult = new Date(y, m + 1, 0).getDate(), k = ymd(new Date(y, m, Math.min(d0.getDate(), ult)));
+      if(k >= L.data && k >= de && k <= ate) out.push(k);
+    }
+    m++; if(m > 11){ m = 0; y++; }
+  }
+  return out;
+}
+function lembDoAnalista(L, ana){
+  if(!ana) return true;
+  var n = norm(ana);
+  if(norm(L.para) === n) return true;
+  if(!L.para && norm(L.autorNome) === n) return true;
+  var e = L.empresa && S.empresas[L.empresa];
+  return !!(e && doAnalista(e, ana));
+}
+function lembretesPendentesDe(nome){
+  var de = diasAtras(60), hj = ymd(hoje()), out = [];
+  lembretes().forEach(function(L){ if(norm(L.para) !== norm(nome) && !(!L.para && norm(L.autorNome) === norm(nome))) return; ocorrencias(L, de, hj).forEach(function(k){ if(!L.feitos[k]) out.push({L:L, k:k}); }); });
+  return out;
+}
+function salvarLemb(L){ L = normLemb(L, L.id); var m = {}; m[L.id] = L; (S.lembs = S.lembs || {})[L.id] = L; renderTudo(); return gravarMapas([[docLemb(L.id), L.id, L]]); }
+function abrirLemb(id, dia){
+  if(AUTH() && nivelAcesso() === "consulta"){ toast("Seu acesso ao Contábil é só de consulta."); return; }
+  var L = id ? S.lembs[id] : null;
+  if(L && !lembPode(L)){ toast("Esse lembrete é de outra pessoa."); return; }
+  var x = L || {texto:"", data: dia || ymd(hoje()), rep:"nao", empresa:"", para: S.eu || "", obs:""};
+  var emp = x.empresa && S.empresas[x.empresa], d = dlgAux(), as = analistas();
+  var nomes = listaEmpresas().slice().sort(ordNome);
+  d.innerHTML = '<div class="dlg-head"><h2>' + (L ? "Lembrete" : "Novo lembrete") + '</h2><button type="button" class="x" data-aux-fechar aria-label="Fechar">✕</button></div>' +
+    '<form class="dlg-body" id="lembForm" novalidate><div class="campos">' +
+      '<label class="campo largo">Lembrete<input name="texto" maxlength="200" value="' + esc(x.texto) + '" placeholder="Ex.: Conferir a conciliação do Itaú" required></label>' +
+      '<label class="campo">Data<input type="date" name="data" value="' + esc(x.data) + '"></label>' +
+      '<label class="campo">Repetição<select name="rep">' + Object.keys(REP_ROT).map(function(k){ return '<option value="' + k + '"' + (k === x.rep ? " selected" : "") + '>' + REP_ROT[k] + '</option>'; }).join("") + '</select></label>' +
+      '<label class="campo">Para<select name="para"><option value="">Equipe toda</option>' + as.map(function(n){ return '<option' + (norm(n) === norm(x.para) ? " selected" : "") + '>' + esc(n) + '</option>'; }).join("") + '</select></label>' +
+      '<label class="campo">Empresa (opcional)<input name="empresa" list="dlLembEmp" value="' + esc(emp ? emp.nome : "") + '" placeholder="Digite para buscar"><datalist id="dlLembEmp">' + nomes.map(function(e){ return '<option value="' + esc(e.nome) + '">'; }).join("") + '</datalist></label>' +
+      '<label class="campo largo">Observação<textarea name="obs" rows="2" maxlength="500">' + esc(x.obs) + '</textarea></label>' +
+    '</div>' + (L ? '<p class="note">Criado por ' + esc(L.autorNome || nomeDe(L.autor) || "—") + (L.criado ? " em " + esc(dataBR(L.criado.slice(0, 10))) : "") + '. Todos do Contábil veem os lembretes.</p>' : '<p class="note">Todos do Contábil veem os lembretes. Quem está em “Para” recebe o aviso na aba Agenda.</p>') + '</form>' +
+    '<div class="dlg-acoes">' + (L ? '<button type="button" class="linkish red esq" id="lembExcluir">Excluir</button>' : '') + '<button type="button" class="fbtn" data-aux-fechar>Cancelar</button><button type="button" class="btn" id="lembSalvar">Salvar</button></div>';
+  var f = $("#lembForm", d).elements;
+  $$("[data-aux-fechar]", d).forEach(function(b){ b.onclick = function(){ d.close(); }; });
+  if($("#lembExcluir", d)) $("#lembExcluir", d).onclick = function(){
+    confirmar("Excluir o lembrete “" + L.texto + "”?", "Excluir").then(function(ok){ if(!ok) return; d.close(); var antes = JSON.parse(JSON.stringify(L)); salvarLemb(Object.assign({}, L, {excluido:true})).then(function(){ toast("Lembrete excluído.", "Desfazer", function(){ salvarLemb(antes); }); }, function(){}); });
+  };
+  $("#lembSalvar", d).onclick = function(){
+    var txt = f.texto.value.trim(); if(!txt){ toast("Escreva o lembrete."); f.texto.focus(); return; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f.data.value)){ toast("Escolha a data."); f.data.focus(); return; }
+    var en = f.empresa.value.trim(), eAch = en ? listaEmpresas().filter(function(e){ return norm(e.nome) === norm(en); })[0] : null;
+    if(en && !eAch){ toast("Não achei a empresa “" + en + "”. Escolha um nome da lista ou deixe em branco."); f.empresa.focus(); return; }
+    var novo = Object.assign({}, L || {id: uid(), autor: S.meId || "", autorNome: S.eu || "", criado: new Date().toISOString(), feitos:{}}, {texto: txt, data: f.data.value, rep: f.rep.value, para: f.para.value, empresa: eAch ? eAch.id : "", obs: f.obs.value.trim()});
+    if(!lembPode(novo)){ toast("Você só cria lembretes para você ou para as empresas da sua carteira."); return; }
+    d.close();
+    salvarLemb(novo).then(function(){ toast(L ? "Lembrete salvo." : "Lembrete criado."); }, function(){});
+  };
+  if(!d.open) d.showModal();
+  if(!L) setTimeout(function(){ f.texto.focus(); }, 30);
+}
+function marcarLembFeito(id, k){
+  var L = S.lembs[id]; if(!L) return;
+  if(!lembPode(L)){ toast("Esse lembrete é de outra pessoa."); return; }
+  var n = JSON.parse(JSON.stringify(L)); n.feitos = n.feitos || {};
+  if(n.feitos[k]) delete n.feitos[k]; else n.feitos[k] = true;
+  salvarLemb(n).catch(function(){});
+}
+
+/* ============ AGENDA ============ */
+var AG_TIPOS = [["", "Todas as datas"], ["lemb", "Lembretes"], ["imp", "Impostos"], ["obr", "Obrigações anuais"], ["fech", "Prazo do fechamento"], ["cob", "Cobrar o cliente"], ["aus", "Ausências"]];
+var AG_ROT = {lemb:"Lembrete", imp:"Imposto", obr:"Obrigação anual", fech:"Prazo do fechamento", cob:"Cobrar o cliente", aus:"Ausência"};
+function agendaEventos(mes){
+  var A = S.ag, ana = A.ana || "", ini = mes + "-01", fimD = compFim(mes), fim = ymd(fimD), out = [], hj = ymd(hoje());
+  var dele = function(e){ return doAnalista(e, ana); };
+  var dIni = parseYmd(ini);
+  // impostos
+  vencimentosImpostos(dIni, fimD).forEach(function(v){
+    var emps = v.emps.filter(dele), pend = v.pendentes.filter(dele); if(!emps.length) return;
+    out.push({k: ymd(v.data), tipo:"imp", titulo: v.def.l + " · " + compCurta(v.comp), sub: pend.length ? pend.length + " de " + emps.length + " sem guia enviada" : "todas as " + emps.length + " com guia", feito: !pend.length, ir: {pz: v.def.k + "|" + v.comp}});
+  });
+  // obrigações anuais
+  vencimentosAnuais(dIni, fimD).forEach(function(v){
+    var emps = v.emps.filter(dele), pend = v.pendentes.filter(dele); if(!emps.length) return;
+    out.push({k: ymd(v.data), tipo:"obr", titulo: v.def.l + " " + v.ano, sub: pend.length ? pend.length + " de " + emps.length + " pendentes" : "todas entregues", feito: !pend.length, ir: {ano: v.ano}});
+  });
+  // prazo interno do fechamento
+  compsControle().forEach(function(c){
+    var pz = prazoFech(c); if(pz < ini || pz > fim) return;
+    var base = listaEmpresas().filter(function(e){ return naComp(e, c) && dele(e); }); if(!base.length) return;
+    var f = base.filter(function(e){ return resumo(e, c).fechada; }).length;
+    out.push({k: pz, tipo:"fech", titulo: "Fechamento de " + compCurta(c), sub: f + " de " + base.length + " fechadas (prazo interno)", feito: f === base.length, ir: {comp: c}});
+  });
+  // cobranças do cliente: próxima cobrança = última cobrança (ou pedido) + intervalo configurado; atrasadas caem em hoje
+  var cd = cfgF().cobr, cobs = [];
+  empresasControle().filter(dele).forEach(function(e){
+    var ps = pendsCliente(e); if(!ps.length) return;
+    var ult = ps.map(function(p){ var cb = p.ent.cobr || []; return cb[cb.length - 1] || p.ent.pendEm || ""; }).filter(Boolean).sort().pop();
+    var prox = ult ? parseYmd(ult) : hoje(); if(ult) prox.setDate(prox.getDate() + cd);
+    var k = ymd(prox), atr = k < hj; if(atr) k = hj;
+    if(k < ini || k > fim) return;
+    cobs.push({k: k, tipo:"cob", titulo: "Cobrar: " + e.nome, sub: (atr ? "atrasada · " : "") + "parado há " + Math.max.apply(null, ps.map(function(p){ return diasParado(p.ent); })) + " dias · " + ps.map(function(p){ return p.ent.pend; }).join(" · "), emp: e.id, cobrar: true});
+  });
+  // sem analista escolhido (visão da equipe), as cobranças do mesmo dia viram uma data só
+  if(ana) out = out.concat(cobs);
+  else { var pd = {}; cobs.forEach(function(c){ (pd[c.k] = pd[c.k] || []).push(c); }); Object.keys(pd).forEach(function(k){ var l = pd[k]; out.push(l.length === 1 ? l[0] : {k: k, tipo:"cob", titulo: "Cobrar " + l.length + " clientes", sub: "retorno do cliente sem cobrança há " + cd + " dias ou mais · escolha um analista para ver um por um", grupo: true}); }); }
+  // ausências: início e volta
+  (S.aus || []).forEach(function(a){
+    var ehDele = !ana || norm(a.analista) === norm(ana) || norm(a.padrao) === norm(ana) || Object.keys(a.porEmpresa || {}).some(function(k){ return norm(a.porEmpresa[k]) === norm(ana); });
+    if(!ehDele) return;
+    if(a.inicio >= ini && a.inicio <= fim) out.push({k: a.inicio, tipo:"aus", titulo: a.motivo + ": " + a.analista, sub: "até " + dataBR(a.fim) + " · " + resumoCobertura(a), aus: a.id});
+    var volta = parseYmd(a.fim); volta.setDate(volta.getDate() + 1); var vk = ymd(volta);
+    if(vk >= ini && vk <= fim) out.push({k: vk, tipo:"aus", titulo: "Volta: " + a.analista, sub: a.motivo.toLowerCase() + " de " + dataBR(a.inicio) + " a " + dataBR(a.fim), aus: a.id});
+  });
+  // lembretes
+  lembretes().forEach(function(L){
+    if(!lembDoAnalista(L, ana)) return;
+    var e = L.empresa && S.empresas[L.empresa];
+    ocorrencias(L, ini, fim).forEach(function(k){ out.push({k: k, tipo:"lemb", titulo: L.texto, sub: [e ? e.nome : "", L.para ? "para " + L.para : "equipe", L.rep !== "nao" ? REP_ROT[L.rep].toLowerCase() : ""].filter(Boolean).join(" · "), feito: !!L.feitos[k], lemb: L.id}); });
+  });
+  var ordem = {lemb:0, fech:1, imp:2, obr:3, cob:4, aus:5};
+  return out.sort(function(a, b){ return a.k.localeCompare(b.k) || ordem[a.tipo] - ordem[b.tipo] || a.titulo.localeCompare(b.titulo, "pt-BR"); });
+}
+function agAttrs(ev, i){ return 'data-ag-ev="' + i + '"'; }
+var agVis = [];
+function renderAgenda(){
+  var A = S.ag, cal = $("#agCal"), lado = $("#agLado"); if(!cal || !lado) return;
+  var anim = vaiAnimar("agenda");
+  if(!A.mes) A.mes = compAtual();
+  if(A.ana === null) A.ana = S.eu || "";
+  if(A.dia && A.dia.slice(0, 7) !== A.mes) A.dia = "";
+  $("#agRot").textContent = compRot(A.mes);
+  opcoesAnalista($("#agAna"), A.ana);
+  if($("#agBusca").value !== A.busca) $("#agBusca").value = A.busca;
+  $("#agNovo").hidden = !!(AUTH() && nivelAcesso() === "consulta");
+  if(!S.carregou.empresas){ cal.innerHTML = '<div class="vazio">Carregando…</div>'; lado.innerHTML = ''; return; }
+  limparCacheAte();
+  var base = agendaEventos(A.mes), q = norm(A.busca);
+  var conta = function(t){ return base.filter(function(ev){ return !t || ev.tipo === t; }).length; };
+  var tsel = AG_TIPOS.map(function(t){ return '<option value="' + t[0] + '">' + t[1] + ' (' + conta(t[0]) + ')</option>'; }).join("");
+  if($("#agTipo").innerHTML !== tsel) $("#agTipo").innerHTML = tsel;
+  $("#agTipo").value = A.tipo;
+  var vis = agVis = base.filter(function(ev){ return (!A.tipo || ev.tipo === A.tipo) && (!q || norm(ev.titulo + " " + ev.sub).indexOf(q) !== -1); });
+  $("#agCont").textContent = vis.length + " data" + (vis.length === 1 ? "" : "s") + " em " + MESES[+A.mes.slice(5, 7) - 1];
+  // calendário
+  var y = +A.mes.slice(0, 4), m = +A.mes.slice(5, 7) - 1, first = new Date(y, m, 1), t = hoje(), tk = ymd(t), fer = feriados(y);
+  var porDia = {}; vis.forEach(function(ev, i){ (porDia[ev.k] = porDia[ev.k] || []).push(i); });
+  var pode = !(AUTH() && nivelAcesso() === "consulta");
+  var cells = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map(function(d){ return '<div class="agm-wd">' + d + '</div>'; });
+  for(var b = 0; b < first.getDay(); b++) cells.push('<div class="agm-day blank"></div>');
+  for(var d = new Date(first); d.getMonth() === m; d.setDate(d.getDate() + 1)){
+    var k = ymd(d), lst = porDia[k] || [], hol = fer[k], mostra = lst.length > 4 ? 3 : 4;
+    var chips = lst.slice(0, mostra).map(function(i){ var ev = vis[i]; return '<button type="button" class="agm-ev ag-' + ev.tipo + (ev.feito ? " feito" : "") + '" data-ag-ev="' + i + '" title="' + esc(ev.titulo + "\n" + AG_ROT[ev.tipo] + (ev.sub ? " · " + ev.sub : "")) + '">' + esc(ev.titulo) + '</button>'; }).join("");
+    var mais = lst.length > mostra ? '<button type="button" class="agm-more" data-ag-dia="' + k + '">+' + (lst.length - mostra) + ' mais</button>' : '';
+    var cls = "agm-day" + (d.getDay() === 0 || d.getDay() === 6 ? " off" : "") + (hol ? " hol" : "") + (k === tk ? " is-today" : "") + (d < t ? " past" : "") + (k === A.dia ? " sel" : "");
+    cells.push('<div class="' + cls + '" data-ag-dia="' + k + '"><div class="agm-top"><button type="button" class="agm-num" data-ag-dia="' + k + '" aria-pressed="' + (k === A.dia) + '" aria-label="' + dataBR(k) + ': ' + lst.length + ' data(s)">' + d.getDate() + '</button>' + (hol ? '<span class="agm-hol">feriado</span>' : '') + (pode ? '<button type="button" class="agm-add" data-ag-novo="' + k + '" title="Novo lembrete neste dia" aria-label="Novo lembrete em ' + dataBR(k) + '">+</button>' : '') + '</div>' + (lst.length ? '<span class="agm-n">' + lst.length + '</span>' : '') + '<div class="agm-evs">' + chips + mais + '</div></div>');
+  }
+  cal.innerHTML = '<div class="agm">' + cells.join("") + '</div><div class="agm-foot">' + AG_TIPOS.slice(1).map(function(tp){ return '<span><i class="ag-' + tp[0] + '"></i>' + tp[1] + '</span>'; }).join("") + '</div>';
+  marcarAnim(cal, anim, "pn-anim");
+  // lista ao lado: dia escolhido ou lembretes e cobranças do mês
+  var lista, titulo, sub;
+  if(A.dia){
+    lista = vis.map(function(ev, i){ return i; }).filter(function(i){ return vis[i].k === A.dia; });
+    var dd = parseYmd(A.dia);
+    titulo = pad2(dd.getDate()) + "/" + pad2(dd.getMonth() + 1) + ", " + SEM3[dd.getDay()]; sub = (fer[A.dia] ? "feriado · " : "") + lista.length + " data" + (lista.length === 1 ? "" : "s") + ' · <button type="button" class="pn-link" data-ag-limpa>ver o mês</button>';
+  } else {
+    lista = vis.map(function(ev, i){ return i; }).filter(function(i){ return vis[i].tipo === "lemb" || vis[i].tipo === "cob" || vis[i].tipo === "aus"; });
+    var fut = lista.filter(function(i){ return vis[i].k >= tk; }), pas = lista.filter(function(i){ return vis[i].k < tk; }).reverse();
+    lista = fut.concat(pas);
+    titulo = "Lembretes e cobranças"; sub = MESES[m] + " · " + lista.length + " · clique num dia para ver tudo dele";
+  }
+  lado.innerHTML = '<div class="pn-card-head"><h3>' + esc(titulo) + '</h3></div><div class="ag-sub">' + sub + '</div><div class="ag-lista">' + (lista.length ? lista.map(function(i){
+    var ev = vis[i], dd2 = parseYmd(ev.k), quando = pad2(dd2.getDate()) + "/" + pad2(dd2.getMonth() + 1);
+    var acao = ev.tipo === "lemb" ? '<button type="button" class="ag-ok' + (ev.feito ? " on" : "") + '" data-lemb-ok="' + esc(ev.lemb) + '" data-k="' + ev.k + '" title="' + (ev.feito ? "Desmarcar" : "Marcar como feito") + '" aria-pressed="' + !!ev.feito + '">' + (ev.feito ? "✓" : "") + '</button>'
+      : ev.cobrar ? '<button type="button" class="fbtn" data-cobrar="' + esc(ev.emp) + '">Copiar</button>' : '<span></span>';
+    return '<div class="ag-item' + (ev.k < tk ? " past" : "") + (ev.feito ? " feito" : "") + '"><span class="tipo ' + ev.tipo + '"></span><button type="button" class="tx" data-ag-ev="' + i + '"><b>' + esc(ev.titulo) + '</b><span class="sub">' + (A.dia ? "" : quando + " · ") + esc(AG_ROT[ev.tipo]) + (ev.sub ? " · " + esc(ev.sub) : "") + '</span></button>' + acao + '</div>';
+  }).join("") : '<div class="empty-mini">' + (A.dia ? "Nada neste dia." : "Nenhum lembrete ou cobrança neste mês. Clique no + de um dia para criar um lembrete.") + '</div>') + '</div>';
+}
+function agAbrir(ev){
+  if(!ev) return;
+  if(ev.tipo === "lemb"){ abrirLemb(ev.lemb); return; }
+  if(ev.tipo === "aus"){ if(S.coord) abrirAus(ev.aus); else toast(ev.titulo + " · " + ev.sub); return; }
+  if(ev.tipo === "cob"){ if(ev.grupo) irPara("fechamento", {"fx.modo":"ate", "fx.faixa":"cli", "fx.busca":"", "fx.ana":""}); else abrirFicha(ev.emp); return; }
+  if(ev.tipo === "fech"){ irPara("fechamento", {"fx.modo":"mes", "fx.comp": ev.ir.comp, "fx.st":"abertas", "fx.busca":"", "fx.ana": S.ag.ana || ""}); return; }
+  if(ev.tipo === "imp"){ S.pz.abertos[ev.ir.pz] = true; irPara("prazos"); return; }
+  if(ev.tipo === "obr"){ S.ob.ano = ev.ir.ano; S.ob.ana = S.ag.ana || ""; irPara("prazos"); return; }
+}
+(function(){
+  if(!$("#v-agenda")) return;
+  var mudaMes = function(n){ S.ag.mes = compShift(S.ag.mes || compAtual(), n); S.ag.dia = ""; renderTudo(true); };
+  $("#agAnt").onclick = function(){ mudaMes(-1); };
+  $("#agProx").onclick = function(){ mudaMes(1); };
+  $("#agHoje").onclick = function(){ S.ag.mes = compAtual(); S.ag.dia = ymd(hoje()); renderTudo(true); };
+  $("#agAna").onchange = function(){ S.ag.ana = this.value; renderTudo(true); };
+  $("#agTipo").onchange = function(){ S.ag.tipo = this.value; renderTudo(true); };
+  $("#agBusca").oninput = function(){ S.ag.busca = this.value; renderTudo(); };
+  $("#agNovo").onclick = function(){ abrirLemb(null, S.ag.dia || ymd(hoje())); };
+  $("#v-agenda").addEventListener("click", function(e){
+    var t = e.target;
+    var nv = t.closest("[data-ag-novo]"); if(nv){ e.stopPropagation(); abrirLemb(null, nv.getAttribute("data-ag-novo")); return; }
+    var ok = t.closest("[data-lemb-ok]"); if(ok){ marcarLembFeito(ok.getAttribute("data-lemb-ok"), ok.getAttribute("data-k")); return; }
+    if(t.closest("[data-cobrar]")) return;
+    var ev = t.closest("[data-ag-ev]"); if(ev){ agAbrir(agVis[+ev.getAttribute("data-ag-ev")]); return; }
+    if(t.closest("[data-ag-limpa]")){ S.ag.dia = ""; renderTudo(true); return; }
+    var dia = t.closest("[data-ag-dia]"); if(dia){ var k = dia.getAttribute("data-ag-dia"); S.ag.dia = S.ag.dia === k && !t.closest(".agm-more") ? "" : k; renderTudo(true); if(S.ag.dia && matchMedia("(max-width:1100px)").matches){ var l = $("#agLado"); if(l) l.scrollIntoView({behavior:"smooth", block:"start"}); } }
+  });
+})();
+
+/* ============ visão da equipe (coordenação) ============ */
+function podeGestao(){ var A = AUTH(); if(A){ return A.nivel("contabil") === "coord"; } return !!S.coord; }
+function dadosEquipe(){
+  var ctrl = empresasControle(), cef = compEmFechamento(), prodMes = produtividade(inicioMes(), ymd(hoje())), prod30 = produtividade(diasAtras(30), ymd(hoje()));
+  var por = {};
+  ctrl.forEach(function(e){
+    var a = e.analista || "(sem analista)", r = resumoAte(e);
+    var x = por[a] = por[a] || {a:a, lista:[], n:0, emDia:0, atras:0, ni:0, base:0, fechadasComp:0, cli30:0};
+    x.lista.push(e); x.n++;
+    if(r.faixa === 0) x.emDia++; else if(r.faixa === "ni") x.ni++; else if(r.faixa !== "na") x.atras++;
+    if(naComp(e, cef)){ x.base++; if(resumo(e, cef).fechada) x.fechadasComp++; }
+  });
+  var linhas = Object.keys(por).map(function(k){
+    var x = por[k], pm = somaProd(prodMes, x.lista), p3 = somaProd(prod30, x.lista), en = entregasPendentes(x.lista);
+    x.etapas30 = p3.etapas; x.fechadasMes = pm.fechadas; x.guias = en.guias; x.guiasAtr = en.guiasAtr; x.obr = en.obr;
+    x.cli30 = cobrancasParadas(x.lista, cfgF().parado).length; x.meta = metaDe(x.a);
+    return x;
+  }).sort(function(a, b){ return b.atras - a.atras || b.n - a.n || a.a.localeCompare(b.a, "pt-BR"); });
+  var T = linhas.reduce(function(t, x){ ["n","emDia","atras","ni","base","fechadasComp","etapas30","fechadasMes","guias","guiasAtr","obr","cli30"].forEach(function(k){ t[k] = (t[k] || 0) + x[k]; }); return t; }, {});
+  T.meta = cfgF().meta;
+  return {ctrl:ctrl, cef:cef, linhas:linhas, T:T, evol:evolucao(12), paradas:cobrancasParadas(ctrl, cfgF().cobr)};
+}
+function revisaoCadastro(){
+  var lista = listaEmpresas().filter(function(e){ return CLIENTE[e.sit]; }), porCnpj = {};
+  lista.forEach(function(e){ var d = cnpjDig(e.cnpj); if(d.length === 14) (porCnpj[d] = porCnpj[d] || []).push(e); });
+  var itens = [
+    ["Sem analista", function(e){ return !e.analista; }],
+    ["Sem tributação", function(e){ return !e.trib; }],
+    ["Sem CNPJ", function(e){ return !cnpjDig(e.cnpj); }],
+    ["CNPJ não confere", function(e){ return !!cnpjDig(e.cnpj) && !cnpjOk(e.cnpj); }],
+    ["CNPJ repetido", function(e){ var d = cnpjDig(e.cnpj); return d.length === 14 && porCnpj[d].length > 1; }],
+    ["Sem data de início (cliente desde)", function(e){ return !e.desde; }],
+    ["Etapas sem informação (planilha)", function(e){ return (e.semInfo || []).length > 0; }]
+  ];
+  return itens.map(function(it){ return {l:it[0], emps: lista.filter(it[1]).sort(ordNome)}; }).filter(function(x){ return x.emps.length; });
+}
+function renderEquipe(){
+  var anim = vaiAnimar("equipe"), kp = $("#eqKpis"), grid = $("#eqGrid");
+  if(!kp || !grid) return;
+  if(!podeGestao()){ kp.innerHTML = ""; grid.innerHTML = '<section class="pn-card pn-wide"><div class="vazio">A visão da equipe é da coordenação.</div></section>'; return; }
+  if(!S.carregou.empresas){ kp.innerHTML = ""; grid.innerHTML = '<section class="pn-card pn-wide"><div class="vazio">Carregando…</div></section>'; return; }
+  var D = dadosEquipe(), T = D.T, pct = function(a, b){ return b ? Math.round(a / b * 100) : 0; };
+  $("#eqSub").textContent = D.ctrl.length + " empresas no controle · " + D.linhas.length + " analista" + (D.linhas.length === 1 ? "" : "s") + " · fechamento de " + compRot(D.cef).toLowerCase() + " · prazo interno: " + prazoRot() + " · meta da equipe: " + cfgF().meta + "%";
+  var kpi = function(cls, n, rot, sub, attr){ return '<button type="button" class="kpi-card ' + cls + '" ' + (attr || "") + '><div class="kpi-value">' + n + '</div><div class="kpi-label">' + rot + '</div><span class="sub">' + sub + '</span></button>'; };
+  kp.innerHTML =
+    kpi(corMeta(pct(T.fechadasComp, T.base), cfgF().meta), pct(T.fechadasComp, T.base) + "%", "Fechadas em " + esc(compCurta(D.cef)), T.fechadasComp + " de " + T.base + " empresas · meta " + cfgF().meta + "%", 'data-ir-mes="' + D.cef + '"') +
+    kpi("f0", T.emDia, "Em dia", pct(T.emDia, D.ctrl.length) + "% da carteira", 'data-ir-faixa="0"') +
+    kpi("f3" + (T.atras ? " pulsa" : ""), T.atras, "Atrasadas", "2 meses ou mais", 'data-ir-faixa="atras"') +
+    kpi("fcli", T.cli30, "Cliente parado +" + cfgF().parado + " dias", "pendência sem resposta", 'data-ir-faixa="cli"') +
+    kpi(T.guiasAtr ? "f3" : "f1", T.guias, "Guias pendentes", T.guiasAtr + " já vencida" + (T.guiasAtr === 1 ? "" : "s"), 'data-ir="prazos"') +
+    kpi("fni", T.fechadasMes, "Fechadas neste mês", T.etapas30 + " etapas concluídas em 30 dias", 'data-ir="fechamento"');
+  contar($$(".kpi-value", kp), anim);
+  var card = function(titulo, sub, corpo, cls, extra){ return '<section class="pn-card ' + (cls || "") + '"><div class="pn-card-head"><h3>' + titulo + '</h3>' + (sub ? '<span class="sub">' + sub + '</span>' : '') + (extra || "") + '</div><div class="pn-card-body">' + corpo + '</div></section>'; };
+
+  // evolução por competência
+  var evo = D.evol.length ? '<div class="dist">' + D.evol.slice().reverse().map(function(r, i){
+    var cont = {0:r.noPrazo, 1:r.fora}; cont[compAtrasada(r.comp) ? 3 : "na"] = r.abertas;
+    return '<span>' + esc(compRot(r.comp)) + '<span class="sub" style="display:inline"> · ' + r.total + '</span></span><span style="--k:' + i + '">' + barraFaixas(cont, r.total, compRot(r.comp)) + '</span><em>' + pct(r.fechadas, r.total) + '%</em>';
+  }).join("") + '</div><div class="eq-leg"><span><i class="f0"></i>Fechada no prazo</span><span><i class="f1"></i>Fechada depois do prazo ou sem data</span><span><i class="f3"></i>Em aberto e atrasada</span><span><i class="fna"></i>Em aberto (dentro do prazo)</span></div>' : '<div class="empty-mini">Sem competências no controle ainda.</div>';
+  var evoCard = card("Evolução do fechamento", "% de empresas fechadas por competência · prazo: " + esc(prazoRot()), evo, "pn-span2");
+
+  // entregas atrasadas por analista
+  var ent = D.linhas.filter(function(x){ return x.guias || x.obr; });
+  ent.sort(function(a, b){ return b.guiasAtr - a.guiasAtr || (b.guias + b.obr) - (a.guias + a.obr); });
+  var entCard = card("Guias e obrigações pendentes", "impostos sem guia enviada (45 dias para trás até 5 à frente) e obrigações anuais", ent.length ? ent.slice(0, 8).map(function(x){
+    return '<div class="eq-cob"><span style="min-width:0"><button type="button" class="emp-n" data-ana="' + esc(x.a) + '">' + esc(x.a) + '</button><span class="sub">' + x.guias + ' guia' + (x.guias === 1 ? '' : 's') + (x.guiasAtr ? ' (' + x.guiasAtr + ' vencida' + (x.guiasAtr === 1 ? '' : 's') + ')' : '') + ' · ' + x.obr + ' obrigaç' + (x.obr === 1 ? 'ão' : 'ões') + '</span></span><span class="cd ' + (x.guiasAtr ? "venc" : x.guias ? "perto" : "") + '">' + (x.guias + x.obr) + '</span></div>';
+  }).join("") + (ent.length > 8 ? '<p class="note" style="padding-top:8px">e mais ' + (ent.length - 8) + ' analista' + (ent.length - 8 === 1 ? '' : 's') + ' (veja a tabela abaixo).</p>' : '') : '<div class="empty-mini">Nenhuma guia ou obrigação pendente. 👏</div>', "", '<button type="button" class="pn-link" data-ir="prazos">Abrir prazos</button>');
+
+  // produtividade por analista (tabela)
+  var th = '<thead><tr><th>Analista</th><th class="num">Empresas</th><th class="num" title="Competência em fechamento">Fechadas ' + esc(compCurta(D.cef)) + '</th><th class="num" title="Meta de empresas fechadas (Configurações)">Meta</th><th class="num">Em dia</th><th class="num">Atrasadas</th><th class="num">Falta informar</th><th class="num" title="Pela data em que a etapa foi marcada como concluída">Etapas 30 dias</th><th class="num" title="Competências que ficaram fechadas neste mês">Fechadas no mês</th><th class="num">Cliente +' + cfgF().parado + ' dias</th><th class="num">Guias pendentes</th></tr></thead>';
+  var linha = function(x, tot){
+    var p = pct(x.fechadasComp, x.base);
+    return '<tr' + (tot ? ' style="font-weight:700"' : '') + '><td class="emp">' + (tot ? 'Equipe' : '<button type="button" data-ana="' + esc(x.a === "(sem analista)" ? "" : x.a) + '">' + esc(x.a) + '</button>' + (norm(x.a) === norm(S.eu) ? ' <span class="chip">você</span>' : '')) + '</td><td class="num">' + x.n + '</td>' +
+      '<td class="num"><span class="mes ' + corMeta(p, x.meta) + '">' + x.fechadasComp + '/' + x.base + ' · ' + p + '%</span></td><td class="num">' + x.meta + '%</td><td class="num">' + x.emDia + '</td><td class="num">' + (x.atras ? '<span class="mes f3">' + x.atras + '</span>' : '0') + '</td><td class="num">' + (x.ni || "—") + '</td>' +
+      '<td class="num">' + x.etapas30 + '</td><td class="num">' + x.fechadasMes + '</td><td class="num">' + (x.cli30 ? '<span class="mes fcli">' + x.cli30 + '</span>' : '—') + '</td><td class="num">' + (x.guias ? '<span class="mes ' + (x.guiasAtr ? "f3" : "f1") + '">' + x.guias + '</span>' : '—') + '</td></tr>';
+  };
+  var prodCard = '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Produtividade por analista</h3><span class="sub">clique no nome para ver o fechamento da pessoa · etapas e fechamentos contados pela data da marcação</span></div><div class="pn-card-body flush" style="padding:0"><div class="tbl-wrap"><table class="tbl">' + th + '<tbody>' + D.linhas.map(function(x){ return linha(x); }).join("") + (D.linhas.length > 1 ? linha(Object.assign({a:"Equipe"}, T), true) : '') + '</tbody></table></div></div></section>';
+
+  // cobranças paradas
+  var pd = D.paradas;
+  var cobCard = card("Cobranças atrasadas", "pendência do cliente sem cobrança há " + cfgF().cobr + " dias ou mais · mais antigas primeiro", pd.length ? pd.slice(0, 14).map(function(x){
+    return '<div class="eq-cob"><span style="min-width:0"><button type="button" class="emp-n" data-ficha="' + esc(x.e.id) + '">' + esc(x.e.nome) + '</button><span class="sub">' + esc(x.e.analista || "sem analista") + ' · parado há ' + x.dias + ' dias · ' + (x.cobr ? x.cobr + ' cobrança' + (x.cobr === 1 ? '' : 's') : 'nenhuma cobrança') + ' · ' + esc(x.ps.map(function(p){ return compCurta(p.comp) + ": " + p.ent.pend; }).join(" · ")) + '</span></span><button type="button" class="fbtn" data-cobrar="' + esc(x.e.id) + '" title="Copiar a mensagem de cobrança com todas as pendências">Copiar cobrança</button></div>';
+  }).join("") + (pd.length > 14 ? '<p class="note" style="padding-top:8px">e mais ' + (pd.length - 14) + '.</p>' : '') : '<div class="empty-mini">Nenhuma cobrança atrasada.</div>', "pn-span2", '<button type="button" class="pn-link" data-ir-faixa="cli">Ver aguardando cliente</button>');
+
+  // cadastro a revisar
+  var rv = revisaoCadastro();
+  var revCard = card("Cadastro a revisar", "empresas clientes · clique para abrir a ficha", rv.length ? rv.map(function(x){
+    return '<div class="eq-rev"><b>' + esc(x.l) + '</b><span class="cd' + (/CNPJ|analista/.test(x.l) ? " venc" : "") + '">' + x.emps.length + '</span><span class="lst">' + x.emps.slice(0, 6).map(function(e){ return '<button type="button" data-ficha="' + esc(e.id) + '">' + esc(e.nome) + '</button>'; }).join("") + (x.emps.length > 6 ? '<span class="sub" style="display:inline">+' + (x.emps.length - 6) + '</span>' : '') + '</span></div>';
+  }).join("") : '<div class="empty-mini">Cadastro completo. 👏</div>');
+
+  // ausências e cobertura
+  var hjA = ymd(hoje()), ausL = (S.aus || []).filter(function(a){ return a.fim >= hjA; }).sort(function(a, b){ return a.inicio.localeCompare(b.inicio); });
+  var ausCard = '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Ausências e cobertura</h3><span class="sub">férias, afastamentos e licenças · quem cobre fica com as empresas na fila e pode marcar</span><span style="flex:1"></span>' + (S.coord ? '<button type="button" class="btn" data-aus-novo>+ Ausência</button>' : '') + '</div><div class="pn-card-body">' +
+    (ausL.length ? ausL.map(function(a){
+      var agora = ausAtiva(a, hjA), emps = empresasDoTitular(a.analista).length, rc = resumoCobertura(a);
+      return '<div class="aus-row"><span style="min-width:0"><b>' + esc(a.analista) + '</b> <span class="pill ' + (agora ? "pill-today" : "pill-soon") + '">' + (agora ? "ausente agora" : "a partir de " + esc(dataBR(a.inicio).slice(0, 5))) + '</span><span class="sub">' + esc(a.motivo) + ' · ' + esc(dataBR(a.inicio)) + ' a ' + esc(dataBR(a.fim)) + ' · ' + emps + ' empresa' + (emps === 1 ? '' : 's') + ' · ' + esc(rc) + (a.obs ? ' · ' + esc(a.obs) : '') + '</span></span>' + (S.coord ? '<button type="button" class="fbtn" data-aus-ed="' + esc(a.id) + '">Editar</button>' : '<span></span>') + '</div>';
+    }).join("") : '<div class="empty-mini">Nenhuma ausência registrada para hoje ou para os próximos dias.</div>') + '</div></section>';
+  grid.innerHTML = evoCard + entCard + ausCard + prodCard + cobCard + revCard;
+  marcarAnim(grid, anim, "pn-anim");
+}
+function relatorioEquipeHtml(){
+  var D = dadosEquipe(), T = D.T, pct = function(a, b){ return b ? Math.round(a / b * 100) : 0; };
+  var h = '<div class="rp">' + rpCab("Fechamento contábil · visão da equipe", "Emitido em " + dataBR(ymd(hoje())) + " · fechamento de " + compRot(D.cef).toLowerCase() + " · " + D.ctrl.length + " empresas no controle") +
+    '<div class="rp-kpis">' + [[pct(T.fechadasComp, T.base) + "%", "Fechadas em " + compCurta(D.cef)], [T.emDia, "Em dia"], [T.atras, "Atrasadas (2+ meses)"], [T.cli30, "Cliente parado +30 dias"], [T.guias, "Guias pendentes"], [T.fechadasMes, "Fechadas neste mês"]].map(function(k){ return '<div><b>' + esc(String(k[0])) + '</b><span>' + esc(k[1]) + '</span></div>'; }).join("") + '</div>' +
+    '<h2>Por analista</h2><table><thead><tr><th>Analista</th><th class="n">Empresas</th><th class="n">Fechadas ' + esc(compCurta(D.cef)) + '</th><th class="n">Meta</th><th class="n">Em dia</th><th class="n">Atrasadas</th><th class="n">Falta informar</th><th class="n">Etapas 30 dias</th><th class="n">Fechadas no mês</th><th class="n">Cliente +30 dias</th><th class="n">Guias pendentes</th></tr></thead><tbody>' +
+    D.linhas.concat(D.linhas.length > 1 ? [Object.assign({a:"Equipe"}, T)] : []).map(function(x){ return '<tr><td>' + esc(x.a) + '</td><td class="n">' + x.n + '</td><td class="n">' + x.fechadasComp + '/' + x.base + ' (' + pct(x.fechadasComp, x.base) + '%)</td><td class="n">' + x.meta + '%</td><td class="n">' + x.emDia + '</td><td class="n">' + x.atras + '</td><td class="n">' + x.ni + '</td><td class="n">' + x.etapas30 + '</td><td class="n">' + x.fechadasMes + '</td><td class="n">' + x.cli30 + '</td><td class="n">' + x.guias + '</td></tr>'; }).join("") + '</tbody></table>' +
+    '<h2>Evolução do fechamento</h2><table><thead><tr><th>Competência</th><th class="n">Empresas</th><th class="n">Fechadas</th><th class="n">No prazo</th><th class="n">Depois do prazo / sem data</th><th class="n">Em aberto</th><th class="n">% fechadas</th></tr></thead><tbody>' +
+    D.evol.slice().reverse().map(function(r){ return '<tr><td>' + esc(compRot(r.comp)) + '</td><td class="n">' + r.total + '</td><td class="n">' + r.fechadas + '</td><td class="n">' + r.noPrazo + '</td><td class="n">' + r.fora + '</td><td class="n">' + r.abertas + '</td><td class="n">' + pct(r.fechadas, r.total) + '%</td></tr>'; }).join("") + '</tbody></table>';
+  if(D.paradas.length) h += '<h2>Cobranças atrasadas (' + cfgF().cobr + ' dias ou mais sem cobrança)</h2><table><thead><tr><th>Empresa</th><th>Analista</th><th class="n">Parado há</th><th class="n">Cobranças</th><th>O que falta</th></tr></thead><tbody>' + D.paradas.map(function(x){ return '<tr><td>' + esc(x.e.nome) + '</td><td>' + esc(x.e.analista || "—") + '</td><td class="n">' + x.dias + ' dias</td><td class="n">' + x.cobr + '</td><td>' + esc(x.ps.map(function(p){ return compCurta(p.comp) + ": " + p.ent.pend; }).join(" · ")) + '</td></tr>'; }).join("") + '</tbody></table>';
+  return h + '</div>';
+}
+function planilhaEquipe(){
+  if(typeof XLSX === "undefined"){ toast("O gerador de planilhas não carregou. Recarregue a página."); return; }
+  var D = dadosEquipe(), pct = function(a, b){ return b ? Math.round(a / b * 100) : 0; };
+  var a1 = [["Analista","Empresas","Base " + compCurta(D.cef),"Fechadas " + compCurta(D.cef),"% fechadas","Meta %","Em dia","Atrasadas","Falta informar","Etapas concluídas (30 dias)","Competências fechadas no mês","Cliente parado +30 dias","Guias pendentes","Guias vencidas","Obrigações anuais pendentes"]].concat(D.linhas.map(function(x){ return [x.a, x.n, x.base, x.fechadasComp, pct(x.fechadasComp, x.base), x.meta, x.emDia, x.atras, x.ni, x.etapas30, x.fechadasMes, x.cli30, x.guias, x.guiasAtr, x.obr]; }));
+  var a2 = [["Competência","Empresas","Fechadas","No prazo","Depois do prazo / sem data","Em aberto","% fechadas"]].concat(D.evol.map(function(r){ return [compRot(r.comp), r.total, r.fechadas, r.noPrazo, r.fora, r.abertas, pct(r.fechadas, r.total)]; }));
+  var a3 = [["Empresa","CNPJ","Analista","Parado há (dias)","Cobranças","O que falta"]].concat(D.paradas.map(function(x){ return [x.e.nome, x.e.cnpj, x.e.analista, x.dias, x.cobr, x.ps.map(function(p){ return compCurta(p.comp) + ": " + p.ent.pend; }).join(" · ")]; }));
+  baixarPlanilha("contabil-equipe-" + ymd(hoje()) + ".xlsx", [["Por analista", a1, [24,10,10,12,10,8,9,10,12,14,14,14,12,12,14]], ["Evolução", a2, [16,10,10,10,18,10,10]], ["Cobranças atrasadas", a3, [40,20,20,12,10,60]]]);
+}
+function baixarPlanilha(nome, abas){
+  if(typeof XLSX === "undefined"){ toast("O gerador de planilhas não carregou. Recarregue a página."); return; }
+  var wb = XLSX.utils.book_new();
+  abas.forEach(function(a){ var ws = XLSX.utils.aoa_to_sheet(a[1]); if(a[2]) ws["!cols"] = a[2].map(function(w){ return {wch:w}; }); XLSX.utils.book_append_sheet(wb, ws, a[0]); });
+  var bytes = new Uint8Array(XLSX.write(wb, {bookType:"xlsx", type:"array"}));
+  salvarArquivo(nome, bytes).then(function(){ toast("Planilha pronta: " + nome); }, function(err){
+    var c = err && err.code;
+    toast(c === "declined" ? "Download cancelado." : c === "rate_limited" ? "Já há um download esperando confirmação." : c === "unavailable" || c === "not_granted" ? "Este modo de visualização não permite baixar arquivos." : "Não foi possível gerar o arquivo (" + (c || "erro") + ").");
+  });
+}
+
 /* ============ avisos, confirmação e menu de status ============ */
 function toast(msg, acao, fn){
   var t = document.createElement("div"); t.className = "toast";
@@ -471,12 +1112,13 @@ document.addEventListener("mousedown", function(e){ if(pop && !pop.contains(e.ta
 document.addEventListener("keydown", function(e){ if(e.key === "Escape") fecharPop(); });
 window.addEventListener("resize", fecharPop);
 document.addEventListener("scroll", fecharPop, true);
-function menuStatus(alvo, atual, rotulos, info, aoEscolher){
+function menuStatus(alvo, atual, rotulos, info, aoEscolher, extra){
   var ordem = ["", "a", "c", "n"];
   abrirPop(alvo, ordem.map(function(s){
     return '<button type="button" data-s="' + s + '"><span class="st ' + (s || "p") + '">' + ST_SIM[s] + '</span>' + esc(rotulos[s]) + (s === atual ? " ·  atual" : "") + '</button>';
-  }).join("") + (info ? '<div class="info">' + esc(info) + '</div>' : ""), function(p){
+  }).join("") + (info ? '<div class="info">' + esc(info) + '</div>' : "") + (extra ? extra.html : ""), function(p){
     $$("button[data-s]", p).forEach(function(b){ b.onclick = function(){ fecharPop(); aoEscolher(b.getAttribute("data-s")); }; });
+    if(extra && extra.ligar) extra.ligar(p);
   });
 }
 function stCell(s, attrs, pode, titulo){
@@ -485,7 +1127,7 @@ function stCell(s, attrs, pode, titulo){
 function infoMarca(v){ if(!v || !v[1]) return ""; var n = nomeDe(v[2]); return ST_ROT[v[0]] + " em " + dataBR(v[1]) + (n ? " por " + n : ""); }
 
 /* ============ navegação (abas como as do DP) ============ */
-var VIEWS = ["painel","fechamento","carteira","prazos","cadastro"];
+var VIEWS = ["painel","agenda","fechamento","carteira","prazos","equipe","cadastro"];
 var animarView = "";
 var semMovimento = function(){ return matchMedia("(prefers-reduced-motion: reduce)").matches; };
 // A animação de entrada roda uma vez ao abrir a aba, não a cada atualização do banco.
@@ -521,6 +1163,8 @@ function indicador(animar){
 }
 window.addEventListener("resize", function(){ indicador(false); });
 function irPara(v, opts){
+  if(v === "equipe" && (!podeGestao() || !$("#v-equipe"))) v = "painel";
+  if(!$("#v-" + v)) v = "painel";
   var antes = S.view, painelAntes = $("#v-" + antes), deslizar = antes !== v && painelAntes && !painelAntes.hidden;
   if(antes !== v || !painelAntes || painelAntes.hidden) animarView = v;
   S.view = v; salvarPrefs({view:v});
@@ -535,8 +1179,9 @@ function irPara(v, opts){
 $$("#tabs .dp-tab").forEach(function(b){ b.onclick = function(){ irPara(b.getAttribute("data-view")); }; });
 $("#tabs").addEventListener("keydown", function(e){
   if(e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-  var i = VIEWS.indexOf(S.view) + (e.key === "ArrowRight" ? 1 : -1); if(i < 0 || i >= VIEWS.length) return;
-  irPara(VIEWS[i]); var b = $('#tabs [data-view="' + VIEWS[i] + '"]'); if(b) b.focus();
+  var vis = VIEWS.filter(function(x){ var bt = $('#tabs [data-view="' + x + '"]'); return bt && !bt.hidden; });
+  var i = vis.indexOf(S.view) + (e.key === "ArrowRight" ? 1 : -1); if(i < 0 || i >= vis.length) return;
+  irPara(vis[i]); var b = $('#tabs [data-view="' + vis[i] + '"]'); if(b) b.focus();
 });
 var rafRender = 0;
 function renderTudo(agora){
@@ -555,8 +1200,12 @@ function render(){
   else if(v === "fechamento") renderFechamento();
   else if(v === "carteira") renderCarteira();
   else if(v === "prazos") renderPrazos();
+  else if(v === "equipe") renderEquipe();
+  else if(v === "agenda") renderAgenda();
   else if(v === "cadastro") renderCadastro();
   $$("[data-coord]").forEach(function(el){ el.hidden = !S.coord; });
+  var gest = podeGestao(); $$("[data-gestao]").forEach(function(el){ el.hidden = !gest; });
+  if(v === "equipe" && !gest){ irPara("painel"); return; }
 }
 // Cabeçalho: competência em fechamento e contadores nas abas (atrasadas de quem está usando ou da equipe; impostos vencendo).
 function renderCabeca(){
@@ -567,6 +1216,7 @@ function renderCabeca(){
   var ate5 = new Date(hoje()); ate5.setDate(ate5.getDate() + 5);
   var de = new Date(hoje()); de.setDate(de.getDate() - 10);
   var urg = S.carregou.empresas ? vencimentosImpostos(de, ate5).filter(function(v){ return v.pendentes.length; }).length : 0;
+  var ba = $("#bdAg"); if(ba){ var nl = S.eu ? lembretesPendentesDe(S.eu).length : 0; ba.hidden = !nl; ba.textContent = nl; ba.title = nl + " lembrete" + (nl === 1 ? "" : "s") + " seu" + (nl === 1 ? "" : "s") + " para hoje ou atrasado" + (nl === 1 ? "" : "s"); }
   var bp = $("#bdPrz"); bp.hidden = !urg; bp.textContent = urg; bp.title = urg + " vencimento" + (urg === 1 ? "" : "s") + " de imposto com guia pendente até " + dataBR(ymd(ate5));
 }
 function renderEu(){
@@ -621,12 +1271,30 @@ function renderPainel(){
     : !fila.length ? '<div class="empty-mini">Nada atrasado nas suas empresas.</div>'
     : fila.slice(0, 10).map(function(x, i){
       var pend = entrada(compPendencia(x.e), x.e.id).pend, ni = x.r.faixa === "ni" && !x.r.ate;
-      return '<button type="button" class="q-item ' + FAIXA_CLS[x.r.faixa] + '" style="--k:' + i + '" data-fila-emp="' + esc(x.e.id) + '"><span class="pill fx">' + (ni ? "falta informar" : rotAtraso(x.r.meses)) + '</span><span style="min-width:0"><span class="dp-cell-main" style="display:block">' + esc(x.e.nome) + '</span><span class="dp-cell-sub" style="display:block">' +
+      var cbF = coberturaDe(x.e), tagCob = cbF.coberta && norm(cbF.efetivo) === norm(S.eu) && norm(x.e.analista) !== norm(S.eu) ? ' <span class="chip">cobrindo ' + esc(x.e.analista) + '</span>' : '';
+      return '<button type="button" class="q-item ' + FAIXA_CLS[x.r.faixa] + '" style="--k:' + i + '" data-fila-emp="' + esc(x.e.id) + '"><span class="pill fx">' + (ni ? "falta informar" : rotAtraso(x.r.meses)) + '</span><span style="min-width:0"><span class="dp-cell-main" style="display:block">' + esc(x.e.nome) + tagCob + '</span><span class="dp-cell-sub" style="display:block">' +
         (ni ? 'Falta informar: ' + esc(x.r.ni.map(function(f){ return f.c; }).join(", ")) : 'Fechado até ' + esc(rotAte(x.r.ate)) + (x.r.piores.length && x.r.piores.length < ETAPAS.length ? ' · mais atrasada' + (x.r.piores.length === 1 ? '' : 's') + ': ' + esc(x.r.piores.map(function(f){ return f.c; }).join(", ")) : '')) +
         (pend ? ' · aguardando: ' + esc(pend) : '') + '</span></span></button>';
     }).join("");
   var filaCard = card("Minha fila", S.eu ? (fila.length ? fila.length + " de " + minhas.length + " empresas com algo a fechar" : minhas.length + " empresas") : "", filaCorpo,
     fila.length > 10 ? '<button type="button" class="pn-link" data-ir-faixa="atras">Ver todas (' + fila.length + ')</button>' : '', "pn-span2");
+
+  // meu mês: produtividade, entregas e cobranças de quem está usando
+  var meuCard = "";
+  if(S.eu && minhas.length){
+    var cefM = compEmFechamento(), baseM = minhas.filter(function(e){ return naComp(e, cefM); }), fechM = baseM.filter(function(e){ return resumo(e, cefM).fechada; }).length;
+    var pMes = somaProd(produtividade(inicioMes(), ymd(hoje())), minhas), p30 = somaProd(produtividade(diasAtras(30), ymd(hoje())), minhas), enM = entregasPendentes(minhas);
+    var cobrar = cobrancasParadas(minhas, cfgF().cobr), metaEu = metaDe(S.eu), cobrindo = coberturasDe(S.eu), ausEu = ausenciaDe(S.eu, ymd(hoje()));
+    var num = function(n, t){ return '<div class="eq-num"><b>' + n + '</b><span>' + t + '</span></div>'; };
+    var avisoCob = (ausEu ? '<div class="aviso" style="margin-bottom:8px"><div>Você está registrado como ausente (' + esc(ausEu.motivo.toLowerCase()) + ') até ' + esc(dataBR(ausEu.fim)) + '. Suas empresas estão com ' + esc(resumoCobertura(ausEu)) + '.</div></div>' : '') +
+      (cobrindo.length ? '<div class="aviso" style="margin-bottom:8px"><div>Você está cobrindo ' + cobrindo.map(function(c){ return '<b>' + esc(c.titular) + '</b> (' + c.n + ' empresa' + (c.n === 1 ? '' : 's') + ', até ' + esc(dataBR(c.fim)) + ')'; }).join(", ") + '. Essas empresas aparecem na sua fila e você pode marcá-las.</div></div>' : '');
+    meuCard = '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Meu mês</h3><span class="sub">' + esc(S.eu) + ' · ' + minhas.length + ' empresas</span></div><div class="pn-card-body">' + avisoCob + '<div class="eq-cols"><div class="eq-nums">' +
+      num('<span style="color:var(--' + ({f0:"dp-ok", f1:"ambar", f3:"dp-late"})[corMeta(baseM.length ? Math.round(fechM / baseM.length * 100) : 100, metaEu)] + ')">' + fechM + "/" + baseM.length + '</span>', "fechadas em " + compCurta(cefM) + " · meta " + metaEu + "%") + num(pMes.fechadas, "competências fechadas neste mês") + num(p30.etapas, "etapas concluídas em 30 dias") + num(enM.guias + (enM.guiasAtr ? ' <small style="font-size:12px; color:var(--dp-late)">(' + enM.guiasAtr + ' vencida' + (enM.guiasAtr === 1 ? '' : 's') + ')</small>' : ''), "guias de imposto pendentes") +
+      '</div><div><div class="dp-cell-sub" style="font-weight:600; margin-bottom:2px">Cobrar hoje <span class="sub" style="display:inline; font-weight:400">· pendência do cliente sem cobrança há ' + cfgF().cobr + ' dias ou mais</span></div>' +
+      (cobrar.length ? cobrar.slice(0, 5).map(function(x){ return '<div class="eq-cob"><span style="min-width:0"><button type="button" class="emp-n" data-ficha="' + esc(x.e.id) + '">' + esc(x.e.nome) + '</button><span class="sub">parado há ' + x.dias + ' dias · ' + esc(x.ps[0].ent.pend) + '</span></span><button type="button" class="fbtn" data-cobrar="' + esc(x.e.id) + '">Copiar cobrança</button></div>'; }).join("") + (cobrar.length > 5 ? '<p class="note" style="padding-top:6px">e mais ' + (cobrar.length - 5) + '.</p>' : '')
+        : '<div class="empty-mini">Nenhuma cobrança atrasada. 👏</div>') +
+      '</div></div></div></section>';
+  }
 
   // próximos vencimentos
   var ate45 = new Date(hoje()); ate45.setDate(ate45.getDate() + 45);
@@ -677,7 +1345,7 @@ function renderPainel(){
   }).join("") : '<div class="empty-mini" style="padding:12px 14px">Nenhuma empresa no controle.</div>';
   var anaCard = '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Carteira por analista</h3><span class="sub">atraso do fechamento e carga ponderada pela tributação · clique no nome para ver as empresas</span></div><div class="pn-card-body flush">' + anaCorpo + '</div></section>';
 
-  grid.innerHTML = filaCard + vencCard + travaCard + movCard + anaCard;
+  grid.innerHTML = filaCard + vencCard + meuCard + travaCard + movCard + anaCard;
   marcarAnim(grid, anim, "pn-anim");
 }
 document.addEventListener("click", function(e){
@@ -687,6 +1355,10 @@ document.addEventListener("click", function(e){
   var fl = t.closest("[data-fila-emp]"); if(fl){ var emp = S.empresas[fl.getAttribute("data-fila-emp")]; irPara("fechamento", {"fx.modo":"ate", "fx.busca": emp ? emp.nome : "", "fx.faixa":"", "fx.ana":""}); return; }
   var an = t.closest("[data-ana]"); if(an){ irPara("fechamento", {"fx.modo":"ate", "fx.ana": an.getAttribute("data-ana"), "fx.busca":"", "fx.faixa":""}); return; }
   var fi = t.closest("[data-ficha]"); if(fi){ abrirFicha(fi.getAttribute("data-ficha")); return; }
+  var an = t.closest("[data-aus-novo]"); if(an){ abrirAus(null); return; }
+  var ae = t.closest("[data-aus-ed]"); if(ae){ abrirAus(ae.getAttribute("data-aus-ed")); return; }
+  var cb = t.closest("[data-cobrar]"); if(cb){ var ec = S.empresas[cb.getAttribute("data-cobrar")]; if(ec) copiarCobranca(ec); return; }
+  var im = t.closest("[data-ir-mes]"); if(im){ irPara("fechamento", {"fx.modo":"mes", "fx.comp": im.getAttribute("data-ir-mes"), "fx.st":"abertas", "fx.busca":"", "fx.ana":""}); return; }
 });
 
 /* ============ FECHAMENTO ============ */
@@ -706,14 +1378,7 @@ function renderFechamento(){
   if($("#fxBusca").value !== F.busca) $("#fxBusca").value = F.busca;
   opcoesAnalista($("#fxAna"), F.ana); opcoesTrib($("#fxTrib"), F.trib);
   $$("#fxSt button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-st") === F.st); });
-  var base = listaEmpresas().filter(function(e){ return naComp(e, comp); });
-  var lista = base.filter(function(e){
-    if(F.ana && norm(e.analista) !== norm(F.ana) && norm(e.apoio) !== norm(F.ana)) return false;
-    if(F.trib && tribNaComp(e, comp) !== F.trib) return false;
-    if(!filtroTexto(e, F.busca)) return false;
-    if(F.st){ var f = resumo(e, comp).fechada; if(F.st === "abertas" ? f : !f) return false; }
-    return true;
-  }).sort(ordNome);
+  var base = baseMes(comp), lista = listaMes(comp);
   var fechadas = lista.filter(function(e){ return resumo(e, comp).fechada; }).length;
   $("#fxCont").textContent = lista.length + (lista.length !== base.length ? " de " + base.length : "") + " empresas · " + fechadas + " fechadas";
   F.sel.forEach(function(id){ if(!lista.some(function(e){ return e.id === id; })) F.sel.delete(id); });
@@ -733,12 +1398,13 @@ function renderFechamento(){
       '<td class="emp"><button type="button" data-ficha="' + esc(e.id) + '">' + esc(e.nome) + '</button><span class="sub">' + esc(e.analista || "sem analista") + (e.apoio ? " / " + esc(e.apoio) : "") + (tb ? ' · <span class="chip">' + esc(tb.c) + '</span>' : '') + '</span></td>' +
       ETAPAS.map(function(et){
         var s = stEtapa(r.ent, e, et.k), fixo = !etapaAplica(e, et.k), v = r.ent.e && r.ent.e[et.k];
-        var tit = et.l + ": " + (fixo ? "não se aplica (" + (et.k === "folha" ? "empresa sem folha" : "sem imobilizado") + ", na ficha)" : (infoMarca(v) || ST_ROT[s])) + (pode ? "" : " · só o analista da empresa ou a coordenação marca");
-        return '<td class="et">' + stCell(s, 'data-et="' + et.k + '"', pode && !fixo, tit) + '</td>';
+        var ob = r.ent.ob && r.ent.ob[et.k];
+        var tit = et.l + ": " + (fixo ? "não se aplica (" + (et.k === "folha" ? "empresa sem folha" : "sem imobilizado") + ", na ficha)" : (infoMarca(v) || ST_ROT[s])) + (ob ? " · Obs.: " + ob : "") + (pode ? "" : " · só o analista da empresa ou a coordenação marca");
+        return '<td class="et">' + stCell(s, 'data-et="' + et.k + '"' + (ob ? ' data-obs="1"' : ''), pode && !fixo, tit) + '</td>';
       }).join("") +
-      '<td><span class="prog"><i><b style="width:' + pct + '%"></b></i>' + (r.fechada ? "fechada" : r.feitas + "/" + r.total) + '</span></td>' +
+      '<td><span class="prog"><i><b style="width:' + pct + '%"></b></i>' + (r.fechada ? (r.ent.sm ? "sem movimento" : "fechada") : r.feitas + "/" + r.total) + '</span></td>' +
       '<td><button type="button" class="pend-btn' + (r.pend ? " tem" : "") + '" data-pend' + (pode ? "" : " disabled") + ' title="' + esc(r.pend ? "Aguardando o cliente desde " + dataBR(r.ent.pendEm) + ": " + r.pend : "Registrar o que falta o cliente mandar") + '">' + (r.pend ? "⏳ " + esc(r.pend) : (pode ? "+ pendência" : "")) + '</button></td>' +
-      '<td>' + (pode && !r.fechada ? '<button type="button" class="fbtn" data-tudo title="Marcar todas as etapas que se aplicam como concluídas">✓ Tudo</button>' : '') + '</td></tr>';
+      '<td style="white-space:nowrap">' + (pode && !r.fechada ? '<button type="button" class="fbtn" data-tudo title="Marcar todas as etapas que se aplicam como concluídas">✓ Tudo</button> <button type="button" class="fbtn" data-sm title="Sem movimento nesta competência: as etapas que faltam ficam como “não se aplica”">Sem mov.</button>' : '') + '</td></tr>';
   }).join("") + '</tbody>';
   $("#fxTab").innerHTML = html;
   animarLinhas($("#fxTab"), anim);
@@ -747,6 +1413,38 @@ function renderFechamento(){
   lote.hidden = !nSel;
   if(nSel) lote.innerHTML = '<b>' + nSel + ' selecionada' + (nSel === 1 ? '' : 's') + '</b> Marcar <select id="loteEt"><option value="*">todas as etapas</option>' + ETAPAS.map(function(et){ return '<option value="' + et.k + '">' + esc(et.l) + '</option>'; }).join("") + '</select> como <select id="loteSt"><option value="c">Concluída</option><option value="a">Em andamento</option><option value="">Pendente</option><option value="n">Não se aplica</option></select><button type="button" class="btn" id="loteOk">Aplicar</button><button type="button" class="linkish" id="loteLimpar">Limpar seleção</button>';
 }
+function baseMes(comp){ return listaEmpresas().filter(function(e){ return naComp(e, comp); }); }
+function listaMes(comp){
+  var F = S.fx;
+  return baseMes(comp).filter(function(e){
+    if(F.ana && !doAnalista(e, F.ana)) return false;
+    if(F.trib && tribNaComp(e, comp) !== F.trib) return false;
+    if(!filtroTexto(e, F.busca)) return false;
+    if(F.st){ var f = resumo(e, comp).fechada; if(F.st === "abertas" ? f : !f) return false; }
+    return true;
+  }).sort(ordNome);
+}
+function exportarFechamento(){
+  var F = S.fx, rot = function(s){ return s === "" ? "Pendente" : ST_ROT[s]; };
+  if(F.modo === "ate"){
+    limparCacheAte();
+    var mm = function(a){ return a === "NA" ? "não se aplica" : a ? a.slice(5) + "/" + a.slice(0, 4) : ""; };
+    var linhas = [["Empresa","CNPJ","Analista","Apoio","Tributação"].concat(ETAPAS.map(function(et){ return et.l + " até"; })).concat(["Fechado até","Atraso (meses)","Aguardando cliente","Parado há (dias)","Cobranças"])];
+    listaAte().forEach(function(e){
+      var r = resumoAte(e), c = compPendencia(e), en = entrada(c, e.id);
+      linhas.push([e.nome, e.cnpj, e.analista, e.apoio, TRIB[e.trib] ? TRIB[e.trib].l : ""].concat(ETAPAS.map(function(et){ var a = ateEtapa(e, et.k); return a === "" && semInfo(e, et.k) ? "falta informar" : mm(a); })).concat([r.ate ? mm(r.ate) : "", r.faixa === "ni" && !r.ate ? "" : r.meses, en.pend || "", en.pend ? diasParado(en) : "", (en.cobr || []).length || ""]));
+    });
+    baixarPlanilha("contabil-fechado-ate-" + ymd(hoje()) + ".xlsx", [["Fechado até", linhas, [40,20,18,16,20].concat(ETAPAS.map(function(){ return 14; })).concat([12,10,40,12,10])]]);
+    return;
+  }
+  var comp = F.comp, l2 = [["Competência","Empresa","CNPJ","Analista","Tributação"].concat(ETAPAS.map(function(et){ return et.l; })).concat(["Situação","Fechada em","Pendência do cliente","Pendência desde","Observações das etapas"])];
+  listaMes(comp).forEach(function(e){
+    var r = resumo(e, comp), ob = r.ent.ob || {}, tb = TRIB[tribNaComp(e, comp)];
+    l2.push([compRot(comp), e.nome, e.cnpj, e.analista, tb ? tb.l : ""].concat(ETAPAS.map(function(et){ return rot(stEtapa(r.ent, e, et.k)); })).concat([r.fechada ? (r.ent.sm ? "Sem movimento" : "Fechada") : "Em aberto", r.ent.fechadaEm ? dataBR(r.ent.fechadaEm) : "", r.ent.pend || "", r.ent.pendEm ? dataBR(r.ent.pendEm) : "", Object.keys(ob).map(function(k){ var et = ETAPAS.filter(function(x){ return x.k === k; })[0]; return (et ? et.c : k) + ": " + ob[k]; }).join(" · ")]));
+  });
+  baixarPlanilha("contabil-fechamento-" + comp + ".xlsx", [[compRot(comp).replace("/", "-"), l2, [12,40,20,18,20].concat(ETAPAS.map(function(){ return 14; })).concat([14,12,40,14,40])]]);
+}
+if($("#fxExp")) $("#fxExp").onclick = exportarFechamento;
 function marcarEtapas(comp, e, mudancas){
   var ent = JSON.parse(JSON.stringify(entrada(comp, e.id)));
   ent.e = ent.e || {};
@@ -756,7 +1454,7 @@ function marcarEtapas(comp, e, mudancas){
   (S.comps[comp] = S.comps[comp] || {})[e.id] = ent;
   var r1 = resumo(e, comp);
   if(r1.fechada && !r0){ ent.fechadaEm = dia; if(ent.pend){ ent.pend = ""; ent.pendEm = ""; } }
-  if(!r1.fechada) ent.fechadaEm = "";
+  if(!r1.fechada){ ent.fechadaEm = ""; ent.sm = ""; }
   return {ent:ent, fechou: r1.fechada && !r0};
 }
 $("#compAnt").onclick = function(){ S.fx.comp = compShift(S.fx.comp, -1); S.fx.sel.clear(); renderTudo(true); };
@@ -775,12 +1473,19 @@ $("#v-fechamento").addEventListener("click", function(ev){
   var tr = t.closest("tr[data-emp]"), e = tr && S.empresas[tr.getAttribute("data-emp")];
   var b = t.closest("button[data-et]");
   if(b && e){
-    var k = b.getAttribute("data-et"), ent = entrada(comp, e.id), v = ent.e && ent.e[k];
+    var k = b.getAttribute("data-et"), ent = entrada(comp, e.id), v = ent.e && ent.e[k], obAt = (ent.ob && ent.ob[k]) || "";
     menuStatus(b, stEtapa(ent, e, k), ST_ROT, infoMarca(v), function(s){
       var m = {}; m[k] = s; var res = marcarEtapas(comp, e, m);
       salvarCompEntrada(comp, e.id, res.ent);
       if(res.fechou) toast("“" + e.nome + "” fechou " + compCurta(comp) + ".");
-    });
+    }, {html: '<div class="info"><label class="campo">Observação desta etapa em ' + esc(compCurta(comp)) + '<textarea id="obEt" maxlength="200" placeholder="Ex.: falta conciliar a conta do Itaú">' + esc(obAt) + '</textarea></label><div style="display:flex; justify-content:flex-end; padding-top:6px"><button type="button" class="fbtn" id="obEtOk">Salvar observação</button></div></div>', ligar: function(p){
+      $("#obEtOk", p).onclick = function(){
+        var txt = $("#obEt", p).value.trim().slice(0, 200), novo = JSON.parse(JSON.stringify(entrada(comp, e.id)));
+        novo.ob = novo.ob || {}; if(txt) novo.ob[k] = txt; else delete novo.ob[k];
+        if(!Object.keys(novo.ob).length) delete novo.ob;
+        fecharPop(); salvarCompEntrada(comp, e.id, novo).then(function(){ toast(txt ? "Observação salva." : "Observação apagada."); }, function(){});
+      };
+    }});
     return;
   }
   if(t.closest("[data-tudo]") && e){
@@ -789,6 +1494,14 @@ $("#v-fechamento").addEventListener("click", function(ev){
     var res2 = marcarEtapas(comp, e, m2);
     salvarCompEntrada(comp, e.id, res2.ent);
     toast("“" + e.nome + "” fechou " + compCurta(comp) + ".", "Desfazer", function(){ salvarCompEntrada(comp, e.id, antes); });
+    return;
+  }
+  if(t.closest("[data-sm]") && e){
+    var m4 = {}; ETAPAS.forEach(function(et){ if(!etapaAplica(e, et.k)) return; var s4 = stEtapa(entrada(comp, e.id), e, et.k); if(s4 !== "c" && s4 !== "n") m4[et.k] = "n"; });
+    var antes4 = JSON.parse(JSON.stringify(entrada(comp, e.id)));
+    var res4 = marcarEtapas(comp, e, m4); res4.ent.sm = ymd(hoje());
+    salvarCompEntrada(comp, e.id, res4.ent);
+    toast("“" + e.nome + "”: " + compCurta(comp) + " sem movimento.", "Desfazer", function(){ salvarCompEntrada(comp, e.id, antes4); });
     return;
   }
   var pb = t.closest("[data-pend]");
@@ -813,7 +1526,8 @@ function abrirPendencia(alvo, comp, e){
   abrirPop(alvo, '<div class="info" style="border:0;margin:0;padding:2px 8px 6px">' + esc(e.nome) + ' · ' + esc(compRot(comp)) + '</div>' +
     '<label class="campo">O que falta o cliente mandar?<textarea id="pendTxt" maxlength="200" placeholder="Ex.: extrato do Itaú de setembro">' + esc(ent0.pend || "") + '</textarea></label>' +
     (ent0.pend ? '<div class="info">Pedido em ' + esc(dataBR(ent0.pendEm) || "—") + (cobr.length ? ' · ' + cobr.length + ' cobrança' + (cobr.length === 1 ? '' : 's') + ': ' + esc(cobr.slice(-4).map(dataBR).join(", ")) : ' · nenhuma cobrança registrada') + ' · parado há ' + parado + ' dia' + (parado === 1 ? '' : 's') + '</div>' : '') +
-    '<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap">' + (ent0.pend ? '<button type="button" class="fbtn" id="pendCobr">Registrar cobrança hoje</button><button type="button" class="fbtn" id="pendLimpar">Recebido</button>' : '') + '<button type="button" class="btn" id="pendOk">Salvar</button></div>', function(p){
+    '<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap">' + (ent0.pend ? '<button type="button" class="fbtn" id="pendCopiar" title="Mensagem com todas as pendências do cliente, de todas as competências">Copiar mensagem</button><button type="button" class="fbtn" id="pendCobr">Registrar cobrança hoje</button><button type="button" class="fbtn" id="pendLimpar">Recebido</button>' : '') + '<button type="button" class="btn" id="pendOk">Salvar</button></div>', function(p){
+    if($("#pendCopiar", p)) $("#pendCopiar", p).onclick = function(){ fecharPop(); copiarCobranca(e); };
     var salvar = function(txt, cobrar){
       var ent = JSON.parse(JSON.stringify(entrada(comp, e.id)));
       ent.pendEm = txt ? (ent.pend ? (ent.pendEm || ymd(hoje())) : ymd(hoje())) : "";
@@ -844,7 +1558,7 @@ function passaFaixa(e, f){
 function listaAte(){
   var F = S.fx;
   return empresasControle().filter(function(e){
-    if(F.ana && norm(e.analista) !== norm(F.ana) && norm(e.apoio) !== norm(F.ana)) return false;
+    if(F.ana && !doAnalista(e, F.ana)) return false;
     if(F.trib && e.trib !== F.trib) return false;
     return filtroTexto(e, F.busca) && passaFaixa(e, F.faixa);
   }).sort(function(a, b){ return resumoAte(b).meses - resumoAte(a).meses || ordNome(a, b); });
@@ -961,7 +1675,7 @@ function renderCarteira(){
   $$("#ctModo button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-m") === C.modo); });
   var todas = listaEmpresas();
   var lista = todas.filter(function(e){
-    if(C.ana && norm(e.analista) !== norm(C.ana) && norm(e.apoio) !== norm(C.ana)) return false;
+    if(C.ana && !doAnalista(e, C.ana)) return false;
     if(C.trib && e.trib !== C.trib) return false;
     if(C.sis && e.sistema !== C.sis) return false;
     if(!passaSit(e, C.sit)) return false;
@@ -1050,7 +1764,7 @@ function abrirFicha(id){
   fichaId = e ? e.id : null;
   var x = e || normEmp({sit:"ativa"}, "");
   var pode = S.coord || (e && minha(e));
-  var dis = pode ? "" : " disabled";
+  var dis = pode ? "" : " disabled", rol = e && e.cadLigado ? ' readonly title="Vem do cadastro único"' : '';
   var optTrib = function(v, vazio){ return '<option value="">' + vazio + '</option>' + TRIBS.map(function(t){ return '<option value="' + t.k + '"' + (t.k === v ? " selected" : "") + '>' + esc(t.l) + '</option>'; }).join(""); };
   var dp = S.dpPorCnpj[cnpjDig(x.cnpj)];
   var hist = "";
@@ -1078,10 +1792,11 @@ function abrirFicha(id){
   var dpTxt = dp ? '<p class="note">No DP: <b>' + dp.ativos + ' funcionário' + (dp.ativos === 1 ? '' : 's') + ' ativo' + (dp.ativos === 1 ? '' : 's') + '</b>' + (dp.resp ? ' · responsável ' + esc(dp.resp) : '') + (pode && dp.ativos === 0 && !x.semFolha ? ' · <button type="button" class="linkish" id="fSugFolha">marcar “sem folha”</button>' : '') + '</p>' : (x.cnpj ? '<p class="note">Empresa não encontrada no módulo do DP pelo CNPJ.</p>' : '');
   $("#dlgFicha").innerHTML = '<div class="dlg-head"><h2>' + esc(e ? e.nome : "Nova empresa") + '</h2>' + (e ? '<span class="pill ' + e.sit + '">' + esc(SIT[e.sit].l) + '</span>' : '') + '<button type="button" class="x" id="fFechar" aria-label="Fechar">✕</button></div>' +
     '<form class="dlg-body" id="fForm" novalidate>' +
+      fichaCadHTML(e) +
       (pode ? '' : '<p class="note">Só o analista da empresa ou a coordenação altera esta ficha.</p>') +
       '<div class="campos">' +
-        '<label class="campo largo">Empresa<input name="nome" required maxlength="160" value="' + esc(x.nome === "Sem nome" ? "" : x.nome) + '"' + dis + '></label>' +
-        '<label class="campo">CNPJ<input name="cnpj" maxlength="20" value="' + esc(x.cnpj) + '" placeholder="00.000.000/0000-00"' + dis + '></label>' +
+        '<label class="campo largo">Empresa<input name="nome" required maxlength="160" value="' + esc(x.nome === "Sem nome" ? "" : x.nome) + '"' + dis + rol + '></label>' +
+        '<label class="campo">CNPJ<input name="cnpj" maxlength="20" value="' + esc(x.cnpj) + '" placeholder="00.000.000/0000-00"' + dis + rol + '></label>' +
         '<label class="campo">Nome anterior<input name="anterior" maxlength="160" value="' + esc(x.anterior) + '"' + dis + '></label>' +
         '<label class="campo">Grupo econômico<input name="grupo" maxlength="60" value="' + esc(x.grupo) + '"' + dis + '></label>' +
         '<label class="campo">Cliente desde<input type="date" name="desde" value="' + esc(x.desde) + '"' + dis + '></label>' +
@@ -1098,15 +1813,20 @@ function abrirFicha(id){
         '<label class="chk"><input type="checkbox" name="semImob"' + (x.semImob ? " checked" : "") + dis + '> Sem imobilizado (Depreciação não se aplica)</label>' +
         '<label class="campo largo">Contatos<textarea name="contatos" rows="2" maxlength="600"' + dis + '>' + esc(x.contatos) + '</textarea></label>' +
         '<label class="campo largo">Observações<textarea name="obs" rows="2" maxlength="1200"' + dis + '>' + esc(x.obs) + '</textarea></label>' +
+        '<label class="campo largo">Pasta dos documentos<input name="pasta" maxlength="300" value="' + esc(x.pasta) + '" placeholder="Ex.: U:\\Contabil\\Clientes\\Empresa"' + dis + '></label>' +
       '</div>' + dpTxt +
       (e ? '<div class="ficha-sec"><h3>Fechamento (últimas competências)</h3>' + hist + '</div>' : '') +
     '</form>' +
-    '<div class="dlg-acoes">' + (e && S.coord ? '<button type="button" class="linkish red esq" id="fExcluir">Excluir da carteira</button>' : '') + '<button type="button" class="fbtn" id="fCancelar">' + (pode ? "Cancelar" : "Fechar") + '</button>' + (pode ? '<button type="button" class="btn" id="fSalvar">Salvar</button>' : '') + '</div>';
+    '<div class="dlg-acoes">' + (e && S.coord ? '<button type="button" class="linkish red esq" id="fExcluir">Excluir da carteira</button>' : '') +
+      (e ? '<button type="button" class="fbtn" id="fRel" title="Relatório da empresa pronto para imprimir ou salvar em PDF">Relatório (PDF)</button>' + (pendsCliente(e).length ? '<button type="button" class="fbtn" id="fCobrar">Copiar cobrança</button>' : '') + (e.pasta ? '<button type="button" class="fbtn" id="fPasta" title="' + esc(e.pasta) + '">Copiar caminho da pasta</button>' : '') : '') + '<button type="button" class="fbtn" id="fCancelar">' + (pode ? "Cancelar" : "Fechar") + '</button>' + (pode ? '<button type="button" class="btn" id="fSalvar">Salvar</button>' : '') + '</div>';
   var d = $("#dlgFicha");
   if(!d.open) d.showModal();
   $("#fFechar").onclick = $("#fCancelar").onclick = function(){ d.close(); };
   if($("#fSugFolha")) $("#fSugFolha").onclick = function(){ $('[name="semFolha"]', d).checked = true; };
   if($("#fSalvar")) $("#fSalvar").onclick = salvarFicha;
+  if($("#fRel")) $("#fRel").onclick = function(){ imprimir(relatorioEmpresaHtml(e)); };
+  if($("#fCobrar")) $("#fCobrar").onclick = function(){ copiarCobranca(e); };
+  if($("#fPasta")) $("#fPasta").onclick = function(){ copiar(e.pasta, "Caminho da pasta copiado. Cole no Explorador de Arquivos."); };
   if($("#fExcluir")) $("#fExcluir").onclick = function(){
     confirmar("Excluir “" + e.nome + "” da carteira? O histórico de fechamento fica guardado, mas a empresa some das listas. Para uma empresa que deixou de ser cliente, prefira mudar a Situação.", "Excluir").then(function(ok){
       if(!ok) return; d.close();
@@ -1125,7 +1845,7 @@ function salvarFicha(){
   var dados = normEmp(Object.assign({}, antigo || {criado:new Date().toISOString()}, {
     nome:nome, cnpj:v("cnpj"), anterior:v("anterior"), grupo:v("grupo"), desde:v("desde"), trib:v("trib"), tribAnt:v("tribAnt"), tribMud:tribMud,
     sistema:v("sistema"), migrado:migrado, analista: S.coord ? titulo(v("analista")) : (antigo ? antigo.analista : ""), apoio:titulo(v("apoio")),
-    sit:v("sit"), sitData:v("sitData"), semFolha:v("semFolha"), semImob:v("semImob"), contatos:v("contatos"), obs:v("obs")
+    sit:v("sit"), sitData:v("sitData"), semFolha:v("semFolha"), semImob:v("semImob"), contatos:v("contatos"), obs:v("obs"), pasta:v("pasta")
   }), antigo ? antigo.id : idPara(nome, v("cnpj")));
   var dig = cnpjDig(dados.cnpj);
   var dup = dig && listaEmpresas().find(function(x){ return x.id !== dados.id && cnpjDig(x.cnpj) === dig; });
@@ -1185,7 +1905,7 @@ function renderPrazos(){
   $$("#obSt button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-st") === O.st); });
   var base = listaEmpresas().filter(function(e){ return defs.some(function(d){ return obrigAplica(e, d, ano); }); });
   var lista = base.filter(function(e){
-    if(O.ana && norm(e.analista) !== norm(O.ana) && norm(e.apoio) !== norm(O.ana)) return false;
+    if(O.ana && !doAnalista(e, O.ana)) return false;
     if(!filtroTexto(e, O.busca)) return false;
     if(O.st === "abertas" && !defs.some(function(d){ if(!obrigAplica(e, d, ano)) return false; var s = stObrig(ano, e, d.k); return s !== "c" && s !== "n"; })) return false;
     return true;
@@ -1246,9 +1966,12 @@ $("#v-prazos").addEventListener("click", function(ev){
   }
 });
 
+if($("#eqPdf")) $("#eqPdf").onclick = function(){ if(podeGestao()) imprimir(relatorioEquipeHtml()); };
+if($("#eqExp")) $("#eqExp").onclick = function(){ if(podeGestao()) planilhaEquipe(); };
+
 /* ============ CADASTRO: importar ============ */
-var CAB = ["Empresa","Nome anterior","CNPJ","Grupo","Cliente desde","Sistema","Migrado em","Tributação","Tributação anterior","Mudou em","Analista","Apoio","Situação","Data da situação","Observações","Contatos","Sem folha","Sem imobilizado","ID"];
-var CAMPO_CAB = {"empresa":"nome","empresas":"nome","nome anterior":"anterior","cnpj":"cnpj","grupo":"grupo","grupo economico":"grupo","cliente desde":"desde","inicio":"desde","sistema":"sistema","migrado em":"migrado","tributacao":"trib","tributacao anterior":"tribAnt","mudou em":"tribMud","analista":"analista","apoio":"apoio","situacao":"sit","data da situacao":"sitData","observacoes":"obs","contatos":"contatos","sem folha":"semFolha","sem imobilizado":"semImob","id":"id",
+var CAB = ["Empresa","Nome anterior","CNPJ","Grupo","Cliente desde","Sistema","Migrado em","Tributação","Tributação anterior","Mudou em","Analista","Apoio","Situação","Data da situação","Observações","Contatos","Sem folha","Sem imobilizado","ID","Pasta"];
+var CAMPO_CAB = {"empresa":"nome","empresas":"nome","nome anterior":"anterior","cnpj":"cnpj","grupo":"grupo","grupo economico":"grupo","cliente desde":"desde","inicio":"desde","sistema":"sistema","migrado em":"migrado","tributacao":"trib","tributacao anterior":"tribAnt","mudou em":"tribMud","analista":"analista","apoio":"apoio","situacao":"sit","data da situacao":"sitData","observacoes":"obs","contatos":"contatos","sem folha":"semFolha","sem imobilizado":"semImob","id":"id","pasta":"pasta","pasta dos documentos":"pasta",
   "financeiro ate":"pFin","fiscal ate":"pFis","folha ate":"pFol","balancete ate":"pBal","pendencia do cliente":"pendCli",
   "1. financeiro":"pFin","2 fiscal":"pFis","3 folha":"pFol","4 balancete":"pBal"};
 // Célula de data: número de série do Excel, dd/mm/aaaa, aaaa-mm-dd ou o erro comum dd/mmaaaa.
@@ -1324,6 +2047,7 @@ function lerCarteira(wb){
           if("semFolha" in col) x.semFolha = simCel(g("semFolha"));
           if("semImob" in col) x.semImob = simCel(g("semImob"));
           x.id = String(g("id") || "").trim();
+          x.pasta = String(g("pasta") || "").trim();
         }
         x.grupo = String(g("grupo") || "").replace(/\s+/g, " ").trim();
         x.desde = dataCel(g("desde"));
@@ -1349,7 +2073,7 @@ function planejarImport(res){
   var todas = Object.keys(S.empresas).map(function(k){ return S.empresas[k]; });
   // o nome atual tem preferência sobre o nome anterior de outra empresa
   var porCnpj = {}, porNome = {}, porAnt = {};
-  todas.forEach(function(e){ var d = cnpjDig(e.cnpj), k = norm(e.nome), a = norm(e.anterior); if(d.length === 14 && !porCnpj[d]) porCnpj[d] = e; if(k && !porNome[k]) porNome[k] = e; if(a && !porAnt[a]) porAnt[a] = e; });
+  todas.forEach(function(e){ var d = cnpjDig(e.cnpj), k = norm(e.nome), a = norm(e.anterior), nb = norm(e.nomeBanco); if(d.length === 14 && !porCnpj[d]) porCnpj[d] = e; if(k && !porNome[k]) porNome[k] = e; if(a && !porAnt[a]) porAnt[a] = e; if(nb && !porAnt[nb]) porAnt[nb] = e; });
   var acharNome = function(n){ var k = norm(n); return k ? porNome[k] || porAnt[k] || null : null; };
   var novas = [], muda = [], iguais = 0, avisos = [], vistos = {}, novosIds = {};
   res.linhas.forEach(function(x){
@@ -1359,7 +2083,7 @@ function planejarImport(res){
     vistos[chaveDup] = x.linha;
     var e = (x.id && S.empresas[x.id]) || (d.length === 14 && porCnpj[d]) || acharNome(x.nome) || acharNome(x.anterior) || null;
     var base = e ? Object.assign({}, e) : {criado: new Date().toISOString()};
-    ["nome","anterior","cnpj","grupo","desde","sistema","migrado","trib","tribAnt","tribMud","analista","apoio","contatos"].forEach(function(k){ if(x[k]) base[k] = x[k]; });
+    ["nome","anterior","cnpj","grupo","desde","sistema","migrado","trib","tribAnt","tribMud","analista","apoio","contatos","pasta"].forEach(function(k){ if(x[k]) base[k] = x[k]; });
     if(x.obs.length){ var o = x.obs.join("; "); if(!e || norm(e.obs).indexOf(norm(o)) === -1) base.obs = e && e.obs ? e.obs + "\n" + o : o; }
     // situação: só muda quando a planilha diz qual é (a planilha antiga não mostra as baixadas em vermelho)
     if(x.temSit || !e){ base.sit = x.sit; base.sitData = x.sitData || (e && x.sit === e.sit ? e.sitData : ""); }
@@ -1376,7 +2100,7 @@ function planejarImport(res){
     if(!CLIENTE[n.sit] && !n.sitData) x.rev.push("situação “" + SIT[n.sit].l + "” sem data");
     if(x.rev.length) avisos.push("Linha " + x.linha + " · " + x.nome + ": " + x.rev.join(", ") + ".");
     if(!e){ novas.push(n); return; }
-    var dif = ["nome","anterior","cnpj","grupo","desde","sistema","migrado","trib","tribAnt","tribMud","analista","apoio","sit","sitData","semFolha","semImob","contatos","obs","excluida","semInfo"].filter(function(k){ return JSON.stringify(e[k]) !== JSON.stringify(n[k]); });
+    var dif = ["nome","anterior","cnpj","grupo","desde","sistema","migrado","trib","tribAnt","tribMud","analista","apoio","sit","sitData","semFolha","semImob","contatos","obs","excluida","semInfo","pasta"].filter(function(k){ return JSON.stringify(e[k]) !== JSON.stringify(n[k]); });
     if(dif.length) muda.push({antes:e, depois:n, dif:dif}); else iguais++;
   });
   return {novas:novas, muda:muda, iguais:iguais, avisos:avisos};
@@ -1439,7 +2163,7 @@ $("#impLer").onclick = function(){
     var oferece = sug && sug < inicioControle();
     var and = temProg ? planejarAndamento(res.linhas, oferece ? sug : inicioControle()) : null;
     var nSM = res.linhas.filter(function(x){ return x.prog && x.prog.fol === "SM"; }).length;
-    var ROT = {nome:"nome",anterior:"nome anterior",cnpj:"CNPJ",grupo:"grupo",desde:"cliente desde",sistema:"sistema",migrado:"migração",trib:"tributação",tribAnt:"tributação anterior",tribMud:"mudança de tributação",analista:"analista",apoio:"apoio",sit:"situação",sitData:"data da situação",semFolha:"sem folha",semImob:"sem imobilizado",contatos:"contatos",obs:"observações",excluida:"volta à carteira",semInfo:"etapas sem informação"};
+    var ROT = {nome:"nome",anterior:"nome anterior",cnpj:"CNPJ",grupo:"grupo",desde:"cliente desde",sistema:"sistema",migrado:"migração",trib:"tributação",tribAnt:"tributação anterior",tribMud:"mudança de tributação",analista:"analista",apoio:"apoio",sit:"situação",sitData:"data da situação",semFolha:"sem folha",semImob:"sem imobilizado",contatos:"contatos",obs:"observações",excluida:"volta à carteira",semInfo:"etapas sem informação",pasta:"pasta dos documentos"};
     var andHtml = function(a, ini){ return a ? '<li>Fechamento: <b>' + a.nMarcas + '</b> etapa' + (a.nMarcas === 1 ? '' : 's') + ' concluída' + (a.nMarcas === 1 ? '' : 's') + ' em ' + a.nEmp + ' empresa' + (a.nEmp === 1 ? '' : 's') + (a.ate ? ', de ' + esc(compCurta(ini)) + ' a ' + esc(compCurta(a.ate)) : '') + (a.nPend ? ' · ' + a.nPend + ' pendência' + (a.nPend === 1 ? '' : 's') + ' do cliente' : '') + (nSM ? ' · ' + nSM + ' sem folha (SM)' : '') + '</li>' : ''; };
     var podeImportar = p.novas.length || p.muda.length || (and && and.nMarcas);
     box.innerHTML = '<div><b>' + esc(f.name) + '</b> · aba “' + esc(res.aba) + '” · ' + res.linhas.length + ' linhas' + (res.antiga ? ' · formato antigo' : '') + '</div>' +
@@ -1488,12 +2212,12 @@ $("#bkBaixar").onclick = function(){
   if(typeof XLSX === "undefined"){ msg.textContent = "O gerador de planilhas não carregou. Recarregue a página."; return; }
   var todas = Object.keys(S.empresas).map(function(k){ return S.empresas[k]; }).filter(function(e){ return !e.excluida; }).sort(ordNome);
   var dt = function(s){ return s ? dataBR(s) : ""; };
-  var cart = [CAB].concat(todas.map(function(e){ return [e.nome, e.anterior, e.cnpj, e.grupo, dt(e.desde), e.sistema, e.migrado, TRIB[e.trib] ? TRIB[e.trib].l : "", TRIB[e.tribAnt] ? TRIB[e.tribAnt].l : "", e.tribMud, e.analista, e.apoio, SIT[e.sit].l, dt(e.sitData), e.obs, e.contatos, e.semFolha ? "Sim" : "", e.semImob ? "Sim" : "", e.id]; }));
-  var fech = [["Competência","Empresa","CNPJ","Analista"].concat(ETAPAS.map(function(et){ return et.l; })).concat(["Fechada em","Pendência do cliente","Pendência desde"])];
+  var cart = [CAB].concat(todas.map(function(e){ return [e.nome, e.anterior, e.cnpj, e.grupo, dt(e.desde), e.sistema, e.migrado, TRIB[e.trib] ? TRIB[e.trib].l : "", TRIB[e.tribAnt] ? TRIB[e.tribAnt].l : "", e.tribMud, e.analista, e.apoio, SIT[e.sit].l, dt(e.sitData), e.obs, e.contatos, e.semFolha ? "Sim" : "", e.semImob ? "Sim" : "", e.id, e.pasta]; }));
+  var fech = [["Competência","Empresa","CNPJ","Analista"].concat(ETAPAS.map(function(et){ return et.l; })).concat(["Fechada em","Pendência do cliente","Pendência desde","Sem movimento","Observações das etapas"])];
   Object.keys(S.comps).sort().forEach(function(c){
     Object.keys(S.comps[c]).forEach(function(id){
       var e = S.empresas[id], ent = S.comps[c][id]; if(!e) return;
-      fech.push([c.slice(5) + "/" + c.slice(0, 4), e.nome, e.cnpj, e.analista].concat(ETAPAS.map(function(et){ var v = ent.e && ent.e[et.k]; return v && v[0] ? ST_ROT[v[0]] + (v[1] ? " " + dataBR(v[1]) : "") : (etapaAplica(e, et.k) ? "" : "Não se aplica"); })).concat([dt(ent.fechadaEm), ent.pend || "", dt(ent.pendEm)]));
+      fech.push([c.slice(5) + "/" + c.slice(0, 4), e.nome, e.cnpj, e.analista].concat(ETAPAS.map(function(et){ var v = ent.e && ent.e[et.k]; return v && v[0] ? ST_ROT[v[0]] + (v[1] ? " " + dataBR(v[1]) : "") : (etapaAplica(e, et.k) ? "" : "Não se aplica"); })).concat([dt(ent.fechadaEm), ent.pend || "", dt(ent.pendEm), ent.sm ? "Sim" : "", Object.keys(ent.ob || {}).map(function(k){ return k + ": " + ent.ob[k]; }).join(" · ")]));
     });
   });
   var defs = S.cfg.anuais || [];
@@ -1506,7 +2230,7 @@ $("#bkBaixar").onclick = function(){
   });
   var wb = XLSX.utils.book_new();
   var larg = function(ws, ws2){ ws["!cols"] = ws2.map(function(w){ return {wch:w}; }); return ws; };
-  XLSX.utils.book_append_sheet(wb, larg(XLSX.utils.aoa_to_sheet(cart), [40,24,20,14,12,16,10,22,18,9,18,14,12,14,30,30,9,9,18]), "Carteira");
+  XLSX.utils.book_append_sheet(wb, larg(XLSX.utils.aoa_to_sheet(cart), [40,24,20,14,12,16,10,22,18,9,18,14,12,14,30,30,9,9,18,40]), "Carteira");
   XLSX.utils.book_append_sheet(wb, larg(XLSX.utils.aoa_to_sheet(fech), [11,40,20,18].concat(ETAPAS.map(function(){ return 20; })).concat([12,30,13])), "Fechamento");
   XLSX.utils.book_append_sheet(wb, larg(XLSX.utils.aoa_to_sheet(obr), [13,40,20,18].concat(defs.map(function(){ return 20; }))), "Obrigações");
   // "Fechado até": uma linha por empresa, no formato da planilha de controle
@@ -1538,7 +2262,7 @@ function opcDia(v, comUltimo){ return (comUltimo ? '<option value="ultimo_util"'
 function renderCadastro(){
   $("#impArq").disabled = !S.coord;
   $("#impLer").disabled = !S.coord || !$("#impArq").files.length;
-  var chave = JSON.stringify([S.cfg, S.coord]);
+  var chave = JSON.stringify([S.cfg, S.coord, analistas()]);
   if(chave === cfgDesenhado) return;
   cfgDesenhado = chave;
   var dis = S.coord ? "" : " disabled", c = S.cfg;
@@ -1552,6 +2276,19 @@ function renderCadastro(){
     '<div class="cfg-sec"><h3>Obrigações anuais <small>entregues no ano seguinte ao ano-calendário</small></h3><div class="cfg-grid"><span class="h">Obrigação</span><span class="h">Mês</span><span class="h">Dia</span>' +
       (c.anuais || []).map(function(d, i){ return '<span>' + esc(d.l) + '<span class="sub">' + esc(d.tribs.map(function(t){ return TRIB[t] ? TRIB[t].c : t; }).join(", ")) + '</span></span><select data-an-mes="' + i + '"' + dis + '>' + MESES.map(function(m, k){ return '<option value="' + (k + 1) + '"' + (+d.mes === k + 1 ? " selected" : "") + '>' + m + '</option>'; }).join("") + '</select><select data-an-dia="' + i + '"' + dis + '>' + opcDia(d.dia, true) + '</select>'; }).join("") +
     '</div></div>' +
+    (function(){
+      var fp = cfgF().fp, ma = cfgF().metaAna;
+      return '<div class="cfg-sec"><h3>Fechamento: prazo interno e metas <small>usados no Painel, na Agenda e na aba Equipe</small></h3>' +
+        '<div style="display:flex; gap:8px 12px; flex-wrap:wrap; align-items:end">' +
+          '<label class="campo">A competência deve fechar até o<select id="cfgFpDia"' + dis + '>' + opcDia(fp.dia, true) + '</select></label>' +
+          '<label class="campo">do<select id="cfgFpMeses"' + dis + '>' + [1, 2, 3].map(function(n){ return '<option value="' + n + '"' + (+fp.meses === n ? " selected" : "") + '>' + (n === 1 ? "mês seguinte" : n + "º mês seguinte") + '</option>'; }).join("") + '</select></label>' +
+          '<label class="campo" style="max-width:190px">Meta da equipe (% fechadas)<input type="number" id="cfgMeta" min="0" max="100" value="' + cfgF().meta + '"' + dis + '></label>' +
+          '<label class="campo" style="max-width:200px">Cobrar o cliente a cada (dias)<input type="number" id="cfgCobr" min="1" max="90" value="' + cfgF().cobr + '"' + dis + '></label>' +
+          '<label class="campo" style="max-width:220px">Cliente parado: alerta após (dias)<input type="number" id="cfgParado" min="1" max="365" value="' + cfgF().parado + '"' + dis + '></label>' +
+        '</div>' +
+        '<p class="note" style="margin:8px 0">Exemplo: com “último dia útil do mês seguinte”, setembro deve estar fechado até o último dia útil de outubro. A meta é a % de empresas da competência em fechamento já fechadas.</p>' +
+        '<details><summary class="note" style="cursor:pointer; font-weight:600">Metas por analista (em branco = meta da equipe)</summary><div class="meta-grid" style="margin-top:8px">' + analistas().map(function(a){ var v = ma[norm(a)]; return '<span style="font-size:12.5px">' + esc(a) + '</span><input type="number" min="0" max="100" data-meta-ana="' + esc(a) + '" value="' + (v != null && v !== "" ? esc(String(v)) : "") + '" placeholder="' + cfgF().meta + '"' + dis + '>'; }).join("") + '</div></details></div>';
+    })() +
     (S.coord ? '<div style="display:flex; gap:8px; flex-wrap:wrap"><button type="button" class="btn" id="cfgSalvar">Salvar configurações</button><button type="button" class="fbtn" id="cfgPadrao">Voltar ao padrão</button></div>' : '');
 }
 $("#cfgBox").addEventListener("change", function(e){
@@ -1560,7 +2297,7 @@ $("#cfgBox").addEventListener("change", function(e){
 });
 $("#cfgBox").addEventListener("click", function(e){
   if(e.target.id === "cfgPadrao"){
-    confirmar("Voltar os vencimentos e o início do controle ao padrão?", "Voltar ao padrão").then(function(ok){ if(ok){ cfgDesenhado = ""; salvarCfg(JSON.parse(JSON.stringify(PRAZOS_PADRAO))).then(function(){ toast("Configurações no padrão."); }); } });
+    confirmar("Voltar os vencimentos, o início do controle, o prazo interno e as metas ao padrão?", "Voltar ao padrão").then(function(ok){ if(ok){ cfgDesenhado = ""; salvarCfg(JSON.parse(JSON.stringify(PRAZOS_PADRAO))).then(function(){ toast("Configurações no padrão."); }); } });
     return;
   }
   if(e.target.id !== "cfgSalvar") return;
@@ -1572,6 +2309,12 @@ $("#cfgBox").addEventListener("click", function(e){
   var dia = function(v){ return v === "ultimo_util" ? v : +v; };
   (c.impostos || []).forEach(function(d, k){ d.dia = dia($('[data-imp-dia="' + k + '"]').value); d.regra = d.dia === "ultimo_util" ? "" : $('[data-imp-regra="' + k + '"]').value; });
   (c.anuais || []).forEach(function(d, k){ d.mes = +$('[data-an-mes="' + k + '"]').value; d.dia = dia($('[data-an-dia="' + k + '"]').value); });
+  if($("#cfgFpDia")){
+    c.fechPrazo = {dia: dia($("#cfgFpDia").value), meses: +$("#cfgFpMeses").value || 1};
+    var num = function(id, min, max, pad){ var v = +$(id).value; return isFinite(v) && $(id).value !== "" ? Math.max(min, Math.min(max, Math.round(v))) : pad; };
+    c.metaPct = num("#cfgMeta", 0, 100, 80); c.cobrDias = num("#cfgCobr", 1, 90, 7); c.paradoDias = num("#cfgParado", 1, 365, 30);
+    c.metaAna = {}; $$("[data-meta-ana]").forEach(function(inp){ if(inp.value !== "" && isFinite(+inp.value)) c.metaAna[norm(inp.getAttribute("data-meta-ana"))] = Math.max(0, Math.min(100, Math.round(+inp.value))); });
+  }
   cfgDesenhado = "";
   salvarCfg(c).then(function(){ toast("Configurações salvas."); });
 });
@@ -1610,7 +2353,7 @@ function ligarBanco(){
   banco.collection("ctb_emp").onSnapshot(function(snap){
     var m = {};
     snap.docs.forEach(function(d){ S.existe.docs["ctb_emp/" + d.id] = true; var x = d.data() || {}; Object.keys(x).forEach(function(k){ if(x[k] && typeof x[k] === "object") m[k] = normEmp(x[k], k); }); });
-    S.empresas = m; S.carregou.empresas = S.carregou.ctb_emp = true;
+    S.empresas = m; aplicarIdentidade(S.empresas); S.carregou.empresas = S.carregou.ctb_emp = true;
     if(!AUTH() && !S.eu && S.nomeConta){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; }
     renderTudo();
   }, erroBanco);
@@ -1629,7 +2372,22 @@ function ligarBanco(){
     var c = JSON.parse(JSON.stringify(PRAZOS_PADRAO));
     if(typeof x.inicio === "string") c.inicio = x.inicio;
     ["impostos", "anuais"].forEach(function(k){ if(Array.isArray(x[k])) c[k] = c[k].map(function(d){ var y = x[k].find(function(z){ return z && z.k === d.k; }); return y ? Object.assign({}, d, {dia: y.dia, regra: y.regra != null ? y.regra : d.regra, mes: y.mes != null ? y.mes : d.mes}) : d; }); });
+    if(x.fechPrazo && typeof x.fechPrazo === "object") c.fechPrazo = {dia: x.fechPrazo.dia === "ultimo_util" ? "ultimo_util" : Math.max(1, Math.min(31, +x.fechPrazo.dia || 1)), meses: Math.max(1, Math.min(3, +x.fechPrazo.meses || 1))};
+    if(x.metaPct != null && isFinite(+x.metaPct)) c.metaPct = Math.max(0, Math.min(100, +x.metaPct));
+    if(x.cobrDias != null && +x.cobrDias > 0) c.cobrDias = Math.min(90, +x.cobrDias);
+    if(x.paradoDias != null && +x.paradoDias > 0) c.paradoDias = Math.min(365, +x.paradoDias);
+    if(x.metaAna && typeof x.metaAna === "object") c.metaAna = x.metaAna;
     S.cfg = c; renderTudo();
+  }, erroBanco);
+  banco.doc("ctb_config/aus").onSnapshot(function(s){
+    var x = s.exists ? (s.data() || {}) : {};
+    S.aus = (Array.isArray(x.lista) ? x.lista : []).map(normAus).filter(Boolean);
+    S.carregou.aus = true; renderTudo();
+  }, erroBanco);
+  banco.collection("ctb_lemb").onSnapshot(function(snap){
+    var m = {};
+    snap.docs.forEach(function(d){ S.existe.docs["ctb_lemb/" + d.id] = true; var x = d.data() || {}; Object.keys(x).forEach(function(k){ if(x[k] && typeof x[k] === "object") m[k] = normLemb(x[k], k); }); });
+    S.lembs = m; S.carregou.ctb_lemb = true; renderTudo();
   }, erroBanco);
   banco.collection("dp_empresas").onSnapshot(function(snap){
     var m = {}, h = hoje();
@@ -1647,7 +2405,7 @@ function erroBanco(err){ console.error(err); toast("Falha ao ler os dados do Hub
 /* ============ ponte com o assistente do Hub ============ */
 window.__assistente = {
   modulo: "contabil", nome: "Contábil",
-  abas: [["painel", "Painel"], ["fechamento", "Fechamento"], ["carteira", "Carteira"], ["prazos", "Prazos"], ["cadastro", "Cadastro"]],
+  abas: [["painel", "Painel"], ["agenda", "Agenda"], ["fechamento", "Fechamento"], ["carteira", "Carteira"], ["prazos", "Prazos"], ["equipe", "Equipe"], ["cadastro", "Cadastro"]],
   pronto: function(){ return !!S.carregou.empresas; },
   exemplo: function(){ return false; },
   empresas: function(){ return listaEmpresas().map(function(e){ return {id:e.id, nome:e.nome, cnpj:cnpjDig(e.cnpj), analista:e.analista}; }); },
@@ -1657,7 +2415,7 @@ window.__assistente = {
   consultar: function(tipo, p){
     p = p || {};
     var de = parseYmd(p.de) || hoje(), ate = parseYmd(p.ate) || de, ana = p.analista || "";
-    var dele = function(e){ return !ana || norm(e.analista) === norm(ana) || norm(e.apoio) === norm(ana); };
+    var dele = function(e){ return doAnalista(e, ana); };
     if(tipo === "vencimentos"){
       var vs = vencimentosImpostos(de, ate).concat(vencimentosAnuais(de, ate)).map(function(v){
         var emps = v.emps.filter(dele), pend = v.pendentes.filter(dele);
@@ -1686,9 +2444,9 @@ window.__assistente = {
     }
     if(tipo === "carteira"){
       var por = {};
-      empresasControle().forEach(function(x){ var a = x.analista || "(sem analista)"; var q = por[a] = por[a] || {n: 0, atr: 0}; q.n++; var f = resumoAte(x).faixa; if(f === 1 || f === 2 || f === 3) q.atr++; });
+      empresasControle().forEach(function(x){ var a = x.analista || "(sem analista)"; var q = por[a] = por[a] || {n: 0, atr: 0, cli: 0}; q.n++; var f = resumoAte(x).faixa; if(f === 1 || f === 2 || f === 3) q.atr++; if(entrada(compPendencia(x), x.id).pend) q.cli++; });
       var ks = Object.keys(por).filter(function(a){ return !ana || norm(a) === norm(ana); }).sort(function(a, b){ return por[b].n - por[a].n; });
-      return {titulo: "Carteira do Contábil", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com fechamento atrasado", dados: {analista: a, empresas: q.n, atrasadas: q.atr}, tom: q.atr ? "warn" : "ok", abrir: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": a === "(sem analista)" ? "" : a, "fx.faixa": "", "fx.busca": ""}}}; })};
+      return {titulo: "Carteira do Contábil", total: ks.length, linhas: ks.map(function(a){ var q = por[a]; return {t: a + ": " + q.n + " empresa" + (q.n === 1 ? "" : "s"), sub: q.atr + " com fechamento atrasado" + (q.cli ? " · " + q.cli + " aguardando o cliente" : ""), dados: {analista: a, empresas: q.n, atrasadas: q.atr, aguardandoCliente: q.cli}, tom: q.atr ? "warn" : "ok", abrir: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": a === "(sem analista)" ? "" : a, "fx.faixa": "", "fx.busca": ""}}}; })};
     }
     if(tipo === "competencia"){
       var comp = /^\d{4}-\d{2}$/.test(p.comp || "") ? p.comp : compEmFechamento(), lsC = [], porA = {};
@@ -1702,6 +2460,11 @@ window.__assistente = {
     if(tipo === "fechado"){
       var fz = empresasControle().filter(dele).map(function(x){ return {e: x, r: resumoAte(x)}; }).sort(function(a3, b3){ return (b3.r.meses || 0) - (a3.r.meses || 0); });
       return {titulo: "Fechado até, do mais atrasado para o mais em dia", total: fz.length, linhas: fz.map(function(x){ return {t: x.e.nome, sub: "fechado até " + rotAte(x.r.ate) + (x.r.meses ? " · " + rotAtraso(x.r.meses) + " de atraso" : " · em dia"), tom: x.r.faixa === 0 ? "ok" : x.r.faixa === "ni" ? "" : x.r.faixa === 1 ? "warn" : "late", abrir: {empresa: x.e.id}, dados: {analista: x.e.analista || "", meses: x.r.meses || 0}}; }), verTudo: {aba: "fechamento", opts: {"fx.modo": "ate", "fx.ana": ana, "fx.faixa": "", "fx.busca": ""}}};
+    }
+    if(tipo === "ausencias"){
+      var di = ymd(de), df = ymd(ate);
+      var la = (S.aus || []).filter(function(x){ return x.inicio <= df && x.fim >= di && (!ana || norm(x.analista) === norm(ana)); }).sort(function(a3, b3){ return a3.inicio.localeCompare(b3.inicio); });
+      return {titulo: "Ausências no Contábil", total: la.length, linhas: la.map(function(x){ var rc = resumoCobertura(x); return {t: x.analista + " · " + x.motivo, sub: dataBR(x.inicio) + " a " + dataBR(x.fim) + " · " + rc, tom: /sem cobertura|nenhuma cobertura/.test(rc) ? "warn" : "", abrir: {aba: "equipe"}}; })};
     }
     if(tipo === "impostos"){
       var vi = vencimentosImpostos(de, ate).sort(function(a3, b3){ return a3.data - b3.data; }), lsI = [];
@@ -1817,7 +2580,7 @@ window.__assistente = {
       if(!A && !S.eu && S.carregou.empresas){ S.eu = casarNome(S.nomeConta); if(S.eu && !S.fx.ana) S.fx.ana = S.eu; renderTudo(); }
     });
   });
-  var v = ["painel","fechamento","carteira","prazos","cadastro"].indexOf(p.view) !== -1 ? p.view : "painel";
+  var v = VIEWS.indexOf(p.view) !== -1 ? p.view : "painel";
   irPara(MODO_CFG ? "cadastro" : v);
 })();
 })();

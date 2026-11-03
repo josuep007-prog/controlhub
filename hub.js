@@ -73,9 +73,9 @@
     dpCarteira: '', dpView: 'painel', dpCalMes: '', dpFerr: '', dpImports: [], dpTiposProc: null,
     dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
-    dpCob: { ausencias: [], log: [] }, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
+    dpCob: { ausencias: [], log: [] }, dpOv: null, dpOvCfg: { listas: null, vinc: {}, auto: null }, dpOvVez: '', dpOvEmp: '', dpOvLim: 60, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
-    dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'tempo', dpFuncTodos: false, dpEmpModo: 'cards',
+    dpFichaDesl: false, dpFichaBusca: '', dpFuncQuery: '', dpFuncFiltro: '', dpFuncModo: 'empresas', dpFuncTodos: false, dpFuncLim: 48, dpEmpModo: 'cards',
     meus: [], meusLoaded: false, meusOff: '', meusSel: '',
     meId: null,
     activeModule: null,
@@ -158,13 +158,48 @@
   const toolsDbStore = makeDbStore('tools');
 
   // ---------- módulo DP: texto, datas, feriados e dias úteis ----------
-  const norm = (s='') => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  // Os mesmos nomes são normalizados milhares de vezes por desenho (funcionários, empresas, clientes do Onvio): guarda o resultado.
+  const normCache = new Map();
+  const norm = (s='') => {
+    const k = String(s); let v = normCache.get(k);
+    if (v === undefined) { v = k.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); if (normCache.size > 60000) normCache.clear(); normCache.set(k, v); }
+    return v;
+  };
   const matchQ = (parts, q) => { if (!q) return true; const hay = norm(parts.join(' ')); return norm(q).split(/\s+/).filter(Boolean).every(w => hay.includes(w)); };
+  const ptCmp = new Intl.Collator('pt-BR').compare;      // localeCompare(…, 'pt-BR') cria um comparador a cada chamada: nas listas grandes isso domina o tempo
   const cnpjClean = (s) => String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
   // Filial: CNPJ de 14 posições cuja ordem (9ª a 12ª) não é 0001. CPF e CNPJ vazio nunca são filial.
   const ehFilial = (e) => { const c = cnpjClean(e && e.cnpj); return c.length === 14 && c.slice(8, 12) !== '0001' && /[1-9A-Z]/.test(c.slice(8, 12)); };
   const filialTag = (e) => ehFilial(e) ? `<span class="tag-filial" title="Filial (final ${escapeHtml(cnpjClean(e.cnpj).slice(8, 12))} no CNPJ)">filial</span>` : '';
-  const nomeEmpHtml = (e) => `${escapeHtml(e.nome)}${filialTag(e)}`;
+  // Empresas do próprio escritório (ControlTax, Dynexa, Oficina, Diskcontador): não entram no Hub em nada (decisão do Josué, 28/10/2026).
+  // Reconhecidas pelo nome ou apelido; fica escondido (nada é apagado do banco).
+  const ESC_PROPRIO = [/\b(controltax|dynexa|diskcontador)\b/, /\boficina business\b/, /^oficina\s*(\||\d|$)/];
+  const ehEscritorioProprio = (...nomes) => nomes.some(n => { const t = norm(String(n || '')).trim(); return !!t && ESC_PROPRIO.some(r => r.test(t)); });
+  // Nome resumido das empresas: o apelido do Onvio (clientes-nfe), sem o final do CNPJ que alguns já trazem, e sempre terminado em " | 0001-61" (ordem e dígitos do CNPJ).
+  const SUF_CNPJ = /[\s|(\-–]*\b\d{4}\s*[-–\s]?\s*\d{2}\s*\)?\s*$/;
+  const SUF_JURIDICO = /[\s,.\-–|]+(?:LTDA|S\/?A|S\.A\.?|ME|EPP|EIRELI|MEI|SLU)\.?\s*$/i;
+  function nomeCurtoBase(nome) {
+    let n = String(nome || '').replace(/\s+/g, ' ').trim();
+    for (let i = 0; i < 4; i++) {
+      const a = n.replace(SUF_CNPJ, '').replace(/\s*\(?\bfilial\b\)?\s*$/i, '').replace(SUF_JURIDICO, '').replace(/[\s|\-–,]+$/, '');
+      if (a === n) break; n = a;
+    }
+    return n || String(nome || '').trim();
+  }
+  const cnpjFinal = (c) => { const d = cnpjClean(c); return d.length === 14 ? d.slice(8, 12) + '-' + d.slice(12) : d.length === 11 ? 'CPF' : ''; };
+  const apelidoOnvio = (e) => {
+    try {
+      const ix = ovMemo('apelidos', () => {
+        const porCod = new Map(), porCnpj = new Map();
+        ovClientes().forEach(c => { if (!c.apelido) return; porCod.set(c.cod, c); const k = cnpjClean(c.cnpj); if (k) porCnpj.set(k, c); });
+        return { porCod, porCnpj };
+      });
+      const c = [e.codigoDominio, e.cod].map(v => String(v || '').trim()).filter(Boolean).map(v => ix.porCod.get(v)).find(Boolean) || ix.porCnpj.get(cnpjClean(e.cnpj));
+      return c ? c.apelido : '';
+    } catch (_) { return ''; }
+  };
+  const nomeCurto = (e) => cadGet(e.cnpj) ? cadNome(e.cnpj, e.nome) : `${nomeCurtoBase(apelidoOnvio(e) || e.nome)} | ${cnpjFinal(e.cnpj) || 'sem CNPJ'}`;      // o cadastro único manda; sem ele, o apelido do Onvio
+  const nomeEmpHtml = (e) => `<span title="${escapeHtml(e.nome)}">${escapeHtml(nomeCurto(e))}</span>`;
   function maskCnpj(v) {
     const d = cnpjClean(v).slice(0,14);
     let o = d.slice(0,2);
@@ -518,6 +553,8 @@
   const CONFIG_TOOL = { id:'configuracoes', name:'Configurações', url:'', icon:'', category:'Atalhos', color:'#5F6D77', description:'Configurações de cada sistema (DP, Contábil, Fiscal, Portal e Cardápio) e do assistente, num lugar só.', tags:['configurações','ajustes','preferências','assistente','tema'], moduleKey:'config', virtual:true, favorite:false, newTab:false, order:9997, uses:0 };
   const EXTRA_TOOLS = [
     { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
+    { id:'pop-master', name:'POP Master', url:'', icon:'', category:'Atalhos', color:'#7A5BB5', description:'POPs da Controltax com governança BPM CBOK: catálogo, arquitetura de processos, revisões e conformidade.', tags:['pop','procedimento','processos','cbok','bpm','governança'], moduleKey:'pop', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
+    { id:'chat-equipe', name:'Chat da equipe', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Conversas de trabalho entre os analistas (em construção).', tags:['chat','conversa','mensagem','equipe'], moduleKey:'chat', virtual:true, favorite:false, newTab:false, order:9993, uses:0 },
     { id:'entrada-dados', name:'Entrada de dados', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'O que chega das extensões do navegador (Onvio e outras), para revisar antes de usar.', tags:['extensão','onvio','dados','importar'], moduleKey:'fontes', virtual:true, favorite:false, newTab:false, order:9995, uses:0 },
   ];
   // "Onvio" é fixo do Hub: abre o Onvio numa nova aba e fica ao lado esquerdo do Zappy.
@@ -618,6 +655,8 @@
     if (t.virtual && t.moduleKey === 'config') return ic('gear');
     if (t.virtual && t.moduleKey === 'coord') return ic('grid');
     if (t.virtual && t.moduleKey === 'fontes') return ic('download');
+    if (t.virtual && t.moduleKey === 'pop') return ic('t-pop');
+    if (t.virtual && t.moduleKey === 'chat') return ic('t-chat');
     if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
@@ -920,7 +959,7 @@
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, chat: { src:'chat.html', title:'Chat da equipe', rail:true } };
   // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
   function preloadFrame(key) {
     let f = $(`#${key}-frame`);
@@ -986,7 +1025,7 @@
   const SIT_PILL = { 'Ativa':'pill-ok', 'Sem movimento':'', 'Inativa':'pill-muted' };
   const FUNC_PILL = { 'Ativo':'pill-ok', 'Férias':'pill-soon', 'Afastado':'pill-today', 'Desligado':'pill-muted' };
   const TRIBUTACOES = ['SIMPLES NACIONAL','LUCRO PRESUMIDO','LUCRO REAL','MEI'];
-  const byNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const byNome = (a, b) => ptCmp(nomeCurto(a), nomeCurto(b));
   const findDpEmpresa = (id) => state.dpEmpresas.find(e => e.id === id);
   const ativa = (e) => e.situacao !== 'Inativa';
   const fmtCnpj = (v) => cnpjClean(v).length === 14 ? maskCnpj(v) : cpfValido(v) ? maskCpf(v) : String(v || '').trim();
@@ -1028,9 +1067,11 @@
     return status;
   }
   // Cada data tem uma janela (dias antes/depois de hoje) em que vira alerta no painel.
+  const feMemo = new WeakMap();
   function funcEventos(f) {
+    const t = hoje(), sig = `${f.admissao}|${f.feriasInicio}|${f.feriasFim}|${f.rescisao}|${f.aquisitivo}|${+t}`, c = feMemo.get(f);
+    if (c && c.sig === sig) return c.out.slice();
     const out = [];
-    const t = hoje();
     const adm = parseYmd(f.admissao), fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
     const ev = (d, txt, janela, tipo='') => { if (!res || d <= addDays(res, 10) || tipo === 'resc') out.push({ d, txt, janela, tipo }); };
     if (adm) { ev(addDays(adm, 44), 'Fim da experiência (45 dias)', [0, 15]); ev(addDays(adm, 89), 'Fim da experiência (90 dias)', [0, 15]); }
@@ -1043,7 +1084,9 @@
       const fimAq = addDays(addYears(aq, 1), -1), limite = addDays(addYears(aq, 2), -1);
       if (!(fi && fi > fimAq)) ev(limite, 'Fim do período concessivo de férias', [-3650, 90], 'concessivo');
     }
-    return out.sort((a, b) => a.d - b.d);
+    const r = out.sort((a, b) => a.d - b.d);
+    feMemo.set(f, { sig, out: r });
+    return r.slice();
   }
   function funcAlertas(f) {
     const t = hoje();
@@ -1069,13 +1112,14 @@
         out.push({ d, txt:`Data-base em ${b}${ss.length ? ' (' + ss.map(s => rotuloSind(s)).join(', ') + ')' : ''}: conferir reajuste da CCT`, nivel: pos === 0 ? 'today' : 'soon', empresa:e, func:null, tab:'dados' });
       });
     });
+    ovAlertas(lista).forEach(a => out.push(a));
     return out.sort((a, b) => a.d - b.d);
   }
 
   // ---------- agenda: todas as datas de um período ----------
-  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', sindical:'Sindical (CCT)', geral:'Prazo geral' };
-  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, sindical:3.5, geral:4 };
-  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || (a.hora || '').localeCompare(b.hora || '') || (a.empresa?.nome || '').localeCompare(b.empresa?.nome || '', 'pt-BR');
+  const TIPOS = { meu:'Meu lembrete', lembrete:'Lembrete', pessoal:'Pessoal', prazo:'Rotina', database:'Data-base', sindical:'Sindical (CCT)', geral:'Prazo geral', onvio:'Onvio' };
+  const TIPO_ORD = { meu:-1, lembrete:0, pessoal:1, prazo:2, database:3, sindical:3.5, onvio:3.7, geral:4 };
+  const porData = (a, b) => (a.d - b.d) || (TIPO_ORD[a.tipo] - TIPO_ORD[b.tipo]) || ((a.hora || '') < (b.hora || '') ? -1 : (a.hora || '') > (b.hora || '') ? 1 : 0) || ptCmp(a.empresa?.nome || '', b.empresa?.nome || '');
   const dentro = (d, from, to) => !!d && d >= from && d <= to;
   function mesesEntre(from, to) { const out = []; for (let m = mesDe(from); m <= mesDe(to); m = mesShift(m, 1)) out.push(m); return out; }
   // Cache por desenho de tela: limpo em renderDpActiveView/renderHome e nas janelas da empresa.
@@ -1121,6 +1165,7 @@
     out.push(...eventosCct(from, to, ativas));
     lista.forEach(e => e.lembretes.forEach(l => { const d = parseYmd(l.data); if (dentro(d, from, to)) out.push({ tipo:'lembrete', d, titulo: l.texto || 'Lembrete', sub: l.obs, empresa:e, tab:'prazos', edit:'lembrete:' + l.id }); }));
     ativas.forEach(e => e.funcionarios.forEach(f => funcEventos(f).forEach(ev => { if (dentro(ev.d, from, to)) out.push({ tipo:'pessoal', d: ev.d, titulo:`${f.nome || 'Funcionário'} · ${ev.txt}`, sub: f.cargo, empresa:e, tab:'funcionarios', edit:'pessoal:' + f.id }); })));
+    out.push(...ovEventos(from, to, ativas));
     return out.sort(porData);
   }
   // Próxima ocorrência de um prazo mensal a partir de hoje.
@@ -1215,7 +1260,7 @@
     return `<span class="pill">${fmtDM(d)} ${wd(d)}</span>`;
   }
   const empLink = (ev) => ev.meu
-    ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(ev.empresa.nome) : ''}</button>`
+    ? `<button type="button" class="q-emp" data-meu="${escapeHtml(ev.meu.id)}" data-dia="${ymd(ev.d)}">Só você${ev.empresa ? ' · ' + escapeHtml(nomeCurto(ev.empresa)) : ''}</button>`
     : ev.emps
     ?`<span class="dp-cell-sub" title="${escapeHtml(ev.emps.slice(0, 40).map(e => e.nome).join(', '))}">${ev.emps.length === state.dpEmpresas.filter(ativa).length ? 'Todas as empresas' : `${ev.emps.length} empresa(s)`}</span>`
     : `<button type="button" class="q-emp" data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}">${nomeEmpHtml(ev.empresa)}${respEf(ev.empresa, ymd(ev.d)) && !state.dpCarteira ? ' · ' + escapeHtml(respEf(ev.empresa, ymd(ev.d))) : ''}</button>`;
@@ -1371,6 +1416,7 @@
   function renderDpActiveView() {
     if (state.activeModule !== 'dp') return;
     evCacheClear();
+    ovGarantir();
     setTimeout(migrarCodDominio, 600);
     if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
     refreshCarteiraOptions();
@@ -1393,8 +1439,7 @@
     const n = todosEventos(t, t).filter(ev => !ev.feito).length;
     const ba = $('#dp-badge-agenda'); ba.hidden = !n; ba.textContent = n;
     ba.title = `${n} data(s) hoje`;
-    const nf = alertasPessoal().filter(a => a.func && a.nivel !== 'soon').length;
-    const bf = $('#dp-badge-func'); bf.hidden = !nf; bf.textContent = nf;
+    const bf = $('#dp-badge-func'); bf.hidden = true; bf.textContent = '';           // sem alertas na aba Funcionários
     renderCtAlertas();
     const ns = sindTabBadge(); const bs = $('#sd-badge'); bs.hidden = !ns; bs.textContent = ns; bs.title = `${ns} convenção(ões) ${state.dpCarteira ? 'da carteira ' : ''}vencida(s), vencendo ou pendente(s)`;
   }
@@ -1429,7 +1474,8 @@
     if (go) {
       const [view, a, b] = go.dataset.go.split(':');
       if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
-      if (view === 'funcionarios') state.dpFuncFiltro = a || '';
+      if (view === 'funcionarios') state.dpFuncFiltro = a === 'Desligado' ? 'Desligado' : '';
+      if (view === 'cartela' && a === 'onvio') state.dpCtModo = 'onvio';
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
       if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
       else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
@@ -1586,8 +1632,9 @@
     }).join('');
     const gapCard = card('Cadastro das empresas', 'quanto já está preenchido · clique para ver o que falta', meters ? `<div class="meters grid3">${meters}</div>` : '<div class="empty-mini">Nenhuma empresa nesta carteira.</div>', '', 'pn-wide');
 
+    const ovCard = ovCartaoPainel(emps, card);
     if (semEmpresas) { grid.innerHTML = `${cargaCard}${calCard}<section class="pn-card pn-wide">${emptyEmpresasHtml()}</section>`; return; }
-    grid.innerHTML = `${cargaCard}${calCard}${alCard}${funcCard}${cCard}${gapCard}`;
+    grid.innerHTML = `${cargaCard}${calCard}${alCard}${ovCard}${funcCard}${cCard}${gapCard}`;
     contar($$('.stat3 b, .stack-legend b, .prox30-i b', grid), marcarAnim(grid, anim, 'pn-anim'), 40);
     grid.__dia = null;
   }
@@ -1622,7 +1669,7 @@
   }
 
   // ---------- agenda: calendário do mês + lista de lembretes ----------
-  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['database','Data-base'],['sindical','Sindical (CCT)']];
+  const AG_FILTROS = [['','Tudo'],['meu','Meus lembretes'],['lembrete','Lembretes das empresas'],['prazo','Rotinas das empresas'],['geral','Prazos gerais'],['pessoal','Pessoal'],['onvio','Onvio'],['database','Data-base'],['sindical','Sindical (CCT)']];
   const ehLembrete = (ev) => ev.tipo === 'meu' || ev.tipo === 'lembrete';
   const evAttrs = (ev, k) => ev.goto ? `data-go="${escapeHtml(ev.goto)}"` : ev.sind ? `data-go="sindicatos:${escapeHtml(ev.sind)}"` : ev.meu ? `data-meu="${escapeHtml(ev.meu.id)}" data-dia="${k}"`
     : ev.emps ? 'data-open-gerais' : `data-open-emp="${escapeHtml(ev.empresa.id)}" data-tab="${ev.tab || 'dados'}"${ev.edit ? ` data-edit="${escapeHtml(ev.edit)}"` : ''}`;
@@ -1799,7 +1846,7 @@
     f.id.value = v.id || ''; f.texto.value = v.texto || ''; f.data.value = v.data || meuDia; f.hora.value = v.hora || '';
     f.rep.value = v.rep || 'nao'; f.intervalo.value = v.intervalo || 1; f.ate.value = v.ate || ''; f.obs.value = v.obs || '';
     const emps = [...state.dpEmpresas].sort(byNome);
-    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.nome)}${ehFilial(e) ? ' (filial)' : ''}</option>`).join('');
+    f.empresaId.innerHTML = '<option value="">— nenhuma —</option>' + emps.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(nomeCurto(e))}</option>`).join('');
     f.empresaId.value = emps.some(e => e.id === v.empresaId) ? v.empresaId : '';
     const titulo = l ? (ro ? 'Lembrete' : 'Editar lembrete') : 'Novo lembrete';
     $('#dlg-meu-title').textContent = titulo;
@@ -1898,7 +1945,7 @@
       .filter(e => matchQ([e.nome, e.cnpj, cnpjClean(e.cnpj), e.cod, e.codigoDominio, e.uf, e.responsavel, e.contato], state.dpQuery))
       .filter(e => !state.dpEmpFaixa || (EMP_FAIXAS.find(f => f.k === state.dpEmpFaixa)?.test(e) ?? true));
     const s = state.dpSort;
-    if (s === 'resp') return list.sort((a, b) => (a.responsavel || '~').localeCompare(b.responsavel || '~', 'pt-BR') || byNome(a, b));
+    if (s === 'resp') return list.sort((a, b) => ptCmp(a.responsavel || '~', b.responsavel || '~') || byNome(a, b));
     if (s === 'prox') return list.map(e => [e, proxEmpresa(e)]).sort((a, b) => ((a[1] ? a[1].d.getTime() : Infinity) - (b[1] ? b[1].d.getTime() : Infinity)) || byNome(a[0], b[0])).map(x => x[0]);
     return list.sort(byNome);
   }
@@ -2018,13 +2065,15 @@
   $('#dp-filtro-gap').addEventListener('change', (e) => { state.dpGap = e.target.value; renderDp(); });
 
   // ---------- funcionários ----------
-  const FUNC_FILTROS = [['','Todos'],['alerta','Com alerta'],['Ativo','Ativos'],['Férias','Em férias'],['Afastado','Afastados'],['Desligado','Desligados']];
-  const FUNC_COLS = 'minmax(0,1.6fr) minmax(0,1.4fr) 96px 104px minmax(0,1.8fr)';
+  // Só interessa quem está ativo (Ativo, em férias ou afastado); "Desligados" fica só para consulta. Sem alertas nesta tela (ficam na Agenda).
+  const FUNC_FILTROS = [['','Ativos'],['Desligado','Desligados']];
+  const FUNC_COLS = 'minmax(0,1.8fr) minmax(0,1.6fr) 110px 110px';
   function allFuncionarios() {
-    return empresasCarteira().flatMap(e => e.funcionarios.map(f => ({ f, e, status: funcStatus(f), alertas: funcAlertas(f), prox: funcProx(f) })));
+    return empresasCarteira().flatMap(e => e.funcionarios.map(f => ({ f, e, status: funcStatus(f) })));
   }
-  $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); renderDpFuncionarios(); });
-  $('#dp-func-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpFuncFiltro = c.dataset.f; renderDpFuncionarios(); } });
+  let funcBuscaT = null;
+  $('#dp-func-search').addEventListener('input', (e) => { state.dpFuncQuery = e.target.value.trim(); state.dpFuncLim = FUNC_PAG; clearTimeout(funcBuscaT); funcBuscaT = setTimeout(renderDpFuncionarios, 180); });
+  $('#dp-func-chips').addEventListener('click', (e) => { const c = e.target.closest('[data-f]'); if (c) { state.dpFuncFiltro = c.dataset.f; state.dpFuncLim = FUNC_PAG; renderDpFuncionarios(); } });
   // ---------- funcionários: linha do tempo ----------
   // Janela: 2 semanas para trás e ~3 meses para frente. Cores seguem as situações do Painel (férias = laranja, desligamento = verde-água).
   const TL_ANTES = 14, TL_DEPOIS = 90;
@@ -2052,9 +2101,13 @@
     const head = `<div class="tl-row tl-head"><div class="tl-name" style="cursor:default"><span class="dp-cell-sub" style="font-weight:600">Funcionário</span></div><div class="tl-track"><div class="tl-month" style="left:0;border-left:0">${MESES[from.getMonth()].slice(0, 3)}</div>${meses.map(d => `<div class="tl-month" style="left:${pos(d).toFixed(2)}%">${MESES[d.getMonth()].slice(0, 3)}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</div>`).join('')}<div class="tl-today" style="left:${pos(t).toFixed(2)}%"></div></div></div>`;
     let semDatas = 0;
     let ri = 0;
-    const rows = list.map(({ f, e, status }) => {
+    const itens = [];
+    list.forEach(({ f, e, status }) => {
       const marcas = funcBarras(f).filter(m => m.mark ? (m.late || (m.a >= from && m.a <= to)) : (m.b >= from && m.a <= to));
-      if (!marcas.length) { semDatas++; if (!state.dpFuncTodos) return ''; }
+      if (!marcas.length) { semDatas++; if (!state.dpFuncTodos) return; }
+      itens.push({ f, e, status, marcas });
+    });
+    const rows = itens.slice(0, state.dpFuncLim).map(({ f, e, status, marcas }) => {
       const quem = `${f.nome || 'Funcionário'} · ${e.nome}`;
       const els = marcas.map(m => {
         const tip = `${m.nome}\n${quem}\n${m.det}\nClique para abrir`;
@@ -2066,10 +2119,11 @@
     }).join('');
     const legenda = `<div class="legend"><span><i style="background:var(--viz-1)"></i>Experiência</span><span><i style="background:color-mix(in srgb, var(--viz-1) 60%, var(--surface))"></i>Prorrogação</span><span><i style="background:var(--viz-2)"></i>Férias</span><span><i style="background:var(--viz-3)"></i>Rescisão até o pagamento</span><span><i class="dia" style="background:var(--dp-today)"></i>Fim do concessivo</span><span><i class="dia" style="background:var(--dp-late)"></i>Férias vencidas</span><span><i class="line" style="background:var(--ink)"></i>Hoje</span></div>`;
     const toggle = semDatas ? `<button type="button" class="pn-link" data-func-todos>${state.dpFuncTodos ? 'Esconder quem não tem datas no período' : `Mostrar também ${semDatas} sem datas no período`}</button>` : '';
-    const corpo = rows || `<div class="dp-empty">Ninguém com experiência, férias ou rescisão entre ${fmtDM(from)} e ${fmtDM(to)}.</div>`;
+    const maisN = itens.length - state.dpFuncLim, mais = maisN > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${maisN} restantes)</button></div>` : '';
+    const corpo = (rows ? rows + mais : '') || `<div class="dp-empty">Ninguém com experiência, férias ou rescisão entre ${fmtDM(from)} e ${fmtDM(to)}.</div>`;
     return `<div class="tl-card"><div class="tl-inner" data-de="${ymd(from)}" data-span="${span}">${head}${corpo}<div class="tl-regua" aria-hidden="true"><span></span></div></div></div><div class="tl-foot">${legenda}${toggle}</div>`;
   }
-  $('#dp-func-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-func-modo]'); if (b) { state.dpFuncModo = b.dataset.funcModo; state.prefs.dpFuncModo = state.dpFuncModo; savePrefs(); renderDpFuncionarios(); } });
+  $('#dp-func-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-func-modo]'); if (b) { state.dpFuncModo = b.dataset.funcModo; state.dpFuncLim = FUNC_PAG; state.prefs.dpFuncModo = state.dpFuncModo; savePrefs(); renderDpFuncionarios(); } });
   // Régua que acompanha o mouse na linha do tempo, com a data exata.
   $('#dp-func-tl').addEventListener('mousemove', (e) => {
     const inner = $('.tl-inner', e.currentTarget), reg = inner && $('.tl-regua', inner), trilho = inner && $('.tl-head .tl-track', inner);
@@ -2083,36 +2137,146 @@
   });
   $('#dp-func-tl').addEventListener('mouseleave', (e) => { const reg = $('.tl-regua', e.currentTarget); if (reg) reg.classList.remove('on'); });
   $('#dp-func-tl').addEventListener('click', (e) => { if (e.target.closest('[data-func-todos]')) { e.stopPropagation(); state.dpFuncTodos = !state.dpFuncTodos; renderDpFuncionarios(); } });
+  // ---------- funcionários: visão por empresa ----------
+  // Nada de lista com todos os funcionários: cartões por empresa (situação e alertas de cada uma) e, para achar uma pessoa, a busca pelo nome.
+  const FN_ORDEM = ['Ativo', 'Férias', 'Afastado', 'Desligado'];
+  const FN_COR = { 'Ativo': 'var(--viz-1)', 'Férias': 'var(--viz-2)', 'Afastado': 'var(--viz-4)', 'Desligado': 'var(--viz-3)' };
+  const FN_ROT = { 'Ativo': ['ativo', 'ativos'], 'Férias': ['em férias', 'em férias'], 'Afastado': ['afastado', 'afastados'], 'Desligado': ['desligado', 'desligados'] };
+  const FUNC_PAG = 48, FUNC_MAX_BUSCA = 40;
+  const fnPlural = (n, s) => `${n} ${FN_ROT[s][n === 1 ? 0 : 1]}`;
+  // ---- evolução: quantos estavam ativos no fim de cada mês, pelas datas de admissão e de saída ----
+  // Saída = data de rescisão ou, quando o Hub marcou Desligado pela lista do Onvio, o dia em que marcou (saidaEm). Desligado sem nenhuma das duas não dá para
+  // situar no tempo: fica de fora dos meses anteriores (o quadro avisa quantos são).
+  const funcSaida = (f) => parseYmd(f.rescisao) || parseYmd(f.saidaEm) || null;
+  function funcAtivoEm(f, d) {
+    const adm = parseYmd(f.admissao); if (!adm || adm > d) return false;
+    if (funcStatus(f) !== 'Desligado') return true;
+    const sai = funcSaida(f); return !!sai && sai > d;
+  }
+  function funcSerie(emps, meses) {
+    const t = hoje(), out = [];
+    for (let k = meses - 1; k >= 0; k--) {
+      const ref = new Date(t.getFullYear(), t.getMonth() - k + 1, 0), d = k === 0 ? t : ref;        // fim do mês (hoje no mês atual)
+      let n = 0; emps.forEach(e => e.funcionarios.forEach(f => { if (funcAtivoEm(f, d)) n++; }));
+      out.push({ d, n, rot: ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][d.getMonth()] + '/' + String(d.getFullYear()).slice(2) });
+    }
+    return out;
+  }
+  function funcEvolucaoHtml(emps) {
+    const serie = funcSerie(emps, 24), max = Math.max(1, ...serie.map(x => x.n)), W = 720, H = 150, px = 34, pb = 22, passo = (W - px - 8) / (serie.length - 1);
+    const y = (n) => 8 + (H - pb - 8) * (1 - n / max), x = (i) => px + i * passo;
+    const pts = serie.map((s2, i) => `${x(i).toFixed(1)},${y(s2.n).toFixed(1)}`).join(' ');
+    const rot = serie.map((s2, i) => (i % 3 === 0 || i === serie.length - 1) ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${i === serie.length - 1 ? 'end' : i === 0 ? 'start' : 'middle'}" class="fe-ax">${s2.rot}</text>` : '').join('');
+    const pontos = serie.map((s2, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(s2.n).toFixed(1)}" r="3" class="fe-pt"><title>${s2.rot}: ${s2.n} ativos</title></circle>`).join('');
+    const grade = [0, 0.5, 1].map(f => `<line x1="${px}" x2="${W - 4}" y1="${y(max * f).toFixed(1)}" y2="${y(max * f).toFixed(1)}" class="fe-gr"/><text x="${px - 4}" y="${(y(max * f) + 3).toFixed(1)}" text-anchor="end" class="fe-ax">${Math.round(max * f)}</text>`).join('');
+    const hoje_ = serie[serie.length - 1].n, m3 = serie[serie.length - 4].n, a1 = serie[serie.length - 13].n;
+    const dlt = (v) => { const d = hoje_ - v; return d === 0 ? '<span class="dp-cell-sub">igual</span>' : `<span class="fe-var ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`; };
+    // por empresa: ativos hoje, há 3 e há 12 meses
+    const t = hoje(), d3 = addDays(t, -91), d12 = addDays(t, -365);
+    const linhas = emps.map(e => { const c = (d) => e.funcionarios.filter(f => funcAtivoEm(f, d)).length; return { e, h: c(t), m3: c(d3), a1: c(d12) }; })
+      .filter(r => r.h || r.m3 || r.a1).sort((a, b) => (b.h - a.h) || byNome(a.e, b.e)).slice(0, state.dpFuncLim);
+    const dd = (r, v) => { const d = r.h - v; return d === 0 ? '—' : `<span class="fe-var ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</span>`; };
+    const semData = emps.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) === 'Desligado' && !funcSaida(f)).length, 0);
+    return `<div class="fn-resumo fe-box"><div class="fn-res-t"><b>${hoje_}</b> ativos hoje <span class="dp-cell-sub">· ${dlt(m3)} em 3 meses · ${dlt(a1)} em 12 meses</span></div>
+      <svg viewBox="0 0 ${W} ${H}" class="fe-svg" role="img" aria-label="Quantidade de funcionários ativos por mês, últimos 24 meses">${grade}<polyline points="${pts}" class="fe-ln"/>${pontos}${rot}</svg>
+      ${semData ? `<div class="dp-cell-sub" style="margin-top:4px">${semData} desligado(s) sem data de saída não entram nos meses anteriores: a evolução passada pode estar um pouco baixa.</div>` : ''}</div>
+      <div class="list-card"><div class="dp-listhead" style="--cols:minmax(0,2fr) 90px 90px 90px"><span>Empresa</span><span>Ativos hoje</span><span>vs 3 meses</span><span>vs 12 meses</span></div>
+      <div class="dp-list">${linhas.map(r => `<div class="dp-row" style="--cols:minmax(0,2fr) 90px 90px 90px" role="button" tabindex="0" data-open-emp="${escapeHtml(r.e.id)}" data-tab="funcionarios"><div class="dp-cell-main">${nomeEmpHtml(r.e)}</div><div class="dp-mono">${r.h}</div><div>${dd(r, r.m3)}</div><div>${dd(r, r.a1)}</div></div>`).join('') || '<div class="dp-empty">Nenhuma empresa.</div>'}</div></div>`;
+  }
+  // uma passada só: situação e alertas de cada funcionário, somados por empresa
+  function funcResumo(emps) {
+    const cards = [], tot = { n: 0, ativos: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Desligado': 0 };
+    emps.forEach(e => {
+      if (!e.funcionarios.length) return;
+      const c = { e, n: 0, ativos: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Desligado': 0 };
+      e.funcionarios.forEach(f => { const st = funcStatus(f); c.n++; c[st] = (c[st] || 0) + 1; });
+      c.ativos = c.n - c['Desligado'];
+      cards.push(c);
+      tot.n += c.n; tot.ativos += c.ativos; FN_ORDEM.forEach(k => { tot[k] += c[k]; });
+    });
+    return { cards, tot };
+  }
+  const fnBarra = (c) => `<div class="fn-bar" role="img" aria-label="${FN_ORDEM.filter(k => c[k]).map(k => fnPlural(c[k], k)).join(', ')}">${FN_ORDEM.map(k => c[k] ? `<span style="flex:${c[k]};background:${FN_COR[k]}" title="${escapeHtml(fnPlural(c[k], k))}"></span>` : '').join('')}</div>`;
+  const fnLegenda = (c) => `<div class="fn-leg">${FN_ORDEM.filter(k => c[k]).map(k => `<span><i style="background:${FN_COR[k]}"></i>${escapeHtml(fnPlural(c[k], k))}</span>`).join('')}</div>`;
+  // Faixas por quantidade (a cor do número segue a faixa; a legenda explica): 1–9, 10–19, 20–49, 50–99 e 100 ou mais.
+  const FN_FAIXAS = [[1, 9, 'até 9'], [10, 19, '10 a 19'], [20, 49, '20 a 49'], [50, 99, '50 a 99'], [100, Infinity, '100 ou mais']];
+  const fnFaixa = (q) => Math.max(0, FN_FAIXAS.findIndex(([a, b]) => q >= a && q <= b));
+  function funcCartao(c, max) {
+    const e = c.e, des = state.dpFuncFiltro === 'Desligado', q = des ? c['Desligado'] : c.ativos, t = fnFaixa(q);
+    return `<button type="button" class="fn-card t${t + 1}" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" title="Abrir ${escapeHtml(e.nome)} · ${q} ${des ? 'desligado(s)' : 'ativo(s)'}">
+      <div class="fn-top"><span class="fn-nome">${nomeEmpHtml(e)}</span></div>
+      <div class="fn-base"><div class="fn-qtd"><b>${q}</b><span>${des ? (q === 1 ? 'desligado' : 'desligados') : (q === 1 ? 'ativo' : 'ativos')}</span></div>
+        <div class="fn-prop" aria-hidden="true"><i style="width:${Math.max(4, Math.round(q / Math.max(1, max) * 100))}%"></i></div></div>
+    </button>`;
+  }
+  function fnLegendaFaixas(vis, des) {
+    const qtd = (c) => des ? c['Desligado'] : c.ativos, cont = FN_FAIXAS.map(() => 0);
+    vis.forEach(c => { cont[fnFaixa(qtd(c))]++; });
+    return `<div class="fn-faixas" role="group" aria-label="Faixas de quantidade">${FN_FAIXAS.map((f, i) => cont[i] ? `<span class="t${i + 1}"><i></i>${f[2]} <em>${cont[i]} empresa${cont[i] === 1 ? '' : 's'}</em></span>` : '').join('')}</div>`;
+  }
   function renderDpFuncionarios() {
-    const container = $('#dp-func-list');
-    if (!state.dpLoaded) { container.innerHTML = ''; return; }
-    const all = allFuncionarios().filter(x => matchQ([x.f.nome, x.f.cargo, x.status, x.e.nome, x.f.obs], state.dpFuncQuery));
-    const passa = (x, f) => !f ? true : f === 'alerta' ? x.alertas.length > 0 : x.status === f;
-    $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${all.filter(x => passa(x, v)).length}</span></button>`).join('');
-    const list = all.filter(x => passa(x, state.dpFuncFiltro)).sort((a, b) => (b.alertas.length ? 1 : 0) - (a.alertas.length ? 1 : 0) || (a.prox ? 0 : 1) - (b.prox ? 0 : 1) || (a.prox && b.prox ? a.prox.d - b.prox.d : 0) || (a.f.nome || '').localeCompare(b.f.nome || '', 'pt-BR'));
-    $('#dp-func-count').textContent = `${list.length} funcionário(s)`;
-    if (!all.length) { $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false; container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return; }
-    const tempo = state.dpFuncModo === 'tempo' && list.length > 0;
+    const container = $('#dp-func-list'), cardsEl = $('#dp-func-cards'), resumoEl = $('#dp-func-resumo');
+    renderOvDifView();
+    if (!state.dpLoaded) { container.innerHTML = ''; cardsEl.innerHTML = ''; resumoEl.innerHTML = ''; return; }
+    const emps = empresasCarteira(), { cards, tot } = funcResumo(emps);
+    const q = state.dpFuncQuery, busca = q.length >= 2, tempo = state.dpFuncModo === 'tempo';
+    const passa = (st, nAl, f) => !f ? st !== 'Desligado' : st === f;
     $$('[data-func-modo]').forEach(b => { const on = b.dataset.funcModo === state.dpFuncModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    $('#dp-func-tl').hidden = !tempo;
-    $('#dp-func-listcard').hidden = tempo;
-    if (!list.length) { container.innerHTML = '<div class="dp-empty">Nada neste filtro.</div>'; return; }
+    $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${v === '' ? tot.ativos : tot[v]}</span></button>`).join('');
+    $('#dp-func-search').placeholder = 'Buscar funcionário pelo nome…';
+    if (!tot.n) {
+      resumoEl.innerHTML = ''; cardsEl.hidden = true; $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false; $('#dp-func-count').textContent = '';
+      container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return;
+    }
+    // resumo geral: só a quantidade de ativos
+    resumoEl.innerHTML = `<div class="fn-resumo"><div class="fn-res-t"><b>${tot.ativos}</b> funcionários ativos em <b>${cards.filter(c => c.ativos).length}</b> empresa${cards.filter(c => c.ativos).length === 1 ? '' : 's'}</div></div>`;
     const anim = dpAnim('funcionarios');
-    if (tempo) { $('#dp-func-tl').innerHTML = timelineHtml(list); marcarAnim($('#dp-func-tl'), anim, 'dp-anim', 2400); return; }
-    marcarAnim(container, anim);
-    container.innerHTML = list.map(({ f, e, status, alertas, prox }) => {
-      const a = alertas[0];
-      const ev = a || prox;
-      return `
+    // ---- busca por nome (em qualquer modo, resultado em lista curta) ----
+    if (busca && !tempo) {
+      const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [];
+      emps.forEach(e => { const ne = norm(e.nome); e.funcionarios.forEach(f => { const hay = funcNorm(f) + ' ' + norm(f.cargo || '') + ' ' + ne; if (palavras.every(w => hay.includes(w))) ach.push({ f, e }); }); });
+      const lista = ach.map(x => ({ ...x, status: funcStatus(x.f) })).filter(x => passa(x.status, 0, state.dpFuncFiltro))
+        .sort((a, b) => ptCmp(a.f.nome || '', b.f.nome || '') || byNome(a.e, b.e));
+      const mostra = lista.slice(0, FUNC_MAX_BUSCA);
+      $('#dp-func-count').textContent = lista.length > mostra.length ? `${mostra.length} de ${lista.length} encontrados` : `${lista.length} encontrado(s)`;
+      cardsEl.hidden = true; $('#dp-func-tl').hidden = true; $('#dp-func-listcard').hidden = false;
+      if (!lista.length) { container.innerHTML = '<div class="dp-empty">Ninguém com esse nome.</div>'; return; }
+      marcarAnim(container, anim);
+      container.innerHTML = mostra.map(({ f, e, status }) => {
+        return `
       <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
         <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
         <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${nomeEmpHtml(e)}</div>
         <div class="dp-hide-sm dp-mono" style="font-size:12px">${f.admissao ? escapeHtml(fmtDateStr(f.admissao)) : '—'}</div>
         <div><span class="pill ${FUNC_PILL[status] || ''}">${escapeHtml(status)}</span></div>
-        <div class="dp-hide-sm">${ev ? `<div class="dp-cell-sub" style="font-size:12px;color:var(--ink-2);white-space:normal">${a ? '<span class="al-dot ' + (a.nivel === 'soon' ? '' : a.nivel) + '" style="display:inline-block;margin-right:5px"></span>' : ''}${escapeHtml(ev.txt)} ${pillRel(ev.d, a?.nivel === 'late' ? 'late' : undefined)}</div>` : '<span class="dp-cell-sub">—</span>'}</div>
       </div>`;
-    }).join('');
+      }).join('') + (lista.length > mostra.length ? `<div class="fn-mais"><span class="dp-cell-sub">Mostrando ${mostra.length} de ${lista.length}. Digite mais do nome para afinar.</span></div>` : '');
+      return;
+    }
+    $('#dp-func-listcard').hidden = true;
+    // ---- evolução da quantidade de ativos ao longo do tempo ----
+    if (tempo) {
+      cardsEl.hidden = false; $('#dp-func-tl').hidden = true;
+      const w = busca ? norm(q).split(/\s+/).filter(Boolean) : [];
+      const sel = emps.filter(e => e.funcionarios.length && (!w.length || w.every(x => norm(e.nome).includes(x))));
+      $('#dp-func-count').textContent = `${sel.length} empresa(s)`;
+      cardsEl.innerHTML = funcEvolucaoHtml(sel);
+      marcarAnim(cardsEl, anim, 'dp-anim', 2400); return;
+    }
+    // ---- cartões por empresa ----
+    $('#dp-func-tl').hidden = true; cardsEl.hidden = false;
+    const f = state.dpFuncFiltro, qtd = (c) => f === 'Desligado' ? c['Desligado'] : c.ativos;
+    let vis = cards.filter(c => qtd(c) > 0);
+    if (busca) { const w = norm(q).split(/\s+/).filter(Boolean); vis = vis.filter(c => { const ne = norm(c.e.nome); return w.every(x => ne.includes(x)); }); }
+    vis.sort((a, b) => (qtd(b) - qtd(a)) || byNome(a.e, b.e));
+    $('#dp-func-count').textContent = `${vis.length} empresa(s)`;
+    if (!vis.length) { cardsEl.innerHTML = '<div class="dp-empty">Nenhuma empresa neste filtro.</div>'; return; }
+    const pag = vis.slice(0, state.dpFuncLim), resto = vis.length - pag.length;
+    const maxQ = Math.max(1, ...vis.map(qtd));
+    cardsEl.innerHTML = fnLegendaFaixas(vis, f === 'Desligado') + `<div class="fn-grid">${pag.map(c => funcCartao(c, maxQ)).join('')}</div>` + (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '') + '<div class="fn-dica">Para achar uma pessoa, digite o nome na busca.</div>';
+    marcarAnim(cardsEl, anim);
   }
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-func-mais]') && $('#view-dp') && !$('#dp-view-funcionarios').hidden) { state.dpFuncLim += FUNC_PAG; renderDpFuncionarios(); } });
 
   // ---------- arquivos ----------
   async function offerFile(filename, data, mime) {
@@ -2131,8 +2295,8 @@
     offerFile(`dp-empresas-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#dp-btn-func-csv').addEventListener('click', () => {
-    const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Férias início','Férias fim','Rescisão','Próxima data','O quê']];
-    allFuncionarios().forEach(({ f, e, status, prox }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), status, fmtDateStr(f.feriasInicio), fmtDateStr(f.feriasFim), fmtDateStr(f.rescisao), prox ? fmtDMY(prox.d) : '', prox?.txt || '']));
+    const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Rescisão']];
+    allFuncionarios().forEach(({ f, e, status }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), status, fmtDateStr(f.rescisao)]));
     offerFile(`dp-funcionarios-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
   $('#dp-btn-export').addEventListener('click', () => {
@@ -2147,7 +2311,7 @@
     catch { toast('Arquivo inválido: use um backup JSON exportado pelo Control Hub.'); return; }
     const mode = await ask(`Importar ${empresas.length} empresa(s) no módulo DP.\nSubstituir a lista atual ou juntar com ela?`, [{label:'Cancelar',value:null},{label:'Juntar',value:'merge'},{label:'Substituir',value:'replace',kind:'btn-danger'}]);
     if (!mode) return;
-    const incoming = empresas.map(normalizeDpEmpresa);
+    const incoming = empresas.map(normalizeDpEmpresa).filter(e => !ehEscritorioProprio(e.nome));
     let removed = [];
     if (mode === 'replace') { const keep = new Set(incoming.map(x => x.id)); removed = state.dpEmpresas.filter(x => !keep.has(x.id)).map(x => x.id); state.dpEmpresas = incoming; }
     else { const ids = new Set(state.dpEmpresas.map(x => x.id)); const base = Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1; incoming.forEach((x, i) => { if (ids.has(x.id)) x.id = uid(); x.order = base + i; state.dpEmpresas.push(x); }); }
@@ -2254,8 +2418,27 @@
   $('#dp-dtabs').addEventListener('click', (e) => { const t = e.target.closest('.dtab'); if (t) setDtab(t.dataset.dtab); });
 
   const addAbertos = new Set();
+  // Nome, CNPJ e código Domínio de uma empresa que está no cadastro único são editados lá (a ficha tem o atalho).
+  const dpCadAchados = {};
+  function dpTravaIdentidade(empresa, draft) {
+    const c = !draft ? cadGet(empresa.cnpj) : null, tit = 'Vem do cadastro único: use “Editar no cadastro único”.';
+    [['dp-nome', !!c], ['dp-cnpj', !!c], ['dp-codigo-dominio', !!(c && c.codigoDominio)]].forEach(([id, trava]) => { const el = $('#' + id); if (!el) return; el.readOnly = trava; el.title = trava ? tit : ''; });
+    const bx = $('#dp-cad-busca'); if (bx) { bx.hidden = !draft || !state.cadastro.size; const q = $('#dp-cad-q'); if (q) q.value = ''; }
+  }
+  document.addEventListener('input', (e) => {
+    if (!e.target || e.target.id !== 'dp-cad-q' || !dpDraft) return;
+    const q = e.target.value, hit = dpCadAchados[q];
+    if (hit) {
+      const set = (id, v) => { const el = $('#' + id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('dp-nome', hit.razao); set('dp-cnpj', maskCnpj(hit.cnpj14)); if (hit.codigoDominio) set('dp-codigo-dominio', hit.codigoDominio); if (hit.uf && !$('#dp-uf').value) set('dp-uf', hit.uf);
+      $('#dp-nome').readOnly = true; $('#dp-cnpj').readOnly = true; return;
+    }
+    if (!q.trim()) { $('#dp-nome').readOnly = false; $('#dp-cnpj').readOnly = false; return; }
+    const dl = $('#dp-cad-lista'); Object.keys(dpCadAchados).forEach(k => delete dpCadAchados[k]);
+    if (dl) dl.innerHTML = cadBuscar(q, 12).map(r => { const v = `${r.cnpj} · ${r.razao}`; dpCadAchados[v] = r; return `<option value="${escapeHtml(v)}"></option>`; }).join('');
+  });
   function openDpDetail(empresa, { tab, draft } = {}) {
-    dpAtual = empresa; dpDraft = !!draft; dpEdit = null;
+    dpAtual = empresa; dpDraft = !!draft; dpEdit = null; state.dpFichaDesl = false; state.dpFichaBusca = '';
     addAbertos.clear();
     fillMainFields(false);
     $$('[data-field]', dlgDetail).forEach(i => { i.value = ''; });
@@ -2265,6 +2448,7 @@
     $('#dp-ro-note').hidden = !ro;
     dlgDetail.classList.toggle('ro', ro);
     MAIN_FIELDS.forEach(([id]) => { $('#' + id).disabled = ro; });
+    dpTravaIdentidade(empresa, !!draft);
     if (!dlgDetail.open) dlgDetail.showModal();
     dlgDetail.querySelector('.dlg-body').scrollTop = 0;
     syncRoute();
@@ -2351,26 +2535,67 @@
   function sectionHtml(sec, cfg, items, note = '') {
     const ro = state.readOnly;
     const editable = sec !== 'historico';
-    const rows = items.map(row => {
+    // Funcionários: só ativos, com nome, admissão e código do Domínio; os desligados ficam atrás de um botão no cabeçalho.
+    const fn = sec === 'funcionarios', editando = fn && dpEdit && dpEdit.sec === sec ? dpEdit.id : '';
+    const desl = fn && state.dpFichaDesl && !editando;   // balão aberto (fecha ao abrir os dados de alguém)
+    const ordNome = (a, b) => ptCmp(a.nome || '', b.nome || '');
+    const nAtivos = fn ? items.filter(f => funcStatus(f) !== 'Desligado').length : 0, nDesl = fn ? items.length - nAtivos : 0;
+    const listaDesl = fn ? items.filter(f => funcStatus(f) === 'Desligado').slice().sort(ordNome) : [];
+    if (fn) items = items.filter(f => funcStatus(f) !== 'Desligado' || f.id === editando).slice().sort(ordNome);
+    const linha = (row) => {
       if (dpEdit && dpEdit.sec === sec && dpEdit.id === row.id) {
         return `<div class="dp-section-row editing" data-row="${escapeHtml(row.id)}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, row[f.key], 'edit')).join('')}<div class="dp-row-actions"><button type="button" class="btn btn-sm btn-primary" data-sec-save="${sec}" data-id="${escapeHtml(row.id)}">Salvar</button><button type="button" class="btn btn-sm" data-sec-cancel="${sec}">Cancelar</button></div></div>`;
       }
       const pelaCct = sec === 'estabelecimentos' && estabSinds(row).some(x => x.dataBase);
-      const cells = cfg.fields.filter((f, i) => (i === 0 || row[f.key] || f.type === 'regra' || f.uid) && !(pelaCct && f.key === 'dataBase')).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
-      const actions = ro ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
-      return `<div class="dp-section-row">${sec === 'estabelecimentos' ? cells + extraCells(sec, row) : extraCells(sec, row) + cells}${actions}</div>`;
-    }).join('');
+      const cells = (fn ? ['nome', 'admissao', 'codigo'].map(k => cfg.fields.find(f => f.key === k)) : cfg.fields.filter((f, i) => (i === 0 || row[f.key] || f.type === 'regra' || f.uid) && !(pelaCct && f.key === 'dataBase'))).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
+      const actions = (ro || fn) ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
+      // Funcionário: clicar na linha abre os dados (sem lápis e sem lixeira)
+      return `<div class="dp-section-row${fn ? ' fn-lin' : ''}"${fn ? ` data-busca="${escapeHtml(norm([row.nome, row.codigo, row.admissao, dmyIso(row.admissao)].join(' ')))}"` : ''}${fn && !ro ? ` data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" role="button" tabindex="0" title="Abrir os dados de ${escapeHtml(row.nome || 'funcionário')}"` : ''}>${fn ? cells + (ro ? '' : '<span class="fn-ir" aria-hidden="true">›</span>') : sec === 'estabelecimentos' ? cells + extraCells(sec, row) : extraCells(sec, row) + cells}${actions}</div>`;
+    };
+    const rows = items.map(linha).join('');
     const addRow = ro ? '' : addAbertos.has(sec)
       ? `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<div class="dp-row-actions" style="align-self:flex-end"><button type="button" class="btn btn-sm btn-primary" data-sec-add="${sec}">${ic('plus', 'ic-sm')} Adicionar</button><button type="button" class="btn btn-sm" data-sec-fechar="${sec}">Fechar</button></div></div>`
       : `<div class="dp-add-row"><button type="button" class="btn btn-sm" data-sec-abrir="${sec}">${ic('plus', 'ic-sm')} ${escapeHtml(cfg.addLabel)}</button></div>`;
-    return `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>${note ? `<div class="dp-sec-note">${note}</div>` : ''}<div class="dp-section-rows">${rows || '<div class="empty-mini">Nenhum registro.</div>'}</div>${addRow}`;
+    const titulo = fn
+      ? `<div class="fn-cab-wrap"><div class="dlg-section-title fn-cab"><span>Funcionários <em>${nAtivos} ${nAtivos === 1 ? 'ativo' : 'ativos'}</em></span>@@BUSCA@@<button type="button" class="btn btn-sm" data-ficha-desl aria-expanded="${desl}" aria-haspopup="dialog">Desligados (${nDesl})</button></div>${desl ? `<div class="fn-pop" role="dialog" aria-label="Funcionários desligados"><div class="fn-pop-cab"><b>Desligados <em>${nDesl}</em></b><button type="button" class="icon-btn" data-ficha-desl-fechar aria-label="Fechar">${ic('x', 'ic-sm')}</button></div><div class="dp-section-rows">${listaDesl.map(linha).join('') || '<div class="empty-mini">Nenhum funcionário desligado.</div>'}</div></div>` : ''}</div>`
+      : `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>`;
+    const busca = fn ? `<div class="fn-busca"><input type="search" id="fn-busca" placeholder="Buscar por nome ou código…" autocomplete="off" aria-label="Buscar funcionário" value="${escapeHtml(state.dpFichaBusca)}"><span class="fn-busca-n" aria-live="polite"></span></div>` : '';
+    return `${titulo.replace('@@BUSCA@@', busca)}${note ? `<div class="dp-sec-note${fn ? ' fn-fonte' : ''}">${note}</div>` : ''}<div class="dp-section-rows">${rows || `<div class="empty-mini">${fn ? 'Nenhum funcionário ativo.' : 'Nenhum registro.'}</div>`}</div>${addRow}`;
   }
   const SEC_NOTES = {
-    funcionarios: 'Os alertas usam estas datas: experiência 45+45 dias a partir da admissão; férias pelo período aquisitivo (atualize depois de conceder); pagamento de férias 2 dias antes do início; rescisão até 10 dias após o último dia.',
+    funcionarios: '<b>De onde vem esta lista:</b> do cadastro de funcionários do DP, atualizado automaticamente a partir da lista de empregados do Onvio (Portal do Cliente) e, nas empresas do escritório, da equipe ativa do Onvio. <b>Pode não representar a realidade 100%:</b> o Onvio pode demorar a refletir admissões e desligamentos, e empresa sem lista no Onvio fica como está no DP. Na dúvida, confira no Domínio.',
     prazos: 'Datas que se repetem todo mês só nesta empresa (ex.: cliente envia as variáveis até o dia 25).',
     lembretes: 'Datas únicas para não esquecer: combinados com o cliente, admissões previstas, reajustes, prazos de documentos.',
     historico: 'Alterações feitas por aqui entram automaticamente. Use a nota para registrar combinados com o cliente.',
   };
+  document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.fn-lin[data-sec-edit]')) { e.preventDefault(); e.target.click(); } });
+  // Busca na ficha: filtra por nome, código do Domínio e admissão, nos ativos e no balão dos desligados, sem redesenhar (o foco fica no campo).
+  function aplicaBuscaFunc() {
+    const el = $('#dp-section-funcionarios'); if (!el) return;
+    const q = state.dpFichaBusca.trim(), n = norm(q).split(/\s+/).filter(Boolean);
+    let vis = 0, tot = 0;
+    $$('.fn-lin', el).forEach(r => {
+      const ok = !n.length || n.every(w => (r.dataset.busca || '').includes(w));
+      r.hidden = !ok; if (!r.closest('.fn-pop')) { tot++; if (ok) vis++; }
+    });
+    $$('.dp-section-rows', el).forEach(c => {
+      const linhas = $$('.fn-lin', c); let sem = $('.fn-sem', c);
+      const todosOcultos = linhas.length > 0 && linhas.every(r => r.hidden);
+      if (todosOcultos && !sem) { sem = document.createElement('div'); sem.className = 'empty-mini fn-sem'; sem.textContent = 'Nenhum funcionário encontrado.'; c.appendChild(sem); }
+      if (sem) sem.hidden = !todosOcultos;
+    });
+    const nEl = $('.fn-busca-n', el); if (nEl) nEl.textContent = q ? `${vis} de ${tot}` : '';
+  }
+  document.addEventListener('input', (e) => { if (e.target && e.target.id === 'fn-busca') { state.dpFichaBusca = e.target.value; aplicaBuscaFunc(); } });
+  // Balão dos desligados: abre no botão do cabeçalho; fecha no ×, fora dele ou com Esc.
+  const fechaBalaoDesl = () => { if (!state.dpFichaDesl || !dpAtual) return false; state.dpFichaDesl = false; renderDetailSec('funcionarios'); return true; };
+  document.addEventListener('click', (e) => {
+    if (!dpAtual) return;
+    if (e.target.closest('[data-ficha-desl]')) { state.dpFichaDesl = !state.dpFichaDesl; renderDetailSec('funcionarios'); return; }
+    if (e.target.closest('[data-ficha-desl-fechar]')) { fechaBalaoDesl(); return; }
+    if (state.dpFichaDesl && !e.target.closest('.fn-pop') && !e.target.closest('[data-sec-edit]')) fechaBalaoDesl();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.dpFichaDesl && dpAtual && $('#dlg-dp-detail')?.open) { e.preventDefault(); e.stopPropagation(); fechaBalaoDesl(); } }, true);
   function captureInputs(root) { const m = {}; $$('[data-field]', root).forEach(i => { m[`${i.dataset.scope}|${i.dataset.sec}|${i.dataset.field}`] = i.value; }); return m; }
   function restoreInputs(root, m) { $$('[data-field]', root).forEach(i => { const k = `${i.dataset.scope}|${i.dataset.sec}|${i.dataset.field}`; if (k in m) i.value = m[k]; }); }
   function renderDetailSec(sec) {
@@ -2381,10 +2606,13 @@
     if (sec === 'estabelecimentos') atualizaDbHint();
     restoreInputs(el, keep);
     fillNames(el);
+    if (sec === 'funcionarios') { renderOvDifFicha(); aplicaBuscaFunc(); }
   }
   function renderDetail() {
     if (!dpAtual) return;
     Object.keys(DP_SECTIONS).forEach(renderDetailSec);
+    renderCadFicha();
+    renderOvFicha(); renderOvDifFicha();
     atualizaDbHint();
     renderDetailProx();
     renderDetailGerais();
@@ -2558,6 +2786,7 @@
     state.dpEmpresas.push(dpAtual);
     const emp = dpAtual;
     persist(() => dpStore.saveOne(emp));
+    cadRegistrar({ cnpj: emp.cnpj, nome: emp.nome, modulo: 'dp', id: emp.id, uf: emp.uf, codigoDominio: emp.codigoDominio });     // a empresa nova também entra no cadastro único
     renderDetail();
     renderDpActiveView();
     toast('Empresa criada.');
@@ -4661,9 +4890,9 @@
     const nf = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
     const k = state.dpCtSort;
     const vazio = '￿';
-    const cmp = k === 'resp' ? (a, b) => (ctResp(a) || vazio).localeCompare(ctResp(b) || vazio, 'pt-BR') || byNome(a, b)
+    const cmp = k === 'resp' ? (a, b) => ptCmp(ctResp(a) || vazio, ctResp(b) || vazio) || byNome(a, b)
       : k === 'func' ? (a, b) => nf(b) - nf(a) || byNome(a, b)
-      : k === 'trib' ? (a, b) => (a.tributacao || vazio).localeCompare(b.tributacao || vazio, 'pt-BR') || byNome(a, b)
+      : k === 'trib' ? (a, b) => ptCmp(a.tributacao || vazio, b.tributacao || vazio) || byNome(a, b)
       : byNome;
     return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
   }
@@ -4704,10 +4933,1429 @@
     const b = $('#ct-badge'); b.hidden = !al.length; b.textContent = al.length; b.title = `${al.length} aviso(s) de cobertura`;
   }
 
+  // ----- solicitações do Onvio no DP: lê o lote que a extensão entrega em ing_lotes/onvio~solicitacoes -----
+  // Só mostra e avisa: nada aqui grava na empresa. O que se grava (dp_config/onvio) é a escolha das listas do DP
+  // e o vínculo "nome do cliente no Onvio → empresa do DP", feitos pela coordenação.
+  const OV_SUFIXOS = /\b(ltda|ltd|me|epp|eireli|s\/?a|sa|ss|cia|limitada|mei|e filhos?)\b/g;
+  // O Onvio escreve o cliente como "NOME | 0001-42": filial e dígitos finais do CNPJ. A chave fica só com o nome;
+  // o final serve para escolher entre empresas de mesmo nome (filiais) pelo CNPJ cadastrado no DP.
+  const OV_FINAL = /\|?\s*(\d{4})-(\d{2})\s*$/;
+  const chaveCache = new Map(), chaveAntigaCache = new Map();
+  const ovChaveAntiga = (n) => {
+    const k = String(n == null ? '' : n); let v = chaveAntigaCache.get(k);
+    if (v === undefined) { v = norm(k).replace(/[^a-z0-9 ]+/g, ' ').replace(OV_SUFIXOS, ' ').replace(/\s+/g, ' ').trim(); if (chaveAntigaCache.size > 60000) chaveAntigaCache.clear(); chaveAntigaCache.set(k, v); }
+    return v;
+  };
+  const ovChave = (n) => {
+    const k = String(n || ''); let v = chaveCache.get(k);
+    if (v === undefined) { v = ovChaveAntiga(k.replace(OV_FINAL, '')); if (chaveCache.size > 60000) chaveCache.clear(); chaveCache.set(k, v); }
+    return v;
+  };
+  const ovFinal = (n) => { const m = OV_FINAL.exec(String(n || '')); return m ? m[1] + m[2] : ''; };
+  function ovLinhas() {
+    const l = state.dpOv;
+    if (!l || !Array.isArray(l.colunas) || typeof l.tabela !== 'string' || !l.tabela) return [];
+    const ix = {}; l.colunas.forEach((c, i) => { ix[c] = i; });
+    const col = (c, k) => String(c[ix[k]] == null ? '' : c[ix[k]]).trim();
+    return l.tabela.split('\n').filter(Boolean).map(t => { const c = t.split('\t'); return { lista: col(c, 'Lista'), num: col(c, 'Nº'), sit: col(c, 'Situação'), vez: col(c, 'Vez'), cli: col(c, 'Cliente'), resp: col(c, 'Responsável'), aberta: col(c, 'Aberta em'), ult: col(c, 'Última movimentação'), parado: parseInt(col(c, 'Dias parado'), 10) || 0, grav: col(c, 'Gravidade') }; });
+  }
+  function ovIndiceEmpresas() {
+    const m = new Map();
+    state.dpEmpresas.forEach(e => { const k = ovChave(e.nome); if (!k) return; const a = m.get(k) || []; a.push(e); m.set(k, a); });
+    return m;
+  }
+  // Empresa do DP para o cliente da linha: vínculo gravado primeiro; senão, o nome normalizado bate com uma só empresa.
+  // Nome do Onvio contido no nome do DP (ou o contrário), palavra por palavra: "BRISA DOCE" ~ "DISTRIBUIDORA BRISA DOCE".
+  function ovParecido(k, e) {
+    const ke = ovChave(e.nome); if (!k || !ke) return false;
+    const a = ` ${k} `, b = ` ${ke} `;
+    return b.includes(a) || a.includes(b);
+  }
+  function ovCasar(cli, idx) {
+    const fim = ovFinal(cli), k = fim ? ovChave(cli) + ' ' + fim : ovChave(cli);
+    const v = state.dpOvCfg.vinc[k] || state.dpOvCfg.vinc[ovChaveAntiga(cli)];
+    if (v === '-') return { k, fora: true };
+    if (v) { const e = findDpEmpresa(v); if (e) return { k, e }; }
+    let a = idx.get(ovChave(cli)) || [];
+    if (fim) { const porCnpj = (a.length ? a : state.dpEmpresas).filter(e => cnpjClean(e.cnpj).length === 14 && cnpjClean(e.cnpj).slice(8) === fim); if (porCnpj.length === 1 && (a.length || ovParecido(ovChave(cli), porCnpj[0]))) return { k, e: porCnpj[0] }; if (porCnpj.length && !a.length) return { k, cand: porCnpj.slice(0, 4) }; if (porCnpj.length) a = porCnpj; }
+    if (a.length === 1) return { k, e: a[0] };
+    return { k, cand: a.length ? a.slice(0, 4) : state.dpEmpresas.filter(e => ovParecido(ovChave(cli), e)).slice(0, 4) };
+  }
+  function ovDados() {
+    const todas = ovLinhas(), listasTodas = [...new Set(todas.map(r => r.lista).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const sel = Array.isArray(state.dpOvCfg.listas) ? state.dpOvCfg.listas : null;
+    const doDp = todas.filter(r => !sel || sel.includes(r.lista));
+    const idx = ovIndiceEmpresas(), semVinc = new Map();
+    const linhas = [];
+    doDp.forEach(r => {
+      const c = ovCasarMais(r.cli, idx);
+      if (c.fora) return;
+      const x = { ...r, k: c.k, e: c.e || null, cand: c.cand || [] };
+      if (!x.e) { const g = semVinc.get(c.k) || { k: c.k, cli: r.cli, n: 0, cand: x.cand }; g.n++; semVinc.set(c.k, g); }
+      linhas.push(x);
+    });
+    return { todas, listasTodas, sel, linhas, semVinc: [...semVinc.values()].sort((a, b) => b.n - a.n) };
+  }
+  // Na visão de um analista, só as solicitações das empresas da carteira dele (ou em que ele é o responsável no Onvio).
+  const ovNaCarteira = (r) => !state.dpCarteira || (r.e ? ctNaCarteira(r.e) : state.dpCarteira !== SEM_RESP && norm(r.resp) === norm(state.dpCarteira));
+  const ovEscritorio = (r) => /escrit/i.test(r.vez);
+  function ovPorEmpresa() {
+    const m = new Map();
+    if (!state.dpOv) return m;
+    ovDados().linhas.forEach(r => { if (!r.e) return; const a = m.get(r.e.id) || { n: 0, esc: 0, max: 0 }; a.n++; if (ovEscritorio(r)) a.esc++; a.max = Math.max(a.max, r.parado); m.set(r.e.id, a); });
+    return m;
+  }
+  const ovIdade = (ms) => { if (!ms) return ''; const min = Math.round((Date.now() - ms) / 60000); return min < 1 ? 'agora' : min < 60 ? `há ${min} min` : min < 2880 ? `há ${Math.round(min / 60)} h` : `há ${Math.round(min / 1440)} dias`; };
+  function renderOvBadge() {
+    const b = $('#ct-ov-n'); if (!b) return;
+    const n = state.dpOv ? ovDados().linhas.filter(r => ovNaCarteira(r) && ovEscritorio(r)).length : 0;
+    b.hidden = !n; b.textContent = n; b.title = `${n} solicitação(ões) do Onvio na vez do escritório`;
+  }
+  function seloOv(e, mapa) {
+    const a = mapa && mapa.get(e.id); if (!a) return '';
+    const txt = `${a.n} no Onvio${a.max ? ` · parada há ${a.max} dia${a.max === 1 ? '' : 's'}` : ''}`;
+    return `<button type="button" class="ct-ov-selo ${a.esc ? 'esc' : 'cli'}${a.max > 7 ? ' velho' : ''}" data-ct-ov="${escapeHtml(e.id)}" title="${a.esc} na vez do escritório, ${a.n - a.esc} na vez do cliente">${escapeHtml(txt)}</button>`;
+  }
+  function renderCtOnvio() {
+    const box = $('#ct-pane-onvio'), ro = state.readOnly || nivelMod('dp') !== 'coord', l = state.dpOv;
+    if (!l) { box.innerHTML = `<div class="dp-empty"><strong>Nenhum resumo do Onvio recebido ainda</strong><span>A extensão Control Onvio envia o resumo quando alguém usa o Onvio com o Hub aberto. Veja em Entrada de dados.</span></div>`; return; }
+    const d = ovDados(), q = state.dpCtQuery, h = ymd(hoje());
+    const velho = (Date.now() - (l.recebidoEm || 0)) / 36e5 > 24;
+    let vis = d.linhas.filter(ovNaCarteira);
+    const base = vis;
+    if (state.dpOvEmp) vis = vis.filter(r => r.e && r.e.id === state.dpOvEmp);
+    if (state.dpOvVez) vis = vis.filter(r => state.dpOvVez === 'esc' ? ovEscritorio(r) : !ovEscritorio(r));
+    if (q) vis = vis.filter(r => matchQ([r.cli, r.num, r.lista, r.resp, r.sit, r.e && r.e.nome], q));
+    vis.sort((a, b) => (ovEscritorio(b) - ovEscritorio(a)) || (b.parado - a.parado) || a.cli.localeCompare(b.cli, 'pt-BR'));
+    const nEsc = base.filter(ovEscritorio).length, nVelho = base.filter(r => r.parado > 7).length;
+    const empF = state.dpOvEmp ? findDpEmpresa(state.dpOvEmp) : null;
+    const chip = (v, rot) => `<button type="button" class="ct-ov-f${state.dpOvVez === v ? ' on' : ''}" data-ov-vez="${v}" aria-pressed="${state.dpOvVez === v}">${rot}</button>`;
+    const avisoDe = (r) => {
+      if (!r.e) return '';
+      const cob = coberturaDe(r.e, h), out = [];
+      if (cob.aus) out.push(`<span class="ct-ov-av warn">${escapeHtml(cob.titular)}: ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdDM(cob.aus.fim)}${cob.coberta ? ` · cobre ${escapeHtml(cob.efetivo)}` : ' · sem cobertura'}</span>`);
+      if (r.resp && cob.efetivo && norm(r.resp) !== norm(cob.efetivo) && norm(r.resp) !== norm(cob.titular)) out.push(`<span class="ct-ov-av">No Onvio: ${escapeHtml(r.resp)} · no Hub: ${escapeHtml(cob.efetivo)}</span>`);
+      return out.join('');
+    };
+    const linha = (r) => `<tr class="${ovEscritorio(r) ? 'esc' : ''}">
+        <td class="dp-mono">${escapeHtml(r.num || '—')}</td>
+        <td>${escapeHtml(r.lista || '—')}</td>
+        <td>${r.e ? `<button type="button" class="ct-emp" data-open-emp="${escapeHtml(r.e.id)}"><div class="dp-cell-main">${nomeEmpHtml(r.e)}</div></button>` : `<div class="dp-cell-main">${escapeHtml(r.cli || '—')}</div><div class="dp-cell-sub">sem vínculo com o DP</div>`}${avisoDe(r)}</td>
+        <td><span class="ct-ov-vez ${ovEscritorio(r) ? 'esc' : 'cli'}">${escapeHtml(r.vez || '—')}</span><div class="dp-cell-sub">${escapeHtml(r.sit || '')}</div></td>
+        <td>${escapeHtml(r.resp || '—')}</td>
+        <td class="dp-cell-sub">${escapeHtml(r.aberta || '—')}</td>
+        <td class="num"><span class="${r.parado > 7 ? 'ct-ov-velho' : ''}">${r.parado}</span></td>
+      </tr>`;
+    const listasHtml = d.listasTodas.length ? `<details class="ct-ov-cfg"${d.sel ? '' : ' open'}><summary>Listas do DP <span class="dp-cell-sub">${d.sel ? `${d.sel.length} de ${d.listasTodas.length} escolhidas` : 'todas entram até a coordenação escolher'}</span></summary>
+        <div class="ct-ov-listas">${d.listasTodas.map(n => { const on = !d.sel || d.sel.includes(n); const qn = d.todas.filter(r => r.lista === n).length; return `<label class="ct-ov-lista${on ? ' on' : ''}"><input type="checkbox" data-ov-lista="${escapeHtml(n)}"${on ? ' checked' : ''}${ro ? ' disabled' : ''}> ${escapeHtml(n)} <small>${qn}</small></label>`; }).join('')}</div>
+        ${ro ? '<p class="dp-cell-sub">Só a coordenação escolhe as listas.</p>' : ''}</details>` : '';
+    const optsEmp = (cand) => {
+      const ids = new Set(cand.map(e => e.id));
+      const resto = state.dpEmpresas.filter(e => !ids.has(e.id)).sort(byNome);
+      return `<option value="">Escolha a empresa…</option>${cand.length ? `<optgroup label="Parecidas">${cand.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(nomeCurto(e))}</option>`).join('')}</optgroup>` : ''}<optgroup label="Todas">${resto.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(nomeCurto(e))}</option>`).join('')}</optgroup>`;
+    };
+    const semVinc = d.semVinc.filter(g => !state.dpCarteira || base.some(r => r.k === g.k));
+    const vincHtml = semVinc.length ? `<div class="ct-ov-nid"><div class="ct-ov-nid-h"><b>${semVinc.length} cliente(s) do Onvio sem empresa no DP</b><span class="dp-cell-sub">o vínculo fica gravado e vale para os próximos resumos</span></div>
+        ${semVinc.slice(0, 12).map(g => `<div class="ct-ov-nid-row" data-ov-k="${escapeHtml(g.k)}"><div style="min-width:0"><div class="dp-cell-main">${escapeHtml(g.cli || '(sem nome)')}</div><div class="dp-cell-sub">${g.n} solicitação(ões)${g.cand.length ? ` · parecida: ${escapeHtml(g.cand[0].nome)}` : ''}</div></div>
+          ${ro ? '' : `<select data-ov-emp aria-label="Empresa do DP para ${escapeHtml(g.cli)}">${optsEmp(g.cand)}</select><button type="button" class="btn btn-sm" data-ov-vinc>Vincular</button><button type="button" class="btn btn-sm btn-ghost" data-ov-fora title="Não mostrar mais este cliente no DP">Não é do DP</button>`}</div>`).join('')}
+        ${semVinc.length > 12 ? `<div class="dp-cell-sub">e mais ${semVinc.length - 12}…</div>` : ''}</div>` : '';
+    box.innerHTML = `<div class="ct-ov">
+      <div class="ct-ov-top"><div><h3>Solicitações do Onvio${state.dpCarteira ? ` · ${escapeHtml(carteiraNome())}` : ''}</h3><span class="dp-cell-sub">resumo enviado pela extensão${l.usuario ? ` · lido por ${escapeHtml(l.usuario)}` : ''}</span></div>
+        <span class="ct-ov-idade${velho ? ' velho' : ''}">recebido ${escapeHtml(ovIdade(l.recebidoEm))}${velho ? ' · desatualizado' : ''}</span></div>
+      <div class="ct-ov-kp"><div><b>${base.length}</b><span>nas listas do DP</span></div><div class="esc"><b>${nEsc}</b><span>na vez do escritório</span></div><div class="cli"><b>${base.length - nEsc}</b><span>na vez do cliente</span></div><div class="late"><b>${nVelho}</b><span>paradas há mais de 7 dias</span></div></div>
+      ${l.cortado ? `<p class="dp-cell-sub" style="margin:0">O resumo traz as ${l.nLinhas} mais graves de ${l.totalNaOrigem} no Onvio.</p>` : ''}
+      ${listasHtml}
+      ${vincHtml}
+      <div class="ct-ov-barra">${chip('', 'Todas')}${chip('esc', 'Vez do escritório')}${chip('cli', 'Vez do cliente')}${empF ? `<button type="button" class="ct-ov-f on" data-ov-limpa-emp>${escapeHtml(empF.nome)} ✕</button>` : ''}<span class="dp-count">${vis.length} solicitação(ões)</span></div>
+      <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table ct-ov-tab"><thead><tr><th>Nº</th><th>Lista</th><th>Empresa</th><th>Vez</th><th>Responsável no Onvio</th><th>Aberta em</th><th class="num">Dias parado</th></tr></thead>
+      <tbody>${vis.length ? vis.slice(0, state.dpOvLim).map(linha).join('') : `<tr><td colspan="7"><div class="dp-empty">${base.length ? 'Nenhuma solicitação com esses filtros.' : 'Nenhuma solicitação do Onvio para esta cartela.'}</div></td></tr>`}
+      ${vis.length > state.dpOvLim ? `<tr><td colspan="7" style="text-align:center"><button type="button" class="btn btn-sm" data-ov-mais>Mostrar mais (${vis.length - state.dpOvLim})</button></td></tr>` : ''}</tbody></table></div></div>
+    </div>`;
+  }
+  async function salvarOvCfg(mut) {
+    if (state.readOnly || nivelMod('dp') !== 'coord') { toast('Só a coordenação altera as listas e os vínculos do Onvio.'); return false; }
+    let c = JSON.parse(JSON.stringify(state.dpOvCfg));
+    try { const sn = await db.doc('dp_config/onvio').get(); if (sn && sn.exists !== false && sn.data) { const v = sn.data() || {}; c = { listas: Array.isArray(v.listas) ? v.listas : null, vinc: v.vinc && typeof v.vinc === 'object' ? { ...v.vinc } : {}, auto: ovAutoNorm(v.auto) }; } } catch {}     // parte do que está no banco, não da cópia local
+    mut(c); state.dpOvCfg = c;
+    renderCartela();
+    return persist(() => db.doc('dp_config/onvio').set(c));
+  }
+
+  // === ONVIO · FASE 1 (DP): os conjuntos completos do Onvio na ficha, na agenda e na conferência de funcionários ===
+  // A extensão entrega cada conjunto em ing_dados/onvio~<tipo> (manifesto) + ing_partes/onvio~<tipo>~<slot><n> (tabela em texto,
+  // tab entre colunas, \n entre linhas). Aqui só se LÊ. O Onvio só sugere: nada vai para o cadastro sem a pessoa confirmar
+  // (Aplicar) e tudo o que for aplicado fica no histórico da empresa.
+  const OV_LISTAS = ['lista-geral', 'lista-cad-empregado', 'lista-cad-contribuinte', 'lista-cad-estagiario', 'lista-aviso-ferias', 'lista-calc-ferias', 'lista-aviso-rescisao', 'lista-calc-rescisao', 'lista-afastamento', 'lista-rubricas'];
+  const OV_PESSOAIS = OV_LISTAS.map(t => t.replace('lista-', 'pessoais-'));
+  const OV_EMPREGADOS = 'pessoais-empregados';        // a folha inteira de cada empresa (extensão 0.53.0): quem nunca teve solicitação também vem
+  state.ovMan = {}; state.ovTab = {}; state.ovCarga = {}; state.ovIgn = {};
+  state.ovAberta = ''; state.ovFiltro = 'pend'; state.ovLim = 100; state.ovVincAberto = false;
+  let ovVer = 0;
+  const ovDia = (s) => { const t = String(s || '').slice(0, 10); return parseYmd(t) ? t : ''; };       // '2026-10-26 14:30' → '2026-10-26'
+  const ovData = (s) => parseYmd(ovDia(s));
+  const ovFmtDia = (s) => { const d = ovDia(s); return d ? fmtDateStr(d) : ''; };
+  const ovTipoKey = (td) => td.replace(/^(lista|pessoais)-/, '').replace(/-([a-z])/g, (m, c) => c.toUpperCase());   // lista-calc-ferias → calcFerias
+  function ovParse(colunas, texto) {
+    const cols = Array.isArray(colunas) ? colunas : [];
+    if (!texto) return [];
+    const iCli = cols.indexOf('Cliente'), iApe = cols.indexOf('Apelido');       // linha de empresa do escritório nunca entra
+    return String(texto).split('\n').filter(Boolean).map(l => l.split('\t')).filter(c => !((iCli >= 0 || iApe >= 0) && ehEscritorioProprio(iCli >= 0 ? c[iCli] : '', iApe >= 0 ? c[iApe] : ''))).map(c => { const o = {}; for (let i = 0; i < cols.length; i++) o[cols[i]] = c[i] == null ? '' : c[i]; return o; });
+  }
+  const ovM = {};
+  function ovMemo(nome, fn) {
+    const m = ovM[nome];
+    if (m && m.ver === ovVer && m.emps === state.dpEmpresas && m.cfg === state.dpOvCfg) return m.v;
+    const v = fn();
+    ovM[nome] = { ver: ovVer, emps: state.dpEmpresas, cfg: state.dpOvCfg, v };
+    return v;
+  }
+  const ovPodeVerPessoais = () => !AUTH() || nivelMod('dp') === 'coord' || nivelMod('dp') === 'analista';
+  const ovTemListas = () => OV_LISTAS.some(t => state.ovMan[t]);
+  const ovTemEmpregados = () => !!state.ovMan[OV_EMPREGADOS];
+
+  // ----- leitura das partes (preguiçosa: só quando o DP está aberto; cache por ciclo da remessa) -----
+  // Cache por ciclo no navegador (IndexedDB), só dos conjuntos SEM dados pessoais: abrir o DP de novo não baixa de novo as mesmas partes.
+  const ovIdb = (() => {
+    let p = null;
+    const abre = () => p || (p = new Promise((res) => { try { const rq = indexedDB.open('hub-ov-cache', 1); rq.onupgradeneeded = () => rq.result.createObjectStore('t'); rq.onsuccess = () => res(rq.result); rq.onerror = () => res(null); } catch { res(null); } }));
+    return {
+      async ler(k) { const d = await abre(); if (!d) return null; return new Promise((res) => { try { const r = d.transaction('t').objectStore('t').get(k); r.onsuccess = () => res(typeof r.result === 'string' ? r.result : null); r.onerror = () => res(null); } catch { res(null); } }); },
+      async gravar(k, v, prefixo) { const d = await abre(); if (!d) return; try { const st = d.transaction('t', 'readwrite').objectStore('t'); st.put(v, k); st.openCursor().onsuccess = (e) => { const c = e.target.result; if (c) { if (String(c.key).startsWith(prefixo) && c.key !== k) c.delete(); c.continue(); } }; } catch {} },
+    };
+  })();
+  function ovCarregar(tipo) {
+    const man = state.ovMan[tipo], cache = () => (state.ovTab[tipo] && state.ovTab[tipo].linhas) || [];
+    if (!man || !db) return Promise.resolve(cache());
+    if (/^pessoais-/.test(tipo) && !ovPodeVerPessoais()) return Promise.resolve([]);          // CPF, salário e nomes: só quem trabalha o DP
+    const chave = man.ciclo + '|' + man.slot, atual = state.ovCarga[tipo];
+    if (atual && atual.chave === chave && (atual.p || Date.now() - atual.falhou < 30000)) return atual.p || Promise.resolve(cache());
+    const rec = { chave, p: null, falhou: 0 };
+    state.ovCarga[tipo] = rec;
+    rec.p = (async () => {
+      const n = Math.min(Number(man.partes) || 0, ING_PARTES_MAX), base = `ing_partes/onvio~${tipo}~${man.slot}`, textos = new Array(n);
+      const cacheavel = !/^pessoais-/.test(tipo), chaveIdb = `${tipo}|${man.ciclo}|${man.slot}`;
+      if (cacheavel) { const guardado = await ovIdb.ler(chaveIdb); if (guardado !== null) { const linhas = ovParse(man.colunas, guardado); state.ovTab[tipo] = { ciclo: man.ciclo, linhas }; ovVer++; ovAposCarga(); return linhas; } }
+      for (let i = 0; i < n; i += 6) {
+        await Promise.all(Array.from({ length: Math.min(6, n - i) }, async (_, k) => {
+          const s = await db.doc(base + (i + k)).get(), d = s && s.exists !== false && s.data ? s.data() : null;
+          if (!d || d.ciclo !== man.ciclo || typeof d.tabela !== 'string') throw new Error('parte ausente');
+          textos[i + k] = d.tabela;
+        }));
+      }
+      const junto = textos.join('\n'), linhas = ovParse(man.colunas, junto);
+      if (cacheavel) ovIdb.gravar(chaveIdb, junto, tipo + '|');
+      state.ovTab[tipo] = { ciclo: man.ciclo, linhas };
+      ovVer++; ovAposCarga();
+      return linhas;
+    })().catch(() => { rec.falhou = Date.now(); rec.p = null; return cache(); });
+    return rec.p;
+  }
+  // Síncrono para quem desenha: devolve o que já está lido (ou nada) e pede a leitura; quando chega, a tela se redesenha.
+  function ovLer(tipo) {
+    const man = state.ovMan[tipo]; if (!man) return [];
+    if (/^pessoais-/.test(tipo) && !ovPodeVerPessoais()) return [];
+    const c = state.ovTab[tipo];
+    if (!c || c.ciclo !== man.ciclo) ovCarregar(tipo);
+    return c ? c.linhas : [];
+  }
+  const ovTabela = (tipo) => ovCarregar(tipo);
+  let ovT = null;
+  function ovAposCarga() {
+    clearTimeout(ovT);
+    ovT = setTimeout(() => {
+      evCacheClear();
+      if (state.activeModule === 'dp') renderDpActiveView();
+      if (dlgDetail.open && dpAtual && !dpDraft) { renderOvFicha(); renderOvDifFicha(); renderDetailProx(); updateDetailHeader(); }
+      ovAvisar(); ovAutoAgendar();
+    }, 200);
+  }
+  // Quem desenha fora do DP (a Entrada de dados) pede para ser avisado quando os dados, os vínculos ou as empresas mudam.
+  const ovOuvintes = [];
+  function ovAvisar() { ovOuvintes.slice().forEach(cb => { try { cb(); } catch (e) {} }); }
+  function ovGarantir(forcar) {
+    if ((!forcar && state.activeModule !== 'dp') || !db) return;
+    [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, 'clientes-cnd', 'clientes-nfe', 'escritorio-tabelas', 'escritorio-funcionarios', 'analise-solicitacoes'].forEach(t => { if (state.ovMan[t]) ovLer(t); });
+  }
+  function ovIniciar() {
+    db.collection('ing_dados').onSnapshot((snap) => {
+      const m = {};
+      snap.docs.forEach(d => { const v = d.data(); if (v && /^onvio~/.test(d.id)) m[d.id.replace(/^onvio~/, '')] = v; });
+      state.ovMan = m; ovVer++;
+      ovAposCarga(); ovGarantir();
+    }, () => {});
+    db.collection('dp_ov_ignorar').onSnapshot((snap) => {
+      const m = {};
+      snap.docs.forEach(d => { const v = d.data(); m[d.id] = { chaves: Array.isArray(v && v.chaves) ? v.chaves.map(x => String(x).slice(0, 200)).slice(0, 400) : [] }; });
+      state.ovIgn = m; ovVer++;
+      ovAposCarga();
+    }, () => {});
+  }
+
+  // ----- clientes (CND e NF-e) e vínculo com as empresas do DP -----
+  const ovClientes = () => ovMemo('cli', () => {
+    const m = new Map();
+    ovLer('clientes-cnd').forEach(r => {
+      const c = String(r['Código'] || '').trim(); if (!c) return;
+      m.set(c, { cod: c, nome: r['Cliente'], cnpj: r['CNPJ ou CPF'], im: r['Inscrição municipal'], ie: r['Inscrição estadual'], uf: r['UF'], usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', sit: r['Situação'] || '', certificado: null, validade: '' });
+    });
+    ovLer('clientes-nfe').forEach(r => {
+      const c = String(r['Código'] || '').trim(); if (!c) return;
+      const a = m.get(c) || { cod: c, nome: r['Cliente'], cnpj: '', im: '', ie: '', uf: '', usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', certificado: null, validade: '' };
+      a.apelido = r['Apelido'] || a.apelido; if (!a.cnpj) a.cnpj = r['CNPJ ou CPF']; if (!a.uf) a.uf = r['UF']; if (!a.sit) a.sit = r['Situação'] || '';
+      a.certificado = r['Tem certificado'] === 'sim'; a.validade = ovDia(r['Validade do certificado']);
+      m.set(c, a);
+    });
+    return m;
+  });
+  const ovIdxEmp = () => ovMemo('idxEmp', () => {
+    const porCnpj = new Map(), porCod = new Map();
+    const poe = (mapa, k, e) => { const a = mapa.get(k); if (a) a.push(e); else mapa.set(k, [e]); };
+    state.dpEmpresas.forEach(e => {
+      const c = cnpjClean(e.cnpj); if (c.length === 14 || c.length === 11) poe(porCnpj, c, e);
+      new Set([e.codigoDominio, e.cod].map(v => String(v || '').trim()).filter(Boolean)).forEach(v => poe(porCod, v, e));
+    });
+    return { nomes: ovIndiceEmpresas(), porCnpj, porCod };
+  });
+  // Empresa do DP para um cliente do Onvio: vínculo gravado → CNPJ completo → código (com nome parecido) → nome (como a Cartela já fazia).
+  // Nomes que vários clientes do Onvio têm em comum (filiais da mesma razão social): só o CNPJ da filial separa um do outro.
+  const ovNomesCompartilhados = () => ovMemo('nomesComp', () => {
+    const m = new Map(); ovClientes().forEach(c => { const k = ovChave(c.nome); if (!k) return; const s = m.get(k) || new Set(); s.add(c.cod); m.set(k, s); });
+    const r = new Set(); m.forEach((s, k) => { if (s.size > 1) r.add(k); }); return r;
+  });
+  function ovEmpresaDe(cli) {
+    const nome = String(cli.nome || '').trim(), cod = String(cli.codigo || '').trim(), ix = ovIdxEmp();
+    const cl0 = cod ? ovClientes().get(cod) : null, cn0 = cl0 ? cnpjClean(cl0.cnpj) : '';
+    const comp = !!cod && ovNomesCompartilhados().has(ovChave(nome));
+    const fim = ovFinal(nome) || (comp && cn0.length === 14 ? cn0.slice(8, 12) + cn0.slice(12) : ''), k = fim ? ovChave(nome) + ' ' + fim : ovChave(nome);
+    const v = state.dpOvCfg.vinc[k] || (comp ? '' : state.dpOvCfg.vinc[ovChaveAntiga(nome)]);
+    if (v === '-') return { k, fora: true };
+    if (v) { const e = findDpEmpresa(v); if (e) return { k, e, por: 'vínculo' }; }
+    const cl = cod ? ovClientes().get(cod) : null;
+    if (cl && cl.cnpj) { const l = ix.porCnpj.get(cnpjClean(cl.cnpj)) || []; if (l.length === 1) return { k, e: l[0], por: 'CNPJ' }; }
+    if (cod) { const l = (ix.porCod.get(cod) || []).filter(e => ovParecido(ovChave(nome), e)); if (l.length === 1) return { k, e: l[0], por: 'código' }; }
+    if (comp) return { k };                                           // várias filiais com o mesmo nome e sem CNPJ que decida: não adivinha pelo nome
+    const r = ovCasar(nome, ix.nomes);
+    return r.e ? { ...r, k: r.k || k, por: 'nome' } : { ...r, k: r.k || k };
+  }
+  // A Cartela → Onvio (resumo antigo, só com o nome e o final do CNPJ) também ganha o CNPJ completo dos clientes de CND/NF-e.
+  function ovCasarMais(cli, idx) {
+    const r = ovCasar(cli, idx);
+    if (r.e || r.fora || !state.ovMan['clientes-cnd'] && !state.ovMan['clientes-nfe']) return r;
+    const fim = ovFinal(cli), ix = ovIdxEmp();
+    const nomes = ovMemo('cliNomes', () => { const m = new Map(); ovClientes().forEach(c => { const k = ovChave(c.nome); if (k) { const a = m.get(k); if (a) a.push(c); else m.set(k, [c]); } }); return m; });
+    const cands = (nomes.get(ovChave(cli)) || []).filter(c => c.cnpj && (!fim || cnpjClean(c.cnpj).slice(8) === fim));
+    const es = [...new Set(cands.flatMap(c => ix.porCnpj.get(cnpjClean(c.cnpj)) || []))];
+    return es.length === 1 ? { k: r.k, e: es[0] } : r;
+  }
+
+  // ----- solicitações das 10 listas (todas as situações), ligadas às empresas e, quando há, aos dados pessoais -----
+  function ovSolic(td, r, p) {
+    return { td, tipoKey: ovTipoKey(td), lista: r['Tipo'] || '', id: r['Id'] || '', num: r['Nº'] || '', sit: r['Situação'] || '', vez: r['Vez'] || '', fim: r['Vez'] === 'concluída',
+      aberta: r['Aberta em'] || '', alterada: r['Alterada em'] || '', ult: r['Último trâmite'] || '', resp: r['Responsável'] || '', cli: r['Cliente'] || '', cod: String(r['Código do cliente'] || '').trim(),
+      quem: p ? (p['Empregado'] || p['Nome'] || '') : '', assunto: p ? (p['Assunto'] || '') : '', codEmp: p ? String(p['Código do empregado'] || '').trim() : '', admEmp: p ? ovDia(p['Admissão do empregado']) : '', raw: r };
+  }
+  const ovSolicitacoes = () => ovMemo('sol', () => {
+    const pess = new Map();
+    OV_LISTAS.forEach(td => ovLer(td.replace('lista-', 'pessoais-')).forEach(r => pess.set(td + '|' + r['Id'], r)));
+    const porEmp = new Map(), todas = [], cache = new Map(), semVinc = new Map();
+    OV_LISTAS.forEach(td => ovLer(td).forEach(r => {
+      const s = ovSolic(td, r, pess.get(td + '|' + r['Id'])), ck = s.cod + '|' + s.cli;
+      let c = cache.get(ck); if (c === undefined) { c = ovEmpresaDe({ codigo: s.cod, nome: s.cli }); cache.set(ck, c); }
+      s.e = c.e || null; s.fora = !!c.fora; todas.push(s);
+      if (s.e) { const a = porEmp.get(s.e.id); if (a) a.push(s); else porEmp.set(s.e.id, [s]); }
+      else if (!s.fora) { const g = semVinc.get(ck) || { k: c.k || ovChave(s.cli), cod: s.cod, cli: s.cli, n: 0, cand: c.cand || [] }; g.n++; semVinc.set(ck, g); }
+    }));
+    return { todas, porEmp, semVinc: [...semVinc.values()].sort((a, b) => b.n - a.n) };
+  });
+  // Folha inteira de cada cliente (pessoais-empregados): empregados por empresa do DP e clientes que ainda não têm empresa.
+  const OV_INATIVO = /inativ|inactive|desativ|desligad|terminat|dismiss/i;
+  const ovRoster = () => ovMemo('roster', () => {
+    const porEmp = new Map(), semEmp = new Map(), cache = new Map(), clis = new Set(), antigos = new Set(); let total = 0, ativos = 0;
+    // Cadastro antigo: cliente da folha que não está entre os clientes de CND e NF-e do Onvio e tem o mesmo nome de um cliente atual (empresa que saiu e voltou com códigos novos,
+    // ex.: Mercocamp 160/161/163/166/167 inativados): não conta (Josué, 28/10/2026). Cliente só da folha com nome próprio continua aparecendo para cadastrar.
+    const atuais = ovClientes(), filtra = atuais.size > 0, nomesAtuais = new Set(); atuais.forEach(c => { const k = ovChave(c.nome); if (k) nomesAtuais.add(k); });
+    ovLer(OV_EMPREGADOS).forEach(r => {
+      const cod = String(r['Código do cliente'] || '').trim(), cli = r['Cliente'] || '', nome = String(r['Nome'] || '').trim(); if (!nome) return;
+      if (filtra && cod && !atuais.has(cod) && nomesAtuais.has(ovChave(cli))) { antigos.add(cod); return; }
+      total++; clis.add(String(r['Id do cliente'] || cod || cli)); if (!OV_INATIVO.test(String(r['Situação'] || ''))) ativos++;
+      const ck = cod + '|' + cli; let c = cache.get(ck); if (c === undefined) { c = ovEmpresaDe({ codigo: cod, nome: cli }); cache.set(ck, c); }
+      const ativo = !OV_INATIVO.test(String(r['Situação'] || ''));
+      if (c.e) { const a = porEmp.get(c.e.id) || []; a.push({ nome, codigo: String(r['Código do empregado'] || '').trim(), admissao: ovDia(r['Admissão']), ativo, vinculo: r['Vínculo'] || '' }); porEmp.set(c.e.id, a); }
+      else if (!c.fora) { const g = semEmp.get(ck) || { k: c.k || ovChave(cli), cod, cli, nEmp: 0, cand: c.cand || [] }; if (ativo) g.nEmp++; semEmp.set(ck, g); }
+    });
+    return { porEmp, semEmp: [...semEmp.values()], total, ativos, clis, antigos };
+  });
+  // Clientes do Onvio sem empresa no DP: os das solicitações e os que só aparecem na folha (n = solicitações, nEmp = empregados ativos).
+  const ovSemVinc = () => ovMemo('semVinc', () => {
+    const m = new Map();
+    ovSolicitacoes().semVinc.forEach(g => m.set(g.k, { ...g, nEmp: 0 }));
+    ovRoster().semEmp.forEach(g => { const a = m.get(g.k); if (a) { a.nEmp += g.nEmp; if (!a.cod && g.cod) a.cod = g.cod; } else m.set(g.k, { k: g.k, cod: g.cod, cli: g.cli, n: 0, nEmp: g.nEmp, cand: g.cand }); });
+    return [...m.values()].sort((a, b) => (b.n + b.nEmp) - (a.n + a.nEmp));
+  });
+  // Análise calculada pela extensão (analise-solicitacoes, sem texto de solicitação), por Chave "<tipo>:<id>": gravidade, prazo legal, prometido.
+  const ovAnalise = () => ovMemo('analise', () => { const m = new Map(); ovLer('analise-solicitacoes').forEach(r => m.set(r['Chave'], r)); return m; });
+  function ovAnaliseHtml(s) {
+    const a = ovAnalise().get(s.tipoKey + ':' + s.id); if (!a) return '';
+    const g = /^G[123]$/.test(a['Gravidade'] || '') ? a['Gravidade'] : '', out = [];
+    if (g) out.push(`<span class="ov-grav ov-${g.toLowerCase()}" title="${escapeHtml(a['Motivos'] || '')}">${g}</span>`);
+    if (a['Prazo legal'] === 'sim') out.push('<span class="ov-grav ov-legal" title="Prazo legal perto (eSocial, pagamento)">prazo legal</span>');
+    if (a['Prometido até']) out.push(`<span class="dp-cell-sub">prometido até ${escapeHtml(ovFmtDia(a['Prometido até']) || a['Prometido até'])}</span>`);
+    if (a['Resolvida sem retorno']) out.push('<span class="dp-cell-sub">sem retorno do cliente</span>');
+    return out.length ? `<div class="ov-ana">${out.join(' ')}</div>` : '';
+  }
+  // Dados completos e trâmites das pendentes (pessoais-pendentes-*), por Chave "<tipo>:<id>".
+  const ovPendentes = () => ovMemo('pend', () => {
+    const m = new Map(), pega = (k) => { let x = m.get(k); if (!x) m.set(k, x = { grupos: new Map(), tramites: [] }); return x; };
+    ovLer('pessoais-pendentes-dados').forEach(r => { const x = pega(r['Chave']), g = x.grupos.get(r['Grupo']) || []; g.push([r['Campo'], r['Valor']]); x.grupos.set(r['Grupo'], g); });
+    ovLer('pessoais-pendentes-tramites').forEach(r => pega(r['Chave']).tramites.push(r));
+    m.forEach(x => x.tramites.sort((a, b) => (Number(a['Trâmite']) || 0) - (Number(b['Trâmite']) || 0)));
+    return m;
+  });
+  const ovDescTabela = (tabela, cod) => { const r = ovLer('escritorio-tabelas').find(x => x['Tabela'] === tabela && String(x['Código']) === String(cod)); return r ? r['Descrição'] : ''; };
+
+  // ----- prazos que as solicitações geram (só as que ainda são do escritório) -----
+  // Mesmas regras da extensão: pagar férias 2 dias antes do início (ou na data do pagamento), rescisão e documentos em 10 dias,
+  // eSocial no dia anterior à admissão (estagiário: 15 dias depois do início). Concluída ou na vez do cliente não gera prazo.
+  const fnMemo = new WeakMap();      // nome já sem acento por funcionário (norm é caro); vale enquanto o nome não mudar
+  const funcNorm = (f) => { let c = fnMemo.get(f); if (!c || c.r !== f.nome) { c = { r: f.nome, n: norm(f.nome || '').trim() }; fnMemo.set(f, c); } return c.n; };
+  // O nome decide quem é quem. O código Domínio só vale quando o nome não acha ninguém: uma empresa do DP pode juntar vários clientes do Onvio
+  // (matriz e filiais), e cada um tem a sua numeração, então o mesmo código aparece em pessoas diferentes.
+  function ovFuncDe(e, nome, cod) {
+    const n = norm(nome || '').trim(), c = String(cod || '').trim();
+    return (n && e.funcionarios.find(f => funcNorm(f) === n)) || (c && e.funcionarios.find(f => String(f.codigo || '').trim() === c)) || null;
+  }
+  // Casa cada empregado do Onvio com um funcionário do DP, um para um: primeiro pelo nome (homônimos pegam um funcionário cada), depois pelo código,
+  // mas só com funcionários que o nome de nenhum empregado do Onvio reivindica. Assim dois empregados nunca disputam o mesmo funcionário.
+  function ovCasarFuncionarios(e, xs) {
+    const porNome = new Map(); e.funcionarios.forEach(f => { const k = funcNorm(f); if (!k) return; const a = porNome.get(k); if (a) a.push(f); else porNome.set(k, [f]); });
+    const nomes = new Set(xs.map(x => norm(x.nome).trim())), usado = new Set(), out = new Map();
+    xs.forEach(x => { const f = (porNome.get(norm(x.nome).trim()) || []).find(g => !usado.has(g)); if (f) { out.set(x, f); usado.add(f); } });
+    xs.forEach(x => {
+      if (out.has(x) || !x.codigo) return;
+      const f = e.funcionarios.find(g => !usado.has(g) && String(g.codigo || '').trim() === x.codigo && !nomes.has(funcNorm(g)));
+      if (f) { out.set(x, f); usado.add(f); }
+    });
+    return out;
+  }
+  // O cálculo dos eventos (datas e textos) só depende da solicitação: fica guardado nela (s._ev) e vale até o próximo ciclo de dados.
+  // O que muda a cada desenho é só a conferência com o cadastro do funcionário (o que já está lá não se repete na agenda).
+  function ovEventosBrutos(s) {
+    const r = s.raw, out = [];
+    const add = (dia, txt, o = {}) => { const d = parseYmd(dia); if (d) out.push({ d, txt, sub: `${s.lista} #${s.num} no Onvio`, legal: !!o.legal, janela: o.janela || null }); };
+    const mais = (dia, n) => { const d = parseYmd(dia); return d ? ymd(addDays(d, n)) : ''; };
+    let skip = null;
+    if (s.tipoKey === 'avisoFerias' || s.tipoKey === 'calcFerias') {
+      const ini = ovDia(r['Início das férias']), pag = ovDia(r['Data do pagamento']) || mais(ini, -2);
+      if (ini) skip = (f) => f.feriasInicio === ini;
+      add(pag, `Pagar férias${ini ? ` (início ${fmtDM(parseYmd(ini))})` : ''}`, { legal: true, janela: [-30, 7] });
+      add(ini, 'Início das férias');
+    } else if (s.tipoKey === 'calcRescisao') {
+      const res = ovDia(r['Data da rescisão']);
+      if (res) skip = (f) => f.rescisao === res;
+      add(res, 'Último dia (desligamento)');
+      add(mais(res, 10), 'Pagar a rescisão e entregar os documentos (10 dias)', { legal: true, janela: [-30, 7] });
+    } else if (/^cad/.test(s.tipoKey)) {
+      const adm = ovDia(r['Admissão ou início']);
+      if (s.tipoKey === 'cadEstagiario') add(mais(adm, 15), 'eSocial do estagiário (15 dias após o início)', { legal: true, janela: [-30, 3] });
+      else add(mais(adm, -1), 'eSocial da admissão', { legal: true, janela: [-30, 3] });
+      add(adm, 'Admissão');
+    } else if (s.tipoKey === 'afastamento') {
+      const tipo = ovDescTabela('Tipos de afastamento', r['Tipo de afastamento (código)']);
+      add(ovDia(r['Data do afastamento']), `Afastamento${tipo ? ': ' + tipo : ''}`);
+      add(ovDia(r['Data da CAT']), 'CAT (comunicação de acidente de trabalho)');
+    }
+    return { out, skip };
+  }
+  const SEM_EVENTOS = [];
+  function ovEventosDe(s, e) {
+    if (s.fim || s.vez === 'cliente') return SEM_EVENTOS;
+    const b = s._ev || (s._ev = ovEventosBrutos(s));
+    if (!b.out.length) return SEM_EVENTOS;
+    if (b.skip && s.quem) { const f = ovFuncDe(e, s.quem, s.codEmp); if (f && b.skip(f)) return SEM_EVENTOS; }
+    return b.out;
+  }
+  function ovEventos(from, to, ativas) {
+    if (!ovTemListas()) return [];
+    const idx = ovSolicitacoes(), out = [];
+    ativas.forEach(e => (idx.porEmp.get(e.id) || []).forEach(s => ovEventosDe(s, e).forEach(x => {
+      if (dentro(x.d, from, to)) out.push({ tipo: 'onvio', d: x.d, titulo: `${s.quem ? s.quem + ' · ' : ''}${x.txt}`, sub: x.sub, empresa: e, tab: 'onvio' });
+    })));
+    return out;
+  }
+  function ovAlertas(lista) {
+    const out = [];
+    if (!ovTemListas()) return out;
+    const idx = ovSolicitacoes(), t = hoje();
+    lista.filter(ativa).forEach(e => (idx.porEmp.get(e.id) || []).forEach(s => ovEventosDe(s, e).filter(x => x.janela).forEach(x => {
+      const dd = diffDays(x.d, t); if (dd < x.janela[0] || dd > x.janela[1]) return;
+      out.push({ d: x.d, txt: `${s.quem ? s.quem + ' · ' : ''}${x.txt}`, nivel: dd < 0 ? 'late' : dd === 0 ? 'today' : 'soon', empresa: e, func: null, onvio: true, tab: 'onvio' });
+    })));
+    return out;
+  }
+
+  // ----- conferir funcionários com o Onvio: só sugere; quem aplica é a pessoa -----
+  function ovEmpregados(e) {
+    const lista = (ovSolicitacoes().porEmp.get(e.id) || []).filter(s => s.quem), m = new Map(), t = hoje(), limite = ymd(addDays(t, -60)), recente90 = ymd(addDays(t, -90));
+    lista.forEach(s => {
+      if (s.tipoKey === 'cadContribuinte') return;                  // contribuinte individual (autônomo) não é funcionário
+      const k = norm(s.quem).trim(); if (!k) return;
+      const x = m.get(k) || { nome: s.quem, codigo: '', admissao: '', ferias: null, rescisao: null, rescisaoAny: null, afast: null, recente: false };
+      if (s.codEmp && !x.codigo) x.codigo = s.codEmp;
+      const r = s.raw;
+      if (/^cad/.test(s.tipoKey)) { const a = ovDia(r['Admissão ou início']); if (a) x.admissao = a; } else if (s.admEmp && !x.admissao) x.admissao = s.admEmp;
+      if (!s.fim || ovDia(s.alterada) >= recente90) x.recente = true;
+      if (s.tipoKey === 'avisoFerias' || s.tipoKey === 'calcFerias') {
+        const ini = ovDia(r['Início das férias']), dias = parseInt(r['Dias de férias'], 10);
+        if (ini && ini >= limite) {
+          // a que está em curso, senão a mais próxima que ainda vem, senão a mais recente: uma solicitação de 2027 não "corrige" as férias de agora
+          const fim = dias > 0 ? ymd(addDays(parseYmd(ini), dias - 1)) : '', hojeS = ymd(t), cand = { inicio: ini, fim, num: s.num };
+          const rank = (c) => (c.inicio <= hojeS && (!c.fim || c.fim >= hojeS)) ? 0 : c.inicio > hojeS ? 1 : 2;
+          const melhor = !x.ferias || rank(cand) < rank(x.ferias) || (rank(cand) === rank(x.ferias) && (rank(cand) === 1 ? ini < x.ferias.inicio : ini > x.ferias.inicio));
+          if (melhor) x.ferias = cand;
+        }
+      } else if (s.tipoKey === 'calcRescisao') {
+        const res = ovDia(r['Data da rescisão']);
+        if (res && (!s.fim || res >= limite) && (!x.rescisao || res > x.rescisao.data)) x.rescisao = { data: res, num: s.num };
+        if (res && (!x.rescisaoAny || res > x.rescisaoAny.data)) x.rescisaoAny = { data: res, num: s.num };
+      } else if (s.tipoKey === 'afastamento') {
+        const d = ovDia(r['Data do afastamento']);
+        if (d && !s.fim && (!x.afast || d > x.afast.data)) x.afast = { data: d, num: s.num, tipo: ovDescTabela('Tipos de afastamento', r['Tipo de afastamento (código)']) };
+      }
+      x.solic = true;
+      m.set(k, x);
+    });
+    // a folha inteira do cliente: completa código e admissão de quem já aparece e traz quem nunca teve solicitação
+    (ovRoster().porEmp.get(e.id) || []).forEach(r => {
+      const k = norm(r.nome).trim();
+      let x = m.get(k);
+      if (!x) { x = { nome: r.nome, codigo: '', admissao: '', ferias: null, rescisao: null, rescisaoAny: null, afast: null, recente: false, solic: false }; m.set(k, x); }
+      // a mesma pessoa pode ter mais de um registro na lista (recontratação): vale o da admissão mais recente, com o código dele
+      if (!x.roster || (r.admissao && r.admissao >= (x.admRoster || ''))) {
+        if (r.codigo && (!x.codigo || x.codRoster)) { x.codigo = r.codigo; x.codRoster = true; }
+        if (r.admissao) { x.admissao = r.admissao; x.admRoster = r.admissao; }
+        x.ativo = r.ativo; x.vinculo = r.vinculo;
+      }
+      x.roster = true;
+    });
+    return [...m.values()];
+  }
+  // Regra (Josué, 26/10/2026): o que já existe no Hub pode ser COMPLEMENTADO (campo vazio) ou ter CORREÇÃO sugerida (valor diferente);
+  // o que veio do portal e não existe no Hub vira CADASTRO NOVO. Cada diferença leva `acao`: 'complementar' | 'corrigir' | 'novo'.
+  // Equipe ativa do escritório (GET br-payroll-sr/v1/employees: só nome; bate com Gestão > Funcionários, Status = Ativo). O nome vem abreviado ("Luiz Viquetti"), então a chave é primeiro + último nome.
+  const OV_PARTICULAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+  function ovChavePessoa(nome) {
+    const t = norm(nome || '').split(/\s+/).filter(x => x && !OV_PARTICULAS.has(x));
+    return t.length ? (t.length === 1 ? t[0] : t[0] + '|' + t[t.length - 1]) : '';
+  }
+  const ovEquipeAtiva = () => ovMemo('equipeAtiva', () => {
+    const man = state.ovMan['escritorio-funcionarios']; if (!man || man.cortado) return null;
+    const set = new Set(); ovLer('escritorio-funcionarios').forEach(r => { const k = ovChavePessoa(r['Nome']); if (k) set.add(k); });
+    return set.size >= 10 ? set : null;
+  });
+  // Empresa do escritório (a própria ControlTax e as do grupo): a lista de empregados do Onvio não acompanha os desligamentos delas (conferido em 27/10/2026), mas a equipe ativa
+  // do escritório é confiável. Detecta sozinho: se a maioria dos empregados da empresa na lista do Onvio está na equipe ativa, a equipe vale como a lista de quem está ativo.
+  const ovEquipeDe = (e) => ovMemo('equipeDe:' + e.id, () => {
+    const eq = ovEquipeAtiva(); if (!eq) return null;
+    const rs = ovRoster().porEmp.get(e.id) || []; if (rs.length < 5) return null;
+    const dentro = rs.filter(r => eq.has(ovChavePessoa(r.nome))).length;
+    return dentro / rs.length >= 0.5 ? eq : null;
+  });
+  const OV_ACOES = { complementar: 'Complementar', corrigir: 'Corrigir', novo: 'Cadastrar' };
+  // Quem está na lista de empregados de OUTRA empresa do DP (chave da pessoa → nome curto da empresa).
+  const ovPessoasEmOutras = (empId) => {
+    const m = ovMemo('pessoasEm', () => { const r = new Map(); ovRoster().porEmp.forEach((lista, id) => { const e = findDpEmpresa(id); lista.forEach(x => { if (!x.ativo) return; const k = ovChavePessoa(x.nome); if (!k) return; const a = r.get(k) || new Map(); a.set(id, e ? nomeCurto(e) : id); r.set(k, a); }); }); return r; });
+    return { get: (k) => { const a = m.get(k); if (!a) return ''; for (const [id, n] of a) if (id !== empId) return n; return ''; } };
+  };
+  function ovDifsFunc(e) {
+    const out = [], ign = new Set((state.ovIgn[e.id] && state.ovIgn[e.id].chaves) || []), t = hoje();
+    if (!(ovTemListas() && OV_PESSOAIS.some(p => state.ovMan[p])) && !ovTemEmpregados()) return out;
+    // Onde o Onvio tem a lista de empregados da empresa, ela acompanha o Domínio (conferido em 27/10/2026: quem foi demitido sai da lista, mesmo sem rescisão no portal).
+    // Então quem aparece só nas solicitações e NÃO está nessa lista provavelmente já saiu: não é cadastro novo.
+    const temLista = ovTemEmpregados() && (ovRoster().porEmp.get(e.id) || []).length > 0;
+    const equipe = ovEquipeDe(e);
+    // REGRA ABSOLUTA (Josué, 27/10/2026): só é ativo quem está na lista de empregados do Onvio. Quem aparece só nas solicitações e não está na lista é desconsiderado.
+    const xs = ovEmpregados(e).filter(x => x.roster || !temLista), casados = ovCasarFuncionarios(e, xs);
+    xs.forEach(x => {
+      const f = casados.get(x) || null;
+      const add = (tipo, valor, acao, txt, antes, depois, patch, confirmar) => {
+        const chave = `${tipo}|${norm(x.nome).trim()}|${valor}`;
+        if (!ign.has(chave)) out.push({ chave, entidade: 'funcionario', tipo, acao, nome: x.nome, txt, antes, depois, patch, fid: f ? f.id : '', novo: !f, confirmar: !!confirmar });
+      };
+      const vazio = (v) => !String(v || '').trim();
+      if (!f) {
+        if (!x.roster) return;                                           // fora da lista do Onvio (inclui empresa sem lista): não interessa ao Hub
+        if (equipe && !equipe.has(ovChavePessoa(x.nome))) return;       // empresa do escritório: quem não está na equipe ativa não é cadastro novo
+        if (x.roster && !x.ativo && !x.solic) return;                    // desligado que nunca teve solicitação: não polui o cadastro
+        const resc = x.rescisao || x.rescisaoAny;
+        add('novo', x.admissao || '-', 'novo', 'Está na lista de empregados do Onvio e não no cadastro: cadastrar como funcionário novo', '—', (x.admissao ? 'admissão ' + fmtDateStr(x.admissao) : 'sem data de admissão') + (resc ? ' · rescisão ' + fmtDateStr(resc.data) : ''),
+          { id: '', nome: x.nome, codigo: x.codigo, cargo: '', admissao: x.admissao, status: x.roster && !x.ativo ? 'Desligado' : 'Ativo', aquisitivo: '', feriasInicio: x.ferias ? x.ferias.inicio : '', feriasFim: x.ferias ? x.ferias.fim : '', rescisao: resc ? resc.data : '', salario: '', obs: 'Criado a partir do Onvio' });
+        return;
+      }
+      if (x.roster && !x.ativo && funcStatus(f) !== 'Desligado' && f.status !== 'Desligado' && !(f.rescisao && parseYmd(f.rescisao) > t)) add('situacao', 'inativo', 'corrigir', 'Desligado na folha do Onvio', funcStatus(f), 'Desligado', { status: 'Desligado', saidaEm: ymd(t) });
+      if (x.codigo && String(f.codigo || '').trim() !== x.codigo) add('codigo', x.codigo, vazio(f.codigo) ? 'complementar' : 'corrigir', vazio(f.codigo) ? 'Código Domínio vazio' : 'Código Domínio diferente', f.codigo || '—', x.codigo, { codigo: x.codigo });
+      if (x.admissao && f.admissao !== x.admissao) add('admissao', x.admissao, vazio(f.admissao) ? 'complementar' : 'corrigir', vazio(f.admissao) ? 'Admissão vazia' : 'Admissão diferente', f.admissao ? fmtDateStr(f.admissao) : '—', fmtDateStr(x.admissao), { admissao: x.admissao });
+      if (x.ferias && f.feriasInicio !== x.ferias.inicio) add('ferias', x.ferias.inicio, vazio(f.feriasInicio) ? 'complementar' : 'corrigir', `Férias no Onvio (#${x.ferias.num})`, f.feriasInicio ? fmtDateStr(f.feriasInicio) : '—', fmtDateStr(x.ferias.inicio) + (x.ferias.fim ? ' a ' + fmtDateStr(x.ferias.fim) : ''), { feriasInicio: x.ferias.inicio, feriasFim: x.ferias.fim || f.feriasFim });
+      else if (x.ferias && x.ferias.fim && vazio(f.feriasFim)) add('feriasFim', x.ferias.fim, 'complementar', `Fim das férias no Onvio (#${x.ferias.num})`, '—', fmtDateStr(x.ferias.fim), { feriasFim: x.ferias.fim });
+      if (x.rescisao && f.rescisao !== x.rescisao.data) add('rescisao', x.rescisao.data, vazio(f.rescisao) ? 'complementar' : 'corrigir', `Rescisão no Onvio (#${x.rescisao.num})`, f.rescisao ? fmtDateStr(f.rescisao) : '—', fmtDateStr(x.rescisao.data), { rescisao: x.rescisao.data });
+      if (x.afast && funcStatus(f) === 'Ativo' && parseYmd(x.afast.data) <= t) add('afastamento', x.afast.data, 'corrigir', `Afastamento no Onvio desde ${fmtDateStr(x.afast.data)} (#${x.afast.num})`, 'Ativo', 'Afastado', { status: 'Afastado' });
+    });
+    // Quem está ativo no cadastro do DP e SUMIU da lista de empregados do Onvio (que acompanha o Domínio): provavelmente foi desligado. Só onde a empresa tem lista, só como
+    // sugestão a conferir (`confirmar`: o automático nunca aplica). Quem foi cadastrado há menos de uma semana ainda pode não ter chegado à lista.
+    if (temLista || equipe) {
+      const naLista = new Set(); casados.forEach((f, x) => { if (x.roster) naLista.add(f); });
+      const corte = ymd(addDays(t, -7)), outras = ovPessoasEmOutras(e.id), cands = [];
+      e.funcionarios.forEach(f => {
+        if ((equipe ? equipe.has(ovChavePessoa(f.nome)) : naLista.has(f)) || funcStatus(f) === 'Desligado' || f.status === 'Desligado' || (f.rescisao && parseYmd(f.rescisao) <= t)) return;
+        if (f.admissao && f.admissao > corte) return;
+        const chave = `situacao|${funcNorm(f)}|ausente`;
+        if (!funcNorm(f) || ign.has(chave)) return;
+        const em = !equipe && outras.get(ovChavePessoa(f.nome));
+        cands.push({ chave, entidade: 'funcionario', tipo: 'situacao', acao: 'corrigir', nome: f.nome, txt: equipe ? 'Não consta na equipe ativa do escritório (Onvio Gestão): desligado' : em ? `Não consta na lista desta empresa e consta na de outra (${em}): não é ativo daqui` : 'Não consta na lista de empregados do Onvio: não é mais ativo', antes: funcStatus(f), depois: 'Desligado', patch: { status: 'Desligado', saidaEm: em && f.admissao ? f.admissao : ymd(t) }, fid: f.id, novo: false, confirmar: false });
+      });
+      // Trava: marcar muita gente de uma vez como desligada (mais de 30% e pelo menos 5) pode ser erro de ligação entre cliente e empresa. Fica para decidir à mão; o automático não aplica.
+      const ativosN = e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, trava = cands.length >= 5 && cands.length > ativosN * 0.3;
+      cands.forEach(c => { if (trava) { c.confirmar = true; c.txt = `Muitos de uma vez (${cands.length} de ${ativosN}): confira antes de aplicar. ` + c.txt; } out.push(c); });
+    }
+    return out;
+  }
+  // Dados da empresa que o cliente do Onvio (CND e NF-e) traz: CNPJ e UF. Complementa o que falta e sugere a correção do que difere.
+  function ovDifsEmpresa(e) {
+    const out = [], ign = new Set((state.ovIgn[e.id] && state.ovIgn[e.id].chaves) || []);
+    if (!ovTemListas()) return out;
+    const cl = ovClienteDe(e, ovSolicitacoes().porEmp.get(e.id) || []); if (!cl) return out;
+    const add = (tipo, valor, acao, txt, antes, depois, patch) => { const chave = `emp-${tipo}|${valor}`; if (!ign.has(chave)) out.push({ chave, entidade: 'empresa', tipo, acao, nome: 'Dados da empresa', txt, antes, depois, patch, fid: '', novo: false }); };
+    const c = cnpjClean(cl.cnpj);
+    if ((c.length === 14 || c.length === 11) && cnpjClean(e.cnpj) !== c) add('cnpj', c, !cnpjClean(e.cnpj) ? 'complementar' : 'corrigir', !cnpjClean(e.cnpj) ? 'CNPJ ou CPF vazio' : 'CNPJ ou CPF diferente', e.cnpj || '—', fmtCnpj(cl.cnpj), { cnpj: fmtCnpj(cl.cnpj) });
+    const uf = String(cl.uf || '').trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(uf)) {
+      const atual = String(e.uf || '').trim();
+      if (!atual) add('uf', uf, 'complementar', 'Cidade / UF vazio', '—', uf, { uf });
+      else if (!new RegExp('(^|[^A-Za-z])' + uf + '([^A-Za-z]|$)', 'i').test(atual)) {
+        const m = /^(.*[\/\s-])([A-Za-z]{2})\s*$/.exec(atual);
+        if (m) add('uf', uf, 'corrigir', 'UF diferente', atual, m[1] + uf, { uf: m[1] + uf });
+      }
+    }
+    return out;
+  }
+  const ovDifs = (e) => ovDifsEmpresa(e).concat(ovDifsFunc(e));
+  // A decisão de aplicar é só da Entrada de dados (que pergunta antes); aqui ficam a conferência de permissão, a gravação e o histórico.
+  async function ovAplicarCore(empId, chave) {
+    const e = findDpEmpresa(empId); if (!e) return { ok: false, erro: 'Empresa não encontrada.' };
+    if (state.readOnly || !podeEmpresaDp(e)) return { ok: false, erro: 'Você só altera as empresas da sua carteira.' };
+    if (!ovDifs(e).some(d => d.chave === chave)) return { ok: false, erro: 'Essa diferença já não existe.' };
+    const r = await ovAplicarVarios(empId, [chave], false);
+    if (r.ok && !r.n) return { ok: false, erro: 'Essa diferença já não existe.' };
+    return { ok: !!r.ok, erro: r.erro || '' };
+  }
+  async function ovIgnorar(empId, chave) {
+    const e = findDpEmpresa(empId); if (!e || !db) return { ok: false, erro: 'Empresa não encontrada.' };
+    if (state.readOnly || !podeEmpresaDp(e)) return { ok: false, erro: 'Você só altera as empresas da sua carteira.' };
+    const chaves = [...new Set([...((state.ovIgn[empId] && state.ovIgn[empId].chaves) || []), chave])].slice(-400);
+    state.ovIgn = { ...state.ovIgn, [empId]: { chaves } }; ovVer++;
+    renderOvDifFicha(); if (state.activeModule === 'dp') renderDpFuncionarios();
+    const salvo = await persist(async () => {
+      let gravadas = []; try { const sn = await db.doc('dp_ov_ignorar/' + empId).get(); gravadas = sn && sn.exists !== false && sn.data && Array.isArray(sn.data().chaves) ? sn.data().chaves : []; } catch {}
+      return db.doc('dp_ov_ignorar/' + empId).set({ chaves: [...new Set([...gravadas.map(x => String(x).slice(0, 200)), ...chaves])].slice(-400) });      // ignorar ao mesmo tempo em dois lugares não perde chave
+    });
+    ovAvisar();
+    return { ok: !!salvo, erro: salvo ? '' : 'Não foi possível salvar.' };
+  }
+  // No DP só há o aviso: quem decide (Aplicar, Ignorar, Ligar) é a Entrada de dados.
+  const ovAvisoHtml = (n, de) => `<div class="ov-aviso" role="status">${ic('alert', 'ic-sm')}<span><b>${n} diferença${n === 1 ? '' : 's'} com o Onvio ${de}</b> ${n === 1 ? 'aguarda' : 'aguardam'} decisão na Entrada de dados.</span><button type="button" class="linkish" data-ov-fontes>Abrir a Entrada de dados</button></div>`;
+  function renderOvDifFicha() {
+    const el = $('#dp-ov-dif'); if (!el) return;
+    const n = dpAtual && !dpDraft ? ovDifs(dpAtual).length : 0;
+    el.hidden = !n;
+    el.innerHTML = n ? ovAvisoHtml(n, 'desta empresa') : '';
+  }
+  function renderOvDifView() {
+    // A aba Funcionários é só para consultar a quantidade de ativos e a evolução: sem avisos nem alertas (as diferenças com o Onvio ficam na ficha da empresa e na Entrada de dados).
+    const el = $('#dp-func-ovdif'); if (!el) return;
+    el.hidden = true; el.innerHTML = '';
+  }
+
+  // ----- Cadastro único de empresas (pedido do Josué, 28/10/2026) -----
+  // Um cadastro de identidade por CNPJ (cadastro_empresas, em baldes como o Contábil, para nenhum documento passar de 256 KB), ligado aos cadastros de cada módulo
+  // (DP, Contábil, Portal do Cliente e Fiscal) SEM mexer neles: o que é de cada módulo continua lá; razão social, apelido, código, UF, situação e vínculos ficam aqui.
+  // A base são os clientes do Onvio; empresa do Hub que o Onvio não tem entra como "fora do Onvio". Duplicadas e cadastros sem CNPJ só são PROPOSTOS no relatório.
+  const CAD_EXTRAS_BKP = ['empresaSetores', 'contatos'];     // cópias do nome da empresa no Portal: entram no backup antes de qualquer troca de nome
+  const CAD_COL = 'cadastro_empresas', CAD_BKP = 'cad_backup', CAD_BALDES = 8, CAD_MODS = { dp: 'DP', ctb: 'Contábil', portal: 'Portal do Cliente', fis: 'Fiscal' };
+  const CAD_MOD_KEY = { dp: 'dp', ctb: 'contabil', portal: 'portal', fis: 'fiscal' };
+  const cadBalde = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % CAD_BALDES; };
+  const cad14 = (v) => { const c = cnpjClean(v); return c.length === 14 ? c : ''; };
+  const cadSemHora = (e) => { if (!e) return ''; const { atualizadoEm, ...r } = e; return JSON.stringify(r); };
+  const cadNomeKey = (s) => norm(nomeCurtoBase(s)).replace(/[^a-z0-9]+/g, ' ').trim();
+  state.cadRaw = new Map(); state.cadastro = new Map(); state.cadBkp = null; state.cadRel = null; state.cadEstado = { gerando: false, fazendoBackup: false };
+  // Balde → mapa plano por CNPJ (o que os módulos e o DP consultam).
+  const cadOuvintes = [];
+  state.cadIdx = new Map(); state.semEscrita = false; state.cadTrocasIdx = null;
+  function cadAchata() {
+    const m = new Map(); state.cadRaw.forEach((mapa) => Object.keys(mapa || {}).forEach(k => { const v = mapa[k]; if (v && typeof v === 'object' && !Array.isArray(v)) m.set(k, v); }));
+    // índice reverso: `${módulo}|${id no módulo}` → CNPJ (o que os módulos usam para achar a identidade de cada empresa deles)
+    const ix = new Map(); m.forEach((v, k) => { const vi = v.vinculos || {}; Object.keys(vi).forEach(mod => (Array.isArray(vi[mod]) ? vi[mod] : []).forEach(id => { if (!ix.has(mod + '|' + id)) ix.set(mod + '|' + id, k); })); });
+    state.cadIdx = ix; state.cadastro = m; ovVer++;
+    cadOuvintes.forEach(cb => { try { cb(); } catch (e) {} });
+  }
+  const cadGet = (cnpj) => state.cadastro.get(cad14(cnpj)) || null;
+  // Nome no padrão do Hub (apelido resumido | final do CNPJ) a partir do cadastro único, quando a empresa está nele.
+  const cadNome = (cnpj, fallback) => { const c = cadGet(cnpj); if (!c) return fallback || ''; return `${nomeCurtoBase(c.apelido || c.razao || fallback)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`; };
+
+  // Lê os quatro cadastros como estão (crus, para o backup, e achatados, para a montagem).
+  async function cadLerFontes(comExtras) {
+    const ler = async (c) => { try { return (await db.collection(c).get()).docs.map(d => ({ id: d.id, data: d.data() || {} })); } catch (e) { return null; } };
+    const [dp, ctb, portal, fis] = await Promise.all(['dp_empresas', 'ctb_emp', 'empresas', 'fis_emp'].map(ler));
+    const extras = {}; if (comExtras) { const ex = await Promise.all(CAD_EXTRAS_BKP.map(ler)); CAD_EXTRAS_BKP.forEach((c, i) => { extras[c] = ex[i]; }); }
+    const mapas = (docs) => docs ? docs.flatMap(d => Object.keys(d.data).filter(k => d.data[k] && typeof d.data[k] === 'object' && !Array.isArray(d.data[k])).map(k => ({ id: k, ...d.data[k] }))) : null;
+    const planos = (docs) => docs ? docs.map(d => ({ id: d.id, ...d.data })) : null;
+    return { cru: { dp_empresas: dp, ctb_emp: ctb, empresas: portal, fis_emp: fis, ...extras }, dp: planos(dp), ctb: mapas(ctb), portal: planos(portal), fis: mapas(fis) };
+  }
+
+  // Monta o cadastro único e o relatório. Função pura (não grava nada): clientes = os do Onvio (ovClientes), fontes = cadLerFontes.
+  function cadMontar(fontes, clientes) {
+    const mestre = new Map(), rel = { contagem: { onvio: 0, mestre: 0, dp: 0, ctb: 0, portal: 0, fis: 0 }, escritorio: [], duplicadas: [], semCnpj: [], domesticas: [], foraDoOnvio: [], nomesDiferentes: [], semModulo: 0, indisponiveis: [] };
+    const porNome = new Map();
+    clientes.forEach(c => {
+      const id = cad14(c.cnpj); if (!id) return;
+      if (ehEscritorioProprio(c.nome, c.apelido)) { rel.escritorio.push(c.nome); return; }
+      const sit = String(c.sit || '').toUpperCase(), ja = mestre.get(id);
+      if (ja) { if (c.cod && !ja.codigosOnvio.includes(c.cod)) ja.codigosOnvio.push(c.cod); return; }
+      const m = { id, cnpj: fmtCnpj(id), razao: String(c.nome || '').trim(), apelido: nomeCurtoBase(c.apelido || ''), codigoOnvio: String(c.cod || ''), codigosOnvio: c.cod ? [c.cod] : [], codigoDominio: '', uf: String(c.uf || '').trim().toUpperCase().slice(0, 2),
+        situacao: !sit || sit === 'ACTIVE' ? 'ativa' : 'inativa', origem: 'onvio', raiz: id.slice(0, 8), vinculos: { dp: [], ctb: [], portal: [], fis: [] } };
+      mestre.set(id, m); rel.contagem.onvio++;
+      [m.razao, m.apelido].forEach(n => { const k = cadNomeKey(n); if (k) { const a = porNome.get(k) || []; if (!a.includes(id)) a.push(id); porNome.set(k, a); } });
+    });
+    const detalhe = new Map();   // `${id}|${mod}` → [{ id, nome, extra }]
+    const FONTES = [['dp', 'DP'], ['ctb', 'Contábil'], ['portal', 'Portal'], ['fis', 'Fiscal']];
+    FONTES.forEach(([mod, rot]) => {
+      const lista = fontes[mod];
+      if (!lista) { rel.indisponiveis.push(rot); return; }
+      lista.forEach(e => {
+        const nome = String(e.nome || '').trim();
+        if (ehEscritorioProprio(nome)) { rel.escritorio.push(`${nome} (${rot})`); return; }
+        rel.contagem[mod]++;
+        const id = cad14(e.cnpj) || (mod === 'ctb' && /^c[0-9A-Z]{14}$/i.test(String(e.id)) ? cad14(String(e.id).slice(1)) : '');
+        const extra = mod === 'dp' ? { funcionarios: Array.isArray(e.funcionarios) ? e.funcionarios.length : 0 } : mod === 'ctb' || mod === 'fis' ? { situacao: e.sit || '', excluida: !!e.excluida } : { ativo: e.ativo !== false };
+        if (!id) {
+          if (/^dom[eé]stic/i.test(norm(nome)) || /^domestic/.test(norm(nome))) { rel.domesticas.push({ modulo: rot, id: e.id, nome }); return; }
+          const cands = (porNome.get(cadNomeKey(nome)) || []).slice(0, 3).map(i => ({ cnpj: mestre.get(i).cnpj, nome: mestre.get(i).razao }));
+          rel.semCnpj.push({ modulo: rot, id: e.id, nome, candidatos: cands }); return;
+        }
+        let m = mestre.get(id);
+        if (!m) {
+          m = { id, cnpj: fmtCnpj(id), razao: nome, apelido: '', codigoOnvio: '', codigosOnvio: [], codigoDominio: '', uf: '', situacao: 'fora-do-onvio', origem: 'hub', raiz: id.slice(0, 8), vinculos: { dp: [], ctb: [], portal: [], fis: [] } };
+          mestre.set(id, m);
+        }
+        const k = `${id}|${mod}`, a = detalhe.get(k) || []; a.push({ id: e.id, nome, extra }); detalhe.set(k, a);
+        if (mod === 'dp') { if (!m.codigoDominio && e.codigoDominio) m.codigoDominio = String(e.codigoDominio); if (!m.uf && e.uf) m.uf = String(e.uf).trim().toUpperCase().slice(0, 2); }
+        if ((mod === 'ctb' || mod === 'fis') && !m.uf && e.uf) m.uf = String(e.uf).trim().toUpperCase().slice(0, 2);
+        if (cadNomeKey(nome) && cadNomeKey(nome) !== cadNomeKey(m.razao) && cadNomeKey(nome) !== cadNomeKey(m.apelido) && rel.nomesDiferentes.length < 400) rel.nomesDiferentes.push({ cnpj: m.cnpj, modulo: rot, nome, razao: m.razao });
+      });
+    });
+    // vínculos: o principal primeiro (o que tem mais funcionários no DP, o que não foi excluído nos demais); quem tem mais de um vira "duplicada" para você decidir
+    detalhe.forEach((lista, k) => {
+      const [id, mod] = k.split('|'), m = mestre.get(id);
+      const ligadas = new Set(Object.values((state.dpOvCfg && state.dpOvCfg.vinc) || {}));
+      const pontos = (x) => mod === 'dp' ? x.extra.funcionarios + (ligadas.has(x.id) ? 0.5 : 0) : (x.extra.excluida ? -1 : 0) + (x.extra.situacao === 'ativa' || x.extra.ativo ? 1 : 0);
+      lista.sort((a, b) => pontos(b) - pontos(a) || String(a.id).localeCompare(String(b.id)));
+      m.vinculos[mod] = lista.map(x => x.id);
+      if (lista.length > 1) rel.duplicadas.push({ cnpj: m.cnpj, modulo: CAD_MODS[mod], mod, itens: lista.map(x => ({ id: x.id, nome: x.nome, ...(mod === 'dp' ? { funcionarios: x.extra.funcionarios } : {}) })), sugestao: `manter ${lista[0].id}${mod === 'dp' ? ` (${lista[0].extra.funcionarios} funcionário(s))` : ''}` });
+    });
+    mestre.forEach(m => { m.modulos = Object.keys(m.vinculos).filter(x => m.vinculos[x].length); if (m.origem === 'onvio' && !m.modulos.length) rel.semModulo++; if (m.origem === 'hub') rel.foraDoOnvio.push({ cnpj: m.cnpj, nome: m.razao, modulos: m.modulos.map(x => CAD_MODS[x]) }); });
+    rel.contagem.mestre = mestre.size;
+    return { docs: mestre, rel };
+  }
+
+  // Grava o cadastro único: só os CNPJs que mudaram, por balde (set se o balde ainda não existe, update se existe; nunca apaga nada).
+  async function cadGravar(docs) {
+    const porB = new Map(); docs.forEach((d, id) => { const b = cadBalde(id); if (!porB.has(b)) porB.set(b, {}); porB.get(b)[id] = d; });
+    let mudou = 0, falhou = 0; const agora = Date.now();
+    for (const [b, mapa] of [...porB.entries()].sort((x, y) => x[0] - y[0])) {
+      const atual = state.cadRaw.get('b' + b) || {}, mud = {};
+      Object.keys(mapa).forEach(id => {
+        const ant = atual[id] || {}, novo = { ...ant, ...mapa[id] };
+        // o que a coordenação editou à mão no cadastro único não é refeito a partir do Onvio
+        if (ant.editado) { Object.keys(ant.editado).forEach(k => { if (ant.editado[k] && k in ant) novo[k] = ant[k]; }); novo.editado = ant.editado; }
+        if (cadSemHora(atual[id]) !== cadSemHora(novo)) mud[id] = { ...novo, atualizadoEm: agora };
+      });
+      const ks = Object.keys(mud); if (!ks.length) continue;
+      const existe = state.cadRaw.has('b' + b);
+      const ok = await persist(() => existe ? db.doc(`${CAD_COL}/b${b}`).update(mud) : db.doc(`${CAD_COL}/b${b}`).set(mud));
+      if (ok) { mudou += ks.length; state.cadRaw.set('b' + b, { ...atual, ...mud }); } else falhou += ks.length;
+    }
+    cadAchata();
+    return { mudou, falhou };
+  }
+
+  // Backup dos quatro cadastros (o último fica guardado em cad_backup, em documentos de até ~230 KB). Não altera nada deles.
+  async function cadFazerBackup(cru) {
+    const itens = [];
+    Object.keys(cru).forEach(col => { (cru[col] || []).forEach(d => itens.push({ c: col, i: d.id, d: d.data })); });
+    const pacotes = []; let atual = [], tam = 0, grandes = 0;
+    itens.forEach(it => { const t = JSON.stringify(it).length; if (t > 235000) { grandes++; return; } if (tam + t > 230000 && atual.length) { pacotes.push(atual); atual = []; tam = 0; } atual.push(it); tam += t; });
+    if (atual.length) pacotes.push(atual);
+    const em = Date.now(), por = autorId();
+    for (let n = 0; n < pacotes.length; n++) { const ok = await persist(() => db.doc(`${CAD_BKP}/p${n}`).set({ em, por, itens: pacotes[n] })); if (!ok) return { ok: false, erro: 'Não foi possível gravar o backup.' }; }
+    const antigos = state.cadBkp ? Number(state.cadBkp.pacotes) || 0 : 0;
+    for (let n = pacotes.length; n < antigos; n++) { try { await db.doc(`${CAD_BKP}/p${n}`).delete(); } catch (e) {} }
+    const meta = { em, por, pacotes: pacotes.length, itens: itens.length - grandes, grandes, porColecao: Object.fromEntries(Object.keys(cru).map(c => [c, cru[c] ? cru[c].length : null])) };
+    const ok = await persist(() => db.doc(`${CAD_BKP}/_meta`).set(meta)); if (!ok) return { ok: false, erro: 'Não foi possível gravar o backup.' };
+    state.cadBkp = meta; return { ok: true, meta };
+  }
+
+  // Registra (ou liga) uma empresa nova de um módulo no cadastro único: quem cria uma empresa por qualquer tela passa por aqui.
+  async function cadRegistrar({ cnpj, nome, modulo, id, uf, codigoDominio }) {
+    const c14 = cad14(cnpj); if (!c14 || !CAD_MODS[modulo] || ehEscritorioProprio(nome)) return { ok: false, erro: 'sem CNPJ válido' };
+    if (!state.cadastro.size) return { ok: false, erro: 'o cadastro único ainda não foi gerado' };      // antes de a coordenação gerar, nenhum módulo grava nele
+    const b = 'b' + cadBalde(c14), atual = state.cadRaw.get(b) || {}, ex = atual[c14];
+    const m = ex ? { ...ex, vinculos: { dp: [], ctb: [], portal: [], fis: [], ...(ex.vinculos || {}) } } : { id: c14, cnpj: fmtCnpj(c14), razao: String(nome || '').trim(), apelido: '', codigoOnvio: '', codigosOnvio: [], codigoDominio: String(codigoDominio || ''), uf: String(uf || '').trim().toUpperCase().slice(0, 2), situacao: 'fora-do-onvio', origem: 'hub', raiz: c14.slice(0, 8), vinculos: { dp: [], ctb: [], portal: [], fis: [] } };
+    if (id && !m.vinculos[modulo].includes(String(id))) m.vinculos[modulo] = [...m.vinculos[modulo], String(id)];
+    if (!m.codigoDominio && codigoDominio) m.codigoDominio = String(codigoDominio);
+    m.modulos = Object.keys(m.vinculos).filter(x => m.vinculos[x].length);
+    if (ex && cadSemHora(ex) === cadSemHora({ ...ex, ...m })) return { ok: true, igual: true };
+    const novo = { ...m, atualizadoEm: Date.now() }, existe = state.cadRaw.has(b);
+    const ok = await persist(() => existe ? db.doc(`${CAD_COL}/${b}`).update({ [c14]: novo }) : db.doc(`${CAD_COL}/${b}`).set({ [c14]: novo }));
+    if (ok) { state.cadRaw.set(b, { ...atual, [c14]: novo }); cadAchata(); }
+    return { ok };
+  }
+
+  // Abre a empresa no módulo escolhido (os outros módulos são quadros do Hub; cada um sabe abrir uma empresa pelo id).
+  async function cadAbrir(modulo, id) {
+    const k = CAD_MOD_KEY[modulo]; if (!k) return false;
+    try { openModule(k); const a = await window.__hubApi.carregar(k); return !!(a && a.abrirEmpresa && a.abrirEmpresa(id, 'dados')); } catch (e) { return false; }
+  }
+
+  const cadPodeGerir = () => !state.readOnly && nivelMod('dp') === 'coord';
+
+  // Unifica duas empresas do DP com o mesmo CNPJ (uma de cada vez, a pedido da coordenação): a que fica recebe o que só a outra tem,
+  // o vínculo do Onvio passa para ela, a descartada é copiada em cad_backup/dup_<id> e só então é apagada. Nada é apagado se algo falhar antes.
+  const CAD_UNI_CAMPOS = ['cod', 'tributacao', 'responsavel', 'reserva', 'uf', 'dataBase', 'contato', 'capitalSocial', 'assocPatronal', 'codigoDominio', 'adiantamento', 'fechamento'];
+  const CAD_UNI_LISTAS = ['estabelecimentos', 'rubricas', 'rpa', 'pensao', 'prazos', 'lembretes', 'funcionarios', 'historico'];
+  const cadChaveLinha = (sec, r) => sec === 'funcionarios' ? norm(r.nome) : JSON.stringify(Object.keys(r).filter(k => k !== 'id').sort().map(k => [k, r[k]]));
+  // Função pura: devolve a empresa resultante e o que foi acrescentado (para a prévia).
+  function cadJuntar(v, p) {
+    const m = JSON.parse(JSON.stringify(v)), res = { campos: [], linhas: {} };
+    CAD_UNI_CAMPOS.forEach(k => { if (!m[k] && p[k]) { m[k] = p[k]; res.campos.push(k); } });
+    const ob = String(p.observacoes || '').trim();
+    if (ob && !String(m.observacoes || '').includes(ob)) { m.observacoes = [String(m.observacoes || '').trim(), ob].filter(Boolean).join('\n\n— Da empresa duplicada —\n'); res.campos.push('observacoes'); }
+    m.naoAplica = [...new Set([...(m.naoAplica || []), ...(p.naoAplica || [])])];
+    CAD_UNI_LISTAS.forEach(sec => {
+      const tem = new Set((m[sec] || []).map(r => cadChaveLinha(sec, r)));
+      const novas = (p[sec] || []).filter(r => { const k = cadChaveLinha(sec, r); if (tem.has(k)) return false; tem.add(k); return true; });
+      if (novas.length) { m[sec] = [...(m[sec] || []), ...novas]; res.linhas[sec] = novas.length; }
+    });
+    return { m, res };
+  }
+  async function cadUnificarDp(venceId, perdeId, opcoes) {
+    const so = !!(opcoes && opcoes.simular);
+    if (!cadPodeGerir()) return { ok: false, erro: 'Só a coordenação unifica empresas.' };
+    if (!db) return { ok: false, erro: 'Sem conexão com o banco.' };
+    if (!venceId || !perdeId || venceId === perdeId) return { ok: false, erro: 'Escolha duas empresas diferentes.' };
+    const ler = async (id) => { try { const sn = await db.doc('dp_empresas/' + id).get(); return sn && sn.exists !== false && sn.data ? { cru: sn.data(), e: normalizeDpEmpresa({ ...sn.data(), id }) } : null; } catch { return null; } };
+    const [v, p] = await Promise.all([ler(venceId), ler(perdeId)]);
+    if (!v || !p) return { ok: false, erro: 'Uma das empresas não foi encontrada (talvez outra pessoa já unificou).' };
+    const c1 = cad14(v.e.cnpj), c2 = cad14(p.e.cnpj);
+    if (!c1 || c1 !== c2) return { ok: false, erro: 'As duas empresas não têm o mesmo CNPJ completo: não unifico.' };
+    const { m, res } = cadJuntar(v.e, p.e);
+    const vincs = Object.keys((state.dpOvCfg && state.dpOvCfg.vinc) || {}).filter(k => state.dpOvCfg.vinc[k] === perdeId);
+    const previa = { ok: true, vence: { id: venceId, nome: v.e.nome, funcionarios: v.e.funcionarios.length }, perde: { id: perdeId, nome: p.e.nome, funcionarios: p.e.funcionarios.length }, acrescenta: res, vinculos: vincs.length };
+    if (so) return previa;
+    m.historico = [{ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), alteracao: `Unificada com a empresa duplicada ${p.e.nome} (${perdeId}) pela coordenação: ${[res.campos.length ? res.campos.length + ' campo(s)' : '', ...Object.keys(res.linhas).filter(k => k !== 'historico').map(k => res.linhas[k] + ' ' + (SEC_NOME[k] || k) + '(s)')].filter(Boolean).join(', ') || 'nada a acrescentar'}`, autor: autorId() }, ...m.historico];
+    m.updatedAt = Date.now();
+    const tam = JSON.stringify(m).length; if (tam > OV_DOC_MAX) return { ok: false, erro: 'A empresa ficaria grande demais para o banco (' + Math.round(tam / 1024) + ' KB): unifique à mão.' };
+    const bk = JSON.stringify(p.cru).length; if (bk > 235000) return { ok: false, erro: 'A empresa descartada é grande demais para guardar o backup: unifique à mão.' };
+    if (!(await persist(() => db.doc(`${CAD_BKP}/dup_${perdeId}`).set({ em: Date.now(), por: autorId(), origem: 'dp_empresas', id: perdeId, vencedora: venceId, dados: p.cru })))) return { ok: false, erro: 'Não foi possível guardar o backup da empresa descartada: nada foi alterado.' };
+    const { id: _id, ...corpo } = m;
+    if (!(await persist(() => db.doc('dp_empresas/' + venceId).set(corpo)))) return { ok: false, erro: 'Não foi possível gravar a empresa que fica: nada foi apagado.' };
+    if (vincs.length) {
+      const ok = await salvarOvCfg((c) => { Object.keys(c.vinc || {}).forEach(k => { if (c.vinc[k] === perdeId) c.vinc[k] = venceId; }); });
+      if (!ok) return { ok: false, erro: 'A empresa que fica foi atualizada, mas não consegui passar o vínculo do Onvio: a descartada continua no DP. Tente de novo.' };
+    }
+    if (!(await persist(() => dpDbStore.deleteOne(perdeId)))) return { ok: false, erro: 'A empresa que fica foi atualizada, mas não consegui apagar a descartada. Tente de novo.' };
+    state.dpEmpresas = state.dpEmpresas.filter(e => e.id !== perdeId);
+    try { renderDpActiveView(); } catch {}
+    return { ...previa, feito: true };
+  }
+  // ----- Integração do cadastro único com os módulos (Hub 301) -----
+  // O cadastro único é a fonte da identidade (razão social, apelido, CNPJ, códigos). Os módulos continuam donos do resto: nada do que
+  // eles guardam é apagado. Ligar uma empresa só acrescenta o CNPJ (se faltava) e o vínculo; trocar o nome grava `nomeAnterior`/`nomesAntigos`,
+  // só depois de backup, e cada lote fica em cad_trocas com o valor de antes e de depois para ser desfeito.
+  const CAD_TROCAS = 'cad_trocas';
+  const CAD_TROCA_MODS = { portal: 'Portal do Cliente', ctb: 'Contábil', fis: 'Fiscal' };     // o DP já mostra o nome do cadastro em todas as telas
+  const CAD_COLS = { portal: 'empresas', ctb: 'ctb_emp', fis: 'fis_emp' };
+  state.cadEstado.trocando = false;
+  const cadPodeEditar = () => !!db && !state.semEscrita && temCoord();
+  const cadPodeLigar = (mod) => !!db && !state.semEscrita && !!CAD_MOD_KEY[mod] && (!AUTH() || AUTH().ehAdmin() || nivelMod(CAD_MOD_KEY[mod]) === 'coord');
+  const cadEscrita = () => logRaw || db;        // grava sem encher o registro de alterações do dia: cada lote tem o seu registro em cad_trocas
+  const cadNorm = (s) => norm(String(s || '')).replace(/[^a-z0-9]+/g, ' ').trim();
+  const cadVinc = (mod, id) => state.cadIdx.get(mod + '|' + id) || '';
+  const cadFmtNome = (c, formato) => formato === 'razao' ? String(c.razao || '').trim() : `${nomeCurtoBase(c.apelido || c.razao)} | ${cnpjFinal(c.id) || 'sem CNPJ'}`;
+  async function cadLerCol(c) { return (await db.collection(c).get()).docs.map(d => ({ id: d.id, data: d.data() || {} })); }
+  // Identidade de uma empresa de módulo: pelo vínculo do cadastro único; sem vínculo, pelo CNPJ do próprio registro; sem nada, os dados dele.
+  function cadIdentidade(mod, id, fbNome, fbCnpj) {
+    const k = cadVinc(mod, id), c = k ? state.cadastro.get(k) : null;     // só vale o vínculo do cadastro (quem desliga volta a ser editável)
+    if (!c) return { ligado: false, nome: String(fbNome || ''), razao: String(fbNome || ''), apelido: '', cnpj: String(fbCnpj || ''), cnpj14: cad14(fbCnpj), codigo: '', codigoOnvio: '', codigoDominio: '', situacao: '', uf: '', origem: '' };
+    return { ligado: true, cnpj14: k, nome: cadNome(k, fbNome), razao: c.razao || String(fbNome || ''), apelido: c.apelido || '', cnpj: c.cnpj || fmtCnpj(k), codigo: c.codigoDominio || c.codigoOnvio || '', codigoOnvio: c.codigoOnvio || '', codigoDominio: c.codigoDominio || '', situacao: c.situacao || '', uf: c.uf || '', origem: c.origem || '' };
+  }
+  function cadBuscar(texto, max) {
+    const q = cadNorm(texto), qd = cnpjClean(texto), out = [], lim = Math.max(1, Math.min(max || 20, 100));
+    if (!q && qd.length < 3) return out;
+    for (const c of state.cadastro.values()) {
+      const hay = cadNorm([c.razao, c.apelido, c.codigoOnvio, c.codigoDominio, (c.codigosOnvio || []).join(' ')].join(' '));
+      if ((qd.length >= 3 && c.id.includes(qd)) || (q && q.split(' ').every(w => hay.includes(w)))) {
+        out.push({ cnpj14: c.id, cnpj: c.cnpj || fmtCnpj(c.id), razao: c.razao || '', apelido: c.apelido || '', nome: cadNome(c.id, c.razao), codigo: c.codigoDominio || c.codigoOnvio || '', codigoDominio: c.codigoDominio || '', uf: c.uf || '', situacao: c.situacao || '', modulos: c.modulos || [] });
+        if (out.length >= lim) break;
+      }
+    }
+    return out;
+  }
+
+  // ---- ligar uma empresa de módulo ao cadastro (acrescenta o CNPJ que faltava e o vínculo; nada mais) ----
+  async function cadAcharRegistro(mod, id) {
+    if (mod === 'dp') { const sn = await db.doc('dp_empresas/' + id).get(); const e = sn && sn.exists !== false && sn.data ? sn.data() : null; return e ? { doc: 'dp_empresas/' + id, e, key: '' } : null; }
+    if (mod === 'portal') { const sn = await db.doc('empresas/' + id).get(); const e = sn && sn.exists !== false && sn.data ? sn.data() : null; return e ? { doc: 'empresas/' + id, e, key: '' } : null; }
+    const docs = await cadLerCol(CAD_COLS[mod]);
+    for (const d of docs) { const e = d.data[id]; if (e && typeof e === 'object' && !Array.isArray(e)) return { doc: `${CAD_COLS[mod]}/${d.id}`, e, key: id, mapa: d.data }; }
+    return null;
+  }
+  async function cadLigar(mod, id, cnpj) {
+    if (!CAD_MOD_KEY[mod]) return { ok: false, erro: 'Módulo sem ligação por aqui.' };
+    if (!cadPodeLigar(mod)) return { ok: false, erro: 'Só a coordenação do ' + CAD_MODS[mod] + ' liga empresas ao cadastro único.' };
+    const c14 = cad14(cnpj); if (!c14) return { ok: false, erro: 'CNPJ inválido.' };
+    const c = cadGet(c14); if (!c) return { ok: false, erro: 'Este CNPJ não está no cadastro único. Atualize o cadastro primeiro.' };
+    const r = await cadAcharRegistro(mod, id); if (!r) return { ok: false, erro: 'Empresa não encontrada no módulo (talvez já tenha sido alterada).' };
+    const atual = cad14(r.e.cnpj);
+    if (atual && atual !== c14) return { ok: false, erro: `Esta empresa já tem outro CNPJ (${fmtCnpj(atual)}). Resolva escolhendo a empresa certa no cadastro.` };
+    const raw = cadEscrita();
+    if (!atual || (mod === 'portal' && r.e.cadId !== c14)) {
+      const ok = await persist(() => mod === 'dp'
+        ? raw.doc(r.doc).update({ cnpj: fmtCnpj(c14), updatedAt: Date.now() })
+        : mod === 'portal'
+        ? raw.doc(r.doc).update({ ...(atual ? {} : { cnpj: fmtCnpj(c14) }), cadId: c14 })
+        : raw.doc(r.doc).update({ [r.key]: { ...r.e, cnpj: fmtCnpj(c14) } }));
+      if (!ok) return { ok: false, erro: 'Não foi possível gravar o CNPJ na empresa.' };
+    }
+    const v = await cadRegistrar({ cnpj: c14, nome: c.razao, modulo: mod, id });
+    if (!v || v.ok === false) return { ok: false, erro: 'O CNPJ foi gravado, mas o vínculo no cadastro único não: tente de novo.' };
+    return { ok: true, cnpj: c14 };
+  }
+  // Tira o vínculo (a empresa do módulo fica como está; o CNPJ volta a poder ser corrigido nela).
+  async function cadDesligar(mod, id) {
+    if (!cadPodeLigar(mod)) return { ok: false, erro: 'Só a coordenação do módulo desliga empresas do cadastro.' };
+    const k = cadVinc(mod, id); if (!k) return { ok: true, igual: true };
+    const b = 'b' + cadBalde(k), atual = state.cadRaw.get(b) || {}, ex = atual[k]; if (!ex) return { ok: true, igual: true };
+    const vi = { dp: [], ctb: [], portal: [], fis: [], ...(ex.vinculos || {}) }; vi[mod] = (vi[mod] || []).filter(x => String(x) !== String(id));
+    const novo = { ...ex, vinculos: vi, modulos: Object.keys(vi).filter(x => vi[x].length), atualizadoEm: Date.now() };
+    const ok = await persist(() => db.doc(`${CAD_COL}/${b}`).update({ [k]: novo }));
+    if (ok) { state.cadRaw.set(b, { ...atual, [k]: novo }); cadAchata(); }
+    return { ok };
+  }
+  // Edita a identidade no cadastro único (o que for editado não é refeito a partir do Onvio). O CNPJ e o código do Onvio não se editam aqui.
+  async function cadEditar(cnpj, campos) {
+    if (!cadPodeEditar()) return { ok: false, erro: 'Só a coordenação edita o cadastro único.' };
+    const k = cad14(cnpj), c = cadGet(k); if (!c) return { ok: false, erro: 'Empresa não encontrada no cadastro único.' };
+    campos = campos || {}; const novo = { ...c }, ed = { ...(c.editado || {}) }; let mudou = 0;
+    ['razao', 'apelido', 'codigoDominio', 'uf'].forEach(f => {
+      if (campos[f] === undefined) return;
+      let v = String(campos[f] == null ? '' : campos[f]).trim();
+      if (f === 'apelido') v = nomeCurtoBase(v); else if (f === 'uf') v = v.toUpperCase().slice(0, 2); else if (f === 'codigoDominio') v = v.slice(0, 20); else v = v.slice(0, 160);
+      if (f === 'razao' && !v) return;
+      if (v !== String(c[f] || '')) { novo[f] = v; ed[f] = true; mudou++; }
+    });
+    if (!mudou) return { ok: true, igual: true };
+    novo.editado = ed; novo.editadoPor = autorId(); novo.editadoEm = Date.now(); novo.atualizadoEm = Date.now();
+    const b = 'b' + cadBalde(k), atual = state.cadRaw.get(b) || {};
+    const ok = await persist(() => db.doc(`${CAD_COL}/${b}`).update({ [k]: novo }));
+    if (ok) { state.cadRaw.set(b, { ...atual, [k]: novo }); cadAchata(); }
+    return { ok };
+  }
+
+  // ---- troca dos nomes gravados nos módulos: plano (só leitura), aplicação (com backup e registro) e desfazer ----
+  async function cadPlanoInterno(mod, formato) {
+    if (!db) return { ok: false, erro: 'Sem conexão com o banco.' };
+    if (!CAD_TROCA_MODS[mod]) return { ok: false, erro: 'O DP já mostra o nome do cadastro único em todas as telas; não há nome para trocar lá.' };
+    if (!state.cadastro.size) return { ok: false, erro: 'O cadastro único ainda não foi gerado.' };
+    const itens = [], donos = new Map();
+    const chaveDe = (id) => cadVinc(mod, id);
+    if (mod === 'portal') {
+      const [emps, sets, cts] = await Promise.all([cadLerCol('empresas'), cadLerCol('empresaSetores'), cadLerCol('contatos')]);
+      const deps = new Map();
+      const add = (col) => (d) => { const eid = d.data.empresaId; if (!eid) return; let a = deps.get(eid); if (!a) { a = []; deps.set(eid, a); } a.push({ col, doc: d.id, atual: String(d.data.empresaNome || '') }); };
+      sets.forEach(add('empresaSetores')); cts.forEach(add('contatos'));
+      emps.forEach(d => {
+        const e = d.data, k = chaveDe(d.id); if (!k) return;
+        donos.set(k, (donos.get(k) || 0) + 1);
+        const c = state.cadastro.get(k), novo = cadFmtNome(c, formato); if (!novo) return;
+        const dep = (deps.get(d.id) || []).filter(x => x.atual !== novo), mudaNome = String(e.nome || '') !== novo;
+        if (!mudaNome && !dep.length) return;
+        itens.push({ mod, id: d.id, doc: d.id, k, cnpj: c.cnpj || fmtCnpj(k), nomeAtual: String(e.nome || ''), nomeNovo: novo, mudaNome, deps: dep, raw: e });
+      });
+    } else {
+      (await cadLerCol(CAD_COLS[mod])).forEach(d => Object.keys(d.data).forEach(id => {
+        const e = d.data[id]; if (!e || typeof e !== 'object' || Array.isArray(e) || e.excluida) return;
+        const k = chaveDe(id); if (!k) return;
+        donos.set(k, (donos.get(k) || 0) + 1);
+        const c = state.cadastro.get(k), novo = cadFmtNome(c, formato);
+        if (!novo || String(e.nome || '') === novo) return;
+        itens.push({ mod, id, doc: d.id, k, cnpj: c.cnpj || fmtCnpj(k), nomeAtual: String(e.nome || ''), nomeNovo: novo, mudaNome: true, deps: [], raw: e });
+      }));
+    }
+    itens.forEach(i => { i.duplicada = (donos.get(i.k) || 0) > 1; });
+    itens.sort((a, b) => a.nomeAtual.localeCompare(b.nomeAtual, 'pt-BR'));
+    return { ok: true, itens };
+  }
+  async function cadTrocasPlanoApi(mod, formato) {
+    const p = await cadPlanoInterno(mod, formato === 'razao' ? 'razao' : 'padrao'); if (!p.ok) return p;
+    return { ok: true, itens: p.itens.map(i => ({ id: i.id, cnpj: i.cnpj, nomeAtual: i.nomeAtual, nomeNovo: i.nomeNovo, mudaNome: i.mudaNome, nDeps: i.deps.length, duplicada: i.duplicada })) };
+  }
+  function cadEntradasDe(i) {
+    const out = [], e = i.raw;
+    if (i.mod === 'portal') {
+      if (i.mudaNome) out.push({ col: 'empresas', doc: i.doc, antes: { nome: String(e.nome || ''), nomeAnterior: String(e.nomeAnterior || ''), nomesAntigos: Array.isArray(e.nomesAntigos) ? e.nomesAntigos : [], cadId: String(e.cadId || '') },
+        depois: { nome: i.nomeNovo, nomeAnterior: String(e.nome || ''), nomesAntigos: [...new Set([...(Array.isArray(e.nomesAntigos) ? e.nomesAntigos : []), String(e.nome || '')].filter(Boolean))].slice(-10), cadId: i.k } });
+      i.deps.forEach(x => out.push({ col: x.col, doc: x.doc, antes: { empresaNome: x.atual }, depois: { empresaNome: i.nomeNovo } }));
+    } else if (i.mod === 'ctb') out.push({ col: 'ctb_emp', doc: i.doc, key: i.id, antes: { nome: String(e.nome || ''), anterior: String(e.anterior || '') }, depois: { nome: i.nomeNovo, anterior: String(e.anterior || e.nome || '').slice(0, 160) } });
+    else out.push({ col: 'fis_emp', doc: i.doc, key: i.id, antes: { nome: String(e.nome || '') }, depois: { nome: i.nomeNovo } });
+    return out;
+  }
+  // Grava as entradas num sentido ('ir' = antes→depois, 'voltar' = depois→antes), só onde o valor atual ainda é o esperado.
+  async function cadGravarEntradas(entradas, sentido, onProg) {
+    const raw = cadEscrita(), total = entradas.length; let feitos = 0, pulados = 0, falhas = 0, feito = 0;
+    const tick = () => { feito++; if (onProg) { try { onProg(feito, total); } catch (e) {} } };
+    const de = (en) => sentido === 'ir' ? en.antes : en.depois, para = (en) => sentido === 'ir' ? en.depois : en.antes;
+    const valor = (en, o) => String(en.col === 'empresas' || en.key ? (o && o.nome) || '' : (o && o.empresaNome) || '');
+    const simples = entradas.filter(en => !en.key), baldes = {};
+    entradas.filter(en => en.key).forEach(en => { (baldes[en.col + '/' + en.doc] = baldes[en.col + '/' + en.doc] || []).push(en); });
+    for (let n = 0; n < simples.length; n += 12) {
+      await Promise.all(simples.slice(n, n + 12).map(async en => {
+        try {
+          const sn = await raw.doc(`${en.col}/${en.doc}`).get(), cur = sn && sn.exists !== false && sn.data ? sn.data() : null;
+          if (!cur) { pulados++; return; }
+          const atualV = en.col === 'empresas' ? cur.nome : cur.empresaNome;
+          if (String(atualV || '') !== valor(en, de(en))) { pulados++; return; }
+          await raw.doc(`${en.col}/${en.doc}`).update(para(en)); feitos++;
+        } catch (e) { falhas++; } finally { tick(); }
+      }));
+    }
+    for (const path of Object.keys(baldes)) {
+      const lista = baldes[path];
+      try {
+        const sn = await raw.doc(path).get(), mapa = sn && sn.exists !== false && sn.data ? sn.data() : null;
+        if (!mapa) { pulados += lista.length; lista.forEach(tick); continue; }
+        const upd = {};
+        lista.forEach(en => { const cur = mapa[en.key]; if (!cur || String(cur.nome || '') !== valor(en, de(en))) pulados++; else upd[en.key] = { ...cur, ...para(en) }; tick(); });
+        const ks = Object.keys(upd); if (ks.length) { await raw.doc(path).update(upd); feitos += ks.length; }
+      } catch (e) { falhas += lista.length; }
+    }
+    return { feitos, pulados, falhas };
+  }
+  function cadBackupOk() {
+    const bk = state.cadBkp;
+    if (!bk || !bk.em || Date.now() - bk.em > 24 * 36e5) return 'Faça o backup dos cadastros (botão "Fazer backup") antes de trocar nomes: o último tem mais de 24 horas ou não existe.';
+    if (!CAD_EXTRAS_BKP.every(c => bk.porColecao && bk.porColecao[c] != null)) return 'O último backup não inclui os contatos e as frentes do Portal: faça outro backup.';
+    if (bk.grandes) return `O backup deixou de fora ${bk.grandes} documento(s) grande(s) demais: não é seguro trocar nomes.`;
+    return '';
+  }
+  async function cadAplicarTrocas(mod, ids, formato, onProg) {
+    if (!CAD_TROCA_MODS[mod]) return { ok: false, erro: 'Módulo sem troca de nomes.' };
+    if (!cadPodeLigar(mod)) return { ok: false, erro: 'Só a coordenação do ' + CAD_TROCA_MODS[mod] + ' troca os nomes.' };
+    if (state.cadEstado.trocando) return { ok: false, erro: 'Já há uma troca em andamento.' };
+    const sem = cadBackupOk(); if (sem) return { ok: false, erro: sem };
+    state.cadEstado.trocando = true;
+    try {
+      const plano = await cadPlanoInterno(mod, formato === 'razao' ? 'razao' : 'padrao'); if (!plano.ok) return plano;
+      const sel = new Set((ids || []).map(String)), alvo = plano.itens.filter(i => sel.has(String(i.id)));
+      if (!alvo.length) return { ok: false, erro: 'Nada para trocar (a lista mudou desde que você abriu).' };
+      const entradas = alvo.flatMap(cadEntradasDe);
+      // 1) o registro do lote, com antes e depois, é gravado ANTES de mexer nos módulos
+      const lote = 'l' + Date.now().toString(36), partes = [];
+      let atual = [], tam = 0;
+      entradas.forEach(en => { const t = JSON.stringify(en).length + 2; if (tam + t > 200000 && atual.length) { partes.push(atual); atual = []; tam = 0; } atual.push(en); tam += t; });
+      if (atual.length) partes.push(atual);
+      for (let n = 0; n < partes.length; n++) if (!(await persist(() => db.doc(`${CAD_TROCAS}/${lote}_${n}`).set({ lote, parte: n, itens: partes[n] })))) return { ok: false, erro: 'Não consegui gravar o registro da troca: nada foi alterado.' };
+      const meta = { id: lote, em: Date.now(), por: autorId(), mod, formato: formato === 'razao' ? 'razao' : 'padrao', n: alvo.length, partes: partes.length, desfeito: false };
+      const antigos = (state.cadTrocasIdx && state.cadTrocasIdx.lotes) || [], todos = [meta, ...antigos];
+      if (!(await persist(() => db.doc(`${CAD_TROCAS}/_idx`).set({ lotes: todos.slice(0, 20) })))) return { ok: false, erro: 'Não consegui gravar o índice da troca: nada foi alterado.' };
+      state.cadTrocasIdx = { lotes: todos.slice(0, 20) };
+      todos.slice(20).forEach(l => { for (let n = 0; n < (l.partes || 0); n++) db.doc(`${CAD_TROCAS}/${l.id}_${n}`).delete().catch(() => {}); });
+      // 2) aplica
+      const r = await cadGravarEntradas(entradas, 'ir', onProg);
+      return { ok: r.falhas === 0, lote, empresas: alvo.length, ...r };
+    } finally { state.cadEstado.trocando = false; }
+  }
+  async function cadDesfazerTrocas(lote, onProg) {
+    const idx = (state.cadTrocasIdx && state.cadTrocasIdx.lotes) || [], meta = idx.find(l => l.id === lote);
+    if (!meta) return { ok: false, erro: 'Lote não encontrado.' };
+    if (meta.desfeito) return { ok: false, erro: 'Este lote já foi desfeito.' };
+    if (!cadPodeLigar(meta.mod)) return { ok: false, erro: 'Só a coordenação do ' + (CAD_TROCA_MODS[meta.mod] || 'módulo') + ' desfaz esta troca.' };
+    if (state.cadEstado.trocando) return { ok: false, erro: 'Já há uma troca em andamento.' };
+    state.cadEstado.trocando = true;
+    try {
+      const entradas = [];
+      for (let n = 0; n < (meta.partes || 0); n++) { const sn = await db.doc(`${CAD_TROCAS}/${lote}_${n}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || !Array.isArray(d.itens)) return { ok: false, erro: 'O registro deste lote está incompleto: nada foi desfeito.' }; entradas.push(...d.itens); }
+      const r = await cadGravarEntradas(entradas, 'voltar', onProg);
+      if (r.falhas === 0) { const lotes = idx.map(l => l.id === lote ? { ...l, desfeito: true, desfeitoEm: Date.now() } : l); if (await persist(() => db.doc(`${CAD_TROCAS}/_idx`).set({ lotes }))) state.cadTrocasIdx = { lotes }; }
+      return { ok: r.falhas === 0, ...r };
+    } finally { state.cadEstado.trocando = false; }
+  }
+
+  const cadApi = {
+    pronto: () => !!db, podeGerir: cadPodeGerir,
+    estado: () => ({ mestre: state.cadastro.size, backup: state.cadBkp, relatorio: state.cadRel, ocupado: state.cadEstado.gerando || state.cadEstado.fazendoBackup, clientesOnvio: ovClientes().size }),
+    todos: () => [...state.cadastro.values()],
+    get: cadGet,
+    // Monta o relatório SEM gravar nada (lê os quatro cadastros agora).
+    async relatorio() {
+      if (!db) return { ok: false, erro: 'Sem conexão com o banco.' };
+      state.cadEstado.gerando = true; try { const f = await cadLerFontes(); const r = cadMontar(f, [...ovClientes().values()]); state.cadRel = { ...r.rel, em: Date.now(), previa: r.docs.size, novos: [...r.docs.keys()].filter(id => !state.cadastro.has(id)).length }; return { ok: true, relatorio: state.cadRel }; } finally { state.cadEstado.gerando = false; }
+    },
+    async backup() {
+      if (!cadPodeGerir()) return { ok: false, erro: 'Só a coordenação faz o backup.' };
+      state.cadEstado.fazendoBackup = true; try { const f = await cadLerFontes(true); return await cadFazerBackup(f.cru); } finally { state.cadEstado.fazendoBackup = false; }
+    },
+    // Gera/atualiza o cadastro único. Exige backup feito (de qualquer momento) e só a coordenação.
+    async gerar() {
+      if (!cadPodeGerir()) return { ok: false, erro: 'Só a coordenação gera o cadastro único.' };
+      if (!state.cadBkp) return { ok: false, erro: 'Faça o backup dos cadastros antes de gerar.' };
+      state.cadEstado.gerando = true;
+      try { const f = await cadLerFontes(), r = cadMontar(f, [...ovClientes().values()]); const g = await cadGravar(r.docs); state.cadRel = { ...r.rel, em: Date.now(), previa: r.docs.size, novos: 0 }; return { ok: g.falhou === 0, ...g, relatorio: state.cadRel }; }
+      finally { state.cadEstado.gerando = false; }
+    },
+    unificarDp: cadUnificarDp,
+    registrar: cadRegistrar, abrir: cadAbrir,
+    podeEditar: cadPodeEditar, podeLigar: cadPodeLigar, buscar: cadBuscar, identidade: cadIdentidade,
+    ligar: cadLigar, desligar: cadDesligar, editar: cadEditar,
+    trocasPlano: cadTrocasPlanoApi, trocasAplicar: cadAplicarTrocas, trocasDesfazer: cadDesfazerTrocas, trocasLotes: () => (state.cadTrocasIdx && state.cadTrocasIdx.lotes) || [],
+    modulosTroca: CAD_TROCA_MODS, backupOk: cadBackupOk, nomePadrao: (cnpj) => cadNome(cnpj, ''),
+  };
+  // API para os módulos (quadros do Hub): leitura do cadastro único e registro de empresa nova.
+  window.__cadastro = {
+    versao: 2, pronto: () => state.cadastro.size > 0,
+    // identidade da empresa de um módulo: { ligado, nome, razao, apelido, cnpj, codigo, situacao, uf }; sem cadastro devolve os dados do próprio módulo
+    identidade: (mod, id, nome, cnpj) => cadIdentidade(mod, id, nome, cnpj),
+    nomeDe: (mod, id, fallback, cnpj) => cadIdentidade(mod, id, fallback, cnpj).nome,
+    buscar: (texto, max) => cadBuscar(texto, max),
+    aoMudar: (cb) => { if (typeof cb === 'function') cadOuvintes.push(cb); },
+    pode: { editar: () => cadPodeEditar(), ligar: (m) => cadPodeLigar(m) },
+    abrirEdicao: (cnpj) => { try { openModule('fontes'); try { sessionStorage.setItem('controlhub-cad-editar', cad14(cnpj)); } catch (e) {} const f = $('#fontes-frame'); if (f && f.contentWindow && f.contentWindow.__abrirEdicaoCad) f.contentWindow.__abrirEdicaoCad(cad14(cnpj)); return true; } catch (e) { return false; } },
+    get: (cnpj) => { const c = cadGet(cnpj); return c ? JSON.parse(JSON.stringify(c)) : null; },
+    nome: (cnpj, fallback) => cadNome(cnpj, fallback),
+    razao: (cnpj, fallback) => { const c = cadGet(cnpj); return c && c.razao ? c.razao : (fallback || ''); },
+    vinculos: (cnpj) => { const c = cadGet(cnpj); return c ? JSON.parse(JSON.stringify(c.vinculos || {})) : {}; },
+    registrar: (d) => cadRegistrar(d || {}),
+    abrir: (modulo, id) => cadAbrir(modulo, id),
+  };
+
+
+  // Ficha da empresa (DP): o cadastro único da empresa e onde mais ela está no Hub (Contábil, Portal, Fiscal), com atalho para abrir cada um.
+  function renderCadFicha() {
+    if (!dpAtual) return;
+    let el = $('#dp-section-cadunico');
+    if (!el) { const ref = $('#dp-section-estabelecimentos'); if (!ref || !ref.parentNode) return; el = document.createElement('div'); el.className = 'dlg-section'; el.id = 'dp-section-cadunico'; ref.parentNode.insertBefore(el, ref); }
+    const c = dpDraft ? null : cadGet(dpAtual.cnpj);
+    if (dpDraft) { el.innerHTML = ''; return; }
+    if (!c) { el.innerHTML = `<div class="dlg-section-title">Cadastro único</div><div class="dp-sec-note">Esta empresa ainda não está no cadastro único${cad14(dpAtual.cnpj) ? '' : ' (falta o CNPJ completo no cadastro)'}. A coordenação gera o cadastro na Entrada de dados.</div>`; return; }
+    const filiais = [...state.cadastro.values()].filter(x => x.raiz === c.raiz && x.id !== c.id).length;
+    const chips = Object.keys(CAD_MODS).map(m => { const ids = c.vinculos && c.vinculos[m] || []; if (!ids.length) return `<span class="cad-chip off" title="Não está no ${escapeHtml(CAD_MODS[m])}">${escapeHtml(CAD_MODS[m])}: —</span>`; return m === 'dp' && ids.includes(dpAtual.id) && ids.length === 1 ? `<span class="cad-chip on">${escapeHtml(CAD_MODS[m])} (esta)</span>` : ids.map(id => `<button type="button" class="cad-chip on" data-cad-abrir="${m}" data-id="${escapeHtml(id)}" title="Abrir no ${escapeHtml(CAD_MODS[m])}">${escapeHtml(CAD_MODS[m])}${ids.length > 1 ? ' · ' + escapeHtml(String(id).slice(0, 14)) : ''} ›</button>`).join(''); }).join('');
+    const sit = c.situacao === 'ativa' ? 'cliente ativo no Onvio' : c.situacao === 'inativa' ? 'cliente inativo no Onvio' : 'fora do Onvio';
+    el.innerHTML = `<div class="dlg-section-title">Cadastro único <small class="cad-sub">${escapeHtml(sit)}</small></div>
+      <div class="cad-box"><div class="cad-linha"><span class="cad-l">Razão social</span><b>${escapeHtml(c.razao || '—')}</b></div>
+      <div class="cad-linha"><span class="cad-l">Apelido no Onvio</span><b>${escapeHtml(c.apelido || '—')}</b></div>
+      <div class="cad-linha"><span class="cad-l">Código</span><b>${escapeHtml([c.codigoOnvio && 'Onvio ' + c.codigoOnvio, c.codigoDominio && 'Domínio ' + c.codigoDominio].filter(Boolean).join(' · ') || '—')}</b></div>
+      <div class="cad-linha"><span class="cad-l">Matriz e filiais</span><b>${filiais ? filiais + (filiais === 1 ? ' outra empresa' : ' outras empresas') + ' com a mesma raiz de CNPJ' : 'sem filiais cadastradas'}</b></div>
+      <div class="cad-linha"><span class="cad-l">Está em</span><span class="cad-chips">${chips}</span></div>
+      <div class="cad-linha"><span class="cad-l"></span><button type="button" class="linkish" data-cad-ed="${escapeHtml(c.id)}">Editar no cadastro único</button></div></div>`;
+  }
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cad-abrir]'); if (!b) return; e.preventDefault(); if (dlgDetail.open) dlgDetail.close(); cadAbrir(b.dataset.cadAbrir, b.dataset.id); });
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cad-ed]'); if (!b) return; e.preventDefault(); if (dlgDetail.open) dlgDetail.close(); window.__cadastro.abrirEdicao(b.dataset.cadEd); });
+  // ----- ficha da empresa: aba Onvio -----
+  function ovClienteDe(e, lista) {
+    const cl = ovClientes();
+    for (const s of lista) if (s.cod && cl.has(s.cod)) return cl.get(s.cod);
+    const c = cnpjClean(e.cnpj);
+    if (c.length === 14 || c.length === 11) for (const x of cl.values()) if (cnpjClean(x.cnpj) === c) return x;
+    return null;
+  }
+  const ovSim = (v) => v === 'sim' ? 'sim' : v === 'não' ? 'não' : '—';
+  // Valor de uma coluna da lista em português: datas em dd/mm/aaaa, códigos pela tabela de apoio do escritório, meios e tipos de aviso por extenso.
+  const OV_MEIO = { PORTAL: 'Portal do Cliente', OTHER: 'Outro', EMAIL: 'E-mail', PHONE: 'Telefone', WHATSAPP: 'WhatsApp', INTERNAL: 'Interno' };
+  const OV_AVISO = { WORKED: 'Trabalhado', INDEMNIFIED: 'Indenizado', DISPENSED: 'Dispensado' };
+  function ovValor(k, v) {
+    const t = String(v == null ? '' : v);
+    if (/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(t)) return [k, ovFmtDia(t) + (t.length > 10 ? ' ' + t.slice(11) : '')];
+    if (k === 'Meio') return [k, OV_MEIO[t] || t];
+    if (k === 'Tipo de aviso') return [k, OV_AVISO[t] || t];
+    if (k === 'Motivo (código)') { const d = ovDescTabela('Motivos de rescisão', t); return ['Motivo', d || t]; }
+    if (k === 'Tipo de afastamento (código)') { const d = ovDescTabela('Tipos de afastamento', t); return ['Tipo de afastamento', d || t]; }
+    return [k, t];
+  }
+  function ovDetalheHtml(s) {
+    const pend = ovPendentes().get(s.tipoKey + ':' + s.id), r = s.raw, partes = [];
+    if (s.assunto || s.quem) partes.push(`<div class="ov-det-h"><b>${escapeHtml(s.assunto || s.lista)}</b>${s.quem ? ` · ${escapeHtml(s.quem)}` : ''}</div>`);
+    if (pend && pend.grupos.size) {
+      partes.push([...pend.grupos.entries()].map(([g, cs]) => `<div class="ov-grupo"><div class="ov-grupo-t">${escapeHtml(g)}</div><dl class="ov-dl">${cs.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('')}</dl></div>`).join(''));
+    } else {
+      const fora = ['Id', 'Nº', 'Tipo', 'Situação', 'Vez', 'Cliente', 'Apelido', 'Código do cliente', 'Cliente usa o Onvio', 'Cliente envia eSocial', 'Cliente cadastra empregado', 'Responsável', 'Id do responsável', 'Departamento (id)', 'Id do cliente', 'Código da situação'];
+      const extras = Object.keys(r).filter(k => r[k] !== '' && !fora.includes(k));
+      partes.push(`<div class="ov-grupo"><div class="ov-grupo-t">Dados da lista</div><dl class="ov-dl">${extras.map(k => { const [rot, v] = ovValor(k, r[k]); return `<dt>${escapeHtml(rot)}</dt><dd>${escapeHtml(v)}</dd>`; }).join('')}</dl></div>`);
+    }
+    if (pend && pend.tramites.length) {
+      partes.push(`<div class="ov-grupo"><div class="ov-grupo-t">Conversa (${pend.tramites.length})</div>${pend.tramites.map(t => `<div class="ov-tr ${t['Vez'] === 'cliente' ? 'cli' : 'esc'}"><div class="ov-tr-h"><b>${escapeHtml(t['Autor'] || '—')}</b> · ${escapeHtml(t['Vez'] || '')} · ${escapeHtml(t['Situação'] || '')} · <span>${escapeHtml(ovFmtDia(t['Em']) + (String(t['Em']).length > 10 ? ' ' + String(t['Em']).slice(11) : ''))}</span></div><div class="ov-tr-tx">${escapeHtml(t['Texto'] || '')}</div>${t['Anexos'] ? `<div class="dp-cell-sub">Anexos: ${escapeHtml(t['Anexos'])}</div>` : ''}</div>`).join('')}</div>`);
+    } else if (!s.fim) partes.push('<div class="dp-cell-sub">A conversa desta solicitação ainda não chegou do Onvio (só as pendentes mais graves vêm com os trâmites, e só com os dados pessoais ligados na extensão).</div>');
+    return partes.join('');
+  }
+  function renderOvFicha() {
+    const el = $('#dp-section-onvio'), nb = $('#dp-dtab-n-onvio'); if (!el || !dpAtual) return;
+    const e = dpAtual;
+    if (dpDraft) { el.innerHTML = '<div class="empty-mini">Crie a empresa para ver as solicitações dela no Onvio.</div>'; if (nb) nb.textContent = ''; return; }
+    if (!ovTemListas()) { el.innerHTML = '<div class="dp-empty"><strong>Nenhum dado do Onvio recebido ainda</strong><span>A extensão Control Onvio envia as solicitações quando alguém a usa com o Hub aberto (Configurações → Control Hub, “Enviar tudo agora”). Veja em Entrada de dados.</span></div>'; if (nb) nb.textContent = ''; return; }
+    const idx = ovSolicitacoes(), lista = idx.porEmp.get(e.id) || [], pend = lista.filter(s => !s.fim), cl = ovClienteDe(e, lista);
+    if (nb) nb.textContent = pend.length ? ` ${pend.length}` : '';
+    const recebido = state.ovMan['lista-geral'] || state.ovMan[OV_LISTAS.find(t => state.ovMan[t])];
+    const velho = recebido && (Date.now() - (recebido.recebidoEm || 0)) / 36e5 > 24;
+    const r0 = lista[0] && lista[0].raw;
+    const chips = [];
+    if (r0) chips.push(['Usa o Onvio', ovSim(r0['Cliente usa o Onvio'])], ['Envia eSocial', ovSim(r0['Cliente envia eSocial'])], ['Cadastra empregado', ovSim(r0['Cliente cadastra empregado'])]);
+    else if (cl) chips.push(['Usa o Onvio', cl.usaOnvio ? 'sim' : 'não']);
+    if (cl) {
+      if (cl.cnpj) chips.push(['CNPJ/CPF', cl.cnpj]);
+      if (cl.im) chips.push(['Insc. municipal', cl.im]);
+      if (cl.ie) chips.push(['Insc. estadual', cl.ie]);
+      if (cl.certificado != null) chips.push(['Certificado digital', cl.certificado ? 'tem' + (cl.validade ? ' · vale até ' + fmtDateStr(cl.validade) : '') : 'não tem']);
+    }
+    const topo = `<div class="ov-top"><div class="ov-chips">${chips.map(([k, v]) => `<span class="ov-chip"><small>${escapeHtml(k)}</small><b>${escapeHtml(v)}</b></span>`).join('')}</div>${recebido ? `<span class="ct-ov-idade${velho ? ' velho' : ''}">recebido ${escapeHtml(ovIdade(recebido.recebidoEm))}${velho ? ' · desatualizado' : ''}</span>` : ''}</div>`;
+    if (!lista.length) {
+      el.innerHTML = `${topo}<div class="dp-empty"><strong>${cl ? 'Nenhuma solicitação desta empresa no Onvio' : 'Esta empresa não está ligada a nenhum cliente do Onvio'}</strong><span>${cl ? 'O cadastro foi achado pelo CNPJ, mas ela ainda não abriu solicitações nas 10 listas.' : 'Se ela é cliente do Onvio, a coordenação faz a ligação na Entrada de dados, ou confira o CNPJ no cadastro.'}</span>${cl ? '' : '<button type="button" class="linkish" data-ov-fontes>Abrir a Entrada de dados</button>'}</div>`;
+      return;
+    }
+    const t = hoje(), esc = pend.filter(s => s.vez === 'escritório').length, conc90 = lista.filter(s => s.fim && ovDia(s.alterada) >= ymd(addDays(t, -90))).length;
+    const idades = pend.map(s => ovData(s.aberta)).filter(Boolean).map(d => diffDays(t, d)), maior = idades.length ? Math.max(...idades) : 0;
+    const vis = (state.ovFiltro === 'pend' ? pend : lista).slice().sort(state.ovFiltro === 'pend'
+      ? (a, b) => ((b.vez === 'escritório') - (a.vez === 'escritório')) || String(a.aberta).localeCompare(String(b.aberta))
+      : (a, b) => String(b.alterada || b.aberta).localeCompare(String(a.alterada || a.aberta)));
+    const chip = (v, rot) => `<button type="button" class="ct-ov-f${state.ovFiltro === v ? ' on' : ''}" data-ov-f="${v}" aria-pressed="${state.ovFiltro === v}">${rot}</button>`;
+    const linha = (s) => `<tr class="ov-r${s.id === state.ovAberta ? ' on' : ''}${!s.fim && s.vez === 'escritório' ? ' esc' : ''}" data-ov-abrir="${escapeHtml(s.id)}" tabindex="0" role="button" aria-expanded="${s.id === state.ovAberta}">
+        <td class="dp-mono">${escapeHtml(s.num || '—')}</td><td>${escapeHtml(s.lista)}</td>
+        <td>${s.quem ? `<div class="dp-cell-main">${escapeHtml(s.quem)}</div>` : ''}<div class="dp-cell-sub">${escapeHtml(s.assunto)}</div></td>
+        <td><span class="ct-ov-vez ${s.vez === 'escritório' ? 'esc' : 'cli'}">${escapeHtml(s.vez || '—')}</span><div class="dp-cell-sub">${escapeHtml(s.sit)}</div>${s.fim ? '' : ovAnaliseHtml(s)}</td>
+        <td>${escapeHtml(s.resp || '—')}</td><td class="dp-cell-sub">${escapeHtml(ovFmtDia(s.aberta) || '—')}</td><td class="dp-cell-sub">${escapeHtml(ovFmtDia(s.ult) || '—')}</td></tr>
+      ${s.id === state.ovAberta ? `<tr class="ov-det"><td colspan="7">${ovDetalheHtml(s)}</td></tr>` : ''}`;
+    el.innerHTML = `${topo}
+      <div class="ct-ov-kp"><div><b>${pend.length}</b><span>pendentes</span></div><div class="esc"><b>${esc}</b><span>na vez do escritório</span></div><div><b>${conc90}</b><span>concluídas em 90 dias</span></div><div class="late"><b>${maior}</b><span>dias da mais antiga pendente</span></div></div>
+      <div class="ct-ov-barra">${chip('pend', 'Pendentes')}${chip('todas', 'Todas')}<span class="dp-count">${vis.length} solicitação(ões)</span></div>
+      <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table ct-ov-tab ov-tab"><thead><tr><th>Nº</th><th>Lista</th><th>Empregado e assunto</th><th>Vez</th><th>Responsável</th><th>Aberta</th><th>Últ. trâmite</th></tr></thead>
+      <tbody>${vis.length ? vis.slice(0, state.ovLim).map(linha).join('') : '<tr><td colspan="7"><div class="dp-empty">Nenhuma solicitação neste filtro.</div></td></tr>'}${vis.length > state.ovLim ? `<tr><td colspan="7" style="text-align:center"><button type="button" class="btn btn-sm" data-ov-mais>Mostrar mais (${vis.length - state.ovLim})</button></td></tr>` : ''}</tbody></table></div></div>`;
+  }
+  // Painel do DP: cartão com o que o Onvio tem para a carteira.
+  function ovCartaoPainel(emps, card) {
+    if (!ovTemListas()) return '';
+    const idx = ovSolicitacoes(), ids = new Set(emps.filter(ativa).map(e => e.id)), t = hoje();
+    let pend = 0, esc = 0, legais = 0;
+    idx.porEmp.forEach((l, id) => {
+      if (!ids.has(id)) return; const e = findDpEmpresa(id);
+      l.forEach(s => { if (s.fim) return; pend++; if (s.vez === 'escritório') esc++; ovEventosDe(s, e).forEach(x => { const dd = diffDays(x.d, t); if (x.legal && dd >= -30 && dd <= 7) legais++; }); });
+    });
+    const rec = state.ovMan[OV_LISTAS.find(x => state.ovMan[x])];
+    const body = `<div class="stat3"><button type="button" data-go="cartela:onvio"><b>${pend}</b><small><i style="background:var(--viz-1)"></i>Pendentes</small></button><button type="button" data-go="cartela:onvio"><b>${esc}</b><small><i style="background:var(--dp-today)"></i>Vez do escritório</small></button><button type="button" data-go="agenda:tipo:onvio"><b>${legais}</b><small><i style="background:var(--dp-late)"></i>Prazos legais em 7 dias</small></button></div>${rec ? `<div class="dp-cell-sub" style="padding-top:8px">recebido ${escapeHtml(ovIdade(rec.recebidoEm))}</div>` : ''}`;
+    return card('Onvio', 'solicitações das 10 listas', body, '<button type="button" class="pn-link" data-go="cartela:onvio">Abrir</button>');
+  }
+  // API para a Entrada de dados (fontes.html, num quadro do Hub): lista o que o Onvio sugere e executa a decisão da pessoa. A permissão
+  // e a gravação ficam aqui (mesmas regras do DP): coordenação em qualquer empresa, analista só na carteira dele.
+  const ovPode = (e) => !state.readOnly && podeEmpresaDp(e);
+  function ovTodasDifs() {
+    const chave = `${state.readOnly}|${nivelMod('dp')}|${autorId()}`, m = ovM.todasDifs;
+    if (m && m.chave === chave && m.ver === ovVer && m.emps === state.dpEmpresas && m.cfg === state.dpOvCfg) return m.v.slice();
+    const out = [];
+    state.dpEmpresas.filter(ativa).forEach(e => ovDifs(e).forEach(d => out.push({ empId: e.id, empNome: nomeCurto(e), empNomeCompleto: e.nome, resp: e.responsavel || '', chave: d.chave, entidade: d.entidade, tipo: d.tipo, acao: d.acao, nome: d.nome, txt: d.txt, antes: d.antes, depois: d.depois, novo: !!d.novo, confirmar: !!d.confirmar, pode: ovPode(e) })));
+    out.sort((a, b) => ptCmp(a.empNome, b.empNome) || ptCmp(a.nome, b.nome));
+    ovM.todasDifs = { chave, ver: ovVer, emps: state.dpEmpresas, cfg: state.dpOvCfg, v: out };
+    return out.slice();
+  }
+  // Cliente do Onvio no mesmo padrão das empresas: apelido (ou nome) resumido e " | final do CNPJ".
+  const ovNomeClienteCurto = (g) => { const c = ovClientes().get(g.cod); return nomeCurtoBase((c && c.apelido) || g.cli) + ' | ' + ((c && cnpjFinal(c.cnpj)) || 'sem CNPJ'); };
+  const ovSemVinculo = () => ovSemVinc().map(g => ({ k: g.k, cli: ovNomeClienteCurto(g), cliCompleto: g.cli, cod: g.cod, n: g.n, nEmp: g.nEmp || 0, cliente: (() => { const c = ovClientes().get(g.cod); return c ? { cnpj: c.cnpj || '', uf: c.uf || '', apelido: c.apelido || '' } : null; })(), parecidas: state.dpEmpresas.filter(e => ovParecido(g.k, e)).slice(0, 6).map(e => ({ id: e.id, nome: nomeCurto(e), nomeCompleto: e.nome })) }));
+  // Cliente do Onvio que não existe no DP vira empresa nova (só a coordenação cadastra empresas). O CNPJ do cliente já liga as solicitações a ela.
+  async function ovCriarEmpresa(k) {
+    if (state.readOnly || nivelMod('dp') !== 'coord') return { ok: false, erro: 'Só a coordenação cadastra empresas.' };
+    const g = ovSemVinc().find(x => x.k === k); if (!g) return { ok: false, erro: 'Esse cliente já foi ligado a uma empresa.' };
+    const cl = ovClientes().get(g.cod) || null, nome = String((cl && cl.nome) || g.cli || '').replace(/\s*\|\s*\d{4}-\d{2}\s*$/, '').trim().slice(0, 140);
+    if (!nome) return { ok: false, erro: 'O cliente do Onvio não tem nome.' };
+    const cnpj = cl && cl.cnpj ? fmtCnpj(cl.cnpj) : '', dup = cnpj && state.dpEmpresas.find(x => cnpjClean(x.cnpj) === cnpjClean(cnpj));
+    if (dup) return { ok: false, erro: `Já existe a empresa “${dup.nome}” com este CNPJ: ligue o cliente a ela.` };
+    const notas = ['Cadastrada a partir do Onvio em ' + fmtDMY(hoje()) + ' (Entrada de dados).', g.cod ? 'Código do cliente no Onvio: ' + g.cod + '.' : '', cl && cl.apelido ? 'Apelido no Onvio: ' + cl.apelido + '.' : '', cl && cl.im ? 'Inscrição municipal: ' + cl.im + '.' : '', cl && cl.ie ? 'Inscrição estadual: ' + cl.ie + '.' : ''].filter(Boolean).join('\n');
+    const e = normalizeDpEmpresa({ id: cnpjClean(cnpj).length === 14 ? 'onv-' + cnpjClean(cnpj) : uid(), nome, cnpj, uf: cl && /^[A-Za-z]{2}$/.test(cl.uf || '') ? cl.uf.toUpperCase() : '', situacao: 'Ativa', observacoes: notas, order: Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1 });
+    e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), alteracao: 'Empresa cadastrada a partir do Onvio (Entrada de dados)', autor: autorId() });
+    e.updatedAt = Date.now();
+    state.dpEmpresas.push(e);                                      // como no cadastro pela tela: entra já, e o retorno do banco troca a lista inteira (sem duplicar)
+    const salvo = await persist(() => dpStore.saveOne(e));
+    if (!salvo) { state.dpEmpresas = state.dpEmpresas.filter(x => x.id !== e.id); return { ok: false, erro: 'Não foi possível salvar.' }; }
+    cadRegistrar({ cnpj: e.cnpj, nome: e.nome, modulo: 'dp', id: e.id, uf: e.uf, codigoDominio: e.codigoDominio });
+    if (!cnpj) await salvarOvCfg(c => { c.vinc[k] = e.id; });          // sem CNPJ não há outro jeito de ligar o cliente à empresa nova
+    ovVer++; evCacheClear(); renderDpActiveView(); ovAposCarga();
+    return { ok: true, erro: '', id: e.id };
+  }
+  async function ovLigar(k, empId) {
+    if (state.readOnly || nivelMod('dp') !== 'coord') return { ok: false, erro: 'Só a coordenação liga clientes do Onvio às empresas.' };
+    if (empId !== '-' && !findDpEmpresa(empId)) return { ok: false, erro: 'Empresa não encontrada.' };
+    const ok = await salvarOvCfg(c => { c.vinc[k] = empId; });
+    if (ok) { ovVer++; ovAposCarga(); }
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+  // ----- aplicar sozinho, sem confirmação (opção da coordenação, Entrada de dados) -----
+  // Roda no navegador de quem estiver com o Hub aberto, com as mesmas permissões da aplicação manual (coordenação em qualquer empresa,
+  // analista só na carteira). Espera todos os conjuntos do Onvio terem sido lidos, nunca repete a mesma diferença na mesma visita,
+  // respeita o que foi "Ignorar" e deixa tudo no histórico da empresa.
+  const OV_AUTO_TIPOS = ['complementar', 'corrigir', 'novo', 'empresa'];
+  const ovAutoNorm = (a) => {
+    a = a && typeof a === 'object' ? a : {}; const t = a.tipos && typeof a.tipos === 'object' ? a.tipos : {}, u = a.ultima && typeof a.ultima === 'object' ? a.ultima : null;
+    return { ligada: a.ligada === true, tipos: { complementar: t.complementar !== false, corrigir: t.corrigir !== false, novo: t.novo !== false, empresa: t.empresa === true },
+      ultima: u ? { em: String(u.em || '').slice(0, 40), por: String(u.por || '').slice(0, 80), n: Number(u.n) || 0, resumo: String(u.resumo || '').slice(0, 240) } : null };
+  };
+  const ovAutoCfg = () => ovAutoNorm(state.dpOvCfg.auto);
+  const ovAuto = { rodando: false, denovo: false, feitas: new Set(), timer: null, local: null };
+  // Conjuntos cortados ou velhos demais não servem de base para gravar nada sozinho (decidir à mão continua possível).
+  function ovCompletos() {
+    const nomes = [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, 'clientes-cnd', 'clientes-nfe', 'escritorio-funcionarios'].filter(t => state.ovMan[t]);
+    const cortado = nomes.filter(t => state.ovMan[t].cortado);
+    if (cortado.length) return { ok: false, motivo: 'conjunto cortado: ' + cortado.slice(0, 3).join(', ') };
+    const velho = nomes.filter(t => Date.now() - (Number(state.ovMan[t].recebidoEm) || 0) > 48 * 3600e3);
+    if (velho.length) return { ok: false, motivo: 'dados do Onvio com mais de 48 h (' + velho.slice(0, 2).join(', ') + ')' };
+    return { ok: true, motivo: '' };
+  }
+  function ovTodosCarregados() {
+    const nomes = [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, 'clientes-cnd', 'clientes-nfe', 'escritorio-tabelas', 'escritorio-funcionarios'].filter(t => state.ovMan[t]);
+    return nomes.length > 0 && nomes.every(t => state.ovTab[t] && state.ovTab[t].ciclo === state.ovMan[t].ciclo);
+  }
+  // Relê a empresa no banco antes de gravar: quem mexeu depois do último desenho (outro navegador, o automático de outra pessoa, a ficha aberta)
+  // não perde a alteração. Se a leitura falhar, usa a cópia local.
+  async function ovEmpresaFresca(e) {
+    try { const sn = await db.doc('dp_empresas/' + e.id).get(); if (sn && sn.exists !== false && sn.data) return normalizeDpEmpresa({ ...sn.data(), id: e.id }); } catch {}
+    return normalizeDpEmpresa(JSON.parse(JSON.stringify(e)));
+  }
+  const OV_DOC_MAX = 240000;                  // o banco aceita ~256 KB por documento
+  async function ovAplicarVarios(empId, chaves, auto) {
+    const e = findDpEmpresa(empId); if (!e) return { ok: false, n: 0, erro: 'Empresa não encontrada.' };
+    if (state.readOnly || !podeEmpresaDp(e)) return { ok: false, n: 0, erro: 'Você só altera as empresas da sua carteira.' };
+    const set = new Set(chaves), difs = ovDifs(e).filter(d => set.has(d.chave)); if (!difs.length) return { ok: true, n: 0, erro: '' };
+    const fresca = await ovEmpresaFresca(e), funcs = fresca.funcionarios.map(f => ({ ...f })), campos = {}, feitas = []; let mexeuFunc = false;
+    difs.forEach(dif => {
+      if (dif.entidade === 'empresa') { Object.assign(campos, dif.patch); feitas.push(dif); return; }
+      const nome = norm(dif.nome).trim();
+      if (dif.novo) { if (funcs.some(f => funcNorm(f) === nome)) return; funcs.push({ ...dif.patch, id: uid() }); }       // já cadastrado por outro navegador: não duplica
+      else { const f = funcs.find(x => x.id === dif.fid) || funcs.find(x => funcNorm(x) === nome); if (!f) return; Object.assign(f, dif.patch); }
+      mexeuFunc = true; feitas.push(dif);
+    });
+    if (!feitas.length) return { ok: true, n: 0, erro: '' };
+    const quando = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), por = auto ? ' automaticamente' : '', verbo = (d) => d.acao === 'novo' ? 'Cadastrado' : d.acao === 'complementar' ? 'Complementado' : 'Corrigido';
+    const itens = feitas.length <= 8
+      ? feitas.map(d => ({ id: uid(), data: quando, alteracao: `${verbo(d)}${por} a partir do Onvio (Entrada de dados): ${d.nome} · ${d.txt} (${d.antes} → ${d.depois})`, autor: autorId() }))
+      : [{ id: uid(), data: quando, alteracao: `${feitas.length} alterações${por} a partir do Onvio (Entrada de dados): ${['novo', 'complementar', 'corrigir'].map(a => [feitas.filter(d => d.acao === a).length, a]).filter(([n]) => n).map(([n, a]) => `${n} ${a === 'novo' ? 'cadastro(s) novo(s)' : a === 'complementar' ? 'complemento(s)' : 'correção(ões)'}`).join(', ')}`, autor: autorId() }];
+    const historico = itens.reverse().concat(fresca.historico).slice(0, 200), updatedAt = Date.now();
+    const gravar = { ...campos, historico, updatedAt }; if (mexeuFunc) gravar.funcionarios = funcs;
+    if (JSON.stringify({ ...fresca, ...gravar }).length > OV_DOC_MAX) return { ok: false, n: 0, erro: 'A empresa ficou grande demais para gravar (limite do banco). Apague funcionários desligados ou histórico antigo e tente de novo.' };
+    const id = e.id, salvo = await persist(() => dpStore.updateFields(id, gravar));
+    if (salvo) { Object.assign(e, campos); if (mexeuFunc) e.funcionarios = funcs; e.historico = historico; e.updatedAt = updatedAt; }       // o local só muda depois de gravar
+    ovVer++; evCacheClear(); renderDpActiveView();
+    if (dpAtual && dpAtual.id === e.id) { dpAtual = e; renderDetail(); }
+    ovAvisar();
+    return { ok: !!salvo, n: salvo ? feitas.length : 0, feitas: salvo ? feitas : [], erro: salvo ? '' : 'Não foi possível salvar.' };
+  }
+  // O que a rodada aplicaria agora (para a pessoa saber antes de ligar): por tipo, só onde ela pode alterar.
+  function ovAutoPrevisao() {
+    const c = ovAutoCfg(), por = { complementar: 0, corrigir: 0, novo: 0, empresa: 0, confirmar: 0 };
+    state.dpEmpresas.filter(ativa).forEach(e => { if (ovPode(e)) ovDifs(e).forEach(d => { if (d.confirmar) por.confirmar++; else por[d.acao]++; }); });
+    if (!state.readOnly && nivelMod('dp') === 'coord') por.empresa = ovSemVinc().filter(g => g.n > 0 || g.nEmp > 0).length;
+    return { por, total: OV_AUTO_TIPOS.filter(t => c.tipos[t]).reduce((n, t) => n + por[t], 0) };
+  }
+  function ovAutoAgendar() { clearTimeout(ovAuto.timer); if (!ovAutoCfg().ligada) return; ovAuto.timer = setTimeout(() => { ovAutoRodar(false); }, 2500); }
+  // Um executor por vez: quem tem o lease (ing_auto/lease, vale 90 s e é renovado a cada passo) aplica; os outros navegadores esperam.
+  // A coordenação toma o lugar de um analista (o analista só aplica as empresas da carteira dele).
+  const OV_LEASE_MS = 90000;
+  async function ovAutoLiderar() {
+    if (!db) return false;
+    const eu = state.meId || '', nivel = nivelMod('dp') === 'coord' ? 2 : 1, agora = Date.now();
+    let cur = null;
+    try { const sn = await db.doc('ing_auto/lease').get(); cur = sn && sn.exists !== false && sn.data ? sn.data() : null; } catch {}
+    if (cur && cur.por !== eu && Number(cur.ate) > agora && (Number(cur.nivel) || 0) >= nivel) return false;
+    try { await db.doc('ing_auto/lease').set({ por: eu, nivel, ate: agora + OV_LEASE_MS }); } catch { return false; }
+    try { const sn = await db.doc('ing_auto/lease').get(), v = sn && sn.data ? sn.data() : null; return !!v && v.por === eu; } catch { return false; }       // conferir se ninguém passou na frente
+  }
+  async function ovAutoRodar(forcar) {
+    if (ovAuto.rodando) { ovAuto.denovo = true; return { ok: false, motivo: 'rodando' }; }
+    const c = ovAutoCfg();
+    if (!db || state.readOnly || !state.dpLoaded || (!c.ligada && !forcar)) return { ok: false, motivo: 'parado' };
+    ovGarantir(true);
+    if (!ovTodosCarregados()) return { ok: false, motivo: 'carregando' };
+    const comp = ovCompletos(); if (!comp.ok) return { ok: false, motivo: 'incompleto', detalhe: comp.motivo };
+    if (!(await ovAutoLiderar())) return { ok: false, motivo: 'outro-executor' };
+    ovAuto.rodando = true; ovAuto.denovo = false;
+    const tot = { complementar: 0, corrigir: 0, novo: 0, empresa: 0 }; let falhas = 0;
+    try {
+      for (let rodada = 0; rodada < 6; rodada++) {
+        let fez = 0;
+        if (c.tipos.empresa && nivelMod('dp') === 'coord') {
+          // empresa nova automática só com CNPJ completo e sem nenhuma empresa de nome parecido (sem CNPJ ou parecida: decisão manual)
+          const podeCriar = (g) => { const cl = ovClientes().get(g.cod); return !!cl && cnpjClean(cl.cnpj).length === 14 && !state.dpEmpresas.some(x => ovParecido(g.k, x)); };
+          for (const k of ovSemVinc().filter(g => (g.n > 0 || g.nEmp > 0) && podeCriar(g)).map(g => g.k)) {
+            const ck = 'empresa|' + k; if (ovAuto.feitas.has(ck)) continue; ovAuto.feitas.add(ck);
+            const r = await ovCriarEmpresa(k); if (r.ok) { tot.empresa++; fez++; } else falhas++;
+          }
+        }
+        let n = 0;
+        for (const e of state.dpEmpresas.filter(ativa)) {
+          if (!ovPode(e)) continue;
+          if (++n % 15 === 0 && !(await ovAutoLiderar())) break;                  // renova o lease; outro executor assumiu: para
+          const chaves = ovDifs(e).filter(d => !d.confirmar && c.tipos[d.acao] && !ovAuto.feitas.has(e.id + '|' + d.chave)).map(d => d.chave);
+          if (!chaves.length) continue;
+          chaves.forEach(k => ovAuto.feitas.add(e.id + '|' + k));
+          const r = await ovAplicarVarios(e.id, chaves, true);
+          if (r.ok) (r.feitas || []).forEach(d => { tot[d.acao]++; fez++; }); else falhas++;
+        }
+        if (!fez) break;
+      }
+    } finally { ovAuto.rodando = false; }
+    const n = OV_AUTO_TIPOS.reduce((a, t) => a + tot[t], 0);
+    if (n || falhas) {
+      const resumo = [[tot.novo, 'cadastro(s) novo(s)'], [tot.complementar, 'complemento(s)'], [tot.corrigir, 'correção(ões)'], [tot.empresa, 'empresa(s) nova(s)']].filter(([x]) => x).map(([x, t]) => x + ' ' + t).join(', ') + (falhas ? ` · ${falhas} falha(s)` : '');
+      ovAuto.local = { em: new Date().toISOString(), por: autorId(), n, resumo };
+      if (n && !state.readOnly && nivelMod('dp') === 'coord') await salvarOvCfg(cfg => { cfg.auto = { ...ovAutoNorm(cfg.auto), ultima: ovAuto.local }; });
+      ovAvisar();
+    }
+    if (ovAuto.denovo) ovAutoAgendar();
+    return { ok: true, n, tot, falhas };
+  }
+  async function ovAutoSalvar(mut) {
+    if (state.readOnly || nivelMod('dp') !== 'coord') return { ok: false, erro: 'Só a coordenação liga ou desliga a aplicação automática.' };
+    const ok = await salvarOvCfg(cfg => { const a = ovAutoNorm(cfg.auto); mut(a); cfg.auto = a; });
+    if (ok) { ovAvisar(); ovAutoAgendar(); }
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+
+  const ovApi = {
+    pronto: () => true, manifestos: () => state.ovMan, tabela: ovTabela, ler: ovLer, clientes: ovClientes, empresaDe: ovEmpresaDe, solicitacoes: () => ovSolicitacoes(), listas: OV_LISTAS.slice(),
+    garantir: () => ovGarantir(true), temDadosPessoais: () => OV_PESSOAIS.some(p => !!state.ovMan[p]) || ovTemEmpregados(), temListas: ovTemListas, temEmpregados: ovTemEmpregados,
+    difs: ovTodasDifs, aplicar: ovAplicarCore, ignorar: ovIgnorar,
+    semVinculo: ovSemVinculo, empresas: () => state.dpEmpresas.slice().sort(byNome).map(e => ({ id: e.id, nome: nomeCurto(e), nomeCompleto: e.nome, ativa: ativa(e), resp: e.responsavel || '' })), ligar: ovLigar, criarEmpresa: ovCriarEmpresa,
+    ehCoordenacao: () => !state.readOnly && nivelMod('dp') === 'coord',
+    auto: () => { const c = ovAutoCfg(), comp = c.ligada ? ovCompletos() : { ok: true }; return { ...c, ultima: ovAuto.local || c.ultima, rodando: ovAuto.rodando, bloqueio: comp.ok ? '' : comp.motivo }; },
+    cobertura: () => { const r = ovRoster(), man = state.ovMan[OV_EMPREGADOS]; return { empregados: r.total, ativos: r.ativos, clientesComEmpregados: r.clis.size, clientesAntigos: r.antigos.size, clientesLidos: man ? Number(man.totalNaOrigem) || 0 : 0, cortado: !!(man && man.cortado) }; }, autoPrevisao: ovAutoPrevisao, autoSalvar: ovAutoSalvar, autoAgora: () => { ovAuto.feitas.clear(); return ovAutoRodar(false); },
+    aoMudar: (cb) => { if (typeof cb === 'function') { ovOuvintes.push(cb); return () => { const i = ovOuvintes.indexOf(cb); if (i >= 0) ovOuvintes.splice(i, 1); }; } return () => {}; }
+  };
+  // ações da tela (delegação: as janelas ficam fora do #main)
+  document.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t.closest('[data-ov-fontes]')) { ev.preventDefault(); try { flushFocus(); } catch (e) {} if (dlgDetail.open) dlgDetail.close(); openModule('fontes'); return; }
+    if (!t.closest('#dp-section-onvio')) return;
+    const f = t.closest('[data-ov-f]'); if (f) { state.ovFiltro = f.dataset.ovF; state.ovLim = 100; renderOvFicha(); return; }
+    if (t.closest('[data-ov-mais]')) { state.ovLim += 100; renderOvFicha(); return; }
+    const ab = t.closest('[data-ov-abrir]'); if (ab) { const id = ab.dataset.ovAbrir; state.ovAberta = state.ovAberta === id ? '' : id; if (state.ovAberta) { ovLer('pessoais-pendentes-dados'); ovLer('pessoais-pendentes-tramites'); } renderOvFicha(); return; }
+  });
+  document.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.ov-r')) { ev.preventDefault(); ev.target.click(); } });
+  // === fim do bloco Onvio fase 1 ===
+
   function renderCartela() {
     const modo = state.dpCtModo, ro = state.readOnly;
     $$('#ct-modo [data-ct-modo]').forEach(b => { const on = b.dataset.ctModo === modo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
-    ['cartela', 'aus', 'mov'].forEach(m => { $('#ct-pane-' + m).hidden = m !== modo; });
+    ['cartela', 'aus', 'mov', 'onvio'].forEach(m => { $('#ct-pane-' + m).hidden = m !== modo; });
     $('#ct-sit').hidden = modo !== 'cartela';
     $('#ct-search').hidden = modo === 'aus';
     $('#ct-sim-btn').hidden = modo !== 'cartela' || ro;
@@ -4716,7 +6364,8 @@
     $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
     renderCtAlertas();
     renderCtSim();
-    if (modo === 'aus') renderCtAus(); else if (modo === 'mov') renderCtMov(); else renderCtCartela();
+    renderOvBadge();
+    if (modo === 'aus') renderCtAus(); else if (modo === 'mov') renderCtMov(); else if (modo === 'onvio') renderCtOnvio(); else renderCtCartela();
   }
   function ctMudancas() {
     if (!state.dpCtSim) return [];
@@ -4776,6 +6425,7 @@
     $$('#ct-sit [data-ct-sit]').forEach(b => { const on = (b.dataset.ctSit === 'todas') === state.dpCtTodas; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
 
     const linhas = ctLinhas();
+    const ovMapa = ovPorEmpresa();
     const vis = new Set(linhas.map(l => l.e.id));
     state.dpCtSel.forEach(id => { if (!vis.has(id)) state.dpCtSel.delete(id); });
     $('#ct-count').textContent = `${linhas.length} empresa(s)${state.dpCarteira ? ' · ' + carteiraNome() : ''}`;
@@ -4792,7 +6442,7 @@
       const hoje_ = !e.responsavel ? '<span class="dp-cell-sub">—</span>' : cob.coberta ? `<span class="pill pill-today" title="${escapeHtml(cob.titular)} está de ${escapeHtml(cob.aus.motivo.toLowerCase())} até ${fmtYmdBR(cob.aus.fim)}">${escapeHtml(cob.efetivo)}</span>` : cob.aus ? '<span class="pill pill-late" title="Titular ausente e ninguém cobrindo esta empresa">sem cobertura</span>' : '<span class="dp-cell-sub">titular</span>';
       return `<tr data-ct-id="${escapeHtml(e.id)}" class="${s ? 'sel' : ''}${ativa(e) ? '' : ' inativa'}${mudou ? ' mudou' : ''}"${ro ? '' : ' draggable="true"'}>
         ${ro ? '' : `<td class="chk-col"><input type="checkbox" data-ct-chk aria-label="Selecionar ${escapeHtml(e.nome)}"${s ? ' checked' : ''}></td>`}
-        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
+        <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${seloOv(e, ovMapa)}${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
         <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
         <td class="num">${nf}</td>
@@ -5081,7 +6731,7 @@
 
   // ----- exportar e imprimir -----
   function ctDadosExport(todos) {
-    const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => (ctResp(a) || '￿').localeCompare(ctResp(b) || '￿', 'pt-BR') || byNome(a, b));
+    const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => ptCmp(ctResp(a) || '￿', ctResp(b) || '￿') || byNome(a, b));
     return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length }; });
   }
   function ctCsv(todos) {
@@ -5128,6 +6778,22 @@
     if (tr) { e.stopPropagation(); abrirTransf(tr.dataset.ctTransf); return; }
     const an = t.closest('[data-ct-an]');
     if (an) { state.dpCtSel.clear(); setCarteira(an.dataset.ctAn); return; }
+    const ovs = t.closest('[data-ct-ov]');
+    if (ovs) { state.dpOvEmp = ovs.dataset.ctOv; state.dpOvVez = ''; state.dpCtModo = 'onvio'; renderCartela(); return; }
+    const ovz = t.closest('[data-ov-vez]');
+    if (ovz) { state.dpOvVez = ovz.dataset.ovVez; renderCartela(); return; }
+    if (t.closest('[data-ov-limpa-emp]')) { state.dpOvEmp = ''; renderCartela(); return; }
+    if (t.closest('[data-ov-mais]')) { state.dpOvLim += 60; renderCartela(); return; }
+    const ovv = t.closest('[data-ov-vinc],[data-ov-fora]');
+    if (ovv) {
+      const row = ovv.closest('[data-ov-k]'), k = row && row.dataset.ovK;
+      if (!k) return;
+      if (ovv.matches('[data-ov-fora]')) { if (await salvarOvCfg(c => { c.vinc[k] = '-'; })) toast('Esse cliente não aparece mais no DP.'); return; }
+      const id = row.querySelector('[data-ov-emp]').value, emp = findDpEmpresa(id);
+      if (!emp) { toast('Escolha a empresa do DP.'); return; }
+      if (await salvarOvCfg(c => { c.vinc[k] = id; })) toast(`Vinculado a ${emp.nome}.`);
+      return;
+    }
     const so = t.closest('[data-ct-sort]');
     if (so) { state.dpCtSort = so.dataset.ctSort; renderCartela(); return; }
     const aus = t.closest('[data-ct-aus]');
@@ -5148,6 +6814,11 @@
   ctView.addEventListener('keydown', (e) => { const an = e.target.closest('[data-ct-an]'); if (an && e.target === an && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); an.click(); } });
   ctView.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.matches('[data-ov-lista]')) {
+      const todas = ovDados().listasTodas, n = t.dataset.ovLista;
+      salvarOvCfg(c => { const atual = Array.isArray(c.listas) ? c.listas.slice() : todas.slice(); c.listas = t.checked ? [...new Set([...atual, n])] : atual.filter(x => x !== n); });
+      return;
+    }
     if (t.id === 'ct-all') { ctLinhas().forEach(l => t.checked ? state.dpCtSel.add(l.e.id) : state.dpCtSel.delete(l.e.id)); renderCartela(); return; }
     const tr = t.closest('[data-ct-id]');
     if (!tr) return;
@@ -5367,6 +7038,8 @@
     { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
     { path:'fis_emp', app:'Fiscal' }, { path:'fis_comp', app:'Fiscal' }, { path:'fis_config', app:'Fiscal' },
     { path:'cardapio_dias', app:'Cardápio' },
+    { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' },
+    { path:'ing_dados', app:'Hub' }, { path:'ing_partes', app:'Hub' }, { path:'ing_lotes', app:'Hub' }, { path:'dp_ov_ignorar', app:'Hub' },
   ];
   const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
   const usoCaminhoOk = (p) => { const s = String(p).split('/'); return s.length % 2 === 1 && s.length <= 15 && s.every(x => USO_SEG.test(x) && x !== '.' && x !== '..'); };
@@ -5562,7 +7235,7 @@
     state.dpTiposProc = normalizeTipos(tiposStore.load());
     state.tools = toolsStore.load().map(normalizeTool);
     state.toolsLoaded = true;
-    state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa);
+    state.dpEmpresas = dpStore.load().map(normalizeDpEmpresa).filter(e => !ehEscritorioProprio(e.nome));
     state.dpGerais = normalizeGerais(geraisStore.load());
     state.dpLoaded = true;
     meusStore = makeMeusLocal();
@@ -5586,6 +7259,7 @@
       if (data && Object.prototype.hasOwnProperty.call(data, 'responsavel') && norm(data.responsavel) !== norm(e.responsavel)) return 'Só a coordenação troca o responsável de uma empresa.';
       return '';
     }
+    if (/^(ing_|dp_ov_ignorar\/)/.test(path)) return n === 'coord' || n === 'analista' ? '' : 'Seu acesso ao DP é só de consulta.';
     if (path.startsWith('dp_config/')) return n === 'coord' ? '' : 'Só a coordenação altera as configurações do DP.';
     if (path.startsWith('tools/')) {
       return podeGerirFerramentas() ? '' : 'Só a coordenação altera a lista de ferramentas.';
@@ -5610,8 +7284,8 @@
     });
   }
   // ---------- registro de alterações: quem gravou o quê (um documento por dia em hub_log, 30 dias) ----------
-  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|ing_|dp_config\/(uso_banco|importacoes)$)/;
-  const LOG_DP = { equipe: 'a equipe de analistas', prazos_gerais: 'os prazos gerais', cobertura: 'ausências e cobertura', sindicatos: 'os sindicatos', ccts: 'as convenções', tipos_processo: 'os tipos de processo' };
+  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|ing_|dp_ov_ignorar\/|dp_config\/(uso_banco|importacoes)$)/;
+  const LOG_DP = { onvio: 'as listas e vínculos do Onvio', equipe: 'a equipe de analistas', prazos_gerais: 'os prazos gerais', cobertura: 'ausências e cobertura', sindicatos: 'os sindicatos', ccts: 'as convenções', tipos_processo: 'os tipos de processo' };
   const LOG_CAMPOS = { responsavel: 'responsável', historico: 'histórico', funcionarios: 'funcionários', lembretes: 'lembretes', prazos: 'prazos', estabelecimentos: 'estabelecimentos', situacao: 'situação', reserva: 'reserva' };
   let logFila = Promise.resolve(), logRecentes = {}, logPodou = false, logRaw = null;
   function logDescreve(path, op, data) {
@@ -5623,8 +7297,13 @@
       return ['DP', ks.length ? `Atualizou ${nome} (${ks.join(', ')})` : `Atualizou a empresa ${nome}`];
     }
     if (col === 'dp_config') return ['DP', `Alterou ${LOG_DP[id] || 'configurações'} do DP`];
+    if (col === 'cadastro_empresas') return ['Hub', 'Atualizou o cadastro único de empresas'];
+    if (col === 'cad_trocas') return ['Hub', 'Trocou nomes de empresas pelo cadastro único'];
+    if (col === 'cad_backup') return ['Hub', 'Fez o backup dos cadastros de empresas'];
     if (col === 'cardapio_dias') return ['Cardápio', op === 'delete' ? `Removeu o cardápio de ${dmyIso(id)}` : `Cadastrou ou alterou o cardápio de ${dmyIso(id)}`];
     if (col === 'tools') return ['Hub', 'Alterou a lista de ferramentas'];
+    if (col === 'pop_usuarios') return ['POP Master', 'Registrou leitura de POP na trilha de integração'];
+    if (col === 'pop_docs') return ['POP Master', op === 'delete' ? 'Excluiu um POP' : `Criou ou alterou o POP ${(data && data.codigo) || ''}`.trim()];
     const mod = /^ctb_/.test(col) ? 'Contábil' : /^fis_/.test(col) ? 'Fiscal' : /^(empresas|contatos|funcionarios|empresaSetores|setorAlinhamento|historico|auditoriaDominio)$/.test(col) ? 'Portal' : 'Outro';
     const alvo = { ctb_emp: 'a carteira', ctb_comp: 'o fechamento', ctb_config: 'as configurações', ctb_ano: 'as obrigações anuais', fis_emp: 'a carteira', fis_comp: 'o fechamento', fis_config: 'as configurações', empresas: 'empresas', contatos: 'contatos', funcionarios: 'funcionários', empresaSetores: 'setores das empresas' }[col] || col;
     return [mod, `${op === 'delete' ? 'Removeu' : 'Alterou'} ${alvo} (${mod})`];
@@ -5814,12 +7493,29 @@
   // sempre o mais recente). Cada módulo lê de lá. O Hub avisa "ola" a cada 5 s para a ponte saber que há quem receba.
   const ING_FONTES = { onvio: ['solicitacoes'] };
   const ING_MAX = 150000;
-  const ing = { cfg: null, criando: false };
+  // Dados completos em partes (protocolo 2, extensão 0.52+): um MANIFESTO em ing_dados/<fonte>~<tipo> (colunas, contagens,
+  // categoria, de qual "slot" ler) e as PARTES em ing_partes/<fonte>~<tipo>~<slot><n> (tabela em texto, tab entre colunas,
+  // \n entre linhas). Duas posições (a/b) alternam: a nova remessa é escrita na posição livre e só depois o manifesto passa
+  // a apontar para ela, então quem lê nunca vê uma remessa pela metade. Categorias: listas (sem dados pessoais), pessoais
+  // (CPF, salário, nomes, textos), clientes, escritorio, documentos, noticias.
+  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise'];
+  const ING_PARTES_MAX = 80;
+  const ing = { cfg: null, criando: false, ciclos: {} };
   const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
   function ingToken() { const a = new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24).toUpperCase(); }
   function ingValidar(d) {
     if (!d || typeof d !== 'object') return 'formato';
     if (!/^[A-Za-z0-9_-]{1,60}$/.test(String(d.id || ''))) return 'sem-id';
+    if (d.partes != null) {
+      if (!ING_FONTES[d.fonte] || !/^[a-z0-9-]{1,40}$/.test(String(d.tipoDado || ''))) return 'fonte-desconhecida';
+      if (ING_CATS.indexOf(d.categoria) === -1) return 'categoria';
+      const p = Number(d.partes), i = Number(d.parte);
+      if (!Number.isInteger(p) || p < 1 || p > ING_PARTES_MAX || !Number.isInteger(i) || i < 0 || i >= p) return 'partes';
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(d.ciclo || ''))) return 'ciclo';
+      if (!Array.isArray(d.colunas) || d.colunas.length < 1 || d.colunas.length > 80) return 'colunas';
+      if (typeof d.tabela !== 'string' || d.tabela.length > ING_MAX) return 'tamanho';
+      return '';
+    }
     if (!ING_FONTES[d.fonte] || ING_FONTES[d.fonte].indexOf(d.tipoDado) === -1) return 'fonte-desconhecida';
     if (!Array.isArray(d.colunas) || d.colunas.length < 1 || d.colunas.length > 30) return 'colunas';
     if (typeof d.tabela !== 'string' || d.tabela.length > ING_MAX) return 'tamanho';
@@ -5830,6 +7526,36 @@
     return { fonte: d.fonte, tipoDado: d.tipoDado, titulo: ingStr(d.titulo, 100), usuario: ingStr(d.usuario, 80), extraidoEm: ingStr(d.extraidoEm, 40), recebidoEm: Date.now(), por: por || '',
       colunas: d.colunas.map(c => ingStr(c, 60)), tabela: d.tabela, nLinhas: Number(d.nLinhas) || 0, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: !!d.cortado, porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) };
   }
+  // Uma parte de uma remessa: escreve na posição livre; na última, publica o manifesto e apaga a remessa antiga.
+  async function ingGravarParte(d, por) {
+    const base = `${d.fonte}~${d.tipoDado}`, parte = Number(d.parte), partes = Number(d.partes);
+    let c = ing.ciclos[d.ciclo];
+    if (parte === 0) {
+      // Reserva o envio (um por conjunto): dois emissores ao mesmo tempo gravariam partes de ciclos diferentes no mesmo slot.
+      const rk = 'ing_reservas/' + base, agora = Date.now();
+      let r0 = null; try { const sr = await db.doc(rk).get(); r0 = sr && sr.exists !== false && sr.data ? sr.data() : null; } catch {}
+      if (r0 && r0.ciclo !== d.ciclo && Number(r0.ate) > agora) throw Object.assign(new Error('ocupado'), { motivo: 'ocupado' });
+      await db.doc(rk).set({ ciclo: ingStr(d.ciclo, 40), ate: agora + 10 * 60 * 1000, por: por || '' });
+      try { const sr = await db.doc(rk).get(), v = sr && sr.data ? sr.data() : null; if (v && v.ciclo !== d.ciclo) throw Object.assign(new Error('ocupado'), { motivo: 'ocupado' }); } catch (x) { if (x && x.motivo) throw x; }
+      let atual = null;
+      try { const sn = await db.doc('ing_dados/' + base).get(); atual = sn && sn.exists !== false && sn.data ? sn.data() : null; } catch {}
+      c = ing.ciclos[d.ciclo] = { slot: atual && atual.slot === 'a' ? 'b' : 'a', anterior: atual && atual.slot ? { slot: atual.slot, partes: Number(atual.partes) || 0 } : null, recebidas: 0 };
+      const ids = Object.keys(ing.ciclos); if (ids.length > 8) delete ing.ciclos[ids[0]];
+    }
+    if (!c) throw Object.assign(new Error('ciclo-perdido'), { motivo: 'ciclo-perdido' });
+    await db.doc(`ing_partes/${base}~${c.slot}${parte}`).set({ ciclo: ingStr(d.ciclo, 40), parte, tabela: d.tabela });
+    c.recebidas++;
+    if (parte < partes - 1) return { final: false };
+    if (c.recebidas < partes) throw Object.assign(new Error('incompleto'), { motivo: 'incompleto' });
+    const pt = {}; Object.keys(d.porTipo && typeof d.porTipo === 'object' ? d.porTipo : {}).slice(0, 40).forEach(k => { pt[ingStr(k, 60)] = Number(d.porTipo[k]) || 0; });
+    await db.doc('ing_dados/' + base).set({ fonte: d.fonte, tipoDado: d.tipoDado, categoria: d.categoria, titulo: ingStr(d.titulo, 100), usuario: ingStr(d.usuario, 80), extraidoEm: ingStr(d.extraidoEm, 40),
+      recebidoEm: Date.now(), por: por || '', colunas: d.colunas.map(x => ingStr(x, 60)), nLinhas: Number(d.nLinhasTotal) || Number(d.nLinhas) || 0, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: !!d.cortado,
+      partes, slot: c.slot, ciclo: ingStr(d.ciclo, 40), porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) });
+    if (c.anterior) for (let i = 0; i < c.anterior.partes && i < ING_PARTES_MAX; i++) { try { await db.doc(`ing_partes/${base}~${c.anterior.slot}${i}`).delete(); } catch {} }
+    try { const sr = await db.doc('ing_reservas/' + base).get(), v = sr && sr.data ? sr.data() : null; if (v && v.ciclo === d.ciclo) await db.doc('ing_reservas/' + base).delete(); } catch {}
+    delete ing.ciclos[d.ciclo];
+    return { final: true };
+  }
   async function ingReceber(e) {
     const d = e.data;
     if (!d || d.ctlhub !== 1 || d.de !== 'ext' || d.tipo !== 'lote') return;
@@ -5839,8 +7565,11 @@
     if (state.readOnly) return ack(false, 'somente-leitura');
     if (!d.token || d.token !== ing.cfg.token) return ack(false, 'token');
     const erro = ingValidar(d); if (erro) return ack(false, erro);
-    try { await db.doc(`ing_lotes/${d.fonte}~${d.tipoDado}`).set(ingCorpo(d, state.meId)); ack(true, '', { aceitos: Number(d.nLinhas) || 0 }); }
-    catch (err) { ack(false, 'gravacao', { mensagem: 'O Hub não conseguiu gravar: ' + ingStr(err && err.message, 120) }); }
+    try {
+      if (d.partes != null) { const r = await ingGravarParte(d, state.meId); ack(true, '', { aceitos: Number(d.nLinhas) || 0, final: !!r.final }); return; }
+      await db.doc(`ing_lotes/${d.fonte}~${d.tipoDado}`).set(ingCorpo(d, state.meId)); ack(true, '', { aceitos: Number(d.nLinhas) || 0 });
+    }
+    catch (err) { if (err && err.motivo) return ack(false, err.motivo); ack(false, 'gravacao', { mensagem: 'O Hub não conseguiu gravar: ' + ingStr(err && err.message, 120) }); }
   }
   function ingIniciar() {
     db.doc('ing_config/cfg').onSnapshot((s) => {
@@ -5850,10 +7579,24 @@
         db.doc('ing_config/cfg').set({ token: ingToken(), criadoEm: Date.now() }).catch(() => { ing.criando = false; });
       }
     }, () => {});
-    const avisar = () => { if (document.hidden) return; try { window.top.postMessage({ ctlhub: 1, de: 'hub', tipo: 'ola' }, '*'); if (window.parent !== window.top) window.parent.postMessage({ ctlhub: 1, de: 'hub', tipo: 'ola' }, '*'); } catch {} };
+    // Quem pede ({tipo:'busca', nonce}) recebe a prova HMAC-SHA256(código de pareamento, nonce): é assim que a extensão sabe que esta janela é o Hub
+    // e não outra janela qualquer da página que também diz "ola". O aviso periódico não leva prova (não há desafio).
+    const provaDe = async (nonce) => {
+      const t = ing.cfg && ing.cfg.token; if (!t || !nonce || !(crypto && crypto.subtle)) return '';
+      const enc = new TextEncoder(), chave = await crypto.subtle.importKey('raw', enc.encode(t), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+      return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', chave, enc.encode(String(nonce).slice(0, 64)))), b => b.toString(16).padStart(2, '0')).join('');
+    };
+    const anunciar = async (nonce) => {
+      const msg = { ctlhub: 1, de: 'hub', tipo: 'ola' };
+      if (nonce) { try { const pv = await provaDe(nonce); if (pv) { msg.nonce = String(nonce).slice(0, 64); msg.prova = pv; } } catch {} }
+      try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
+    };
+    const avisar = () => { if (document.hidden) return; anunciar(); };
     avisar(); setInterval(avisar, 5000);
     document.addEventListener('visibilitychange', avisar);
-    window.addEventListener('message', (e) => { const d = e.data; if (d && d.ctlhub === 1 && d.de === 'ponte' && d.tipo === 'busca') avisar(); });
+    // Pedido da ponte (a extensão acabou de ligar ou vai enviar um lote): responde também com a aba em segundo plano. O aviso
+    // periódico continua só com a aba visível; mensagens não são limitadas pelo navegador, então o Hub escondido recebe e grava.
+    window.addEventListener('message', (e) => { const d = e.data; if (d && d.ctlhub === 1 && d.de === 'ponte' && d.tipo === 'busca') anunciar(typeof d.nonce === 'string' ? d.nonce : ''); });
     window.addEventListener('message', ingReceber);
   }
 
@@ -5870,13 +7613,14 @@
     geraisStore = geraisDb;
     if (user) {
       state.meId = await user.id();
-      if ((await user.can('data.write').catch(() => null)) === false) state.readOnly = true;
+      if ((await user.can('data.write').catch(() => null)) === false) { state.readOnly = true; state.semEscrita = true; }
     }
     carregarScriptExt('extras.js?v=11').then(() => window.__extras.iniciar()).catch(() => {});
     state.dpNivel = nivelMod('dp');
     if (state.dpNivel === 'consulta' || state.dpNivel === null) state.readOnly = true;
     if (state.dpNivel === 'analista' && !state.dpCarteira) state.dpCarteira = AUTH().analista('dp') || '';
     ingIniciar();
+    ovIniciar();
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {
@@ -5885,12 +7629,16 @@
       render();
     }, caiu);
 
+    db.collection(CAD_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, d.data() || {})); state.cadRaw = m; cadAchata(); ovAposCarga(); }, () => {});
+    db.doc(`${CAD_TROCAS}/_idx`).onSnapshot((snap) => { state.cadTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
+    db.doc(`${CAD_BKP}/_meta`).onSnapshot((snap) => { state.cadBkp = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
     db.collection('dp_empresas').onSnapshot((snap) => {
-      state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i));
+      state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i)).filter(e => !ehEscritorioProprio(e.nome));
       state.dpLoaded = true;
       refreshAll();
       refreshOpenDetail();
       tryPendingEmp();
+      ovAvisar();
     }, caiu);
 
     cctStore = cctDb;
@@ -5928,6 +7676,13 @@
       state.dpCob = normalizeCob(s.exists ? s.data() : null);
       renderDpActiveView();
     }, caiu);
+    db.doc('ing_lotes/onvio~solicitacoes').onSnapshot((s) => { state.dpOv = s.exists ? s.data() : null; renderDpActiveView(); }, () => {});
+    db.doc('dp_config/onvio').onSnapshot((s) => {
+      const v = s.exists ? s.data() || {} : {};
+      state.dpOvCfg = { listas: Array.isArray(v.listas) ? v.listas.map(x => String(x).slice(0, 80)).slice(0, 60) : null, vinc: v.vinc && typeof v.vinc === 'object' ? v.vinc : {}, auto: ovAutoNorm(v.auto) };
+      renderDpActiveView();
+      ovAvisar(); ovAutoAgendar();
+    }, () => {});
 
     equipeStore = equipeDb;
     db.doc('dp_config/equipe').onSnapshot((s) => {
@@ -6323,14 +8078,15 @@
     versao: 1,
     desfazer: { lista: () => undoLista.map(e => ({ m: e.m, t: e.t, em: e.em })), fazer: (i) => { const e = undoLista[i]; return e ? undoFazer(e) : Promise.resolve(); }, aoMudar: (cb) => { if (typeof cb === 'function') undoOuvintes.push(cb); }, restaurar: (r) => restaurarDeOutro(r) },
     lerArquivo: (f, o) => lerArquivoAnexo(f, o),
+    nomeEmpresa: (e, html) => { const emp = typeof e === 'string' ? findDpEmpresa(e) : e; return html ? nomeEmpHtml(emp) : nomeCurto(emp); },
     ativo: () => state.frameModule || state.activeModule || '',
     abrirModulo: (k) => openModule(k),
     inicio: () => goHome(),
     quadros: () => $$('.portal-frame'),
-    api(k) { if (!podeVerMod(k)) return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    api(k) { if (k === 'onvio') return ovApi; if (k === 'cadastro') return cadApi; if (!podeVerMod(k) && k !== 'pop') return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
     // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
     carregar(k) {
-      if (!podeVerMod(k) || (k !== 'dp' && !FRAMES[k])) return Promise.resolve(null);
+      if ((!podeVerMod(k) && k !== 'pop') || (k !== 'dp' && !FRAMES[k])) return Promise.resolve(null);   // POP Master é aberto a todos
       if (k !== 'dp') preloadFrame(k);
       return new Promise((ok) => { const t0 = Date.now(); const tick = () => { const a = window.__hubApi.api(k); if ((a && a.pronto()) || Date.now() - t0 > 20000) return ok(a); setTimeout(tick, 250); }; tick(); });
     },
@@ -6393,7 +8149,7 @@
   state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
   state.dpAgAnalista = typeof state.prefs.dpAgAnalista === 'string' ? state.prefs.dpAgAnalista : '';
   state.dpEmpModo = state.prefs.dpEmpModo === 'lista' ? 'lista' : 'cards';
-  state.dpFuncModo = state.prefs.dpFuncModo === 'lista' ? 'lista' : 'tempo';
+  state.dpFuncModo = state.prefs.dpFuncModo === 'tempo' ? 'tempo' : 'empresas';
   // O Hub só começa depois do login (auth.js). Sem auth.js, abre direto.
   const iniciarApp = () => {
     AUTH()?.onPendentes?.(() => { renderFerramentas(); if (!state.activeModule && !state.frameModule) renderHome(); });

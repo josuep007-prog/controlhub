@@ -319,6 +319,9 @@
               </label>
             </div>
             <div class="imp-form-row">
+              <label>Motivo <select id="imp-motivo" required><option value="">Escolha o motivo…</option><option value="contato">Dificuldade de contato</option><option value="recusa">Recusa explícita do cliente</option></select></label>
+            </div>
+            <div class="imp-form-row">
               <label>Aguardando quem? <select id="imp-aguardando"><option value="">Ninguém / não sei</option><option value="cliente">Aguardando cliente</option><option value="analista">Aguardando analista</option><option value="escritorio">Aguardando escritório</option></select></label>
             </div>
             <div class="imp-form-row">
@@ -328,6 +331,7 @@
             </div>
             <div class="imp-form-btns"><button type="submit" class="btn">Registrar impedimento</button><button type="button" class="linkish" data-action="imp-novo-fechar">Cancelar</button></div>
           </form>
+          <div class="imp-motivos" id="impMotivos"></div>
           <div class="imp-list" id="impList"></div>
         </div>
         <div class="imp-resolvidos" id="impResolvidos"></div>
@@ -510,6 +514,7 @@
           <div class="panel panel-pad">
             <form class="fform" id="formEmpresa">
               <h3>Nova empresa</h3>
+              <label>Buscar no cadastro único <span class="note">(CNPJ ou nome; se a empresa estiver lá, nome e CNPJ vêm de lá)</span><input type="search" id="fe-cad" list="fe-cad-lista" autocomplete="off" placeholder="Digite para achar a empresa"></label><datalist id="fe-cad-lista"></datalist><span class="note" id="fe-cad-msg"></span>
               <label>Nome da empresa<input type="text" id="fe-nome" required></label>
               <label><span>CNPJ <span class="note">(opcional)</span></span><input type="text" id="fe-cnpj" placeholder="00.000.000/0000-00"></label>
               <div class="checks">
@@ -543,6 +548,7 @@
               <h3>Novo contato do cliente</h3>
               <label>Nome<input type="text" id="fc-nome" list="pessoasDatalist" autocomplete="off" required></label>
               <label><span>E-mail <span class="note">(opcional)</span></span><input type="text" id="fc-email" placeholder="nome@empresa.com.br"></label>
+              <label><span>Telefone <span class="note">(opcional)</span></span><input type="text" id="fc-tel" placeholder="(27) 99999-9999" inputmode="tel"></label>
               <label>Empresa<input type="text" id="fc-empresa" list="fc-empresa-lista" autocomplete="off" placeholder="Digite o nome ou o CNPJ…" required><datalist id="fc-empresa-lista"></datalist></label>
               <label style="gap:6px;">Setores que acessa
                 <div class="checks">

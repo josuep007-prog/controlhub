@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="contabil.css?v=2">
+<link rel="stylesheet" href="contabil.css?v=4">
 <title>Contábil · Control Hub</title>
 <script src="tema.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -22,9 +22,11 @@
   </div>
   <div class="dp-tabs" id="tabs" role="tablist" aria-label="Partes do módulo">
     <button type="button" class="dp-tab" role="tab" data-view="painel">Painel</button>
+    <button type="button" class="dp-tab" role="tab" data-view="agenda">Agenda <span class="dp-tab-badge" id="bdAg" hidden></span></button>
     <button type="button" class="dp-tab" role="tab" data-view="fechamento">Fechamento <span class="dp-tab-badge" id="bdFech" hidden></span></button>
     <button type="button" class="dp-tab" role="tab" data-view="carteira">Carteira</button>
     <button type="button" class="dp-tab" role="tab" data-view="prazos">Prazos <span class="dp-tab-badge" id="bdPrz" hidden></span></button>
+    <button type="button" class="dp-tab" role="tab" data-view="equipe" data-gestao hidden>Equipe</button>
     <button type="button" class="dp-tab" role="tab" data-view="cadastro">Cadastro</button>
   </div>
   <div class="avisos">
@@ -38,6 +40,23 @@
     <div class="pn-grid" id="pnGrid"></div>
   </section>
 
+  <!-- AGENDA -->
+  <section class="view" id="v-agenda" hidden>
+    <div class="dp-toolbar">
+      <div class="compnav"><button type="button" class="fbtn" id="agAnt" aria-label="Mês anterior">‹</button><b id="agRot"></b><button type="button" class="fbtn" id="agProx" aria-label="Próximo mês">›</button></div>
+      <button type="button" class="fbtn" id="agHoje">Hoje</button>
+      <select id="agAna" aria-label="Analista"></select>
+      <select id="agTipo" aria-label="Tipo de data"></select>
+      <input type="search" id="agBusca" placeholder="Buscar empresa ou texto…" autocomplete="off">
+      <span class="cont" id="agCont"></span>
+      <button type="button" class="btn" id="agNovo">+ Lembrete</button>
+    </div>
+    <div class="ag-grid">
+      <div class="list-card ag-cal" id="agCal"></div>
+      <aside class="pn-card ag-lado" id="agLado" aria-label="Datas do dia ou do mês"></aside>
+    </div>
+  </section>
+
   <!-- FECHAMENTO -->
   <section class="view" id="v-fechamento" hidden>
     <div class="dp-toolbar">
@@ -47,6 +66,7 @@
       <select id="fxAna" aria-label="Analista"></select>
       <select id="fxTrib" aria-label="Tributação"></select>
       <span class="cont" id="fxCont"></span>
+      <button type="button" class="fbtn" id="fxExp" title="Baixar a lista que está na tela, com os filtros aplicados">Exportar</button>
     </div>
     <div class="dp-toolbar" style="padding-top:0">
       <div class="seg" id="fxSt"><button type="button" data-st="" class="on">Todas</button><button type="button" data-st="abertas">Abertas</button><button type="button" data-st="fechadas">Fechadas</button></div>
@@ -100,6 +120,18 @@
     </div>
   </section>
 
+  <!-- EQUIPE (visão da coordenação) -->
+  <section class="view" id="v-equipe" hidden>
+    <div class="dp-toolbar">
+      <span class="cont" id="eqSub"></span>
+      <span style="flex:1"></span>
+      <button type="button" class="fbtn" id="eqExp">Exportar (.xlsx)</button>
+      <button type="button" class="btn" id="eqPdf">Relatório da equipe (PDF)</button>
+    </div>
+    <div class="kpi-grid" id="eqKpis"></div>
+    <div class="pn-grid" id="eqGrid"></div>
+  </section>
+
   <!-- CADASTRO -->
   <section class="view" id="v-cadastro" hidden>
     <div class="pn-grid">
@@ -131,9 +163,10 @@
   </section>
 </div>
 <div id="toasts" aria-live="polite"></div>
+<div id="ctbPrint" aria-hidden="true"></div>
 <dialog class="dlg" id="dlgFicha"></dialog>
 <dialog class="dlg" id="dlgConf" style="width:min(460px, calc(100vw - 24px))"><div class="confirm-txt" id="confTxt"></div><div class="dlg-acoes"><button type="button" class="fbtn" id="confNao">Cancelar</button><button type="button" class="btn" id="confSim">Confirmar</button></div></dialog>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="contabil.js"></script>
+<script src="contabil.js?v=4"></script>
 </body>
 </html>
