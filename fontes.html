@@ -119,6 +119,12 @@
   .ver-barra{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 18px; border-bottom:1px solid var(--rule); background:var(--surface-2);} .ver-barra input{flex:1 1 260px; max-width:420px;}
   .ver-tab{overflow:auto; max-height:min(70vh, 640px);} .ver-tab td{white-space:nowrap; font-size:12.5px;} .ver-tab th{white-space:nowrap;}
   .ver-th{all:unset; cursor:pointer;} .ver-th:hover, .ver-th.on{color:var(--ink);} .ver-th:focus-visible{outline:2px solid var(--blue-deep);}
+  .bg-barra input{max-width:none;} .bg-dicas{padding:10px 18px; font-size:12.5px; line-height:1.7; border-bottom:1px solid var(--rule);} .bg-dicas code{font-size:12px; background:var(--surface-2); padding:1px 4px;}
+  .bg-status{padding:10px 18px; margin:0;} .erro-t{color:var(--brand-red);}
+  .bg-grupo{border-top:1px solid var(--rule);} .bg-gtop{display:flex; align-items:center; gap:10px; padding:10px 18px; flex-wrap:wrap;} .bg-tab{max-height:none;}
+  .ver-tab mark, .bg-tab mark{background:#FFE58A; color:inherit; padding:0;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ver-tab mark{background:#6B5A12;} }
+  :root[data-theme="dark"] .ver-tab mark{background:#6B5A12;}
   .ver-mais{display:flex; align-items:center; gap:12px; justify-content:center; padding:12px;}
   .vazio{padding:34px 18px; text-align:center; color:var(--ink-3); font-size:13px;}
   .aviso{display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:var(--r); border:1px solid var(--rule-strong); background:var(--surface); font-size:13px;}
@@ -456,6 +462,11 @@
   </div>
   <div class="aba" data-aba="recebido" hidden>
   <section>
+    <h2 class="sec">Pesquisar em tudo o que chegou</h2>
+    <p class="note" style="margin:-4px 0 10px">Procura em todas as linhas e colunas do resumo das pendentes e de todos os conjuntos completos de uma vez. Na primeira pesquisa os dados são lidos do banco; as seguintes são instantâneas.</p>
+    <div id="buscaGeral"></div>
+  </section>
+  <section>
     <h2 class="sec">Resumo das pendentes <small id="fontesSub"></small></h2>
     <p class="note" style="margin:-4px 0 10px">O resumo que a extensão manda a cada leitura (lista, situação, cliente, responsável, datas, dias parado e gravidade). A Cartela → Onvio do DP usa este resumo.</p>
     <div id="fontes"></div>
@@ -555,54 +566,215 @@ var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações
 /* ---- ver os dados completos que chegaram (todas as linhas e colunas de cada conjunto) ---- */
 // As partes ficam em ing_partes/<conjunto>~<slot><n> (tabela em texto: tab entre colunas, quebra de linha entre linhas), do mesmo ciclo do manifesto.
 // Conjuntos "pessoais" (CPF, salário, dados de empregados): só para quem trabalha o DP (coordenação ou analista), como no resto do Hub.
+/* ---- motor de pesquisa em tudo o que chegou (conjuntos completos + resumo das pendentes) ---- */
+// Conjunto "resumo:<id>" = resumo das pendentes (ing_lotes); os demais são os conjuntos completos (ing_dados + ing_partes).
+var CACHE = {};
+function metaDe(k){
+  if(k.indexOf("resumo:") === 0){ var l = lotes[k.slice(7)]; if(!l) return null; var n = l.tabela ? l.tabela.split("\n").filter(Boolean).length : 0;
+    return { titulo:"Resumo: " + (l.titulo || k.slice(7)), colunas:l.colunas || [], nLinhas:n, recebidoEm:l.recebidoEm, ciclo:String(l.recebidoEm || ""), categoria:"resumo", resumo:true }; }
+  return dados[k] || null;
+}
+function catDe(k){ var m = metaDe(k); return m ? (m.categoria || "outros") : "outros"; }
+function montarLinhas(texto, cols){
+  var linhas = texto.split("\n").filter(function(l){ return l !== ""; }).map(function(l){ return l.split("\t"); });
+  var c = cols.slice(), maxC = linhas.reduce(function(x, r){ return Math.max(x, r.length); }, 0);
+  for(var i = c.length; i < maxC; i++) c.push("Coluna " + (i + 1));
+  return { cols:c, linhas:linhas };
+}
+// Lê um conjunto inteiro (com cache por ciclo). prog(feitas, total) opcional.
+function carregarConjunto(k, prog){
+  var m = metaDe(k); if(!m) return Promise.reject(new Error("conjunto não existe mais"));
+  var ciclo = String(m.ciclo || m.recebidoEm || ""), c = CACHE[k];
+  if(c && c.ciclo === ciclo){ return c.pronto || Promise.resolve(c); }
+  if(m.resumo){ var t = montarLinhas(lotes[k.slice(7)].tabela || "", m.colunas || []); CACHE[k] = { ciclo:ciclo, cols:t.cols, linhas:t.linhas }; return Promise.resolve(CACHE[k]); }
+  var n = Math.min(Number(m.partes) || 0, 400), slot = m.slot || "a", textos = new Array(n), feitas = 0;
+  var lerParte = function(i){ return db.doc("ing_partes/" + k + "~" + slot + i).get().then(function(s){ var d = s && s.exists !== false && s.data ? s.data() : null; if(!d || (m.ciclo && d.ciclo && d.ciclo !== m.ciclo) || typeof d.tabela !== "string") throw new Error("parte " + (i + 1) + " ausente ou de outro envio"); textos[i] = d.tabela; feitas++; if(prog) prog(feitas, n); }); };
+  var lote = function(i){ if(i >= n) return Promise.resolve(); var ps = []; for(var j = i; j < Math.min(n, i + 6); j++) ps.push(lerParte(j)); return Promise.all(ps).then(function(){ return lote(i + 6); }); };
+  var ent = { ciclo:ciclo };
+  ent.pronto = lote(0).then(function(){ var t = montarLinhas(textos.join("\n"), m.colunas || []); ent.cols = t.cols; ent.linhas = t.linhas; delete ent.pronto; return ent; }, function(e){ if(CACHE[k] === ent) delete CACHE[k]; throw e; });
+  CACHE[k] = ent; return ent.pronto;
+}
+// Índice de pesquisa (texto sem acento e só dígitos, por célula), feito uma vez por conjunto.
+function indice(ent){
+  if(ent.idx) return ent.idx;
+  ent.idx = ent.linhas.map(function(r){ var n = r.map(norm), d = r.map(function(v){ return String(v || "").replace(/\D+/g, ""); }); return { n:n, d:d, tn:n.join("\u0001"), td:d.join("|") }; });
+  return ent.idx;
+}
+function numBR(v){
+  var s = String(v == null ? "" : v).replace(/R\$|\s|%/g, ""); if(!s) return null;
+  if(s.indexOf(",") !== -1) s = s.replace(/\./g, "").replace(",", ".");
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  return /^-?\d+(\.\d+)?$/.test(s) ? +s : null;
+}
+// Consulta: palavras (todas precisam aparecer), "frase exata", -excluir, coluna:valor, coluna>número (>=, <, <=, =).
+// CPF/CNPJ/telefone casam com ou sem pontuação. Sem acento e sem diferença de maiúsculas.
+function lerConsulta(txt, todasCols){
+  var re = /(-?)(?:([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_]*)(>=|<=|>|<|:|=))?(?:"([^"]*)"?|(\S+))/g, m, termos = [], nomesCol = (todasCols || []).map(norm);
+  while((m = re.exec(txt || ""))){
+    if(m[0] === "" ){ re.lastIndex++; continue; }
+    var neg = m[1] === "-", col = m[2] ? norm(m[2]) : null, op = m[3] || ":", val = m[4] != null ? m[4] : (m[5] || "");
+    if(col && !nomesCol.some(function(c){ return c.indexOf(col) !== -1; })){ val = m[2] + m[3] + val; col = null; op = ":"; }
+    if(!val) continue;
+    var t = { neg:neg, col:col, op:op, txt:norm(val) };
+    if(op !== ":" && op !== "="){ t.num = numBR(val); if(t.num === null){ t.op = ":"; } }
+    else if(op === "=" && numBR(val) !== null) t.num = numBR(val);
+    var dg = val.replace(/\D+/g, ""); if(dg.length >= 3 && /^[\d.\-\/\s()]+$/.test(val)) t.dig = dg;
+    if(t.txt || t.dig || t.num != null) termos.push(t);
+  }
+  return termos;
+}
+function colsConsulta(){ var s = {}; Object.keys(CACHE).forEach(function(k){ (CACHE[k].cols || []).forEach(function(c){ s[c] = 1; }); }); Object.keys(dados).forEach(function(k){ (dados[k].colunas || []).forEach(function(c){ s[c] = 1; }); }); Object.keys(lotes).forEach(function(k){ (lotes[k].colunas || []).forEach(function(c){ s[c] = 1; }); }); return Object.keys(s); }
+// Devolve testar(i) -> null (não casa) ou lista das colunas que casaram. restrCol: índice de coluna para termos sem coluna (-1 = todas).
+function compilar(termos, ent, restrCol){
+  var idx = indice(ent), cn = ent.cols.map(norm);
+  var plano = termos.map(function(t){ var cs = null;
+    if(t.col){ cs = []; cn.forEach(function(c, i){ if(c.indexOf(t.col) !== -1) cs.push(i); }); }
+    else if(restrCol >= 0) cs = [restrCol];
+    return { t:t, cs:cs }; });
+  if(plano.some(function(p){ return p.cs && !p.cs.length && !p.t.neg; })) return function(){ return null; };
+  var casaCel = function(t, x, i){ if(t.num != null && t.op !== ":"){ var v = numBR(ent.linhas[x][i]); if(v === null) return false; return t.op === ">" ? v > t.num : t.op === "<" ? v < t.num : t.op === ">=" ? v >= t.num : t.op === "<=" ? v <= t.num : v === t.num || idx[x].n[i] === t.txt; }
+    return (t.txt && idx[x].n[i].indexOf(t.txt) !== -1) || (t.dig && idx[x].d[i].indexOf(t.dig) !== -1); };
+  return function(x){
+    var hit = [], r = idx[x];
+    for(var p = 0; p < plano.length; p++){ var t = plano[p].t, cs = plano[p].cs, ok = false;
+      if(!cs && (t.num == null || t.op === ":")){ ok = !!((t.txt && r.tn.indexOf(t.txt) !== -1) || (t.dig && r.td.indexOf(t.dig) !== -1));
+        if(ok && !t.neg) r.n.forEach(function(_, i){ if(casaCel(t, x, i)) hit.push(i); }); }
+      else { var lista = cs || r.n.map(function(_, i){ return i; }); for(var j = 0; j < lista.length; j++){ if(casaCel(t, x, lista[j])){ ok = true; if(!t.neg) hit.push(lista[j]); else break; } } }
+      if(ok === t.neg) return null; }
+    return hit;
+  };
+}
+// Marca no texto original os trechos que casam (sem acento / maiúsculas).
+function marcar(v, termos, celInteira){
+  var s = String(v == null ? "" : v); if(celInteira) return '<mark>' + esc(s) + '</mark>';
+  var ws = termos.filter(function(t){ return !t.neg && t.txt && (t.num == null || t.op === ":" || t.op === "="); }).map(function(t){ return t.txt; }); if(!ws.length || !s) return esc(s);
+  var n = "", mapa = []; for(var i = 0; i < s.length; i++){ var c = s[i].normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); for(var j = 0; j < c.length; j++){ n += c[j]; mapa.push(i); } }
+  var on = new Array(s.length + 1).join("0").split("").map(Number);
+  ws.forEach(function(w){ var p = 0; while((p = n.indexOf(w, p)) !== -1){ for(var q = p; q < p + w.length; q++) on[mapa[q]] = 1; p += w.length; } });
+  var out = "", aberto = false; for(var x = 0; x < s.length; x++){ if(on[x] && !aberto){ out += "<mark>"; aberto = true; } if(!on[x] && aberto){ out += "</mark>"; aberto = false; } out += esc(s[x]); }
+  return out + (aberto ? "</mark>" : "");
+}
+function celHtml(v, termos, casou){ var h = marcar(v, termos, false); if(casou && h.indexOf("<mark>") === -1) h = marcar(v, termos, true); return h; }
+
+var BG = { q:"", escopo:"", carregando:false, prog:"", res:null, lim:{}, ms:0, erros:[], semPermissao:0, ver:0 };
+function bgConjuntos(){
+  var ks = Object.keys(dados).concat(Object.keys(lotes).map(function(id){ return "resumo:" + id; }));
+  return ks.filter(function(k){ var c = catDe(k); return !BG.escopo || BG.escopo === c; });
+}
+function buscarTudo(){
+  var minha = ++BG.ver, q = BG.q.trim();
+  if(q.replace(/["\-]/g, "").length < 2){ BG.res = null; BG.carregando = false; renderBG(); return; }
+  var ks = bgConjuntos(), pode = podePessoais(), permitidos = ks.filter(function(k){ return !ehPessoal(k) || pode; });
+  BG.semPermissao = ks.length - permitidos.length; BG.erros = [];
+  var falta = permitidos.filter(function(k){ var m = metaDe(k), c = CACHE[k]; return !(c && c.linhas && c.ciclo === String(m.ciclo || m.recebidoEm || "")); });
+  var feitos = 0;
+  var seguir = function(i){
+    if(minha !== BG.ver) return Promise.resolve();
+    if(i >= falta.length) return Promise.resolve();
+    BG.carregando = true; BG.prog = "Lendo os dados recebidos: conjunto " + (feitos + 1) + " de " + falta.length + " (" + ((metaDe(falta[i]) || {}).titulo || falta[i]) + ")…"; renderBGStatus();
+    return carregarConjunto(falta[i]).then(function(){ feitos++; }, function(e){ feitos++; BG.erros.push(((metaDe(falta[i]) || {}).titulo || falta[i]) + ": " + ((e && e.message) || "não foi possível ler")); }).then(function(){ return seguir(i + 1); });
+  };
+  seguir(0).then(function(){
+    if(minha !== BG.ver) return;
+    var t0 = Date.now(), termos = lerConsulta(q, colsConsulta()), res = [];
+    permitidos.forEach(function(k){ var ent = CACHE[k]; if(!ent || !ent.linhas) return; var teste = compilar(termos, ent, -1), achadas = [];
+      for(var x = 0; x < ent.linhas.length; x++){ var h = teste(x); if(h) achadas.push({ x:x, h:h }); }
+      if(achadas.length) res.push({ k:k, achadas:achadas }); });
+    res.sort(function(a, b){ return b.achadas.length - a.achadas.length; });
+    BG.res = res; BG.termos = termos; BG.ms = Date.now() - t0; BG.carregando = false; BG.prog = ""; renderBG();
+  });
+}
+function renderBGStatus(){ var s = $("#bgStatus"); if(s) s.textContent = BG.prog; }
+function renderBG(){
+  var el = $("#buscaGeral"); if(!el) return;
+  var cats = {}; Object.keys(dados).forEach(function(k){ cats[dados[k].categoria || "outros"] = 1; }); if(Object.keys(lotes).length) cats.resumo = 1;
+  var ordem = ["resumo"].concat(CAT_ORDEM).filter(function(c){ return cats[c]; }).concat(Object.keys(cats).filter(function(c){ return c !== "resumo" && CAT_ORDEM.indexOf(c) === -1; }));
+  var rot = function(c){ return c === "resumo" ? "Resumo das pendentes" : (CAT_ROT[c] || c); };
+  var barra = $("#bgBusca");
+  if(!barra){
+    el.innerHTML = '<div class="panel bg"><div class="ver-barra bg-barra"><input type="search" id="bgBusca" placeholder="Nome, CPF, CNPJ, empresa, cargo, valor, nº da solicitação…" autocomplete="off" aria-label="Pesquisar em tudo o que chegou"><select id="bgEscopo" aria-label="Onde pesquisar"></select><button type="button" class="fbtn" data-bg-dicas>Como pesquisar</button></div>' +
+      '<div class="bg-dicas" id="bgDicas" hidden><b>Todas as palavras</b> precisam aparecer na linha (em qualquer coluna), sem diferença de acento ou maiúscula. ' +
+      '<code>"a3 locações"</code> frase exata · <code>-demitido</code> exclui · <code>empresa:a3</code> só na coluna (basta parte do nome da coluna) · <code>salario&gt;3000</code>, <code>salario&lt;=1500</code>, <code>dias&gt;10</code> compara números · CPF, CNPJ e telefone acham <b>com ou sem pontuação</b> (<code>12345678000190</code> acha 12.345.678/0001-90).</div>' +
+      '<p class="note bg-status" id="bgStatus"></p><div id="bgRes"></div></div>';
+  }
+  var sel = $("#bgEscopo"), opts = '<option value="">em tudo</option>' + ordem.map(function(c){ return '<option value="' + esc(c) + '"' + (BG.escopo === c ? " selected" : "") + '>só em ' + esc(rot(c)) + '</option>'; }).join("");
+  if(sel.innerHTML !== opts) sel.innerHTML = opts;
+  var st = $("#bgStatus"), box = $("#bgRes");
+  if(BG.carregando){ st.textContent = BG.prog; return; }
+  if(!BG.res){ st.textContent = BG.q.trim() ? "Digite pelo menos 2 letras." : "Pesquisa em todas as linhas e colunas de todos os conjuntos recebidos" + (podePessoais() ? ", inclusive os pessoais" : " (os pessoais só para coordenação e analistas do DP)") + "."; box.innerHTML = ""; return; }
+  var total = BG.res.reduce(function(s, g){ return s + g.achadas.length; }, 0);
+  st.innerHTML = '<b>' + total.toLocaleString("pt-BR") + '</b> linha' + (total === 1 ? "" : "s") + ' em <b>' + BG.res.length + '</b> conjunto' + (BG.res.length === 1 ? "" : "s") + ' <span class="note">(' + BG.ms + ' ms)</span>' +
+    (BG.semPermissao ? ' · <span class="note">' + BG.semPermissao + ' conjunto' + (BG.semPermissao === 1 ? "" : "s") + ' pessoal(is) fora da pesquisa: só coordenação e analistas do DP</span>' : '') +
+    (BG.erros.length ? ' · <span class="erro-t">não deu para ler: ' + esc(BG.erros.join("; ")) + '</span>' : '');
+  if(!BG.res.length){ box.innerHTML = '<p class="note" style="padding:4px 18px 14px">Nada encontrado. Tente menos palavras, parte do nome ou o número sem pontuação.</p>'; return; }
+  var termos = BG.termos || [];
+  box.innerHTML = BG.res.map(function(g){
+    var ent = CACHE[g.k], m = metaDe(g.k) || {}, lim = BG.lim[g.k] || 8, mostra = g.achadas.slice(0, lim);
+    var usadas = {}; mostra.forEach(function(a){ a.h.forEach(function(i){ usadas[i] = 1; }); });
+    var cols = [0, 1].filter(function(i){ return i < ent.cols.length; }); Object.keys(usadas).map(Number).sort(function(a, b){ return a - b; }).forEach(function(i){ if(cols.indexOf(i) === -1) cols.push(i); });
+    cols = cols.slice(0, 9);
+    var cat = m.categoria || "outros";
+    return '<div class="bg-grupo"><div class="bg-gtop"><span class="cat ' + esc(cat) + '">' + esc(rot(cat)) + '</span><b class="grow">' + esc(m.titulo || g.k) + '</b><span class="note">' + g.achadas.length.toLocaleString("pt-BR") + ' de ' + ent.linhas.length.toLocaleString("pt-BR") + ' linhas</span><button type="button" class="fbtn" data-bg-abrir="' + esc(g.k) + '">Abrir com esta pesquisa</button></div>' +
+      (ehPessoal(g.k) ? '<div class="ver-aviso">Dados pessoais: use só para o trabalho do DP.</div>' : '') +
+      '<div class="ver-tab bg-tab"><table class="tbl"><thead><tr>' + cols.map(function(i){ return '<th>' + esc(ent.cols[i]) + '</th>'; }).join("") + (ent.cols.length > cols.length ? '<th class="note">+' + (ent.cols.length - cols.length) + ' colunas</th>' : '') + '</tr></thead><tbody>' +
+      mostra.map(function(a){ var r = ent.linhas[a.x]; return '<tr>' + cols.map(function(i){ return '<td>' + celHtml(r[i] || "", termos, a.h.indexOf(i) !== -1) + '</td>'; }).join("") + (ent.cols.length > cols.length ? '<td></td>' : '') + '</tr>'; }).join("") +
+      '</tbody></table></div>' + (g.achadas.length > mostra.length ? '<div class="ver-mais"><button type="button" class="fbtn" data-bg-mais="' + esc(g.k) + '">Mostrar mais ' + Math.min(25, g.achadas.length - mostra.length) + '</button><span class="note">mostrando ' + mostra.length + ' de ' + g.achadas.length + '</span></div>' : '') + '</div>';
+  }).join("");
+}
+var bgT = null;
+function bgAgendar(ms){ clearTimeout(bgT); bgT = setTimeout(buscarTudo, ms == null ? 250 : ms); }
+document.addEventListener("input", function(e){ if(e.target && e.target.id === "bgBusca"){ BG.q = e.target.value; BG.lim = {}; bgAgendar(); } });
+document.addEventListener("change", function(e){ if(e.target && e.target.id === "bgEscopo"){ BG.escopo = e.target.value; BG.lim = {}; bgAgendar(0); } });
+document.addEventListener("click", function(e){
+  var t = e.target.closest && e.target.closest("[data-bg-abrir],[data-bg-mais],[data-bg-dicas]"); if(!t) return;
+  if(t.hasAttribute("data-bg-dicas")){ var d = $("#bgDicas"); d.hidden = !d.hidden; return; }
+  if(t.hasAttribute("data-bg-mais")){ var k = t.getAttribute("data-bg-mais"); BG.lim[k] = (BG.lim[k] || 8) + 25; renderBG(); return; }
+  if(t.hasAttribute("data-bg-abrir")) abrirDados(t.getAttribute("data-bg-abrir"), BG.q);
+});
 var VER = { id:"", linhas:null, cols:[], erro:"", carregando:false, busca:"", col:-1, ord:-1, dir:1, lim:200 };
 function podePessoais(){ try{ var P = window.parent; if(!P || P === window || !P.__auth) return true; var n = P.__hubApi && P.__hubApi.nivel ? P.__hubApi.nivel("dp") : null; return n === "coord" || n === "analista"; }catch(e){ return false; } }
 function ehPessoal(k){ var d = dados[k]; return !!d && (d.categoria === "pessoais" || /^pessoais-|~pessoais-/.test(k)); }
-function abrirDados(k){
-  var m = dados[k]; if(!m) return;
+function abrirDados(k, busca){
+  var m = metaDe(k); if(!m) return;
   if(ehPessoal(k) && !podePessoais()){ toast("Dados pessoais: só a coordenação e os analistas do DP veem."); return; }
-  VER = { id:k, linhas:null, cols:(m.colunas || []).slice(), erro:"", carregando:true, busca:"", col:-1, ord:-1, dir:1, lim:200 };
+  VER = { id:k, linhas:null, cols:(m.colunas || []).slice(), erro:"", carregando:true, busca:busca || "", col:-1, ord:-1, dir:1, lim:200 };
   renderVer(); var el = $("#dadosVer"); if(el) el.scrollIntoView({block:"start", behavior:"smooth"});
-  var n = Math.min(Number(m.partes) || 0, 400), slot = m.slot || "a", textos = new Array(n), feitas = 0;
-  var lerParte = function(i){ return db.doc("ing_partes/" + k + "~" + slot + i).get().then(function(s){ var d = s && s.exists !== false && s.data ? s.data() : null; if(!d || (m.ciclo && d.ciclo && d.ciclo !== m.ciclo) || typeof d.tabela !== "string") throw new Error("parte " + (i + 1) + " ausente ou de outro envio"); textos[i] = d.tabela; feitas++; if(VER.id === k){ var p = $("#verProg"); if(p) p.textContent = "Lendo as partes: " + feitas + " de " + n + "…"; } }); };
-  var lote = function(i){ if(i >= n) return Promise.resolve(); var ps = []; for(var j = i; j < Math.min(n, i + 6); j++) ps.push(lerParte(j)); return Promise.all(ps).then(function(){ return lote(i + 6); }); };
-  lote(0).then(function(){
+  carregarConjunto(k, function(f, n){ if(VER.id === k){ var p = $("#verProg"); if(p) p.textContent = "Lendo as partes: " + f + " de " + n + "…"; } }).then(function(ent){
     if(VER.id !== k) return;
-    VER.linhas = textos.join("\n").split("\n").filter(function(l){ return l !== ""; }).map(function(l){ return l.split("\t"); });
-    var maxC = VER.linhas.reduce(function(x, r){ return Math.max(x, r.length); }, 0);
-    for(var c = VER.cols.length; c < maxC; c++) VER.cols.push("Coluna " + (c + 1));
-    VER.carregando = false; renderVer();
+    VER.ent = ent; VER.linhas = ent.linhas; VER.cols = ent.cols; VER.carregando = false; renderVer();
   }, function(e){ if(VER.id !== k) return; VER.carregando = false; VER.erro = (e && e.message) || "Não foi possível ler as partes."; renderVer(); });
 }
 function verFiltradas(){
   if(!VER.linhas) return [];
-  var q = norm(VER.busca).split(/\s+/).filter(Boolean), l = VER.linhas;
-  if(q.length) l = l.filter(function(r){ var h = norm(VER.col >= 0 ? (r[VER.col] || "") : r.join(" ")); return q.every(function(w){ return h.indexOf(w) !== -1; }); });
-  if(VER.ord >= 0){ var i = VER.ord, d = VER.dir, num = function(v){ var s = String(v || "").replace(/\./g, "").replace(",", "."); return /^-?\d+(\.\d+)?$/.test(s) ? +s : null; };
-    l = l.slice().sort(function(a, b){ var x = a[i] || "", y = b[i] || "", nx = num(x), ny = num(y); return d * (nx !== null && ny !== null ? nx - ny : x.localeCompare(y, "pt-BR")); }); }
+  var termos = lerConsulta(VER.busca, VER.cols), l = [];
+  VER.termos = termos;
+  if(termos.length){ var teste = compilar(termos, VER.ent, VER.col); for(var x = 0; x < VER.linhas.length; x++){ var h = teste(x); if(h) l.push({ r:VER.linhas[x], h:h }); } }
+  else l = VER.linhas.map(function(r){ return { r:r, h:[] }; });
+  if(VER.ord >= 0){ var i = VER.ord, d = VER.dir;
+    l.sort(function(a, b){ var x = a.r[i] || "", y = b.r[i] || "", nx = numBR(x), ny = numBR(y); return d * (nx !== null && ny !== null ? nx - ny : x.localeCompare(y, "pt-BR")); }); }
   return l;
 }
 function renderVer(){
   var el = $("#dadosVer"); if(!el) return;
   if(!VER.id){ el.innerHTML = ""; return; }
-  var m = dados[VER.id] || {}, pes = ehPessoal(VER.id);
+  var m = metaDe(VER.id) || {}, pes = ehPessoal(VER.id);
   var cab = '<div class="ver-top"><div class="grow"><h3>' + esc(m.titulo || VER.id) + '</h3><span class="note mono">' + esc(VER.id) + ' · ' + (m.nLinhas || 0).toLocaleString("pt-BR") + ' linhas · ' + VER.cols.length + ' colunas · recebido ' + esc(quando(m.recebidoEm)) + '</span></div><button type="button" class="fbtn" data-ver-fechar>Fechar</button></div>' +
     (pes ? '<div class="ver-aviso">Contém dados pessoais (CPF, salário e outros). Use só para o trabalho do DP e não compartilhe o arquivo baixado.</div>' : '');
   if(VER.carregando){ el.innerHTML = '<div class="panel ver">' + cab + '<p class="note" id="verProg" style="padding:14px 18px">Lendo as partes…</p></div>'; return; }
   if(VER.erro){ el.innerHTML = '<div class="panel ver">' + cab + '<div class="aviso erro" style="margin:12px 18px">' + esc(VER.erro) + ' Peça à extensão para enviar de novo.</div></div>'; return; }
   var vis = verFiltradas(), pag = vis.slice(0, VER.lim);
   var th = VER.cols.map(function(c, i){ return '<th><button type="button" class="ver-th' + (VER.ord === i ? " on" : "") + '" data-ver-ord="' + i + '">' + esc(c) + (VER.ord === i ? (VER.dir > 0 ? " ↑" : " ↓") : "") + '</button></th>'; }).join("");
-  var tr = pag.map(function(r){ return '<tr>' + VER.cols.map(function(_, i){ return '<td>' + esc(r[i] || "") + '</td>'; }).join("") + '</tr>'; }).join("");
+  var tr = pag.map(function(a){ return '<tr>' + VER.cols.map(function(_, i){ return '<td>' + celHtml(a.r[i] || "", VER.termos || [], a.h.indexOf(i) !== -1) + '</td>'; }).join("") + '</tr>'; }).join("");
   var foco = document.activeElement && document.activeElement.id === "verBusca", pos = foco ? document.activeElement.selectionStart : 0;
   el.innerHTML = '<div class="panel ver">' + cab +
-    '<div class="ver-barra"><input type="search" id="verBusca" placeholder="Buscar em todas as colunas…" value="' + esc(VER.busca) + '" autocomplete="off"><select id="verCol" aria-label="Buscar em"><option value="-1">em todas as colunas</option>' + VER.cols.map(function(c, i){ return '<option value="' + i + '"' + (VER.col === i ? " selected" : "") + '>só em ' + esc(c) + '</option>'; }).join("") + '</select>' +
+    '<div class="ver-barra"><input type="search" id="verBusca" placeholder="Buscar neste conjunto (aceita &quot;frase&quot;, -excluir, coluna:valor, salario&gt;3000)…" value="' + esc(VER.busca) + '" autocomplete="off"><select id="verCol" aria-label="Buscar em"><option value="-1">em todas as colunas</option>' + VER.cols.map(function(c, i){ return '<option value="' + i + '"' + (VER.col === i ? " selected" : "") + '>só em ' + esc(c) + '</option>'; }).join("") + '</select>' +
     '<span class="note">' + vis.length.toLocaleString("pt-BR") + ' de ' + VER.linhas.length.toLocaleString("pt-BR") + ' linhas</span><span class="grow"></span><button type="button" class="fbtn" data-ver-csv>Baixar CSV (' + vis.length.toLocaleString("pt-BR") + ')</button></div>' +
     '<div class="ver-tab"><table class="tbl"><thead><tr>' + th + '</tr></thead><tbody>' + (tr || '<tr><td colspan="' + VER.cols.length + '" class="note">Nenhuma linha com essa busca.</td></tr>') + '</tbody></table></div>' +
     (vis.length > pag.length ? '<div class="ver-mais"><button type="button" class="fbtn" data-ver-mais>Mostrar mais ' + Math.min(500, vis.length - pag.length) + '</button><span class="note">mostrando ' + pag.length + ' de ' + vis.length + '</span></div>' : '') + '</div>';
   if(foco){ var b = $("#verBusca"); b.focus(); try{ b.setSelectionRange(pos, pos); }catch(e){} }
 }
 function verCsv(){
-  var linhas = [VER.cols].concat(verFiltradas()), cel = function(v){ var s = String(v == null ? "" : v); if(/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  var linhas = [VER.cols].concat(verFiltradas().map(function(a){ return a.r; })), cel = function(v){ var s = String(v == null ? "" : v); if(/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   var txt = "﻿" + linhas.map(function(r){ return r.map(cel).join(";"); }).join("\r\n"), nome = VER.id.replace(/[^a-z0-9~_-]+/gi, "-").replace(/~/g, "-") + ".csv";
   usarCap("downloads").then(function(d){
     if(d && d.save) return d.save({filename:nome, data:txt}).then(function(){ toast("Arquivo salvo."); }, function(e){ if(!e || e.code !== "declined") toast("Não foi possível salvar o arquivo."); });
@@ -675,6 +847,7 @@ function render(){
   var ids = Object.keys(lotes);
   $("#fontesSub").textContent = ids.length ? ids.length + " fonte" + (ids.length === 1 ? "" : "s") + " conectada" + (ids.length === 1 ? "" : "s") : "";
   renderDados();
+  renderBG();
   renderTopo();
   var foco = document.activeElement && document.activeElement.id;
   $("#fontes").innerHTML = ids.length ? ids.map(function(id){ return renderFonte(id, lotes[id]); }).join("") : '<div class="panel vazio-f">Nada recebido ainda. Conecte a extensão (passos acima) e clique em <b>Enviar agora</b>.</div>';
@@ -1312,8 +1485,8 @@ usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   if(!dbNs){ $("#semBanco").hidden = false; render(); return null; }
   db = { doc: function(p){ var r = dbNs.doc(p); return { get:function(){ return r.get(); }, onSnapshot:function(cb, er){ return r.onSnapshot(cb, er); }, set:function(o){ return r.set(clonar(o)); }, delete:function(){ return r.delete(); } }; }, collection: function(n){ var c = dbNs.collection(n); return { onSnapshot:function(cb, er){ return c.onSnapshot(cb, er); } }; } };
   db.doc("ing_config/cfg").onSnapshot(function(s){ cfg = s.exists ? s.data() : null; render(); }, function(){});
-  db.collection("ing_dados").onSnapshot(function(snap){ var antes = VER.id && dados[VER.id] ? dados[VER.id].ciclo : null; dados = {}; snap.docs.forEach(function(d){ dados[d.id] = d.data(); }); renderDados(); if(VER.id && !dados[VER.id]){ VER = { id:"" }; renderVer(); } else if(VER.id && dados[VER.id].ciclo !== antes && !VER.carregando){ abrirDados(VER.id); } }, function(){});
-  db.collection("ing_lotes").onSnapshot(function(snap){ lotes = {}; snap.docs.forEach(function(d){ lotes[d.id] = d.data(); }); buscarNomes(); render(); }, function(){});
+  db.collection("ing_dados").onSnapshot(function(snap){ var antes = VER.id && dados[VER.id] ? dados[VER.id].ciclo : null; dados = {}; snap.docs.forEach(function(d){ dados[d.id] = d.data(); }); renderDados(); Object.keys(CACHE).forEach(function(k){ if(!metaDe(k)) delete CACHE[k]; }); if(BG.q.trim()) bgAgendar(400); else renderBG(); if(VER.id && !dados[VER.id]){ VER = { id:"" }; renderVer(); } else if(VER.id && dados[VER.id].ciclo !== antes && !VER.carregando){ abrirDados(VER.id, VER.busca); } }, function(){});
+  db.collection("ing_lotes").onSnapshot(function(snap){ lotes = {}; snap.docs.forEach(function(d){ lotes[d.id] = d.data(); }); buscarNomes(); render(); if(BG.q.trim()) bgAgendar(400); else renderBG(); }, function(){});
   return usarCap("user").catch(function(){ return null; });
 }).then(function(u){
   if(!u) return; userNs = u;
