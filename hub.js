@@ -391,15 +391,18 @@
     funcionarios: { title:'Funcionários', addLabel:'Adicionar funcionário', fields:[
       {key:'nome', label:'Nome', width:1.6},
       {key:'codigo', label:'Cód. Domínio', width:0.8},
+      {key:'vinculo', label:'Vínculo', width:1, type:'select', options:['Empregado','Estagiário','Pró-labore','RPA/autônomo']},
       {key:'cargo', label:'Cargo', width:1.2},
       {key:'admissao', label:'Admissão', width:1, type:'date'},
-      {key:'status', label:'Situação', width:1, type:'select', options:['Ativo','Férias','Afastado','Desligado']},
+      {key:'status', label:'Situação', width:1, type:'select', options:['Ativo','Férias','Afastado','Inativo','Desligado']},
       {key:'aquisitivo', label:'Período aquisitivo em aberto desde', width:1.2, type:'date'},
       {key:'feriasInicio', label:'Férias (início)', width:1, type:'date'},
       {key:'feriasFim', label:'Férias (fim)', width:1, type:'date'},
       {key:'rescisao', label:'Último dia (rescisão)', width:1, type:'date'},
       {key:'salario', label:'Salário', width:1, type:'money'},
       {key:'obs', label:'Observação', width:1.6},
+      {key:'saidaEm', label:'Fora desde', width:1, type:'date', auto:true},
+      {key:'situacaoMotivo', label:'Motivo da situação', width:2, auto:true},     // Hub 311: de onde veio o Inativo/Desligado que o Hub marcou (regra + data)     // gravado pelo Hub (folha/Onvio); antes se perdia ao recarregar a empresa
     ]},
   };
   const GERAIS_FIELDS = DP_SECTIONS.prazos.fields;
@@ -569,6 +572,7 @@
     { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
     { id:'pop-master', name:'POP Master', url:'', icon:'', category:'Atalhos', color:'#7A5BB5', description:'POPs da Controltax com governança BPM CBOK: catálogo, arquitetura de processos, revisões e conformidade.', tags:['pop','procedimento','processos','cbok','bpm','governança'], moduleKey:'pop', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
     { id:'chat-equipe', name:'Chat da equipe', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Conversas de trabalho entre os analistas (em construção).', tags:['chat','conversa','mensagem','equipe'], moduleKey:'chat', virtual:true, favorite:false, newTab:false, order:9993, uses:0 },
+    { id:'empresas-cadastro', name:'Empresas', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Cadastro único de todas as empresas do Hub: consultar, corrigir e excluir de todos os módulos.', tags:['empresa','cadastro','cnpj','excluir','cadastro único'], moduleKey:'empresas', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
     { id:'entrada-dados', name:'Entrada de dados', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'O que chega das extensões do navegador (Onvio e outras), para revisar antes de usar.', tags:['extensão','onvio','dados','importar'], moduleKey:'fontes', virtual:true, favorite:false, newTab:false, order:9995, uses:0 },
   ];
   // "Onvio" é fixo do Hub: abre o Onvio numa nova aba e fica ao lado esquerdo do Zappy.
@@ -669,6 +673,7 @@
     if (t.virtual && t.moduleKey === 'config') return ic('gear');
     if (t.virtual && t.moduleKey === 'coord') return ic('grid');
     if (t.virtual && t.moduleKey === 'fontes') return ic('download');
+    if (t.virtual && t.moduleKey === 'empresas') return ic('building');
     if (t.virtual && t.moduleKey === 'pop') return ic('t-pop');
     if (t.virtual && t.moduleKey === 'chat') return ic('t-chat');
     if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
@@ -973,7 +978,7 @@
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, chat: { src:'chat.html', title:'Chat da equipe', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, empresas: { src:'empresas.html', title:'Empresas', rail:true }, chat: { src:'chat.html', title:'Chat da equipe', rail:true } };
   // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
   function preloadFrame(key) {
     let f = $(`#${key}-frame`);
@@ -1037,7 +1042,7 @@
   // ---------- módulo DP ----------
   const SEM_RESP = '__sem__';
   const SIT_PILL = { 'Ativa':'pill-ok', 'Sem movimento':'', 'Inativa':'pill-muted' };
-  const FUNC_PILL = { 'Ativo':'pill-ok', 'Férias':'pill-soon', 'Afastado':'pill-today', 'Desligado':'pill-muted' };
+  const FUNC_PILL = { 'Ativo':'pill-ok', 'Férias':'pill-soon', 'Afastado':'pill-today', 'Inativo':'pill-muted', 'Desligado':'pill-muted' };
   const TRIBUTACOES = ['SIMPLES NACIONAL','LUCRO PRESUMIDO','LUCRO REAL','MEI'];
   const byNome = (a, b) => ptCmp(nomeCurto(a), nomeCurto(b));
   const findDpEmpresa = (id) => state.dpEmpresas.find(e => e.id === id);
@@ -1071,6 +1076,16 @@
   const carteiraNome = () => state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira;
 
   // ---------- pessoas: datas calculadas a partir do cadastro ----------
+  // Inativo (Hub 306, Josué 04/11/2026): fora da folha da última competência; volta a Ativo sozinho se reaparecer. Desligado: saiu de vez.
+  const FUNC_FORA = new Set(['Inativo', 'Desligado']);
+  const funcFora = (f) => FUNC_FORA.has(funcStatus(f));
+  // Três grupos à parte: funcionários (empregados e estagiários), pró-labore e RPA. Só os funcionários contam como "funcionários ativos".
+  const FUNC_GRUPOS = [['func', 'Funcionários'], ['prolabore', 'Pró-labore'], ['rpa', 'RPA (autônomos)']];
+  function vincGrupo(v) { const t = norm(v || ''); if (/pro.?labore|socio|diretor|titular|empresario|partner/.test(t)) return 'prolabore'; if (/rpa|autonom|contribuinte/.test(t)) return 'rpa'; return 'func'; }
+  const funcGrupo = (f) => vincGrupo(f.vinculo);
+  // Hub 310 (Josué, 04/11/2026): pró-labore e RPA com folha no mês CONTAM nos ativos (quem não está na folha da última competência fica Inativo e sai da conta);
+  // continuam em blocos à parte na ficha, e a tela diz quantos dos ativos são pró-labore e RPA.
+  const funcConta = (f) => !funcFora(f);
   function funcStatus(f) {
     const t = hoje();
     const fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), res = parseYmd(f.rescisao);
@@ -1493,7 +1508,7 @@
     if (go) {
       const [view, a, b] = go.dataset.go.split(':');
       if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
-      if (view === 'funcionarios') state.dpFuncFiltro = a === 'Desligado' ? 'Desligado' : '';
+      if (view === 'funcionarios') state.dpFuncFiltro = FUNC_FORA.has(a) ? a : '';
       if (view === 'cartela' && a === 'onvio') state.dpCtModo = 'onvio';
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
       if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
@@ -1551,7 +1566,7 @@
   const resumoTipos = (evs) => Object.entries(evs.reduce((acc, ev) => { acc[ev.tipo] = (acc[ev.tipo] || 0) + 1; return acc; }, {})).sort((a, b) => TIPO_ORD[a[0]] - TIPO_ORD[b[0]]).map(([tp, n]) => `${n} ${TIPOS[tp].toLowerCase()}`);
 
   // Ordem fixa das situações = ordem validada da paleta (azul, laranja, verde-água, amarelo).
-  const SIT_FUNC = [['Ativo', 'var(--viz-1)'], ['Férias', 'var(--viz-2)'], ['Desligado', 'var(--viz-3)'], ['Afastado', 'var(--viz-4)']];
+  const SIT_FUNC = [['Ativo', 'var(--viz-1)'], ['Férias', 'var(--viz-2)'], ['Desligado', 'var(--viz-3)'], ['Afastado', 'var(--viz-4)'], ['Inativo', 'var(--ink-3)']];   // Inativo: cinza neutro (fora da paleta categórica, de propósito)
   const GAP_OK = { cnpj:'CNPJ informado', cnpjinv:'CNPJ/CPF válido', sind:'Sindicato vinculado', resp:'Responsável definido', trib:'Tributação definida', database:'Data-base definida', fech:'Procedimento de fechamento' };
 
   // ---------- painel ----------
@@ -1632,7 +1647,7 @@
     if (todas.some(e => !e.responsavel)) grupos.push([SEM_RESP, 'Sem responsável']);
     const dadosC = grupos.map(([key, nome]) => {
       const es = todas.filter(e => respDe(e, key));
-      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
+      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
     }).sort((a, b) => b.n - a.n);
     const maxC = Math.max(1, ...dadosC.map(c => c.n));
     const cBody = dadosC.length
@@ -2086,7 +2101,7 @@
 
   // ---------- funcionários ----------
   // Só interessa quem está ativo (Ativo, em férias ou afastado); "Desligados" fica só para consulta. Sem alertas nesta tela (ficam na Agenda).
-  const FUNC_FILTROS = [['','Ativos'],['Desligado','Desligados']];
+  const FUNC_FILTROS = [['','Ativos'],['Inativo','Inativos'],['Desligado','Desligados']];
   const FUNC_COLS = 'minmax(0,1.8fr) minmax(0,1.6fr) 110px 110px';
   function allFuncionarios() {
     return empresasCarteira().flatMap(e => e.funcionarios.map(f => ({ f, e, status: funcStatus(f) })));
@@ -2160,9 +2175,9 @@
   $('#dp-func-tl').addEventListener('click', (e) => { if (e.target.closest('[data-func-todos]')) { e.stopPropagation(); state.dpFuncTodos = !state.dpFuncTodos; renderDpFuncionarios(); } });
   // ---------- funcionários: visão por empresa ----------
   // Nada de lista com todos os funcionários: cartões por empresa (situação e alertas de cada uma) e, para achar uma pessoa, a busca pelo nome.
-  const FN_ORDEM = ['Ativo', 'Férias', 'Afastado', 'Desligado'];
-  const FN_COR = { 'Ativo': 'var(--viz-1)', 'Férias': 'var(--viz-2)', 'Afastado': 'var(--viz-4)', 'Desligado': 'var(--viz-3)' };
-  const FN_ROT = { 'Ativo': ['ativo', 'ativos'], 'Férias': ['em férias', 'em férias'], 'Afastado': ['afastado', 'afastados'], 'Desligado': ['desligado', 'desligados'] };
+  const FN_ORDEM = ['Ativo', 'Férias', 'Afastado', 'Inativo', 'Desligado'];
+  const FN_COR = { 'Ativo': 'var(--viz-1)', 'Férias': 'var(--viz-2)', 'Afastado': 'var(--viz-4)', 'Inativo': 'var(--ink-3)', 'Desligado': 'var(--viz-3)' };
+  const FN_ROT = { 'Ativo': ['ativo', 'ativos'], 'Férias': ['em férias', 'em férias'], 'Afastado': ['afastado', 'afastados'], 'Inativo': ['inativo', 'inativos'], 'Desligado': ['desligado', 'desligados'] };
   const FUNC_PAG = 48, FUNC_MAX_BUSCA = 40;
   const fnPlural = (n, s) => `${n} ${FN_ROT[s][n === 1 ? 0 : 1]}`;
   // ---- evolução do quadro: quantos estavam ativos em cada data, pelas datas de admissão e de saída ----
@@ -2171,17 +2186,18 @@
   const funcSaida = (f) => parseYmd(f.rescisao) || parseYmd(f.saidaEm) || null;
   function funcAtivoEm(f, d) {
     const adm = parseYmd(f.admissao); if (adm && adm > d) return false;
-    if (funcStatus(f) !== 'Desligado') return true;
+    if (!funcFora(f)) return true;
     const sai = funcSaida(f); return !!sai && sai > d;
   }
   const MES_ABR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const mesStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  // Períodos (mês, trimestre ou ano) entre dois meses 'AAAA-MM'; os ativos de cada período contam no último dia dele (hoje, se ainda não terminou).
+  // Períodos (mês, trimestre ou ano) entre dois meses 'AAAA-MM' ou duas datas 'AAAA-MM-DD' (o primeiro e o último período são cortados nas datas);
+  // os ativos de cada período contam no último dia dele (hoje, se ainda não terminou).
   function evPeriodos(deMes, ateMes, grao) {
-    const [y0, m0] = String(deMes).split('-').map(Number), [y1, m1] = String(ateMes).split('-').map(Number);
+    const [y0, m0, d0] = String(deMes).split('-').map(Number), [y1, m1, d1] = String(ateMes).split('-').map(Number);
     if (!y0 || !m0 || !y1 || !m1) return [];
-    const ini0 = new Date(y0, m0 - 1, 1), fimTot = new Date(y1, m1, 0), t = hoje(), passo = grao === 'tri' ? 3 : grao === 'ano' ? 12 : 1, out = [];
-    let a = grao === 'tri' ? new Date(y0, Math.floor((m0 - 1) / 3) * 3, 1) : grao === 'ano' ? new Date(y0, 0, 1) : ini0;
+    const ini0 = new Date(y0, m0 - 1, d0 || 1), fimTot = d1 ? new Date(y1, m1 - 1, d1) : new Date(y1, m1, 0), t = hoje(), passo = grao === 'tri' ? 3 : grao === 'ano' ? 12 : 1, out = [];
+    let a = grao === 'tri' ? new Date(y0, Math.floor((m0 - 1) / 3) * 3, 1) : grao === 'ano' ? new Date(y0, 0, 1) : new Date(y0, m0 - 1, 1);
     while (a <= fimTot && out.length < 240) {
       const b = new Date(a.getFullYear(), a.getMonth() + passo, 0), ini = a < ini0 ? ini0 : a, fim = b > fimTot ? fimTot : b;
       if (ini > t) break;
@@ -2196,23 +2212,24 @@
     if (!per.length) return [];
     const antes = addDays(per[0].ini, -1);
     return emps.map(e => {
-      const fs = e.funcionarios.map(f => { const desl = funcStatus(f) === 'Desligado'; return { adm: parseYmd(f.admissao), desl, sai: desl ? funcSaida(f) : null }; });
+      const fs = e.funcionarios.map(f => { const desl = funcFora(f); return { adm: parseYmd(f.admissao), desl, sai: desl ? funcSaida(f) : null, conta: funcDesligou(f), g: funcGrupo(f) }; });
       const ativo = (x, d) => (!x.adm || x.adm <= d) && (!x.desl || (!!x.sai && x.sai > d));
       const lin = per.map(p => {
         let at = 0, ad = 0, de = 0;
-        fs.forEach(x => { if (ativo(x, p.ref)) at++; if (x.adm && x.adm >= p.ini && x.adm <= p.fim) ad++; if (x.sai && x.sai >= p.ini && x.sai <= p.fim) de++; });
+        fs.forEach(x => { if (ativo(x, p.ref)) at++; if (x.adm && x.adm >= p.ini && x.adm <= p.fim) ad++; if (x.conta && x.sai && x.sai >= p.ini && x.sai <= p.fim) de++; });
         return { at, ad, de };
       });
-      const ini = fs.filter(x => ativo(x, antes)).length, fim = lin[lin.length - 1].at;
+      const ini = fs.filter(x => ativo(x, antes)).length, fim = lin[lin.length - 1].at, ref = per[per.length - 1].ref, fimG = { func: 0, prolabore: 0, rpa: 0 }; fs.forEach(x => { if (ativo(x, ref)) fimG[x.g]++; });
       const ad = lin.reduce((n, l) => n + l.ad, 0), de = lin.reduce((n, l) => n + l.de, 0), media = (ini + fim) / 2;
-      return { e, ini, fim, lin, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
+      return { e, ini, fim, fimG, lin, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
         semSaida: fs.filter(x => x.desl && !x.sai).length, semAdm: fs.filter(x => !x.adm && !x.desl).length };
     });
   }
   function evTotal(linhas, per) {
     const lin = per.map((p, i) => linhas.reduce((s, r) => ({ at: s.at + r.lin[i].at, ad: s.ad + r.lin[i].ad, de: s.de + r.lin[i].de }), { at: 0, ad: 0, de: 0 }));
     const ini = linhas.reduce((n, r) => n + r.ini, 0), fim = lin.length ? lin[lin.length - 1].at : 0, ad = linhas.reduce((n, r) => n + r.ad, 0), de = linhas.reduce((n, r) => n + r.de, 0), media = (ini + fim) / 2;
-    return { lin, ini, fim, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
+    const fimG = linhas.reduce((g, r) => { ['func', 'prolabore', 'rpa'].forEach(k => { g[k] += (r.fimG || {})[k] || 0; }); return g; }, { func: 0, prolabore: 0, rpa: 0 });
+    return { lin, ini, fim, fimG, ad, de, vari: fim - ini, pct: ini ? (fim - ini) / ini * 100 : null, rot: media ? de / media * 100 : null,
       semSaida: linhas.reduce((n, r) => n + r.semSaida, 0), semAdm: linhas.reduce((n, r) => n + r.semAdm, 0) };
   }
   const evPct = (v) => v == null ? '—' : `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
@@ -2314,20 +2331,52 @@
   // com números de destaque, gráfico quando cabe e a tabela; sai em PDF, Excel, CSV ou impressão. Os modelos ficam guardados neste navegador.
   const REL_METRICAS = [['at', 'Ativos no fim'], ['ad', 'Admissões'], ['de', 'Desligamentos'], ['saldo', 'Saldo (admissões − desligamentos)']];
   const REL_TIPOS = [
+    { id: 'ativos', nome: 'Ativos em uma data', desc: 'Quantos ativos cada empresa tinha no dia: funcionários, pró-labore e RPA separados.' },
     { id: 'quadro', nome: 'Quadro de funcionários', desc: 'Ativos, admissões, desligamentos e rotatividade por empresa, em resumo ou período a período.' },
     { id: 'movimento', nome: 'Admissões e desligamentos', desc: 'Quem entrou e quem saiu no período, empresa por empresa.' },
     { id: 'ferias', nome: 'Férias', desc: 'Em férias, programadas, concessivos vencendo no período e férias vencidas.' },
     { id: 'contratos', nome: 'Experiência e rescisões', desc: 'Fins de experiência, últimos dias e prazos de pagamento de rescisão no período.' },
     { id: 'agenda', nome: 'Agenda do período', desc: 'Todas as datas do DP no período: rotinas, prazos gerais, lembretes, data-base, CCT, pessoal e Onvio.' },
-    { id: 'carteira', nome: 'Carteira de empresas', desc: 'Empresas por responsável, tributação e situação, com a quantidade de funcionários.' },
+    { id: 'carteira', nome: 'Carteira de empresas', desc: 'Empresas por responsável, tributação e situação, com os ativos separados em funcionários, pró-labore e RPA.' },
     { id: 'convencoes', nome: 'Convenções e data-base', desc: 'Sindicato, data-base, fim da vigência da CCT e reajuste de cada empresa.' },
     { id: 'pendencias', nome: 'Cadastro incompleto', desc: 'O que falta no cadastro de cada empresa: CNPJ, código, tributação, responsável, sindicato, admissões.' },
   ];
   const REL_COM_PERIODO = new Set(['quadro', 'movimento', 'ferias', 'contratos', 'agenda', 'convencoes']);
-  function relPadrao() { const [de, ate] = evJanela(12); return { tipo: 'quadro', emp: 'todas', sel: [], resp: '', trib: '', sit: 'ativas', soComFunc: true, de, ate, grao: 'mes', formato: 'resumo', metrica: 'at', total: true, busca: '', mov: 'ambos', ferias: 'todos', agTipos: ['prazo', 'geral', 'lembrete', 'database', 'sindical', 'pessoal', 'onvio'], agrupar: 'nenhum', soPendentes: true }; }
+  // Hub 313 (Josué, 04/11/2026): os relatórios separam funcionários, pró-labore e RPA. "Quem conta" filtra; férias, experiência e admissão são só de funcionários.
+  const REL_VINC = [['todos', 'Todos'], ['func', 'Funcionários'], ['prolabore', 'Pró-labore'], ['rpa', 'RPA']];
+  const REL_COM_VINC = new Set(['ativos', 'quadro', 'movimento', 'carteira']);
+  const REL_SO_FUNC = new Set(['ferias', 'contratos']);
+  const relGrupos = (fs, conta) => { const g = { func: 0, prolabore: 0, rpa: 0 }; fs.forEach(f => { if (conta(f)) g[funcGrupo(f)]++; }); return g; };
+  const relGruposTxt = (g) => `${g.func} funcionário${g.func === 1 ? '' : 's'} · ${g.prolabore} pró-labore · ${g.rpa} RPA`;
+  // Saída que conta como desligamento: de funcionário, Desligado ou Inativo (fora da folha); de pró-labore e RPA, só Desligado (fora da folha num mês é Inativo, não sai da empresa)
+  const funcDesligou = (f) => funcFora(f) && (funcGrupo(f) === 'func' || funcStatus(f) === 'Desligado');
+  // Período por datas exatas ('AAAA-MM-DD'); modelos antigos guardaram 'AAAA-MM' e viram do 1º ao último dia do mês.
+  const relData = (v, fim) => { const s = String(v || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const m = /^(\d{4})-(\d{2})$/.exec(s); return m ? ymd(fim ? new Date(+m[1], +m[2], 0) : new Date(+m[1], +m[2] - 1, 1)) : ''; };
+  const relMes = (d, fim) => ymd(fim ? new Date(d.getFullYear(), d.getMonth() + 1, 0) : new Date(d.getFullYear(), d.getMonth(), 1));
+  function relAjustaDatas(R) { R.de = relData(R.de, false); R.ate = relData(R.ate, true); if (!/^\d{4}-\d{2}-\d{2}$/.test(R.data || '')) R.data = ymd(hoje()); return R; }
+  // Atalhos de período e de data: devolvem os campos que preenchem
+  const REL_ATALHOS_PER = [['mes', 'Este mês'], ['mesAnt', 'Mês passado'], ['prox', 'Próximo mês'], ['3m', 'Próximos 3 meses'], ['12m', 'Últimos 12 meses'], ['ano', 'Este ano'], ['ant', 'Ano passado']];
+  const REL_ATALHOS_DATA = [['hoje', 'Hoje'], ['fimMes', 'Fim do mês passado'], ['fimAno', 'Fim do ano passado']];
+  function relAtalho(k) {
+    const t = hoje(), y = t.getFullYear(), mes = (n) => new Date(y, t.getMonth() + n, 1);
+    if (k === 'hoje') return { data: ymd(t) };
+    if (k === 'fimMes') return { data: ymd(new Date(y, t.getMonth(), 0)) };
+    if (k === 'fimAno') return { data: `${y - 1}-12-31` };
+    if (k === '12m') return { de: relMes(mes(-11)), ate: relMes(t, true) };
+    if (k === 'mes') return { de: relMes(t), ate: relMes(t, true) };
+    if (k === 'mesAnt') return { de: relMes(mes(-1)), ate: relMes(mes(-1), true) };
+    if (k === 'prox') return { de: relMes(mes(1)), ate: relMes(mes(1), true) };
+    if (k === '3m') return { de: relMes(t), ate: relMes(mes(2), true) };
+    if (k === 'ano') return { de: `${y}-01-01`, ate: `${y}-12-31` };
+    return { de: `${y - 1}-01-01`, ate: `${y - 1}-12-31` };
+  }
+  const relAtalhoEmUso = (R, k) => Object.entries(relAtalho(k)).every(([c, v]) => R[c] === v);
+  // Data digitada só vale quando está completa (o campo de data avisa a cada número: "0002" no meio do ano não pode virar relatório)
+  const relDataValida = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); return !!m && +m[1] >= 1900 && +m[1] <= 2100; };
+  function relPadrao() { const t = hoje(); return { tipo: 'quadro', data: ymd(t), emp: 'todas', sel: [], resp: '', trib: '', sit: 'ativas', soComFunc: true, de: relMes(new Date(t.getFullYear(), t.getMonth() - 11, 1)), ate: relMes(t, true), grao: 'mes', formato: 'resumo', metrica: 'at', total: true, busca: '', mov: 'ambos', ferias: 'todos', agTipos: ['prazo', 'geral', 'lembrete', 'database', 'sindical', 'pessoal', 'onvio'], agrupar: 'nenhum', soPendentes: true, vinc: 'todos' }; }
   state.dpRel = relPadrao();
   const relModelos = () => Array.isArray(state.prefs.dpRelModelos) ? state.prefs.dpRelModelos : [];
-  const relCom = (R) => ['quadro', 'movimento'].includes(R.tipo) && R.soComFunc;
+  const relCom = (R) => ['quadro', 'movimento', 'ativos'].includes(R.tipo) && R.soComFunc;
   function relEmpresas(R) {
     let l = state.dpEmpresas.slice();
     if (R.sit === 'ativas') l = l.filter(ativa);
@@ -2338,48 +2387,67 @@
     if (relCom(R)) l = l.filter(e => e.funcionarios.length);
     return l.sort(byNome);
   }
-  const relDe = (R) => { const [y, m] = R.de.split('-').map(Number); return new Date(y, m - 1, 1); };
-  const relAte = (R) => { const [y, m] = R.ate.split('-').map(Number); return new Date(y, m, 0); };
+  const relDe = (R) => parseYmd(relData(R.de, false));
+  const relAte = (R) => parseYmd(relData(R.ate, true));
   const relPeriodoTxt = (R) => `${fmtDMY(relDe(R))} a ${fmtDMY(relAte(R))}`;
   const relValor = (l, m) => m === 'saldo' ? l.ad - l.de : l[m];
   const relKpi = (v, l, s = '', cls = '') => ({ v, l, s, cls });
   const relFmt = (v) => typeof v === 'number' ? v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : String(v ?? '');
   // Cada gerador devolve { kpis, grafico?, cab, num (colunas numéricas), linhas: [{ id, c }], total?, titulo, sub, aviso? }.
   const REL_GER = {
+    ativos(R, emps) {
+      const d = parseYmd(R.data) || hoje(), dTxt = fmtDMY(d);
+      let semSaida = 0, semAdm = 0;
+      let linhas = emps.map(e => { let n = 0; const g = { func: 0, prolabore: 0, rpa: 0 }; e.funcionarios.forEach(f => { if (funcAtivoEm(f, d)) { n++; g[funcGrupo(f)]++; if (!f.admissao && funcGrupo(f) === 'func') semAdm++; } else if (funcFora(f) && !funcSaida(f) && !(parseYmd(f.admissao) > d)) semSaida++; }); return { e, n, g }; });
+      if (R.soComFunc) linhas = linhas.filter(x => x.n > 0);
+      const tot = linhas.reduce((s, x) => s + x.n, 0), tg = linhas.reduce((s, x) => ({ func: s.func + x.g.func, prolabore: s.prolabore + x.g.prolabore, rpa: s.rpa + x.g.rpa }), { func: 0, prolabore: 0, rpa: 0 });
+      if (R.agrupar === 'resp') linhas.sort((x, y) => ptCmp(respEf(x.e) || 'zz', respEf(y.e) || 'zz') || byNome(x.e, y.e)); else if (R.agrupar === 'maior') linhas.sort((x, y) => (y.n - x.n) || byNome(x.e, y.e));
+      const top = linhas.filter(x => x.n > 0).sort((x, y) => y.n - x.n).slice(0, 15);
+      const porResp = new Map(); linhas.forEach(x => { const k = respEf(x.e) || 'Sem responsável'; porResp.set(k, (porResp.get(k) || 0) + x.n); });
+      const graf = [{ titulo: `Ativos em ${dTxt} · maiores empresas`, tipo: 'barraEmpilhada', rotuloCat: 'Empresa', cats: top.map(x => nomeCurto(x.e)), series: [{ nome: 'Funcionários', vals: top.map(x => x.g.func), cor: G_AZUL }, { nome: 'Pró-labore', vals: top.map(x => x.g.prolabore), cor: G_AMBAR }, { nome: 'RPA', vals: top.map(x => x.g.rpa), cor: G_AZUL2 }] }];
+      if (tg.prolabore || tg.rpa) graf.push(gRosca(`Ativos em ${dTxt} por vínculo`, 'Vínculo', [['Funcionários', tg.func, G_AZUL], ['Pró-labore', tg.prolabore, G_AMBAR], ['RPA', tg.rpa, G_AZUL2]]));
+      if (porResp.size > 1) graf.push(gBarra(`Ativos em ${dTxt} por responsável`, 'Responsável', grafTop(porResp, 15), 'Ativos', G_AZUL2));
+      return { graf, kpis: [relKpi(tot, `ativos em ${dTxt}`, 'funcionários, pró-labore e RPA'), relKpi(tg.func, 'funcionários', 'empregados e estagiários'), relKpi(tg.prolabore, 'pró-labore', 'sócios com folha', 'ad'), relKpi(tg.rpa, 'RPA', 'autônomos com folha'), relKpi(linhas.filter(x => x.n > 0).length, 'empresas com ativos')],
+        cab: ['Empresa', 'CNPJ', 'Responsável', 'Funcionários', 'Pró-labore', 'RPA', `Total em ${dTxt}`], num: [3, 4, 5, 6], barra: 6,
+        linhas: linhas.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', respEf(x.e) || '', x.g.func, x.g.prolabore, x.g.rpa, x.n] })), total: R.total ? [`Total (${linhas.length} empresa${linhas.length === 1 ? '' : 's'})`, '', '', tg.func, tg.prolabore, tg.rpa, tot] : null,
+        titulo: `Ativos em ${dTxt}`, aviso: evAviso({ semSaida, semAdm }).replace('não entram nos períodos anteriores (a evolução passada pode estar um pouco baixa)', 'não contam nesta data (o número pode estar um pouco baixo)') };
+    },
     quadro(R, emps) {
       const per = evPeriodos(R.de, R.ate, R.grao); if (!per.length) return { erro: 'O período escolhido ainda não começou.' };
       const linhas = evContar(emps, per), tot = evTotal(linhas, per), met = REL_METRICAS.find(x => x[0] === R.metrica);
-      const kpis = [relKpi(tot.fim, 'ativos no fim', `eram ${tot.ini} no início`), relKpi(evNum(tot.vari), 'variação', evPct(tot.pct), tot.vari > 0 ? 'up' : tot.vari < 0 ? 'down' : ''), relKpi(tot.ad, 'admissões', '', 'ad'), relKpi(tot.de, 'desligamentos', '', 'de'), relKpi(tot.rot == null ? '—' : evPct(tot.rot).replace('+', ''), 'rotatividade', 'desligamentos ÷ média de ativos')];
-      const grafico = evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 200, rotulos: 14, label: 'Total do relatório por período' });
+      const kpis = [relKpi(tot.fim, 'ativos no fim', `${relGruposTxt(tot.fimG)} · eram ${tot.ini} no início`), relKpi(evNum(tot.vari), 'variação', evPct(tot.pct), tot.vari > 0 ? 'up' : tot.vari < 0 ? 'down' : ''), relKpi(tot.ad, 'admissões', '', 'ad'), relKpi(tot.de, 'desligamentos', '', 'de'), relKpi(tot.rot == null ? '—' : evPct(tot.rot).replace('+', ''), 'rotatividade', 'desligamentos ÷ média de ativos')];
+      const grafico = evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 200, rotulos: 14, label: 'Total do relatório por período' }), graf = relGrafQuadro(per, linhas, tot);
       if (R.formato === 'resumo') {
-        const cab = ['Empresa', 'CNPJ', 'Responsável', `Ativos em ${fmtDMY(addDays(per[0].ini, -1))}`, `Ativos em ${fmtDMY(per[per.length - 1].ref)}`, 'Variação', 'Variação %', 'Admissões', 'Desligamentos', 'Rotatividade %'];
-        const lin = (r, a, b, c) => [a, b, c, r.ini, r.fim, r.vari, r.pct == null ? '' : +r.pct.toFixed(1), r.ad, r.de, r.rot == null ? '' : +r.rot.toFixed(1)];
-        return { kpis, grafico, cab, num: [3, 4, 5, 6, 7, 8, 9], linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e), r.e.cnpj || '', respEf(r.e) || '') })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`, '', '') : null,
-          titulo: 'Quadro de funcionários · resumo por empresa', aviso: evAviso(tot) };
+        const dFim = fmtDMY(per[per.length - 1].ref), cab = ['Empresa', 'Responsável', `Ativos em ${fmtDMY(addDays(per[0].ini, -1))}`, `Ativos em ${dFim}`, 'Funcionários', 'Pró-labore', 'RPA', 'Variação', 'Admissões', 'Desligamentos', 'Rotatividade %'];
+        const lin = (r, a, c) => [a, c, r.ini, r.fim, r.fimG.func, r.fimG.prolabore, r.fimG.rpa, r.vari, r.ad, r.de, r.rot == null ? '' : +r.rot.toFixed(1)];
+        return { kpis, grafico, graf, cab, num: [2, 3, 4, 5, 6, 7, 8, 9, 10], barra: 3, linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e), respEf(r.e) || '') })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`, '') : null,
+          titulo: 'Quadro de funcionários · resumo por empresa', aviso: [evAviso(tot), `Funcionários, pró-labore e RPA: os ativos em ${dFim}. Pró-labore e RPA fora da folha num mês ficam inativos e não contam como desligamento`].filter(Boolean).join('. ') };
       }
-      const m = R.metrica, cab = ['Empresa', 'CNPJ', ...per.map(p => p.rot + (p.parcial ? '*' : ''))]; if (m !== 'at') cab.push('Total');
-      const lin = (r, a, b) => { const v = r.lin.map(l => relValor(l, m)); return [a, b, ...v, ...(m !== 'at' ? [v.reduce((x, y) => x + y, 0)] : [])]; };
-      return { kpis, grafico, cab, num: cab.map((_, i) => i).slice(2), linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e), r.e.cnpj || '') })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`, '') : null,
+      const m = R.metrica, cab = ['Empresa', ...per.map(p => p.rot + (p.parcial ? '*' : ''))]; if (m !== 'at') cab.push('Total');
+      const lin = (r, a) => { const v = r.lin.map(l => relValor(l, m)); return [a, ...v, ...(m !== 'at' ? [v.reduce((x, y) => x + y, 0)] : [])]; };
+      return { kpis, grafico, graf, cab, num: cab.map((_, i) => i).slice(1), linhas: linhas.map(r => ({ id: r.e.id, c: lin(r, nomeCurto(r.e)) })), total: R.total ? lin(tot, `Total (${linhas.length} empresas)`) : null,
         titulo: `Quadro de funcionários · ${met ? met[1].toLowerCase() : ''} por ${R.grao === 'tri' ? 'trimestre' : R.grao === 'ano' ? 'ano' : 'mês'}`, aviso: evAviso(tot) + (per.some(p => p.parcial) ? (evAviso(tot) ? '. ' : '') + '* período em andamento: conta até hoje' : '') };
     },
     movimento(R, emps) {
       const a = relDe(R), b = relAte(R), out = [];
       emps.forEach(e => e.funcionarios.forEach(f => {
-        const adm = parseYmd(f.admissao), sai = funcStatus(f) === 'Desligado' ? funcSaida(f) : null;
+        const adm = parseYmd(f.admissao), sai = funcFora(f) ? funcSaida(f) : null, inat = funcStatus(f) === 'Inativo';
         if (R.mov !== 'desl' && adm && adm >= a && adm <= b) out.push({ e, f, t: 'Admissão', d: adm });
-        if (R.mov !== 'adm' && sai && sai >= a && sai <= b) out.push({ e, f, t: 'Desligamento', d: sai });
+        if (R.mov !== 'adm' && sai && sai >= a && sai <= b) out.push({ e, f, t: inat ? 'Saiu da folha (inativo)' : 'Desligamento', d: sai, conta: funcDesligou(f) });
       }));
       out.sort((x, y) => (x.d - y.d) || byNome(x.e, y.e) || ptCmp(x.f.nome || '', y.f.nome || ''));
-      const nA = out.filter(x => x.t === 'Admissão').length, nD = out.length - nA;
+      const nA = out.filter(x => x.t === 'Admissão').length, nD = out.filter(x => x.t !== 'Admissão' && x.conta).length, nI = out.filter(x => x.t !== 'Admissão' && !x.conta).length;
       const per = evPeriodos(R.de, R.ate, R.grao), tot = per.length ? evTotal(evContar(emps, per), per) : null;
-      return { kpis: [relKpi(nA, 'admissões', '', 'ad'), relKpi(nD, 'desligamentos', '', 'de'), relKpi(evNum(nA - nD), 'saldo', '', nA > nD ? 'up' : nA < nD ? 'down' : ''), relKpi(new Set(out.map(x => x.e.id)).size, 'empresas com movimento')],
-        grafico: tot ? evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 170, rotulos: 14 }) : '', cab: ['Data', 'Movimento', 'Funcionário', 'Cargo', 'Empresa', 'CNPJ'], num: [],
-        linhas: out.map(x => ({ id: x.e.id, c: [fmtDMY(x.d), x.t, x.f.nome || '', x.f.cargo || '', nomeCurto(x.e), x.e.cnpj || ''] })), titulo: R.mov === 'adm' ? 'Admissões do período' : R.mov === 'desl' ? 'Desligamentos do período' : 'Admissões e desligamentos', aviso: tot ? evAviso(tot) : '' };
+      const graf = relGrafMov(out, per, tot);
+      const vincRot = { func: 'Funcionário', prolabore: 'Pró-labore', rpa: 'RPA' };
+      return { graf, kpis: [relKpi(nA, 'admissões', '', 'ad'), relKpi(nD, 'desligamentos', 'funcionários desligados ou fora da folha', 'de'), ...(nI ? [relKpi(nI, 'pró-labore e RPA sem folha', 'inativos, não contam como desligamento')] : []), relKpi(evNum(nA - nD), 'saldo', '', nA > nD ? 'up' : nA < nD ? 'down' : ''), relKpi(new Set(out.map(x => x.e.id)).size, 'empresas com movimento')],
+        grafico: tot ? evGraficoHtml(per, tot, { id: 'r', w: 1200, h: 170, rotulos: 14 }) : '', cab: ['Data', 'Movimento', 'Nome', 'Vínculo', 'Cargo', 'Empresa'], num: [],
+        linhas: out.map(x => ({ id: x.e.id, c: [fmtDMY(x.d), x.t, x.f.nome || '', vincRot[funcGrupo(x.f)], x.f.cargo || '', nomeCurto(x.e)] })), titulo: R.mov === 'adm' ? 'Admissões do período' : R.mov === 'desl' ? 'Desligamentos do período' : 'Admissões e desligamentos', aviso: tot ? evAviso(tot) : '' };
     },
     ferias(R, emps) {
       const a = relDe(R), b = relAte(R), t = hoje(), out = [];
       emps.forEach(e => e.funcionarios.forEach(f => {
-        if (funcStatus(f) === 'Desligado') return;
+        if (funcFora(f)) return;
         const fi = parseYmd(f.feriasInicio), ff = parseYmd(f.feriasFim), conc = funcEventos(f).find(ev => ev.tipo === 'concessivo');
         const sit = [];
         if (fi && ff && fi <= t && t <= ff) sit.push('Em férias');
@@ -2392,7 +2460,8 @@
       }));
       out.sort((x, y) => (y.venc - x.venc) || ((x.conc || x.fi || t) - (y.conc || y.fi || t)) || byNome(x.e, y.e));
       const c = (s) => out.filter(x => x.sit.includes(s)).length;
-      return { kpis: [relKpi(c('Em férias'), 'em férias hoje'), relKpi(c('Programada no período') + c('Saiu de férias no período'), 'férias no período', '', 'ad'), relKpi(c('Concessivo vence no período'), 'concessivo vence no período', '', 'de'), relKpi(c('Vencidas'), 'férias vencidas', 'concessivo já encerrado', c('Vencidas') ? 'down' : '')],
+      const graf = relGrafFerias(out, a, b, c);
+      return { graf, kpis: [relKpi(c('Em férias'), 'em férias hoje'), relKpi(c('Programada no período') + c('Saiu de férias no período'), 'férias no período', '', 'ad'), relKpi(c('Concessivo vence no período'), 'concessivo vence no período', '', 'de'), relKpi(c('Vencidas'), 'férias vencidas', 'concessivo já encerrado', c('Vencidas') ? 'down' : '')],
         cab: ['Funcionário', 'Empresa', 'Admissão', 'Início das férias', 'Fim das férias', 'Fim do concessivo', 'Situação'], num: [],
         linhas: out.map(x => ({ id: x.e.id, c: [x.f.nome || '', nomeCurto(x.e), fmtDateStr(x.f.admissao), x.fi ? fmtDMY(x.fi) : '', x.ff ? fmtDMY(x.ff) : '', x.conc ? fmtDMY(x.conc) : '', x.sit.join(' · ')] })), titulo: 'Férias', aviso: 'O concessivo é calculado pela admissão (ou pelo período aquisitivo informado) e pelas últimas férias registradas no Hub' };
     },
@@ -2404,7 +2473,8 @@
       })));
       out.sort((x, y) => (x.ev.d - y.ev.d) || byNome(x.e, y.e));
       const c = (re) => out.filter(x => re.test(x.ev.txt)).length;
-      return { kpis: [relKpi(c(/experiência \(45/), 'fins de experiência (45 dias)'), relKpi(c(/experiência \(90/), 'fins de experiência (90 dias)'), relKpi(c(/Último dia/), 'desligamentos', '', 'de'), relKpi(c(/pagar a rescisão/), 'rescisões a pagar')],
+      const graf = relGrafContratos(out, a, b);
+      return { graf, kpis: [relKpi(c(/experiência \(45/), 'fins de experiência (45 dias)'), relKpi(c(/experiência \(90/), 'fins de experiência (90 dias)'), relKpi(c(/Último dia/), 'desligamentos', '', 'de'), relKpi(c(/pagar a rescisão/), 'rescisões a pagar')],
         cab: ['Data', 'O quê', 'Funcionário', 'Admissão', 'Empresa', 'Responsável'], num: [],
         linhas: out.map(x => ({ id: x.e.id, c: [fmtDMY(x.ev.d), x.ev.txt, x.f.nome || '', fmtDateStr(x.f.admissao), nomeCurto(x.e), respEf(x.e) || ''] })), titulo: 'Experiência e rescisões' };
     },
@@ -2413,46 +2483,162 @@
       relForcaPessoal = true; let evs; try { evs = eventosCalc(a, b, emps); } finally { relForcaPessoal = false; }
       evs = evs.filter(ev => tipos.has(ev.tipo)).map(ev => ev.emps ? { ...ev, emps: ev.emps.filter(e => ids.has(e.id)) } : ev).filter(ev => !ev.emps || ev.emps.length);
       const porTipo = {}; evs.forEach(ev => { porTipo[ev.tipo] = (porTipo[ev.tipo] || 0) + 1; });
-      return { kpis: [relKpi(evs.length, 'datas no período'), ...Object.keys(porTipo).sort((x, y) => porTipo[y] - porTipo[x]).slice(0, 4).map(k => relKpi(porTipo[k], TIPOS[k] || k))],
+      const graf = relGrafAgenda(evs, a, b, porTipo);
+      return { graf, kpis: [relKpi(evs.length, 'datas no período'), ...Object.keys(porTipo).sort((x, y) => porTipo[y] - porTipo[x]).slice(0, 4).map(k => relKpi(porTipo[k], TIPOS[k] || k))],
         cab: ['Data', 'Dia', 'Tipo', 'O quê', 'Empresa', 'Detalhe'], num: [],
         linhas: evs.map(ev => ({ id: ev.empresa ? ev.empresa.id : '', c: [fmtDMY(ev.d), wd(ev.d), TIPOS[ev.tipo] || ev.tipo, ev.titulo || '', ev.empresa ? nomeCurto(ev.empresa) : ev.emps ? `${ev.emps.length} empresa${ev.emps.length === 1 ? '' : 's'}` : '', String(ev.sub || '').replace(/\s+/g, ' ').slice(0, 160)] })), titulo: 'Agenda do período' };
     },
     carteira(R, emps) {
-      const at = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
-      const linhas = emps.map(e => ({ e, r: respEf(e) || 'Sem responsável', n: at(e) }));
+      const linhas = emps.map(e => { const g = relGrupos(e.funcionarios, funcConta); return { e, r: respEf(e) || 'Sem responsável', n: g.func + g.prolabore + g.rpa, g }; });
       if (R.agrupar === 'resp') linhas.sort((x, y) => ptCmp(x.r, y.r) || byNome(x.e, y.e)); else if (R.agrupar === 'trib') linhas.sort((x, y) => ptCmp(x.e.tributacao || 'zz', y.e.tributacao || 'zz') || byNome(x.e, y.e));
       const porResp = {}; linhas.forEach(x => { const k = x.r; porResp[k] = porResp[k] || { emp: 0, f: 0 }; porResp[k].emp++; porResp[k].f += x.n; });
       const maxE = Math.max(1, ...Object.values(porResp).map(v => v.emp));
-      const grafico = `<div class="rel-barras">${Object.keys(porResp).sort((x, y) => porResp[y].emp - porResp[x].emp).map(k => `<div class="rel-barra"><span>${escapeHtml(k)}</span><i style="width:${Math.max(2, porResp[k].emp / maxE * 100).toFixed(1)}%"></i><b>${porResp[k].emp}</b><small>${porResp[k].f} func.</small></div>`).join('')}</div>`;
-      const totF = linhas.reduce((n, x) => n + x.n, 0);
-      return { kpis: [relKpi(linhas.length, 'empresas'), relKpi(linhas.filter(x => ativa(x.e)).length, 'ativas'), relKpi(totF, 'funcionários ativos'), relKpi(linhas.filter(x => x.r === 'Sem responsável').length, 'sem responsável', '', linhas.some(x => x.r === 'Sem responsável') ? 'down' : '')],
-        grafico, cab: ['Empresa', 'CNPJ', 'Código', 'Código Domínio', 'Tributação', 'Responsável', 'Situação', 'Data-base', 'Funcionários ativos'], num: [8],
-        linhas: linhas.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', x.e.cod || '', x.e.codigoDominio || '', x.e.tributacao || '', x.r, x.e.situacao || '', basesEmpresa(x.e).join(', '), x.n] })), total: R.total ? [`Total (${linhas.length} empresas)`, '', '', '', '', '', '', '', totF] : null, titulo: 'Carteira de empresas' };
+      const grafico = `<div class="rel-barras">${Object.keys(porResp).sort((x, y) => porResp[y].emp - porResp[x].emp).map(k => `<div class="rel-barra"><span>${escapeHtml(k)}</span><i style="width:${Math.max(2, porResp[k].emp / maxE * 100).toFixed(1)}%"></i><b>${porResp[k].emp}</b><small>${porResp[k].f} ativos</small></div>`).join('')}</div>`;
+      const totF = linhas.reduce((n, x) => n + x.n, 0), tg = linhas.reduce((s, x) => ({ func: s.func + x.g.func, prolabore: s.prolabore + x.g.prolabore, rpa: s.rpa + x.g.rpa }), { func: 0, prolabore: 0, rpa: 0 }), graf = relGrafCarteira(linhas);
+      return { graf, kpis: [relKpi(linhas.length, 'empresas'), relKpi(linhas.filter(x => ativa(x.e)).length, 'ativas'), relKpi(totF, 'ativos', relGruposTxt(tg)), relKpi(linhas.filter(x => x.r === 'Sem responsável').length, 'sem responsável', '', linhas.some(x => x.r === 'Sem responsável') ? 'down' : '')],
+        grafico, ...(() => { const sit = R.sit !== 'ativas', cab = ['Empresa', 'CNPJ', 'Tributação', 'Responsável', ...(sit ? ['Situação'] : []), 'Funcionários', 'Pró-labore', 'RPA', 'Total de ativos'], u = cab.length - 1;
+          return { cab, num: [u - 3, u - 2, u - 1, u], barra: u, linhas: linhas.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', x.e.tributacao || '', x.r, ...(sit ? [x.e.situacao || 'Ativa'] : []), x.g.func, x.g.prolabore, x.g.rpa, x.n] })), total: R.total ? [`Total (${linhas.length} empresas)`, ...Array(u - 4).fill(''), tg.func, tg.prolabore, tg.rpa, totF] : null }; })(), titulo: 'Carteira de empresas' };
     },
     convencoes(R, emps) {
       const a = relDe(R), b = relAte(R), mesesP = new Set(); for (let d = new Date(a); d <= b; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) mesesP.add(MESES[d.getMonth()]);
       const out = emps.map(e => { const ss = empresaSinds(e), bases = basesEmpresa(e); return { e, ss, bases, noPer: bases.some(x => mesesP.has(x)), vig: ss.map(s => parseYmd(s.vigFim)).filter(Boolean).sort((x, y) => x - y)[0] || null }; })
         .filter(x => !R.soPendentes || x.noPer || (x.vig && x.vig >= a && x.vig <= b));
       out.sort((x, y) => (MESES.indexOf(x.bases[0]) - MESES.indexOf(y.bases[0])) || byNome(x.e, y.e));
-      return { kpis: [relKpi(out.length, 'empresas'), relKpi(out.filter(x => x.noPer).length, 'com data-base no período', '', 'ad'), relKpi(out.filter(x => x.vig && x.vig >= a && x.vig <= b).length, 'CCT vence no período', '', 'de'), relKpi(out.filter(x => !x.ss.length).length, 'sem sindicato vinculado', '', out.some(x => !x.ss.length) ? 'down' : '')],
+      const graf = relGrafConv(out, a, b);
+      return { graf, kpis: [relKpi(out.length, 'empresas'), relKpi(out.filter(x => x.noPer).length, 'com data-base no período', '', 'ad'), relKpi(out.filter(x => x.vig && x.vig >= a && x.vig <= b).length, 'CCT vence no período', '', 'de'), relKpi(out.filter(x => !x.ss.length).length, 'sem sindicato vinculado', '', out.some(x => !x.ss.length) ? 'down' : '')],
         cab: ['Empresa', 'Sindicato(s)', 'Data-base', 'Fim da vigência da CCT', 'Reajuste', 'Responsável'], num: [],
         linhas: out.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.ss.map(rotuloSind).join(' · ') || 'sem sindicato vinculado', x.bases.join(', ') || '—', x.ss.map(s => s.vigFim ? fmtDateStr(s.vigFim) : '').filter(Boolean).join(', '), x.ss.map(s => s.percentual || '').filter(Boolean).join(', '), respEf(x.e) || ''] })),
         titulo: R.soPendentes ? 'Data-base e CCT no período' : 'Convenções e data-base', aviso: R.soPendentes ? 'Só as empresas com data-base ou fim de CCT entre ' + relPeriodoTxt(R) : '' };
     },
     pendencias(R, emps) {
-      const faltas = (e) => { const f = []; if (!cnpjValido(e.cnpj)) f.push(e.cnpj ? 'CNPJ/CPF inválido' : 'sem CNPJ'); if (!e.codigoDominio) f.push('sem código Domínio'); if (!e.tributacao) f.push('sem tributação'); if (!e.responsavel) f.push('sem responsável'); if (!empresaSinds(e).length && !basesEmpresa(e).length) f.push('sem sindicato/data-base'); const semAdm = e.funcionarios.filter(x => funcStatus(x) !== 'Desligado' && !x.admissao).length; if (semAdm) f.push(`${semAdm} funcionário(s) sem admissão`); return f; };
+      const faltas = (e) => { const f = []; if (!cnpjValido(e.cnpj)) f.push(e.cnpj ? 'CNPJ/CPF inválido' : 'sem CNPJ'); if (!e.codigoDominio) f.push('sem código Domínio'); if (!e.tributacao) f.push('sem tributação'); if (!e.responsavel) f.push('sem responsável'); if (!empresaSinds(e).length && !basesEmpresa(e).length) f.push('sem sindicato/data-base'); const semAdm = e.funcionarios.filter(x => funcConta(x) && funcGrupo(x) === 'func' && !x.admissao).length; if (semAdm) f.push(`${semAdm} funcionário(s) sem admissão`); return f; };
       const out = emps.map(e => ({ e, f: faltas(e) })).filter(x => x.f.length).sort((x, y) => (y.f.length - x.f.length) || byNome(x.e, y.e));
-      const c = (re) => out.filter(x => x.f.some(t => re.test(t))).length;
-      return { kpis: [relKpi(out.length, 'empresas com pendência', `de ${emps.length}`, out.length ? 'down' : 'up'), relKpi(c(/CNPJ/), 'CNPJ'), relKpi(c(/código/), 'código Domínio'), relKpi(c(/tributação/), 'tributação'), relKpi(c(/responsável/), 'responsável'), relKpi(c(/sindicato/), 'sindicato/data-base')],
+      const c = (re) => out.filter(x => x.f.some(t => re.test(t))).length, graf = relGrafPend(out, emps, c);
+      return { graf, kpis: [relKpi(out.length, 'empresas com pendência', `de ${emps.length}`, out.length ? 'down' : 'up'), relKpi(c(/CNPJ/), 'CNPJ'), relKpi(c(/código/), 'código Domínio'), relKpi(c(/tributação/), 'tributação'), relKpi(c(/responsável/), 'responsável'), relKpi(c(/sindicato/), 'sindicato/data-base')],
         cab: ['Empresa', 'CNPJ', 'Responsável', 'Pendências', 'Quantas'], num: [4], linhas: out.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', respEf(x.e) || '', x.f.join(' · '), x.f.length] })), titulo: 'Cadastro incompleto' };
     },
   };
+  // ---- gráficos da planilha (Excel): cada relatório diz quais números viram gráfico; a planilha.js desenha os gráficos nativos do Excel ----
+  const G_AZUL = '3C659B', G_VERDE = '167A45', G_VERM = 'C2000C', G_AZUL2 = '6BAAC9', G_AMBAR = 'B5530C', G_CINZA = '5F6D77';
+  const grafContar = (itens, chave) => { const m = new Map(); itens.forEach(x => { const k = chave(x); if (k == null || k === '') return; m.set(k, (m.get(k) || 0) + 1); }); return m; };
+  const grafTop = (m, n = 12) => [...m.entries()].sort((a, b) => b[1] - a[1] || ptCmp(String(a[0]), String(b[0]))).slice(0, n);
+  const grafMeses = (a, b) => { const out = []; for (let d = new Date(a.getFullYear(), a.getMonth(), 1); d <= b && out.length < 36; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) out.push({ k: mesStr(d), rot: `${MES_ABR[d.getMonth()]}/${String(d.getFullYear()).slice(2)}` }); return out; };
+  const gBarra = (titulo, rotuloCat, pares, nome, cor, formato) => ({ titulo, tipo: 'barra', rotuloCat, cats: pares.map(p => String(p[0])), series: [{ nome, vals: pares.map(p => p[1]), cor }], formato });
+  const gRosca = (titulo, rotuloCat, trios) => { const t = trios.filter(x => x[1] > 0); return { titulo, tipo: 'rosca', rotuloCat, cats: t.map(x => String(x[0])), cores: t.map((x, i) => x[2] || [G_AZUL, G_VERDE, G_AMBAR, G_AZUL2, G_VERM, '6250D6', G_CINZA][i % 7]), series: [{ nome: 'Quantidade', vals: t.map(x => x[1]) }] }; };
+  const gTopOutros = (m, n = 6) => { const l = grafTop(m, 999); return l.length <= n ? l : [...l.slice(0, n - 1), ['Outras', l.slice(n - 1).reduce((s, x) => s + x[1], 0)]]; };
+  const gPorMes = (meses, itens, dataDe) => { const idx = new Map(meses.map((m, i) => [m.k, i])), v = meses.map(() => 0); itens.forEach(x => { const d = dataDe(x); if (!d) return; const i = idx.get(mesStr(d)); if (i != null) v[i]++; }); return v; };
+  function relGrafQuadro(per, linhas, tot) {
+    const cats = per.map(p => p.rot + (p.parcial ? '*' : '')), g = [];
+    if (per.length > 1) g.push({ titulo: 'Ativos no fim de cada período', tipo: 'linha', rotuloCat: 'Período', cats, series: [{ nome: 'Ativos', vals: tot.lin.map(l => l.at), cor: G_AZUL }] });
+    g.push({ titulo: 'Admissões × desligamentos por período', tipo: 'coluna', rotuloCat: 'Período', cats, series: [{ nome: 'Admissões', vals: tot.lin.map(l => l.ad), cor: G_VERDE }, { nome: 'Desligamentos', vals: tot.lin.map(l => l.de), cor: G_VERM }] });
+    g.push(gBarra('Empresas com mais funcionários ativos', 'Empresa', linhas.filter(r => r.fim > 0).sort((a, b) => b.fim - a.fim).slice(0, 12).map(r => [nomeCurto(r.e), r.fim]), 'Ativos no fim', G_AZUL));
+    g.push(gBarra('Maior rotatividade no período (%)', 'Empresa', linhas.filter(r => r.rot != null && r.rot > 0).sort((a, b) => b.rot - a.rot).slice(0, 10).map(r => [nomeCurto(r.e), +r.rot.toFixed(1)]), 'Rotatividade %', G_AMBAR, '0.0"%"'));
+    const vari = linhas.filter(r => r.vari).sort((a, b) => Math.abs(b.vari) - Math.abs(a.vari)).slice(0, 10);
+    if (vari.length) g.push({ titulo: 'Maiores variações do quadro (fim − início)', tipo: 'barra', rotuloCat: 'Empresa', cats: vari.map(r => nomeCurto(r.e)), series: [{ nome: 'Variação', vals: vari.map(r => r.vari), cor: G_AZUL2 }], formato: '+#,##0;-#,##0;0' });
+    return g;
+  }
+  function relGrafMov(out, per, tot) {
+    const g = [], cats = per.map(p => p.rot + (p.parcial ? '*' : ''));
+    if (tot && per.length) g.push({ titulo: 'Admissões × desligamentos por período', tipo: 'coluna', rotuloCat: 'Período', cats, series: [{ nome: 'Admissões', vals: tot.lin.map(l => l.ad), cor: G_VERDE }, { nome: 'Desligamentos', vals: tot.lin.map(l => l.de), cor: G_VERM }] });
+    const por = new Map(); out.forEach(x => { const k = nomeCurto(x.e), v = por.get(k) || [0, 0]; v[x.t === 'Admissão' ? 0 : 1]++; por.set(k, v); });
+    const top = [...por.entries()].sort((a, b) => (b[1][0] + b[1][1]) - (a[1][0] + a[1][1])).slice(0, 12);
+    g.push({ titulo: 'Empresas com mais movimento', tipo: 'barraEmpilhada', rotuloCat: 'Empresa', cats: top.map(x => x[0]), series: [{ nome: 'Admissões', vals: top.map(x => x[1][0]), cor: G_VERDE }, { nome: 'Desligamentos', vals: top.map(x => x[1][1]), cor: G_VERM }] });
+    const nA = out.filter(x => x.t === 'Admissão').length;
+    g.push(gRosca('Admissões e desligamentos', 'Movimento', [['Admissões', nA, G_VERDE], ['Desligamentos', out.length - nA, G_VERM]]));
+    g.push(gBarra('Cargos mais contratados', 'Cargo', grafTop(grafContar(out.filter(x => x.t === 'Admissão'), x => String(x.f.cargo || '').trim() || null), 10), 'Admissões', G_VERDE));
+    return g;
+  }
+  function relGrafFerias(out, a, b, c) {
+    const meses = grafMeses(a, b), noPer = (d) => d && d >= a && d <= b;
+    return [
+      gRosca('Situação das férias', 'Situação', [['Em férias hoje', c('Em férias'), G_AZUL2], ['Férias no período', c('Programada no período') + c('Saiu de férias no período'), G_VERDE], ['Concessivo vence no período', c('Concessivo vence no período'), G_AMBAR], ['Vencidas', c('Vencidas'), G_VERM]]),
+      { titulo: 'Férias e concessivos por mês', tipo: 'coluna', rotuloCat: 'Mês', cats: meses.map(m => m.rot), series: [{ nome: 'Férias que começam', vals: gPorMes(meses, out, x => noPer(x.fi) ? x.fi : null), cor: G_VERDE }, { nome: 'Concessivos que vencem', vals: gPorMes(meses, out, x => noPer(x.conc) ? x.conc : null), cor: G_AMBAR }] },
+      gBarra('Empresas com férias vencidas', 'Empresa', grafTop(grafContar(out.filter(x => x.venc), x => nomeCurto(x.e)), 12), 'Vencidas', G_VERM),
+      gBarra('Empresas com mais férias no período', 'Empresa', grafTop(grafContar(out.filter(x => x.sit.some(s => /Programada|Saiu/.test(s))), x => nomeCurto(x.e)), 12), 'Férias', G_VERDE),
+    ];
+  }
+  function relGrafContratos(out, a, b) {
+    const tipoDe = (t) => /experiência \(45/.test(t) ? 'Experiência (45 dias)' : /experiência \(90/.test(t) ? 'Experiência (90 dias)' : /Último dia/.test(t) ? 'Último dia' : /pagar a rescisão/.test(t) ? 'Pagar a rescisão' : 'Outros';
+    const tipos = [['Experiência (45 dias)', G_AZUL2], ['Experiência (90 dias)', G_AZUL], ['Último dia', G_VERM], ['Pagar a rescisão', G_AMBAR], ['Outros', G_CINZA]], meses = grafMeses(a, b);
+    const series = tipos.map(([t, cor]) => ({ nome: t, vals: gPorMes(meses, out.filter(x => tipoDe(x.ev.txt) === t), x => x.ev.d), cor })).filter(s => s.vals.some(v => v));
+    return [
+      { titulo: 'Prazos por mês', tipo: 'colunaEmpilhada', rotuloCat: 'Mês', cats: meses.map(m => m.rot), series },
+      gRosca('Prazos por tipo', 'Tipo', tipos.map(([t, cor]) => [t, out.filter(x => tipoDe(x.ev.txt) === t).length, cor])),
+      gBarra('Prazos por responsável', 'Responsável', grafTop(grafContar(out, x => respEf(x.e) || 'Sem responsável'), 15), 'Prazos', G_AZUL),
+      gBarra('Empresas com mais prazos', 'Empresa', grafTop(grafContar(out, x => nomeCurto(x.e)), 12), 'Prazos', G_AZUL2),
+    ];
+  }
+  function relGrafAgenda(evs, a, b, porTipo) {
+    const meses = grafMeses(a, b), g = [gBarra('Datas por tipo', 'Tipo', Object.keys(porTipo).sort((x, y) => porTipo[y] - porTipo[x]).map(k => [TIPOS[k] || k, porTipo[k]]), 'Datas', G_AZUL)];
+    if (meses.length > 1) g.push({ titulo: 'Datas por mês', tipo: 'coluna', rotuloCat: 'Mês', cats: meses.map(m => m.rot), series: [{ nome: 'Datas', vals: gPorMes(meses, evs, x => x.d), cor: G_AZUL2 }] });
+    else { const ult = new Date(a.getFullYear(), a.getMonth() + 1, 0).getDate(), v = Array.from({ length: ult }, () => 0); evs.forEach(x => { if (x.d.getMonth() === a.getMonth() && x.d.getFullYear() === a.getFullYear()) v[x.d.getDate() - 1]++; }); g.push({ titulo: 'Datas por dia do mês', tipo: 'coluna', rotuloCat: 'Dia', cats: v.map((_, i) => String(i + 1)), series: [{ nome: 'Datas', vals: v, cor: G_AZUL2 }] }); }
+    const porEmp = new Map(); evs.forEach(x => (x.empresa ? [x.empresa] : x.emps || []).forEach(e => { const k = nomeCurto(e); porEmp.set(k, (porEmp.get(k) || 0) + 1); }));
+    g.push(gBarra('Empresas com mais datas', 'Empresa', grafTop(porEmp, 12), 'Datas', G_AZUL));
+    return g;
+  }
+  function relGrafCarteira(linhas) {
+    const pr = new Map(); linhas.forEach(x => { const v = pr.get(x.r) || [0, 0]; v[0]++; v[1] += x.n; pr.set(x.r, v); });
+    const l = [...pr.entries()].sort((a, b) => b[1][0] - a[1][0] || ptCmp(a[0], b[0])).slice(0, 15), lf = [...pr.entries()].sort((a, b) => b[1][1] - a[1][1] || ptCmp(a[0], b[0])).slice(0, 15);
+    return [
+      gBarra('Empresas por responsável', 'Responsável', l.map(x => [x[0], x[1][0]]), 'Empresas', G_AZUL),
+      gBarra('Ativos por responsável (funcionários, pró-labore e RPA)', 'Responsável', lf.map(x => [x[0], x[1][1]]), 'Ativos', G_AZUL2),
+      gRosca('Empresas por tributação', 'Tributação', gTopOutros(grafContar(linhas, x => x.e.tributacao || 'Sem tributação'), 6)),
+      gRosca('Situação das empresas', 'Situação', [...grafContar(linhas, x => x.e.situacao || 'Ativa').entries()].map(([k, v]) => [k, v, k === 'Ativa' ? G_VERDE : k === 'Inativa' ? G_VERM : G_AMBAR])),
+    ];
+  }
+  function relGrafConv(out, a, b) {
+    const meses = grafMeses(a, b), com = out.filter(x => x.ss.length).length;
+    return [
+      { titulo: 'Empresas por mês de data-base', tipo: 'coluna', rotuloCat: 'Mês', cats: MESES.map(m => m.slice(0, 3)), series: [{ nome: 'Empresas', vals: MESES.map(m => out.filter(x => x.bases.includes(m)).length), cor: G_AZUL }] },
+      { titulo: 'Fim da vigência da CCT por mês', tipo: 'coluna', rotuloCat: 'Mês', cats: meses.map(m => m.rot), series: [{ nome: 'Empresas', vals: gPorMes(meses, out, x => x.vig && x.vig >= a && x.vig <= b ? x.vig : null), cor: G_AMBAR }] },
+      gRosca('Sindicato vinculado', 'Vínculo', [['Com sindicato', com, G_VERDE], ['Sem sindicato', out.length - com, G_VERM]]),
+    ];
+  }
+  function relGrafPend(out, emps, c) {
+    return [
+      gBarra('Empresas por tipo de pendência', 'Pendência', [['CNPJ', c(/CNPJ/)], ['Código Domínio', c(/código/)], ['Tributação', c(/tributação/)], ['Responsável', c(/responsável/)], ['Sindicato / data-base', c(/sindicato/)], ['Funcionário sem admissão', c(/sem admissão/)]].sort((x, y) => y[1] - x[1]), 'Empresas', G_VERM),
+      gRosca('Cadastros', 'Situação', [['Completos', emps.length - out.length, G_VERDE], ['Com pendência', out.length, G_VERM]]),
+      gBarra('Empresas com pendência por responsável', 'Responsável', grafTop(grafContar(out, x => respEf(x.e) || 'Sem responsável'), 15), 'Empresas', G_AMBAR),
+    ];
+  }
+  // Planilha com o visual do Hub (planilha.js: SpreadsheetML + gráficos nativos do Excel, sem biblioteca de fora): Painel, Dados, Base dos gráficos e Sobre
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  async function gerarPlanilhaHub(spec) {
+    await carregarScriptExt('planilha.js', 'Não foi possível carregar o gerador de planilhas. Use o CSV.');
+    if (!window.HubPlanilha) throw new Error('O gerador de planilhas não carregou. Use o CSV.');
+    return window.HubPlanilha.gerar(spec);
+  }
+  // Colunas com data (dd/mm/aaaa) viram data de verdade na planilha, para filtrar e ordenar
+  function planilhaDatas(cab, linhas) {
+    const datas = [], re = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    cab.forEach((_, i) => {
+      const vs = linhas.map(l => l[i]).filter(v => v !== '' && v != null);
+      if (!vs.length || !vs.every(v => typeof v === 'string' && re.test(v))) return;
+      datas.push(i); linhas.forEach(l => { const m = re.exec(l[i] || ''); if (m) l[i] = new Date(+m[3], +m[2] - 1, +m[1]); });
+    });
+    return datas;
+  }
+  function relPlanilhaSpec(res) {
+    const R = res.R, tipo = REL_TIPOS.find(t => t.id === res.tipo), linhas = res.linhas.map(l => l.c.slice()), datas = planilhaDatas(res.cab, linhas);
+    const pct = res.cab.map((c, i) => /%\s*$/.test(c) ? i : -1).filter(i => i >= 0), sinal = res.cab.map((c, i) => c === 'Variação' ? i : -1).filter(i => i >= 0);
+    const num = res.num.filter(i => !pct.includes(i) && !sinal.includes(i));
+    const empTxt = R.emp === 'sel' ? `${R.sel.length} escolhida${R.sel.length === 1 ? '' : 's'}` : R.emp === 'carteira' ? 'da carteira ' + (state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira || '(nenhuma escolhida)') : 'Todas';
+    // no Resumo só aparecem os filtros que restringem algo (o período e a data já estão no subtítulo)
+    const filtros = [R.emp !== 'todas' ? ['Empresas', empTxt] : null, R.sit !== 'ativas' ? ['Situação', 'incluindo inativas'] : null].filter(Boolean);
+    const notas = [res.aviso].filter(Boolean).map(t => /\.$/.test(t) ? t : t + '.');
+    const barra = res.barra != null ? res.barra : num.length === 1 ? num[0] : null;
+    return { titulo: res.titulo, subtitulo: res.sub, modulo: 'Departamento Pessoal · Relatórios', kpis: res.kpis.map(k => ({ v: k.v, l: k.l, s: k.s, tom: k.cls })), graficos: res.graf || [],
+      tabela: { titulo: res.titulo, cab: res.cab, linhas, total: res.total ? res.total.slice() : null, num, pct, sinal, datas, barras: barra != null ? [barra] : [] }, filtros, notas };
+  }
   function relGerar() {
-    const R = state.dpRel, tipo = REL_TIPOS.find(t => t.id === R.tipo) || REL_TIPOS[0];
-    if (REL_COM_PERIODO.has(tipo.id) && (!R.de || !R.ate || R.de > R.ate)) return { erro: 'Escolha o período: o mês inicial precisa vir antes do final.' };
-    const emps = relEmpresas(R); if (!emps.length) return { erro: 'Nenhuma empresa com esses filtros.' };
+    const R = relAjustaDatas(state.dpRel), tipo = REL_TIPOS.find(t => t.id === R.tipo) || REL_TIPOS[0];
+    if (REL_COM_PERIODO.has(tipo.id) && (!R.de || !R.ate || R.de > R.ate)) return { erro: 'Escolha o período: a data inicial precisa vir antes da final.' };
+    let emps = relEmpresas(R); if (!emps.length) return { erro: 'Nenhuma empresa com esses filtros.' };
+    const so = REL_SO_FUNC.has(tipo.id) ? 'func' : REL_COM_VINC.has(tipo.id) && R.vinc && R.vinc !== 'todos' ? R.vinc : '';
+    if (so) { emps = emps.map(e => ({ ...e, funcionarios: e.funcionarios.filter(f => funcGrupo(f) === so) })); if (relCom(R)) emps = emps.filter(e => e.funcionarios.length); if (!emps.length) return { erro: 'Nenhuma empresa com esses filtros.' }; }
     const r = REL_GER[tipo.id](R, emps); if (r.erro) return r;
-    const sub = [REL_COM_PERIODO.has(tipo.id) ? relPeriodoTxt(R) : 'situação de hoje', `${emps.length} empresa${emps.length === 1 ? '' : 's'}`, R.emp === 'carteira' && state.dpCarteira ? 'carteira de ' + (state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira) : '', R.resp ? 'responsável: ' + (R.resp === SEM_RESP ? 'sem responsável' : R.resp) : '', R.trib, `gerado em ${fmtDMY(new Date())}`].filter(Boolean).join(' · ');
+    if (so && REL_COM_VINC.has(tipo.id)) { const nome = (REL_VINC.find(v => v[0] === so) || [])[1]; r.titulo += ` · só ${nome.toLowerCase()}`; }
+    const sub = [REL_COM_PERIODO.has(tipo.id) ? relPeriodoTxt(R) : tipo.id === 'ativos' ? '' : 'situação de hoje', `${emps.length} empresa${emps.length === 1 ? '' : 's'}`, R.emp === 'carteira' && state.dpCarteira ? 'carteira de ' + (state.dpCarteira === SEM_RESP ? 'sem responsável' : state.dpCarteira) : '', R.resp ? 'responsável: ' + (R.resp === SEM_RESP ? 'sem responsável' : R.resp) : '', R.trib, `gerado em ${fmtDMY(new Date())}`].filter(Boolean).join(' · ');
     return { ...r, tipo: tipo.id, sub, R: JSON.parse(JSON.stringify(R)) };
   }
   // ---- tela ----
@@ -2463,8 +2649,10 @@
     const q = norm(R.busca || ''), sel = new Set(R.sel);
     const cand = R.emp === 'sel' ? state.dpEmpresas.filter(e => (R.sit !== 'ativas' || ativa(e)) && (!q || norm([e.nome, nomeCurto(e), e.cnpj, e.cod].join(' ')).includes(q))).sort(byNome) : [];
     const comPer = REL_COM_PERIODO.has(R.tipo);
+    const atalhos = (lista) => `<div class="rel-atalhos" role="group" aria-label="Atalhos">${lista.map(([k, l]) => { const on = relAtalhoEmUso(R, k); return `<button type="button" class="rel-chip${on ? ' on' : ''}" aria-pressed="${on}" data-rel-atalho="${k}">${l}</button>`; }).join('')}</div>`;
     let opcoes = '';
-    if (R.tipo === 'quadro') opcoes = `${seg('formato', [['resumo', 'Resumo por empresa'], ['matriz', 'Período a período']])}
+    if (R.tipo === 'ativos') opcoes = `${seg('agrupar', [['nenhum', 'Por nome'], ['maior', 'Maiores primeiro'], ['resp', 'Por responsável']])}<label class="rel-ck"><input type="checkbox" data-rel="total"${R.total ? ' checked' : ''}> Linha de total</label>`;
+    else if (R.tipo === 'quadro') opcoes = `${seg('formato', [['resumo', 'Resumo por empresa'], ['matriz', 'Período a período']])}
       <div class="rel-linha"><label class="field">Agrupar por<select data-rel="grao">${EV_GRAOS.map(([g, l]) => opt(g, l, R.grao)).join('')}</select></label>${R.formato === 'matriz' ? `<label class="field">Em cada período<select data-rel="metrica">${REL_METRICAS.map(([v, l]) => opt(v, l, R.metrica)).join('')}</select></label>` : ''}</div>
       <label class="rel-ck"><input type="checkbox" data-rel="total"${R.total ? ' checked' : ''}> Linha de total</label>`;
     else if (R.tipo === 'movimento') opcoes = `${seg('mov', [['ambos', 'Admissões e desligamentos'], ['adm', 'Só admissões'], ['desl', 'Só desligamentos']])}<div class="rel-linha"><label class="field">Gráfico por<select data-rel="grao">${EV_GRAOS.map(([g, l]) => opt(g, l, R.grao)).join('')}</select></label></div>`;
@@ -2480,19 +2668,22 @@
         <div class="rel-linha"><label class="field">Responsável<select data-rel="resp">${opt('', 'Todos', R.resp)}${opt(SEM_RESP, 'Sem responsável', R.resp)}${resps.map(r => opt(r, r, R.resp)).join('')}</select></label>
           <label class="field">Tributação<select data-rel="trib">${opt('', 'Todas', R.trib)}${tribs.map(t => opt(t, t, R.trib)).join('')}</select></label>
           <label class="field">Situação<select data-rel="sit">${opt('ativas', 'Só ativas', R.sit)}${opt('todas', 'Incluir inativas', R.sit)}</select></label></div>
-        ${['quadro', 'movimento'].includes(R.tipo) ? `<label class="rel-ck"><input type="checkbox" data-rel="soComFunc"${R.soComFunc ? ' checked' : ''}> Só empresas com funcionários</label>` : ''}
+        ${REL_COM_VINC.has(R.tipo) ? `<div class="rel-linha"><span class="dp-cell-sub">Quem conta</span>${seg('vinc', REL_VINC)}</div>` : REL_SO_FUNC.has(R.tipo) ? '<p class="dp-cell-sub" style="margin:0">Só funcionários (pró-labore e RPA não têm férias nem experiência).</p>' : ''}
+        ${['quadro', 'movimento', 'ativos'].includes(R.tipo) ? `<label class="rel-ck"><input type="checkbox" data-rel="soComFunc"${R.soComFunc ? ' checked' : ''}> ${R.tipo === 'ativos' ? 'Só empresas com ativos na data' : 'Só empresas com pessoas cadastradas'}</label>` : ''}
         ${R.emp === 'sel' ? `<div class="rel-esc"><div class="rel-esc-bar"><input type="search" data-rel="busca" placeholder="Buscar empresa, CNPJ ou código…" value="${escapeHtml(R.busca || '')}" autocomplete="off"><span class="dp-cell-sub">${sel.size} escolhida${sel.size === 1 ? '' : 's'}</span><button type="button" class="linkish" data-rel-marcar="1">Marcar as listadas</button><button type="button" class="linkish" data-rel-marcar="0">Limpar</button></div>
-          <div class="rel-esc-lista">${cand.slice(0, 300).map(e => `<label class="rel-ck"><input type="checkbox" data-rel-emp-id="${escapeHtml(e.id)}"${sel.has(e.id) ? ' checked' : ''}> ${escapeHtml(nomeCurto(e))} <small>${e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length} func.</small></label>`).join('') || '<div class="dp-cell-sub">Nenhuma empresa.</div>'}</div></div>` : ''}
+          <div class="rel-esc-lista">${cand.slice(0, 300).map(e => `<label class="rel-ck"><input type="checkbox" data-rel-emp-id="${escapeHtml(e.id)}"${sel.has(e.id) ? ' checked' : ''}> ${escapeHtml(nomeCurto(e))} <small>${e.funcionarios.filter(funcConta).length} ativos</small></label>`).join('') || '<div class="dp-cell-sub">Nenhuma empresa.</div>'}</div></div>` : ''}
       </div>
-      <div class="rel-bloco"><h4>Período</h4>${comPer ? `
-        <div class="rel-linha"><label class="field">De<input type="month" data-rel="de" value="${escapeHtml(R.de)}"></label><label class="field">Até<input type="month" data-rel="ate" value="${escapeHtml(R.ate)}"></label></div>
-        <div class="rel-atalhos">${[['mes', 'Este mês'], ['prox', 'Próximo mês'], ['3m', 'Próximos 3 meses'], ['12m', 'Últimos 12 meses'], ['ano', 'Este ano'], ['ant', 'Ano passado']].map(([k, l]) => `<button type="button" class="linkish" data-rel-atalho="${k}">${l}</button>`).join('')}</div>` : '<p class="dp-cell-sub" style="margin:0">Este relatório mostra a situação de hoje.</p>'}
-        <h4 style="margin-top:6px">Opções</h4>${opcoes}
+      <div class="rel-bloco"><h4>${R.tipo === 'ativos' ? 'Data' : 'Período'}</h4>${comPer ? `
+        <div class="rel-datas"><label class="field">De<input type="date" data-rel="de" value="${escapeHtml(R.de)}" min="1900-01-01" max="2100-12-31"></label><label class="field">Até<input type="date" data-rel="ate" value="${escapeHtml(R.ate)}" min="1900-01-01" max="2100-12-31"></label></div>
+        ${atalhos(REL_ATALHOS_PER)}` : R.tipo === 'ativos' ? `
+        <div class="rel-datas"><label class="field">Ativos em<input type="date" data-rel="data" value="${escapeHtml(R.data)}" min="1900-01-01" max="2100-12-31"></label></div>
+        ${atalhos(REL_ATALHOS_DATA)}` : '<p class="dp-cell-sub" style="margin:0">Este relatório mostra a situação de hoje.</p>'}
       </div>
+      <div class="rel-bloco"><h4>Opções</h4>${opcoes}</div>
       <div class="rel-acoes">
         ${modelos.length ? `<select data-rel-modelo aria-label="Modelos salvos"><option value="">Modelos salvos…</option>${modelos.map((m, i) => `<option value="${i}">${escapeHtml(m.nome)}</option>`).join('')}</select><button type="button" class="linkish" data-rel-modelo-del>apagar modelo</button>` : ''}
         <button type="button" class="btn btn-sm" data-rel-salvar>Salvar como modelo</button><span class="spacer"></span>
-        <button type="button" class="btn btn-sm btn-primary" data-rel-baixar="pdf">${ic('download', 'ic-sm')} Gerar PDF</button><button type="button" class="btn btn-sm" data-rel-baixar="xlsx">Gerar Excel</button><button type="button" class="btn btn-sm" data-rel-baixar="csv">CSV</button><button type="button" class="btn btn-sm" data-rel-imprimir>Imprimir</button>
+        <button type="button" class="btn btn-sm btn-primary" data-rel-baixar="pdf">${ic('download', 'ic-sm')} Gerar PDF</button><button type="button" class="btn btn-sm" data-rel-baixar="xlsx" title="Planilha com o visual do Hub: aba Resumo (números principais e gráficos) e aba Dados (a lista com filtro)">Gerar Excel</button><button type="button" class="btn btn-sm" data-rel-baixar="csv">CSV</button><button type="button" class="btn btn-sm" data-rel-imprimir>Imprimir</button>
       </div></div>`;
   }
   function relResultadoHtml(res) {
@@ -2513,12 +2704,17 @@
     const R = state.dpRel, res = relGerar(); state.dpRelRes = res;
     const at = document.activeElement, foco = at && at.dataset && at.dataset.rel === 'busca' ? [at.selectionStart, at.selectionEnd] : null;
     root.innerHTML = `<div class="rel-tipos" role="tablist" aria-label="Tipo de relatório">${REL_TIPOS.map(t => `<button type="button" role="tab" class="rel-tipo${R.tipo === t.id ? ' on' : ''}" aria-selected="${R.tipo === t.id}" data-rel-tipo="${t.id}"><b>${escapeHtml(t.nome)}</b><span>${escapeHtml(t.desc)}</span></button>`).join('')}</div>
-      ${relFiltrosHtml()}<div class="rel-status" id="dp-rel-status" hidden></div>${relResultadoHtml(res)}`;
+      ${relFiltrosHtml()}<div class="rel-status" id="dp-rel-status" hidden></div><div id="dp-rel-res">${relResultadoHtml(res)}</div>`;
     if (foco) { const b = $('[data-rel="busca"]', root); if (b) { b.focus(); try { b.setSelectionRange(foco[0], foco[1]); } catch {} } }
+  }
+  function relAtualizarResultado() {
+    const box = $('#dp-rel-res'); if (!box) { renderDpRelatorios(); return; }
+    const res = relGerar(); state.dpRelRes = res; box.innerHTML = relResultadoHtml(res);
+    $$('[data-rel-atalho]').forEach(b => { const on = relAtalhoEmUso(state.dpRel, b.dataset.relAtalho); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   }
   function relStatus(msg) { const el = $('#dp-rel-status'); if (!el) return; el.hidden = !msg; el.textContent = msg || ''; }
   // ---- arquivos ----
-  const relNomeArq = (res) => `dp-${res.tipo}-${REL_COM_PERIODO.has(res.tipo) ? res.R.de + '-a-' + res.R.ate : hojeArq()}`;
+  const relNomeArq = (res) => `dp-${res.tipo}-${REL_COM_PERIODO.has(res.tipo) ? res.R.de + '-a-' + res.R.ate : res.tipo === 'ativos' ? res.R.data : hojeArq()}`;
   const relLinhasArq = (res) => [[res.titulo], [res.sub], [], res.cab, ...res.linhas.map(l => l.c), ...(res.total ? [res.total] : [])];
   async function relBaixar(tipo) {
     const res = state.dpRelRes; if (!res || res.erro) { toast('Ajuste os filtros: não há relatório para baixar.'); return; }
@@ -2526,15 +2722,8 @@
     if (tipo === 'csv') { offerFile(`${nome}.csv`, toCsv(relLinhasArq(res)), 'text/csv'); return; }
     try {
       if (tipo === 'xlsx') {
-        relStatus('Montando a planilha…');
-        await carregarScriptExt(URL_XLSX, 'Não foi possível carregar o gerador de planilhas. Use o CSV.');
-        const X = window.XLSX, rows = relLinhasArq(res), ws = X.utils.aoa_to_sheet(rows), wb = X.utils.book_new();
-        ws['!cols'] = res.cab.map((c, i) => ({ wch: Math.min(48, Math.max(10, String(c).length + 2, ...res.linhas.slice(0, 200).map(l => String(l.c[i] ?? '').length + 1))) }));
-        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, res.cab.length - 1) } }, { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(0, res.cab.length - 1) } }];
-        X.utils.book_append_sheet(wb, ws, 'Relatório');
-        const ind = X.utils.aoa_to_sheet([['Indicador', 'Valor', 'Detalhe'], ...res.kpis.map(k => [k.l, k.v, k.s || ''])]); ind['!cols'] = [{ wch: 34 }, { wch: 12 }, { wch: 36 }];
-        X.utils.book_append_sheet(wb, ind, 'Indicadores');
-        offerFile(`${nome}.xlsx`, new Uint8Array(X.write(wb, { bookType: 'xlsx', type: 'array' })), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        relStatus('Montando a planilha com indicadores e gráficos…');
+        offerFile(`${nome}.xlsx`, await gerarPlanilhaHub(relPlanilhaSpec(res)), XLSX_MIME);
       } else { relStatus('Montando o PDF…'); await relPdf(res, nome); }
       relStatus('');
     } catch (e) { relStatus(''); toast((e && e.message) || 'Não foi possível gerar o arquivo. Use o CSV.'); }
@@ -2605,13 +2794,16 @@
   document.addEventListener('change', (e) => {
     const t = e.target; if (!naAbaRel(t)) return;
     const R = state.dpRel;
+    if (t.type === 'date' && t.dataset.rel) { if (relDataValida(t.value) && R[t.dataset.rel] !== t.value) { R[t.dataset.rel] = t.value; relAtualizarResultado(); } return; }
     if (t.dataset.rel && t.dataset.rel !== 'busca') R[t.dataset.rel] = t.type === 'checkbox' ? t.checked : t.value;
     else if (t.dataset.relEmpId) { const s = new Set(R.sel); if (t.checked) s.add(t.dataset.relEmpId); else s.delete(t.dataset.relEmpId); R.sel = [...s]; }
     else if (t.dataset.relAg) { const s = new Set(R.agTipos); if (t.checked) s.add(t.dataset.relAg); else s.delete(t.dataset.relAg); R.agTipos = [...s]; }
-    else if (t.hasAttribute('data-rel-modelo') && t.value !== '') { const m = relModelos()[+t.value]; if (!m) return; state.dpRel = { ...relPadrao(), ...m.R, busca: '' }; toast(`Modelo “${m.nome}” aplicado.`); }
+    else if (t.hasAttribute('data-rel-modelo') && t.value !== '') { const m = relModelos()[+t.value]; if (!m) return; state.dpRel = relAjustaDatas({ ...relPadrao(), ...m.R, busca: '' }); toast(`Modelo “${m.nome}” aplicado.`); }
     else return;
     renderDpRelatorios();
   });
+  document.addEventListener('focusout', (e) => { const t = e.target; if (t && t.type === 'date' && t.dataset && t.dataset.rel && naAbaRel(t) && t.value !== state.dpRel[t.dataset.rel]) t.value = state.dpRel[t.dataset.rel] || ''; });
+  document.addEventListener('keydown', (e) => { const t = e.target; if (e.key === 'Enter' && t && t.type === 'date' && t.dataset && t.dataset.rel && naAbaRel(t)) { e.preventDefault(); t.blur(); } });
   let relBuscaT = null;
   document.addEventListener('input', (e) => { const t = e.target; if (t && t.dataset && t.dataset.rel === 'busca' && naAbaRel(t)) { state.dpRel.busca = t.value; clearTimeout(relBuscaT); relBuscaT = setTimeout(renderDpRelatorios, 200); } });
   document.addEventListener('click', async (e) => {
@@ -2624,12 +2816,7 @@
     else if (b.dataset.relSet) R[b.dataset.relSet] = b.dataset.v;
     else if (b.dataset.relAtalho) {
       const k = b.dataset.relAtalho;
-      if (k === '12m') [R.de, R.ate] = evJanela(12);
-      else if (k === 'mes') R.de = R.ate = mesStr(t);
-      else if (k === 'prox') R.de = R.ate = mesStr(new Date(y, t.getMonth() + 1, 1));
-      else if (k === '3m') { R.de = mesStr(t); R.ate = mesStr(new Date(y, t.getMonth() + 2, 1)); }
-      else if (k === 'ano') { R.de = `${y}-01`; R.ate = `${y}-12`; }
-      else { R.de = `${y - 1}-01`; R.ate = `${y - 1}-12`; }
+      Object.assign(R, relAtalho(k));
     } else if (b.dataset.relMarcar) { const s = new Set(R.sel), q = norm(R.busca || ''); state.dpEmpresas.filter(x => (R.sit !== 'ativas' || ativa(x)) && (!q || norm([x.nome, nomeCurto(x), x.cnpj, x.cod].join(' ')).includes(q))).forEach(x => { if (b.dataset.relMarcar === '1') s.add(x.id); else s.delete(x.id); }); R.sel = [...s]; }
     else if (b.dataset.relBaixar) { relBaixar(b.dataset.relBaixar); return; }
     else if (b.hasAttribute('data-rel-imprimir')) { relImprimir(); return; }
@@ -2674,14 +2861,15 @@
 
   // uma passada só: situação e alertas de cada funcionário, somados por empresa
   function funcResumo(emps) {
-    const cards = [], tot = { n: 0, ativos: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Desligado': 0 };
+    const cards = [], tot = { n: 0, ativos: 0, prolabore: 0, rpa: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Inativo': 0, 'Desligado': 0 };
     emps.forEach(e => {
       if (!e.funcionarios.length) return;
-      const c = { e, n: 0, ativos: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Desligado': 0 };
-      e.funcionarios.forEach(f => { const st = funcStatus(f); c.n++; c[st] = (c[st] || 0) + 1; });
-      c.ativos = c.n - c['Desligado'];
+      const c = { e, n: 0, ativos: 0, prolabore: 0, rpa: 0, 'Ativo': 0, 'Férias': 0, 'Afastado': 0, 'Inativo': 0, 'Desligado': 0 };
+      // pró-labore e RPA ficam em grupos à parte (Josué, 04/11/2026): não somam nos funcionários
+      e.funcionarios.forEach(f => { const st = funcStatus(f), g = funcGrupo(f); if (g !== 'func' && !FUNC_FORA.has(st)) c[g]++; c.n++; c[st] = (c[st] || 0) + 1; });
+      c.ativos = c.n - c['Desligado'] - c['Inativo'];       // inclui pró-labore e RPA com folha no mês (c.prolabore e c.rpa dizem quantos)
       cards.push(c);
-      tot.n += c.n; tot.ativos += c.ativos; FN_ORDEM.forEach(k => { tot[k] += c[k]; });
+      tot.n += c.n; tot.ativos += c.ativos; tot.prolabore += c.prolabore; tot.rpa += c.rpa; FN_ORDEM.forEach(k => { tot[k] += c[k]; });
     });
     return { cards, tot };
   }
@@ -2691,15 +2879,16 @@
   const FN_FAIXAS = [[1, 9, 'até 9'], [10, 19, '10 a 19'], [20, 49, '20 a 49'], [50, 99, '50 a 99'], [100, Infinity, '100 ou mais']];
   const fnFaixa = (q) => Math.max(0, FN_FAIXAS.findIndex(([a, b]) => q >= a && q <= b));
   function funcCartao(c, max) {
-    const e = c.e, des = state.dpFuncFiltro === 'Desligado', q = des ? c['Desligado'] : c.ativos, t = fnFaixa(q);
-    return `<button type="button" class="fn-card t${t + 1}" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" title="Abrir ${escapeHtml(e.nome)} · ${q} ${des ? 'desligado(s)' : 'ativo(s)'}">
+    const e = c.e, fl = state.dpFuncFiltro, des = FUNC_FORA.has(fl), q = des ? c[fl] : c.ativos, t = fnFaixa(q), rot = des ? FN_ROT[fl][q === 1 ? 0 : 1] : (q === 1 ? 'ativo' : 'ativos');
+    const outros = des ? '' : [c.prolabore ? `${c.prolabore} pró-labore` : '', c.rpa ? `${c.rpa} RPA` : ''].filter(Boolean).join(' · ');      // já estão dentro dos ativos
+    return `<button type="button" class="fn-card t${t + 1}" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios" title="Abrir ${escapeHtml(e.nome)} · ${q} ${rot}${outros ? ' · inclui ' + outros : ''}">
       <div class="fn-top"><span class="fn-nome">${nomeEmpHtml(e)}</span></div>
-      <div class="fn-base"><div class="fn-qtd"><b>${q}</b><span>${des ? (q === 1 ? 'desligado' : 'desligados') : (q === 1 ? 'ativo' : 'ativos')}</span></div>
+      <div class="fn-base"><div class="fn-qtd"><b>${q}</b><span>${rot}</span>${outros ? `<span class="fn-outros">inclui ${escapeHtml(outros)}</span>` : ''}</div>
         <div class="fn-prop" aria-hidden="true"><i style="width:${Math.max(4, Math.round(q / Math.max(1, max) * 100))}%"></i></div></div>
     </button>`;
   }
   function fnLegendaFaixas(vis, des) {
-    const qtd = (c) => des ? c['Desligado'] : c.ativos, cont = FN_FAIXAS.map(() => 0);
+    const qtd = (c) => des ? c[state.dpFuncFiltro] || 0 : c.ativos, cont = FN_FAIXAS.map(() => 0);
     vis.forEach(c => { cont[fnFaixa(qtd(c))]++; });
     return `<div class="fn-faixas" role="group" aria-label="Faixas de quantidade">${FN_FAIXAS.map((f, i) => cont[i] ? `<span class="t${i + 1}"><i></i>${f[2]} <em>${cont[i]} empresa${cont[i] === 1 ? '' : 's'}</em></span>` : '').join('')}</div>`;
   }
@@ -2709,7 +2898,7 @@
     if (!state.dpLoaded) { container.innerHTML = ''; cardsEl.innerHTML = ''; resumoEl.innerHTML = ''; return; }
     const emps = empresasCarteira(), { cards, tot } = funcResumo(emps);
     const q = state.dpFuncQuery, busca = q.length >= 2, tempo = state.dpFuncModo === 'tempo';
-    const passa = (st, nAl, f) => !f ? st !== 'Desligado' : st === f;
+    const passa = (st, nAl, f) => !f ? !FUNC_FORA.has(st) : st === f;
     $$('[data-func-modo]').forEach(b => { const on = b.dataset.funcModo === state.dpFuncModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#dp-func-chips').innerHTML = FUNC_FILTROS.map(([v, l]) => `<button type="button" class="dp-chip${state.dpFuncFiltro === v ? ' on' : ''}" data-f="${v}">${l} <span class="n">${v === '' ? tot.ativos : tot[v]}</span></button>`).join('');
     $('#dp-func-search').placeholder = tempo ? 'Filtrar empresas pelo nome, CNPJ ou código…' : 'Buscar funcionário ou empresa…';
@@ -2720,7 +2909,8 @@
       container.innerHTML = '<div class="dp-empty"><strong>Nenhum funcionário cadastrado</strong><span>Abra uma empresa e use a aba Funcionários para cadastrar.</span></div>'; return;
     }
     // resumo geral: só a quantidade de ativos
-    resumoEl.innerHTML = `<div class="fn-resumo"><div class="fn-res-t"><b>${tot.ativos}</b> funcionários ativos em <b>${cards.filter(c => c.ativos).length}</b> empresa${cards.filter(c => c.ativos).length === 1 ? '' : 's'}</div></div>`;
+    const outrosTot = [tot.prolabore ? `<b>${tot.prolabore}</b> pró-labore` : '', tot.rpa ? `<b>${tot.rpa}</b> RPA (autônomos)` : ''].filter(Boolean).join(' · ');
+    resumoEl.innerHTML = `<div class="fn-resumo"><div class="fn-res-t"><b>${tot.ativos}</b> ativos em <b>${cards.filter(c => c.ativos).length}</b> empresa${cards.filter(c => c.ativos).length === 1 ? '' : 's'}${outrosTot ? `<span class="fn-res-outros">inclui ${outrosTot}</span>` : ''}</div></div>`;
     const anim = dpAnim('funcionarios');
     // ---- busca por nome (em qualquer modo, resultado em lista curta) ----
     if (busca && !tempo) {
@@ -2728,7 +2918,7 @@
       const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [], qd = cnpjClean(q);
       const empHay = (e) => norm([e.nome, nomeCurto(e), e.cod, e.codigoDominio, e.cnpj].join(' ')) + ' ' + cnpjClean(e.cnpj);
       const empAch = emps.filter(e => palavras.every(w => empHay(e).includes(w)) || (qd.length >= 4 && /^\d+$/.test(qd) && cnpjClean(e.cnpj).includes(qd)))
-        .map(e => ({ e, at: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
+        .map(e => ({ e, at: e.funcionarios.filter(funcConta).length })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
       emps.forEach(e => { const ne = empHay(e); e.funcionarios.forEach(f => { const pes = funcNorm(f) + ' ' + norm(f.cargo || ''), hay = pes + ' ' + ne; if (palavras.every(w => hay.includes(w)) && palavras.some(w => pes.includes(w))) ach.push({ f, e }); }); });
       const lista = ach.map(x => ({ ...x, status: funcStatus(x.f) })).filter(x => passa(x.status, 0, state.dpFuncFiltro))
         .sort((a, b) => ptCmp(a.f.nome || '', b.f.nome || '') || byNome(a.e, b.e));
@@ -2747,7 +2937,7 @@
       container.innerHTML = empHtml + (lista.length ? `<div class="fn-sec-h">Funcionários <span>${lista.length}</span></div>` : '') + mostra.map(({ f, e, status }) => {
         return `
       <div class="dp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
-        <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml(f.cargo || '')}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
+        <div><div class="dp-cell-main">${escapeHtml(f.nome || '—')}</div><div class="dp-cell-sub">${escapeHtml([funcGrupo(f) !== 'func' ? f.vinculo : '', f.cargo || ''].filter(Boolean).join(' · '))}<span class="dp-show-sm">${nomeEmpHtml(e)}</span></div></div>
         <div class="dp-hide-sm dp-cell-main" style="font-weight:500">${nomeEmpHtml(e)}</div>
         <div class="dp-hide-sm dp-mono" style="font-size:12px">${f.admissao ? escapeHtml(fmtDateStr(f.admissao)) : '—'}</div>
         <div><span class="pill ${FUNC_PILL[status] || ''}">${escapeHtml(status)}</span></div>
@@ -2768,7 +2958,7 @@
     }
     // ---- cartões por empresa ----
     $('#dp-func-tl').hidden = true; cardsEl.hidden = false;
-    const f = state.dpFuncFiltro, qtd = (c) => f === 'Desligado' ? c['Desligado'] : c.ativos;
+    const f = state.dpFuncFiltro, qtd = (c) => FUNC_FORA.has(f) ? c[f] || 0 : c.ativos;
     let vis = cards.filter(c => qtd(c) > 0);
     if (busca) { const w = norm(q).split(/\s+/).filter(Boolean); vis = vis.filter(c => { const ne = norm([c.e.nome, nomeCurto(c.e), c.e.cnpj].join(' ')); return w.every(x => ne.includes(x)); }); }
     vis.sort((a, b) => (qtd(b) - qtd(a)) || byNome(a.e, b.e));
@@ -2776,7 +2966,7 @@
     if (!vis.length) { cardsEl.innerHTML = '<div class="dp-empty">Nenhuma empresa neste filtro.</div>'; return; }
     const pag = vis.slice(0, state.dpFuncLim), resto = vis.length - pag.length;
     const maxQ = Math.max(1, ...vis.map(qtd));
-    cardsEl.innerHTML = fnLegendaFaixas(vis, f === 'Desligado') + `<div class="fn-grid">${pag.map(c => funcCartao(c, maxQ)).join('')}</div>` + (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '') + '<div class="fn-dica">Para achar uma pessoa ou uma empresa, digite o nome na busca.</div>';
+    cardsEl.innerHTML = fnLegendaFaixas(vis, FUNC_FORA.has(f)) + `<div class="fn-grid">${pag.map(c => funcCartao(c, maxQ)).join('')}</div>` + (resto > 0 ? `<div class="fn-mais"><button type="button" class="btn btn-sm" data-func-mais>Mostrar mais (${resto} empresas)</button></div>` : '') + '<div class="fn-dica">Para achar uma pessoa ou uma empresa, digite o nome na busca.</div>';
     marcarAnim(cardsEl, anim);
   }
   document.addEventListener('click', (e) => { if (e.target.closest('[data-func-mais]') && $('#view-dp') && !$('#dp-view-funcionarios').hidden) { state.dpFuncLim += FUNC_PAG; renderDpFuncionarios(); } });
@@ -2794,9 +2984,41 @@
   const hojeArq = () => ymd(new Date());
   $('#dp-btn-csv').addEventListener('click', () => {
     const rows = [['Código','Empresa','CNPJ','Tributação','Responsável','Cidade/UF','Data-base','Situação','Funcionários ativos','Próxima data','O quê','Contato','Adiantamento']];
-    visibleDpEmpresas().forEach(e => { const p = proxEmpresa(e); rows.push([e.cod, e.nome, e.cnpj, e.tributacao, e.responsavel, e.uf, basesEmpresa(e).join(', '), e.situacao, e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, p ? fmtDMY(p.d) : '', p?.titulo || '', e.contato, e.adiantamento]); });
+    visibleDpEmpresas().forEach(e => { const p = proxEmpresa(e); rows.push([e.cod, e.nome, e.cnpj, e.tributacao, e.responsavel, e.uf, basesEmpresa(e).join(', '), e.situacao, e.funcionarios.filter(funcConta).length, p ? fmtDMY(p.d) : '', p?.titulo || '', e.contato, e.adiantamento]); });
     offerFile(`dp-empresas-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   });
+  // Planilhas das telas Empresas e Funcionários, com o mesmo visual dos relatórios (painel, gráficos, lista com filtro)
+  // Planilhas das telas Empresas e Funcionários: Resumo (4 números + 2 gráficos) e Dados (só as colunas que se usam)
+  function dpEmpresasSpec() {
+    const emps = visibleDpEmpresas(), at = (e) => e.funcionarios.filter(funcConta).length;
+    const linhas = emps.map(e => [e.cod || '', nomeCurto(e), e.cnpj || '', e.tributacao || '', e.responsavel || '', e.situacao || 'Ativa', at(e)]);
+    const totF = linhas.reduce((n, l) => n + l[6], 0), semResp = emps.filter(e => !e.responsavel).length, semTrib = emps.filter(e => !e.tributacao).length;
+    const ls = emps.map(e => ({ e, r: e.responsavel || 'Sem responsável', n: at(e) }));
+    const g = [gBarra('Empresas com mais funcionários ativos', 'Empresa', ls.filter(x => x.n).sort((a, b) => b.n - a.n).slice(0, 12).map(x => [nomeCurto(x.e), x.n]), 'Funcionários', G_AZUL), relGrafCarteira(ls)[0]];
+    return { titulo: 'Empresas do Departamento Pessoal', subtitulo: `${emps.length} empresa${emps.length === 1 ? '' : 's'} (com os filtros da tela) · gerado em ${fmtDMY(new Date())}`, modulo: 'Departamento Pessoal · Empresas',
+      kpis: [{ v: emps.length, l: 'empresas' }, { v: totF, l: 'funcionários ativos', s: emps.length ? `média de ${(totF / emps.length).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} por empresa` : '' }, { v: semResp, l: 'sem responsável', tom: semResp ? 'down' : '' }, { v: semTrib, l: 'sem tributação', tom: semTrib ? 'down' : '' }],
+      graficos: g, tabela: { titulo: 'Empresas', cab: ['Código', 'Empresa', 'CNPJ', 'Tributação', 'Responsável', 'Situação', 'Funcionários ativos'], linhas, total: ['', `Total (${emps.length} empresas)`, '', '', '', '', totF], num: [6], datas: [], barras: [6] }, filtros: [], notas: [] };
+  }
+  function dpFuncSpec() {
+    const lista = allFuncionarios(), conta = (st) => lista.filter(x => x.status === st).length;
+    const linhas = lista.map(({ f, e, status }) => [f.nome || '', f.cargo || '', nomeCurto(e), parseYmd(f.admissao), status, parseYmd(f.rescisao)]);
+    const emps = [...new Set(lista.map(x => x.e))], [de, ate] = evJanela(12), per = evPeriodos(de, ate, 'mes'), tot = per.length ? evTotal(evContar(emps, per), per) : null;
+    const ativos = lista.filter(x => funcConta(x.f)), g = [];
+    if (tot) {
+      const cats = per.map(p => p.rot + (p.parcial ? '*' : ''));
+      g.push({ titulo: 'Ativos nos últimos 12 meses', tipo: 'linha', rotuloCat: 'Mês', cats, series: [{ nome: 'Ativos', vals: tot.lin.map(l => l.at), cor: G_AZUL }] });
+      g.push({ titulo: 'Admissões × desligamentos (12 meses)', tipo: 'coluna', rotuloCat: 'Mês', cats, series: [{ nome: 'Admissões', vals: tot.lin.map(l => l.ad), cor: G_VERDE }, { nome: 'Desligamentos', vals: tot.lin.map(l => l.de), cor: G_VERM }] });
+    }
+    g.push(gBarra('Empresas com mais funcionários ativos', 'Empresa', grafTop(grafContar(ativos, x => nomeCurto(x.e)), 12), 'Ativos', G_AZUL));
+    return { titulo: 'Funcionários do Departamento Pessoal', subtitulo: `${lista.length} funcionário${lista.length === 1 ? '' : 's'} de ${emps.length} empresa${emps.length === 1 ? '' : 's'} · gerado em ${fmtDMY(new Date())}`, modulo: 'Departamento Pessoal · Funcionários',
+      kpis: [{ v: ativos.length, l: 'ativos hoje', s: `de ${lista.length} cadastrados` }, { v: conta('Férias'), l: 'em férias hoje' }, ...(tot ? [{ v: tot.ad, l: 'admissões em 12 meses', tom: 'ad' }, { v: tot.de, l: 'desligamentos em 12 meses', tom: 'de' }] : [])],
+      graficos: g, tabela: { titulo: 'Funcionários', cab: ['Funcionário', 'Cargo', 'Empresa', 'Admissão', 'Situação', 'Rescisão'], linhas, total: null, num: [], datas: [3, 5], barras: [] }, filtros: [], notas: [] };
+  }
+  async function baixarPlanilhaDp(spec, nome) { try { toast('Montando a planilha…'); offerFile(nome, await gerarPlanilhaHub(spec()), XLSX_MIME); } catch (e) { toast((e && e.message) || 'Não foi possível gerar a planilha. Use o CSV.'); } }
+  { const b = $('#dp-btn-csv'); if (b) b.insertAdjacentHTML('beforebegin', `<button type="button" class="menu-item" id="dp-btn-xlsx">${ic('download', 'ic-sm')} Planilha das empresas (Excel com gráficos)</button>`); }
+  { const b = $('#dp-btn-func-csv'); if (b) b.insertAdjacentHTML('beforebegin', '<button type="button" class="btn btn-sm" id="dp-btn-func-xlsx" title="Planilha com o visual do Hub: indicadores, gráficos e a lista com filtros">Planilha (Excel)</button>'); }
+  $('#dp-btn-xlsx').addEventListener('click', (e) => { const d = e.target.closest('details'); if (d) d.open = false; baixarPlanilhaDp(dpEmpresasSpec, `dp-empresas-${hojeArq()}.xlsx`); });
+  $('#dp-btn-func-xlsx').addEventListener('click', () => baixarPlanilhaDp(dpFuncSpec, `dp-funcionarios-${hojeArq()}.xlsx`));
   $('#dp-btn-func-csv').addEventListener('click', () => {
     const rows = [['Funcionário','Cargo','Empresa','Admissão','Situação','Rescisão']];
     allFuncionarios().forEach(({ f, e, status }) => rows.push([f.nome, f.cargo, e.nome, fmtDateStr(f.admissao), status, fmtDateStr(f.rescisao)]));
@@ -2896,7 +3118,7 @@
     const sit = $('#dp-detail-sit');
     sit.className = `pill ${SIT_PILL[dpAtual.situacao] || ''}`;
     sit.textContent = dpDraft ? 'Rascunho' : dpAtual.situacao;
-    $('#dp-dtab-n-func').textContent = dpAtual.funcionarios.length ? ` ${dpAtual.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length}` : '';
+    $('#dp-dtab-n-func').textContent = dpAtual.funcionarios.length ? ` ${dpAtual.funcionarios.filter(funcConta).length}` : '';
     const nPrazos = dpAtual.lembretes.filter(l => { const d = parseYmd(l.data); return d && d >= hoje(); }).length + dpAtual.prazos.length;
     $('#dp-dtab-n-prazos').textContent = nPrazos ? ` ${nPrazos}` : '';
     $('#btn-dp-criar').hidden = !dpDraft;
@@ -3042,31 +3264,37 @@
     const fn = sec === 'funcionarios', editando = fn && dpEdit && dpEdit.sec === sec ? dpEdit.id : '';
     const desl = fn && state.dpFichaDesl && !editando;   // balão aberto (fecha ao abrir os dados de alguém)
     const ordNome = (a, b) => ptCmp(a.nome || '', b.nome || '');
-    const nAtivos = fn ? items.filter(f => funcStatus(f) !== 'Desligado').length : 0, nDesl = fn ? items.length - nAtivos : 0;
-    const listaDesl = fn ? items.filter(f => funcStatus(f) === 'Desligado').slice().sort(ordNome) : [];
-    if (fn) items = items.filter(f => funcStatus(f) !== 'Desligado' || f.id === editando).slice().sort(ordNome);
+    // Três grupos à parte (Josué, 04/11/2026): funcionários, pró-labore e RPA. Inativos (fora da última folha) e desligados ficam atrás do botão.
+    const nAtivos = fn ? items.filter(funcConta).length : 0, nFora = fn ? items.filter(funcFora).length : 0;
+    const listaDesl = fn ? items.filter(funcFora).slice().sort((a, b) => (funcStatus(a) === 'Inativo' ? 0 : 1) - (funcStatus(b) === 'Inativo' ? 0 : 1) || ordNome(a, b)) : [];
+    const grupos = { func: [], prolabore: [], rpa: [] };
+    if (fn) { items.filter(f => !funcFora(f) || f.id === editando).slice().sort(ordNome).forEach(f => grupos[funcGrupo(f)].push(f)); items = grupos.func; }
     const linha = (row) => {
       if (dpEdit && dpEdit.sec === sec && dpEdit.id === row.id) {
         return `<div class="dp-section-row editing" data-row="${escapeHtml(row.id)}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, row[f.key], 'edit')).join('')}<div class="dp-row-actions"><button type="button" class="btn btn-sm btn-primary" data-sec-save="${sec}" data-id="${escapeHtml(row.id)}">Salvar</button><button type="button" class="btn btn-sm" data-sec-cancel="${sec}">Cancelar</button></div></div>`;
       }
       const pelaCct = sec === 'estabelecimentos' && estabSinds(row).some(x => x.dataBase);
-      const cells = (fn ? ['nome', 'admissao', 'codigo'].map(k => cfg.fields.find(f => f.key === k)) : cfg.fields.filter((f, i) => (i === 0 || row[f.key] || f.type === 'regra' || f.uid) && !(pelaCct && f.key === 'dataBase'))).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
+      if (fn && funcFora(row)) row = { ...row, situacaoMotivo: row.situacaoMotivo || (row.rescisao ? 'Rescisão em ' + fmtDateStr(row.rescisao) : row.saidaEm ? 'Fora desde ' + fmtDateStr(row.saidaEm) + ' · motivo não registrado (marcado antes do Hub 311)' : 'Marcado à mão ou antes do Hub 311 · motivo não registrado') };
+      const cells = (fn ? ['nome', 'admissao', 'codigo'].concat(funcFora(row) ? ['status'] : []).map(k => cfg.fields.find(f => f.key === k)) : cfg.fields.filter((f, i) => (i === 0 || row[f.key] || f.type === 'regra' || f.uid) && !(pelaCct && f.key === 'dataBase'))).map(f => `<div class="dp-section-cell" style="flex:${f.width}"><span class="dp-section-cell-label">${escapeHtml(f.label)}</span><span class="dp-section-cell-val">${displayVal(f, row[f.key])}</span></div>`).join('');
       const actions = (ro || fn) ? '' : `<div class="dp-row-actions">${editable ? `<button type="button" class="icon-btn" data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Editar" title="Editar">${ic('edit', 'ic-sm')}</button>` : ''}<button type="button" class="icon-btn" data-sec-del="${sec}" data-id="${escapeHtml(row.id)}" aria-label="Remover" title="Remover">${ic('trash', 'ic-sm')}</button></div>`;
       // Funcionário: clicar na linha abre os dados (sem lápis e sem lixeira)
-      return `<div class="dp-section-row${fn ? ' fn-lin' : ''}"${fn ? ` data-busca="${escapeHtml(norm([row.nome, row.codigo, row.admissao, dmyIso(row.admissao)].join(' ')))}"` : ''}${fn && !ro ? ` data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" role="button" tabindex="0" title="Abrir os dados de ${escapeHtml(row.nome || 'funcionário')}"` : ''}>${fn ? cells + (ro ? '' : '<span class="fn-ir" aria-hidden="true">›</span>') : sec === 'estabelecimentos' ? cells + extraCells(sec, row) : extraCells(sec, row) + cells}${actions}</div>`;
+      return `<div class="dp-section-row${fn ? ' fn-lin' : ''}${fn && funcFora(row) ? ' com-motivo' : ''}"${fn ? ` data-busca="${escapeHtml(norm([row.nome, row.codigo, row.admissao, dmyIso(row.admissao)].join(' ')))}"` : ''}${fn && !ro ? ` data-sec-edit="${sec}" data-id="${escapeHtml(row.id)}" role="button" tabindex="0" title="Abrir os dados de ${escapeHtml(row.nome || 'funcionário')}"` : ''}>${fn ? cells + (ro ? '' : '<span class="fn-ir" aria-hidden="true">›</span>') + (funcFora(row) ? `<div class="fn-motivo"><b>Motivo:</b> ${escapeHtml(row.situacaoMotivo)}</div>` : '') : sec === 'estabelecimentos' ? cells + extraCells(sec, row) : extraCells(sec, row) + cells}${actions}</div>`;
     };
-    const rows = items.map(linha).join('');
+    // pró-labore e RPA primeiro (Josué, 04/11/2026), depois os funcionários
+    const outrosG = fn ? FUNC_GRUPOS.slice(1).filter(([g]) => grupos[g].length) : [];
+    const rows = (fn ? outrosG.map(([g, nome], i) => `<div class="fn-grupo-cab${i === 0 ? ' fn-grupo-1' : ''}">${escapeHtml(nome)} <em>${grupos[g].length}</em><span class="dp-cell-sub">${g === 'prolabore' ? 'sócios com pró-labore' : 'contribuintes autônomos'} · contam nos ativos enquanto têm folha no mês</span></div>` + grupos[g].map(linha).join('')).join('')
+      + (outrosG.length && items.length ? `<div class="fn-grupo-cab">Funcionários <em>${items.length}</em><span class="dp-cell-sub">empregados e estagiários</span></div>` : '') : '') + items.map(linha).join('');
     const addRow = ro ? '' : addAbertos.has(sec)
       ? `<div class="dp-add-row" data-add-wrap="${sec}">${cfg.fields.filter(f => !f.auto).map(f => fieldInput(sec, f, '', 'add')).join('')}<div class="dp-row-actions" style="align-self:flex-end"><button type="button" class="btn btn-sm btn-primary" data-sec-add="${sec}">${ic('plus', 'ic-sm')} Adicionar</button><button type="button" class="btn btn-sm" data-sec-fechar="${sec}">Fechar</button></div></div>`
       : `<div class="dp-add-row"><button type="button" class="btn btn-sm" data-sec-abrir="${sec}">${ic('plus', 'ic-sm')} ${escapeHtml(cfg.addLabel)}</button></div>`;
     const titulo = fn
-      ? `<div class="fn-cab-wrap"><div class="dlg-section-title fn-cab"><span>Funcionários <em>${nAtivos} ${nAtivos === 1 ? 'ativo' : 'ativos'}</em></span>@@BUSCA@@<button type="button" class="btn btn-sm" data-ficha-desl aria-expanded="${desl}" aria-haspopup="dialog">Desligados (${nDesl})</button></div>${desl ? `<div class="fn-pop" role="dialog" aria-label="Funcionários desligados"><div class="fn-pop-cab"><b>Desligados <em>${nDesl}</em></b><button type="button" class="icon-btn" data-ficha-desl-fechar aria-label="Fechar">${ic('x', 'ic-sm')}</button></div><div class="dp-section-rows">${listaDesl.map(linha).join('') || '<div class="empty-mini">Nenhum funcionário desligado.</div>'}</div></div>` : ''}</div>`
+      ? `<div class="fn-cab-wrap"><div class="dlg-section-title fn-cab"><span>Funcionários <em>${nAtivos} ${nAtivos === 1 ? 'ativo' : 'ativos'}</em></span>@@BUSCA@@<button type="button" class="btn btn-sm" data-ficha-desl aria-expanded="${desl}" aria-haspopup="dialog">Inativos e desligados (${nFora})</button></div>${desl ? `<div class="fn-pop" role="dialog" aria-label="Inativos e desligados"><div class="fn-pop-cab"><b>Inativos e desligados <em>${nFora}</em></b><button type="button" class="icon-btn" data-ficha-desl-fechar aria-label="Fechar">${ic('x', 'ic-sm')}</button></div><div class="dp-section-rows">${listaDesl.map(linha).join('') || '<div class="empty-mini">Ninguém inativo ou desligado.</div>'}</div></div>` : ''}</div>`
       : `<div class="dlg-section-title">${escapeHtml(cfg.title)}</div>`;
     const busca = fn ? `<div class="fn-busca"><input type="search" id="fn-busca" placeholder="Buscar por nome ou código…" autocomplete="off" aria-label="Buscar funcionário" value="${escapeHtml(state.dpFichaBusca)}"><span class="fn-busca-n" aria-live="polite"></span></div>` : '';
     return `${titulo.replace('@@BUSCA@@', busca)}${note ? `<div class="dp-sec-note${fn ? ' fn-fonte' : ''}">${note}</div>` : ''}<div class="dp-section-rows">${rows || `<div class="empty-mini">${fn ? 'Nenhum funcionário ativo.' : 'Nenhum registro.'}</div>`}</div>${addRow}`;
   }
   const SEC_NOTES = {
-    funcionarios: '<b>De onde vem esta lista:</b> do cadastro de funcionários do DP, atualizado automaticamente a partir da lista de empregados do Onvio (Portal do Cliente) e, nas empresas do escritório, da equipe ativa do Onvio. <b>Pode não representar a realidade 100%:</b> o Onvio pode demorar a refletir admissões e desligamentos, e empresa sem lista no Onvio fica como está no DP. Na dúvida, confira no Domínio.',
+    funcionarios: '<b>De onde vem esta lista:</b> do cadastro de funcionários do DP, atualizado a partir da <b>folha</b> (Extrato Mensal do portal de documentos), que decide quem está ativo, e da lista de empregados do Onvio. Quem não aparece na folha da última competência fica <b>Inativo</b> e volta a ativo se reaparecer. <b>Pró-labore e RPA</b> ficam em blocos à parte, no topo, e contam nos ativos enquanto estão na folha do mês. Empresa sem folha lida segue a lista do Onvio. Na dúvida, confira no Domínio.',
     prazos: 'Datas que se repetem todo mês só nesta empresa (ex.: cliente envia as variáveis até o dia 25).',
     lembretes: 'Datas únicas para não esquecer: combinados com o cliente, admissões previstas, reajustes, prazos de documentos.',
     historico: 'Alterações feitas por aqui entram automaticamente. Use a nota para registrar combinados com o cliente.',
@@ -3508,7 +3736,7 @@
     const rascunho = s.cctId && state.dpCcts.find(x => x.id === s.cctId)?.status === 'rascunho';
     return { ...c, reg, total: emps.length, feitas: feitas.length, pend, rascunho, pendente: c.cobrando && !reg.semReajuste && !rascunho && pend.length > 0 };
   }
-  const nfEmp = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+  const nfEmp = (e) => e.funcionarios.filter(funcConta).length;
 
   const SIND_FILTROS = [['', 'Todos'], ['pend', 'Reajuste pendente'], ['venc', 'CCT vencida ou vencendo'], ['semdb', 'Sem data-base'], ['semvig', 'Sem vigência'], ['vazio', 'Sem empresas']];
   function sindFiltra(s, emps) {
@@ -5390,7 +5618,7 @@
   function ctLinhas() {
     const q = state.dpCtQuery;
     const lista = ctBase().filter(ctNaCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, ctResp(e)], q));
-    const nf = (e) => e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length;
+    const nf = (e) => e.funcionarios.filter(funcConta).length;
     const k = state.dpCtSort;
     const vazio = '￿';
     const cmp = k === 'resp' ? (a, b) => ptCmp(ctResp(a) || vazio, ctResp(b) || vazio) || byNome(a, b)
@@ -5399,7 +5627,7 @@
       : byNome;
     return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
   }
-  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, 0);
+  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0);
   const fmtYmdBR = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
   const fmtYmdDM = (s) => { const d = parseYmd(s); return d ? fmtDM(d) : s; };
 
@@ -5591,6 +5819,7 @@
   const OV_LISTAS = ['lista-geral', 'lista-cad-empregado', 'lista-cad-contribuinte', 'lista-cad-estagiario', 'lista-aviso-ferias', 'lista-calc-ferias', 'lista-aviso-rescisao', 'lista-calc-rescisao', 'lista-afastamento', 'lista-rubricas'];
   const OV_PESSOAIS = OV_LISTAS.map(t => t.replace('lista-', 'pessoais-'));
   const OV_EMPREGADOS = 'pessoais-empregados';        // a folha inteira de cada empresa (extensão 0.53.0): quem nunca teve solicitação também vem
+  const OV_FOLHA = 'pessoais-folha-contribuintes';     // contribuintes do Extrato Mensal, por competência (extensão 0.68.0; o Hub acumula as remessas)
   state.ovMan = {}; state.ovTab = {}; state.ovCarga = {}; state.ovIgn = {};
   state.ovAberta = ''; state.ovFiltro = 'pend'; state.ovLim = 100; state.ovVincAberto = false;
   let ovVer = 0;
@@ -5677,7 +5906,7 @@
   function ovAvisar() { ovOuvintes.slice().forEach(cb => { try { cb(); } catch (e) {} }); }
   function ovGarantir(forcar) {
     if ((!forcar && state.activeModule !== 'dp') || !db) return;
-    [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, 'clientes-cnd', 'clientes-nfe', 'escritorio-tabelas', 'escritorio-funcionarios', 'analise-solicitacoes'].forEach(t => { if (state.ovMan[t]) ovLer(t); });
+    [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, OV_FOLHA, 'clientes-cnd', 'clientes-nfe', 'escritorio-tabelas', 'escritorio-funcionarios', 'analise-solicitacoes'].forEach(t => { if (state.ovMan[t]) ovLer(t); });
   }
   function ovIniciar() {
     db.collection('ing_dados').onSnapshot((snap) => {
@@ -5697,12 +5926,13 @@
   // ----- clientes (CND e NF-e) e vínculo com as empresas do DP -----
   const ovClientes = () => ovMemo('cli', () => {
     const m = new Map();
+    const exc = state.cadExc || {}, fora = (v) => { const k = cnpjClean(v); return k.length === 14 && !!exc[k]; };     // Hub 314: excluída de todos os módulos não volta pelo Onvio
     ovLer('clientes-cnd').forEach(r => {
-      const c = String(r['Código'] || '').trim(); if (!c) return;
+      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF'])) return;
       m.set(c, { cod: c, nome: r['Cliente'], cnpj: r['CNPJ ou CPF'], im: r['Inscrição municipal'], ie: r['Inscrição estadual'], uf: r['UF'], usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', sit: r['Situação'] || '', certificado: null, validade: '' });
     });
     ovLer('clientes-nfe').forEach(r => {
-      const c = String(r['Código'] || '').trim(); if (!c) return;
+      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF']) || (m.get(c) && fora(m.get(c).cnpj))) return;
       const a = m.get(c) || { cod: c, nome: r['Cliente'], cnpj: '', im: '', ie: '', uf: '', usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', certificado: null, validade: '' };
       a.apelido = r['Apelido'] || a.apelido; if (!a.cnpj) a.cnpj = r['CNPJ ou CPF']; if (!a.uf) a.uf = r['UF']; if (!a.sit) a.sit = r['Situação'] || '';
       a.certificado = r['Tem certificado'] === 'sim'; a.validade = ovDia(r['Validade do certificado']);
@@ -5773,21 +6003,117 @@
   // Folha inteira de cada cliente (pessoais-empregados): empregados por empresa do DP e clientes que ainda não têm empresa.
   const OV_INATIVO = /inativ|inactive|desativ|desligad|terminat|dismiss/i;
   const ovRoster = () => ovMemo('roster', () => {
-    const porEmp = new Map(), semEmp = new Map(), cache = new Map(), clis = new Set(), antigos = new Set(); let total = 0, ativos = 0;
+    const porEmp = new Map(), semEmp = new Map(), cache = new Map(), clis = new Set(), antigos = new Set(), socios = new Map(); let total = 0, ativos = 0;
     // Cadastro antigo: cliente da folha que não está entre os clientes de CND e NF-e do Onvio e tem o mesmo nome de um cliente atual (empresa que saiu e voltou com códigos novos,
     // ex.: Mercocamp 160/161/163/166/167 inativados): não conta (Josué, 28/10/2026). Cliente só da folha com nome próprio continua aparecendo para cadastrar.
     const atuais = ovClientes(), filtra = atuais.size > 0, nomesAtuais = new Set(); atuais.forEach(c => { const k = ovChave(c.nome); if (k) nomesAtuais.add(k); });
     ovLer(OV_EMPREGADOS).forEach(r => {
       const cod = String(r['Código do cliente'] || '').trim(), cli = r['Cliente'] || '', nome = String(r['Nome'] || '').trim(); if (!nome) return;
       if (filtra && cod && !atuais.has(cod) && nomesAtuais.has(ovChave(cli))) { antigos.add(cod); return; }
-      total++; clis.add(String(r['Id do cliente'] || cod || cli)); if (!OV_INATIVO.test(String(r['Situação'] || ''))) ativos++;
       const ck = cod + '|' + cli; let c = cache.get(ck); if (c === undefined) { c = ovEmpresaDe({ codigo: cod, nome: cli }); cache.set(ck, c); }
       const ativo = !OV_INATIVO.test(String(r['Situação'] || ''));
+      // Contribuintes (sócios, Vínculo PARTNER, extensão 0.67.0): ficam à parte. Não viram funcionário, não contam como empregados da empresa
+      // nem entram na regra de desligado por ausência; aparecem na ficha da empresa (aba Onvio) em "Contribuintes (sócios)".
+      if (String(r['Vínculo'] || '').toUpperCase() === 'PARTNER') {
+        if (c.e) { const a = socios.get(c.e.id) || []; a.push({ nome, codigo: String(r['Código do empregado'] || '').trim(), inicio: ovDia(r['Admissão']), ativo }); socios.set(c.e.id, a); }
+        return;
+      }
+      total++; clis.add(String(r['Id do cliente'] || cod || cli)); if (ativo) ativos++;
       if (c.e) { const a = porEmp.get(c.e.id) || []; a.push({ nome, codigo: String(r['Código do empregado'] || '').trim(), admissao: ovDia(r['Admissão']), ativo, vinculo: r['Vínculo'] || '' }); porEmp.set(c.e.id, a); }
       else if (!c.fora) { const g = semEmp.get(ck) || { k: c.k || ovChave(cli), cod, cli, nEmp: 0, cand: c.cand || [] }; if (ativo) g.nEmp++; semEmp.set(ck, g); }
     });
-    return { porEmp, semEmp: [...semEmp.values()], total, ativos, clis, antigos };
+    return { porEmp, semEmp: [...semEmp.values()], total, ativos, clis, antigos, socios };
   });
+  // Folha (Extrato Mensal) por empresa: competências conferidas e, por contribuinte, em quais delas apareceu. Regra do Josué (03/11/2026):
+  // o contribuinte é ativo só nos meses em que aparece na folha, e pode aparecer de forma intermitente.
+  const ovFolha = () => ovMemo('folha', () => {
+    const por = new Map(), cache = new Map();
+    ovLer(OV_FOLHA).forEach(r => {
+      const comp = String(r['Competência'] || '').slice(0, 7); if (!/^\d{4}-\d{2}$/.test(comp)) return;
+      const cod = String(r['Código do cliente'] || '').trim(), cli = r['Cliente'] || '', ck = cod + '|' + cli;
+      let c = cache.get(ck); if (c === undefined) { c = ovEmpresaDe({ codigo: cod, nome: cli }); cache.set(ck, c); }
+      if (!c.e) return;
+      const f = por.get(c.e.id) || { meses: new Set(), pessoas: new Map(), docs: new Map() }; por.set(c.e.id, f);
+      f.meses.add(comp);
+      // extensão 0.70.0: os últimos meses vêm com o quadro inteiro (Quadro = "completo"), para a folha decidir quem é ativo (Josué, 04/11/2026)
+      const completo = String(r['Quadro'] || '').trim().toLowerCase() === 'completo', docId = String(r['Documento'] || '');
+      let d = null; if (completo) { d = f.docs.get(docId); if (!d) { d = { comp, calc: String(r['Cálculo'] || '').trim(), pessoas: [] }; f.docs.set(docId, d); } }
+      const codigo = String(r['Código'] || '').trim(), nome = String(r['Nome'] || '').trim(); if (!codigo && !nome) return;
+      const contrib = String(r['Contribuinte'] || 'sim').trim().toLowerCase() !== 'não';          // linhas antigas (sem a coluna) são todas de contribuintes
+      if (d) d.pessoas.push({ codigo, nome, contrib, vinculo: String(r['Vínculo'] || '').trim() });
+      if (!contrib) return;
+      const k = codigo || ('n:' + ovChave(nome)), p = f.pessoas.get(k) || { codigo, nome, vinculo: '', meses: new Set() };
+      p.meses.add(comp); if (nome) p.nome = nome; if (r['Vínculo'] && (!p.vincMes || comp >= p.vincMes)) { p.vinculo = r['Vínculo']; p.vincMes = comp; } f.pessoas.set(k, p);      // vale o vínculo do mês mais recente
+    });
+    return por;
+  });
+  // ----- a folha decide quem é ativo (Josué, 04/11/2026: "a folha é absoluta") -----
+  // Vale a folha mais recente (cálculo mensal, publicada nos últimos 2 meses) com o quadro completo. Ativo = está nela, OU está de férias ou afastado,
+  // OU foi admitido depois do mês dela. Empresa sem folha publicada (ou folha velha, ou que não casa com a lista do Onvio) continua com a lista do Onvio.
+  const OV_CALC_FORA = /adiant|13\s*[ºo°.]|d[eé]cimo|f[eé]rias|rescis/i;
+  const ovCalcMensal = (c) => /mensal/i.test(c || '') || !OV_CALC_FORA.test(c || '');
+  const ovCodNum = (c) => { const v = String(c || '').trim(); return /^\d+$/.test(v) ? String(Number(v)) : v; };
+  // Por que a folha de uma empresa não decide (Hub 307): a ficha diz o motivo exato, para a pessoa saber o que falta.
+  const ovFolhaPorque = new Map();
+  const ovFolhaQuadro = (e) => ovMemo('folhaQuadro:' + e.id, () => {
+    const nao = (motivo) => { ovFolhaPorque.set(e.id, motivo); return null; };
+    ovFolhaPorque.delete(e.id);
+    const f = ovFolha().get(e.id);
+    if (!f) return nao('nenhum Extrato Mensal desta empresa chegou ao Hub (rode "Enviar só a folha" na extensão)');
+    if (!f.docs || !f.docs.size) return nao('os extratos que chegaram só trazem os contribuintes (extensão anterior à 0.70.0): rode "Ler a folha de novo" e "Enviar só a folha"');
+    const porMes = new Map();
+    f.docs.forEach(d => { if (!d.pessoas.length || !ovCalcMensal(d.calc)) return; porMes.set(d.comp, (porMes.get(d.comp) || []).concat(d.pessoas)); });
+    const meses = [...porMes.keys()].sort(), mes = meses[meses.length - 1];
+    const t = hoje(), minimo = mesStr(new Date(t.getFullYear(), t.getMonth() - 2, 1));
+    if (!mes) return nao('nenhum extrato de folha mensal com pessoas (só adiantamento, 13º, férias ou rescisão)');
+    if (mes < minimo) return nao(`a folha mais recente lida é de ${ovMesCurto(mes)}, mais de 2 meses atrás`);
+    const conj = (ps) => { const cods = new Set(), nomes = new Set(); ps.forEach(p => { if (p.codigo) cods.add(ovCodNum(p.codigo)); const k = ovChavePessoa(p.nome); if (k) nomes.add(k); }); return { cods, nomes }; };
+    const atual = conj(porMes.get(mes));
+    // trava de ligação: a maioria dos empregados da folha (sem contribuintes) tem de estar na lista do Onvio desta empresa, senão a ligação cliente → empresa pode estar errada
+    const rs = ovRoster().porEmp.get(e.id) || [];
+    const comuns = porMes.get(mes).filter(p => !p.contrib);
+    let semLista = false;
+    if (!comuns.length) {
+      // Hub 312 (Clear, 04/11/2026): folha só com pró-labore/RPA e nenhum empregado. Sem lista do Onvio e sem empregados ativos no cadastro, ela decide
+      // (o pró-labore entra como cadastro novo); com empregados na lista do Onvio ou no cadastro, não adivinha.
+      const cadF = (e.funcionarios || []).filter(f => funcNorm(f) && funcGrupo(f) === 'func' && !funcFora(f) && !FUNC_FORA.has(f.status));
+      if (rs.length || cadF.length) return nao(`a folha de ${ovMesCurto(mes)} só tem contribuintes`);
+      semLista = true;
+    } else if (rs.length) {
+      const rc = new Set(rs.map(r => ovCodNum(r.codigo)).filter(Boolean)), rn = new Set(rs.map(r => ovChavePessoa(r.nome)).filter(Boolean));
+      const casam = comuns.filter(p => (p.codigo && rc.has(ovCodNum(p.codigo))) || rn.has(ovChavePessoa(p.nome))).length;
+      if (casam / comuns.length < 0.6) return nao(`só ${casam} dos ${comuns.length} empregados da folha de ${ovMesCurto(mes)} estão na lista do Onvio desta empresa (precisa de 60%): a ligação cliente → empresa pode estar errada`);
+    } else {
+      // Hub 312 (Josué, 04/11/2026: "mesmo não puxando do Onvio a leitura deveria ter pego"): empresa com folha publicada e a lista de empregados do Onvio vazia (ex.: Clear).
+      // A folha decide sozinha. A trava de ligação passa a ser o cadastro do DP: com 3 ou mais funcionários ativos no cadastro, pelo menos 30% deles (ou dos da folha,
+      // o que for menor) têm de estar na folha; senão a ligação cliente → empresa pode estar errada e fica para conferir na Entrada de dados.
+      semLista = true;
+      const cad = (e.funcionarios || []).filter(f => funcNorm(f) && funcGrupo(f) === 'func' && !funcFora(f) && !FUNC_FORA.has(f.status));
+      if (cad.length >= 3) {
+        const cc = new Set(cad.map(f => ovCodNum(f.codigo)).filter(Boolean)), cn = new Set(cad.map(f => ovChavePessoa(f.nome)).filter(Boolean));
+        const casam = comuns.filter(p => (p.codigo && cc.has(ovCodNum(p.codigo)) && cn.has(ovChavePessoa(p.nome))) || cn.has(ovChavePessoa(p.nome))).length, base = Math.min(cad.length, comuns.length);
+        if (casam / base < 0.3) return nao(`a lista de empregados do Onvio desta empresa veio vazia e só ${casam} dos ${comuns.length} empregados da folha de ${ovMesCurto(mes)} estão no cadastro (precisa de 30%): a ligação cliente → empresa pode estar errada`);
+      }
+    }
+    const [a, m] = mes.split('-').map(Number), fimDe = (c) => { const [y, mm] = c.split('-').map(Number); return ymd(new Date(y, mm, 0)); };
+    const anteriores = meses.filter(c => c < mes).reverse().map(c => Object.assign({ mes: c }, conj(porMes.get(c))));
+    const tem = (q, x) => (x.codigo && q.cods.has(ovCodNum(x.codigo))) || q.nomes.has(ovChavePessoa(x.nome));
+    const lista = porMes.get(mes), pessoaDe = (x) => { const k = ovChavePessoa(x.nome); return lista.find(p => k && ovChavePessoa(p.nome) === k) || (x.codigo ? lista.find(p => p.codigo && ovCodNum(p.codigo) === ovCodNum(x.codigo) && ovChavePessoa(p.nome).split('|')[0] === k.split('|')[0]) : null) || (() => { const cs = lista.filter(p => ovMesmaPessoa({ nome: p.nome, codigo: p.codigo }, x)); return cs.length === 1 ? cs[0] : null; })(); };
+    return { mes, ini: `${mes}-01`, fim: ymd(new Date(a, m, 0)), pessoas: comuns.length || porMes.get(mes).length, semLista, lista, pessoaDe, naFolha: (x) => tem(atual, x),
+      // saída estimada: o último dia do último mês em que ainda apareceu; sem aparecer nos meses lidos, o 1º dia do mês mais antigo lido
+      saida: (x) => { const ant = anteriores.find(q => tem(q, x)); return ant ? fimDe(ant.mes) : `${meses[0]}-01`; } };
+  });
+  // Vínculo para o cadastro, pelo texto da folha (Celetista, Diretor, Autônomo…) ou pela lista do Onvio (EMPLOYEE, INTERN, PARTNER).
+  function ovVincRotulo(v, contrib) {
+    const t = norm(v || '');
+    if (/estag|intern/.test(t)) return 'Estagiário';
+    if (/pro.?labore|socio|diretor|titular|empresario|partner/.test(t)) return 'Pró-labore';
+    if (/\(rpa\)/.test(t)) return 'RPA/autônomo';
+    if (/rpa|autonom|contribuinte/.test(t)) return 'RPA/autônomo';
+    if (/celetist|employee|empregad|clt|aprendiz|intermitente|temporari/.test(t)) return 'Empregado';
+    return contrib ? 'RPA/autônomo' : t ? 'Empregado' : '';
+  }
+  const ovMesCurto = (comp) => { const [a, m] = String(comp).split('-'); return (MESES[Number(m) - 1] || '').slice(0, 3).toLowerCase() + '/' + String(a).slice(2); };
   // Clientes do Onvio sem empresa no DP: os das solicitações e os que só aparecem na folha (n = solicitações, nEmp = empregados ativos).
   const ovSemVinc = () => ovMemo('semVinc', () => {
     const m = new Map();
@@ -5829,6 +6155,19 @@
   }
   // Casa cada empregado do Onvio com um funcionário do DP, um para um: primeiro pelo nome (homônimos pegam um funcionário cada), depois pelo código,
   // mas só com funcionários que o nome de nenhum empregado do Onvio reivindica. Assim dois empregados nunca disputam o mesmo funcionário.
+  // Hub 312 (Josué, 04/11/2026, ATACAPET: "Jullia Ferreira Cabidelli" e "Jullia Ferreira Cabidelli Galletti", mesma admissão): a mesma pessoa com sobrenome
+  // a mais (casamento, nome abreviado na folha). Mesmo primeiro nome, todos os nomes do mais curto (pelo menos 2) estão no mais longo, e nada contradiz:
+  // admissão igual quando as duas existem, código igual quando os dois existem. Com só 2 nomes no mais curto, exige admissão ou código iguais.
+  const ovTokensNome = (n) => norm(n || '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(x => x && !OV_PARTICULAS.has(x));
+  function ovMesmaPessoa(a, b) {
+    const ta = ovTokensNome(a.nome), tb = ovTokensNome(b.nome); if (ta.length < 2 || tb.length < 2 || ta[0] !== tb[0]) return false;
+    const [cu, lo] = ta.length <= tb.length ? [ta, tb] : [tb, ta]; if (cu.length === lo.length) return false;     // nomes iguais já casam pelo nome
+    const sl = new Set(lo); if (!cu.every(x => sl.has(x))) return false;
+    const adA = String(a.admissao || '').slice(0, 10), adB = String(b.admissao || '').slice(0, 10), coA = ovCodNum(a.codigo), coB = ovCodNum(b.codigo);
+    if (adA && adB && adA !== adB) return false;
+    if (coA && coB && coA !== coB) return false;
+    return cu.length >= 3 || (!!adA && adA === adB) || (!!coA && coA === coB);
+  }
   function ovCasarFuncionarios(e, xs) {
     const porNome = new Map(); e.funcionarios.forEach(f => { const k = funcNorm(f); if (!k) return; const a = porNome.get(k); if (a) a.push(f); else porNome.set(k, [f]); });
     const nomes = new Set(xs.map(x => norm(x.nome).trim())), usado = new Set(), out = new Map();
@@ -5837,6 +6176,11 @@
       if (out.has(x) || !x.codigo) return;
       const f = e.funcionarios.find(g => !usado.has(g) && String(g.codigo || '').trim() === x.codigo && !nomes.has(funcNorm(g)));
       if (f) { out.set(x, f); usado.add(f); }
+    });
+    xs.forEach(x => {            // Hub 312: sobrenome a mais de um lado (só quando há um candidato)
+      if (out.has(x)) return;
+      const cs = e.funcionarios.filter(g => !usado.has(g) && ovMesmaPessoa(x, g)); if (cs.length !== 1) return;
+      out.set(x, cs[0]); usado.add(cs[0]);
     });
     return out;
   }
@@ -5940,6 +6284,15 @@
       }
       x.roster = true;
     });
+    // a folha decide quem é ativo (Josué, 04/11/2026). A lista do Onvio traz todo mundo como ativo, inclusive quem já saiu.
+    const q = ovFolhaQuadro(e);
+    if (q) m.forEach(x => {
+      if (!x.roster || !x.ativo) return;
+      if (q.naFolha(x)) { x.naFolha = q.mes; const p = q.pessoaDe(x); if (p) x.vinculoFolha = p.vinculo || (p.contrib ? 'RPA' : ''); return; }
+      if (x.admissao && x.admissao > q.fim) return;                                  // admitido depois do mês da folha: ainda não podia aparecer
+      if (x.afast || (x.ferias && (!x.ferias.fim || x.ferias.fim >= q.ini))) return;   // de férias ou afastado: continua ativo
+      x.ativo = false; x.foraDaFolha = q.mes; x.saidaFolha = q.saida(x);
+    });
     return [...m.values()];
   }
   // Regra (Josué, 26/10/2026): o que já existe no Hub pode ser COMPLEMENTADO (campo vazio) ou ter CORREÇÃO sugerida (valor diferente);
@@ -5969,6 +6322,13 @@
     const m = ovMemo('pessoasEm', () => { const r = new Map(); ovRoster().porEmp.forEach((lista, id) => { const e = findDpEmpresa(id); lista.forEach(x => { if (!x.ativo) return; const k = ovChavePessoa(x.nome); if (!k) return; const a = r.get(k) || new Map(); a.set(id, e ? nomeCurto(e) : id); r.set(k, a); }); }); return r; });
     return { get: (k) => { const a = m.get(k); if (!a) return ''; for (const [id, n] of a) if (id !== empId) return n; return ''; } };
   };
+  // Contribuintes conhecidos da empresa (lista do Onvio, Vínculo PARTNER, e folha), pela chave do nome (o código pode coincidir com o de um empregado).
+  const ovContribuintesDe = (e) => {
+    const nomes = new Set(), poe = (nome) => { const k = ovChavePessoa(nome); if (k) nomes.add(k); };
+    ((ovRoster().socios || new Map()).get(e.id) || []).forEach(x => poe(x.nome));
+    const f = ovFolha().get(e.id); if (f) f.pessoas.forEach(p => poe(p.nome));
+    return { nomes };
+  };
   function ovDifsFunc(e) {
     const out = [], ign = new Set((state.ovIgn[e.id] && state.ovIgn[e.id].chaves) || []), t = hoje();
     if (!(ovTemListas() && OV_PESSOAIS.some(p => state.ovMan[p])) && !ovTemEmpregados()) return out;
@@ -5978,6 +6338,9 @@
     const equipe = ovEquipeDe(e);
     // REGRA ABSOLUTA (Josué, 27/10/2026): só é ativo quem está na lista de empregados do Onvio. Quem aparece só nas solicitações e não está na lista é desconsiderado.
     const xs = ovEmpregados(e).filter(x => x.roster || !temLista), casados = ovCasarFuncionarios(e, xs);
+    const qfx = ovFolhaQuadro(e);
+    // Hub 311: Desligado que o próprio Hub marcou (tem "fora desde" e nenhuma rescisão) e a pessoa está na folha decisiva: a folha é absoluta, volta a ativo
+    const hubDesligou = (f) => f.status === 'Desligado' && !f.rescisao && !!f.saidaEm;
     xs.forEach(x => {
       const f = casados.get(x) || null;
       const add = (tipo, valor, acao, txt, antes, depois, patch, confirmar) => {
@@ -5991,10 +6354,15 @@
         if (x.roster && !x.ativo && !x.solic) return;                    // desligado que nunca teve solicitação: não polui o cadastro
         const resc = x.rescisao || x.rescisaoAny;
         add('novo', x.admissao || '-', 'novo', 'Está na lista de empregados do Onvio e não no cadastro: cadastrar como funcionário novo', '—', (x.admissao ? 'admissão ' + fmtDateStr(x.admissao) : 'sem data de admissão') + (resc ? ' · rescisão ' + fmtDateStr(resc.data) : ''),
-          { id: '', nome: x.nome, codigo: x.codigo, cargo: '', admissao: x.admissao, status: x.roster && !x.ativo ? 'Desligado' : 'Ativo', aquisitivo: '', feriasInicio: x.ferias ? x.ferias.inicio : '', feriasFim: x.ferias ? x.ferias.fim : '', rescisao: resc ? resc.data : '', salario: '', obs: 'Criado a partir do Onvio' });
+          { id: '', nome: x.nome, codigo: x.codigo, vinculo: ovVincRotulo(x.vinculoFolha || x.vinculo), cargo: '', admissao: x.admissao, status: x.roster && !x.ativo ? (x.foraDaFolha ? 'Inativo' : 'Desligado') : 'Ativo', ...(x.foraDaFolha ? { saidaEm: x.saidaFolha } : {}), aquisitivo: '', feriasInicio: x.ferias ? x.ferias.inicio : '', feriasFim: x.ferias ? x.ferias.fim : '', rescisao: resc ? resc.data : '', salario: '', obs: 'Criado a partir do Onvio' });
         return;
       }
-      if (x.roster && !x.ativo && funcStatus(f) !== 'Desligado' && f.status !== 'Desligado' && !(f.rescisao && parseYmd(f.rescisao) > t)) add('situacao', 'inativo', 'corrigir', 'Desligado na folha do Onvio', funcStatus(f), 'Desligado', { status: 'Desligado', saidaEm: ymd(t) });
+      const naFolhaX = !!(qfx && qfx.naFolha(x)), semRescisao = !x.rescisao && !x.rescisaoAny;
+      if (x.roster && !x.ativo && !(naFolhaX && semRescisao) && !funcFora(f) && !FUNC_FORA.has(f.status) && !(f.rescisao && parseYmd(f.rescisao) > t) && !(x.foraDaFolha && ['Férias', 'Afastado'].includes(funcStatus(f))))
+        add('situacao', 'inativo', 'corrigir', x.foraDaFolha ? `Fora da folha de ${ovMesCurto(x.foraDaFolha)}: inativo (volta a ativo se reaparecer numa folha)` : 'Desligado na folha do Onvio', funcStatus(f), x.foraDaFolha ? 'Inativo' : 'Desligado', { status: x.foraDaFolha ? 'Inativo' : 'Desligado', saidaEm: x.saidaFolha || ymd(t) });
+      // voltou à folha: o Inativo volta a Ativo sozinho (Josué, 04/11/2026). Desligado não volta (saiu de vez; recontratação é cadastro novo).
+      if ((x.naFolha || naFolhaX) && f.status === 'Inativo') add('situacao', 'ativo-' + (x.naFolha || qfx.mes), 'corrigir', `Voltou à folha de ${ovMesCurto(x.naFolha || qfx.mes)}: ativo de novo`, 'Inativo', 'Ativo', { status: 'Ativo', saidaEm: '' });
+      else if (naFolhaX && semRescisao && hubDesligou(f)) add('situacao', 'religar-' + qfx.mes, 'corrigir', `Está na folha de ${ovMesCurto(qfx.mes)} e o Hub a tinha marcado como desligada, sem rescisão: ativa de novo`, 'Desligado', 'Ativo', { status: 'Ativo', saidaEm: '' });
       if (x.codigo && String(f.codigo || '').trim() !== x.codigo) add('codigo', x.codigo, vazio(f.codigo) ? 'complementar' : 'corrigir', vazio(f.codigo) ? 'Código Domínio vazio' : 'Código Domínio diferente', f.codigo || '—', x.codigo, { codigo: x.codigo });
       if (x.admissao && f.admissao !== x.admissao) add('admissao', x.admissao, vazio(f.admissao) ? 'complementar' : 'corrigir', vazio(f.admissao) ? 'Admissão vazia' : 'Admissão diferente', f.admissao ? fmtDateStr(f.admissao) : '—', fmtDateStr(x.admissao), { admissao: x.admissao });
       if (x.ferias && f.feriasInicio !== x.ferias.inicio) add('ferias', x.ferias.inicio, vazio(f.feriasInicio) ? 'complementar' : 'corrigir', `Férias no Onvio (#${x.ferias.num})`, f.feriasInicio ? fmtDateStr(f.feriasInicio) : '—', fmtDateStr(x.ferias.inicio) + (x.ferias.fim ? ' a ' + fmtDateStr(x.ferias.fim) : ''), { feriasInicio: x.ferias.inicio, feriasFim: x.ferias.fim || f.feriasFim });
@@ -6002,13 +6370,58 @@
       if (x.rescisao && f.rescisao !== x.rescisao.data) add('rescisao', x.rescisao.data, vazio(f.rescisao) ? 'complementar' : 'corrigir', `Rescisão no Onvio (#${x.rescisao.num})`, f.rescisao ? fmtDateStr(f.rescisao) : '—', fmtDateStr(x.rescisao.data), { rescisao: x.rescisao.data });
       if (x.afast && funcStatus(f) === 'Ativo' && parseYmd(x.afast.data) <= t) add('afastamento', x.afast.data, 'corrigir', `Afastamento no Onvio desde ${fmtDateStr(x.afast.data)} (#${x.afast.num})`, 'Ativo', 'Afastado', { status: 'Afastado' });
     });
+    // ----- a folha também cuida de quem não está na lista de empregados do Onvio (Hub 306, Josué 04/11/2026: "a lista tem de ser fiel") -----
+    // Vínculo vindo da folha (ou da lista do Onvio), para separar funcionários, pró-labore e RPA; pró-labore e RPA entram e saem pela folha
+    // (Inativo quando não aparecem na última competência, Ativo de novo quando voltam); quem está na folha e em nenhum outro lugar vira cadastro novo.
+    const qf = ovFolhaQuadro(e), porF = new Map(); casados.forEach((f, x) => { if (f) porF.set(f, x); });
+    const chaveF = (f) => ovChavePessoa(f.nome);
+    const contribFolha = new Map(); { const ff = ovFolha().get(e.id); if (ff) ff.pessoas.forEach(p => { const k = ovChavePessoa(p.nome); if (k && !contribFolha.has(k)) contribFolha.set(k, p); }); }
+    const addF = (f, tipo, valor, acao, txt, antes, depois, patch, extra) => { const chave = `${tipo}|${funcNorm(f)}|${valor}`; if (!ign.has(chave)) out.push(Object.assign({ chave, entidade: 'funcionario', tipo, acao, nome: f.nome, txt, antes, depois, patch, fid: f.id, novo: false, confirmar: false }, extra || {})); };
+    e.funcionarios.forEach(f => {
+      if (!funcNorm(f)) return;
+      const p = qf && qf.pessoaDe({ nome: f.nome, codigo: f.codigo }), x = porF.get(f);
+      // Hub 308: o contribuinte da folha (pró-labore, RPA) dá o vínculo mesmo quando a folha ainda não decide quem é ativo nesta empresa
+      const pc = !p ? contribFolha.get(chaveF(f)) : null;
+      const alvo = p ? ovVincRotulo(p.vinculo, p.contrib) : pc ? ovVincRotulo(pc.vinculo, true) : x ? ovVincRotulo(x.vinculoFolha || x.vinculo) : '';
+      if (alvo && alvo !== (f.vinculo || '')) addF(f, 'vinculo', alvo, f.vinculo ? 'corrigir' : 'complementar', p ? `Vínculo na folha de ${ovMesCurto(qf.mes)}` : 'Vínculo na lista do Onvio', f.vinculo || '—', alvo, { vinculo: alvo });
+      if (!qf || x) return;                                                // quem está na lista do Onvio já foi tratado acima
+      const contrib = vincGrupo(alvo || f.vinculo) !== 'func';
+      if (!contrib) {
+        // Hub 307: empregado do cadastro que não casa com ninguém da lista do Onvio. A folha é absoluta: fora dela = Inativo (como quem está na lista),
+        // salvo férias/afastamento no cadastro ou admissão depois do mês da folha. Antes caía na regra de ausência, com trava, e não saía nunca.
+        const st = funcStatus(f);
+        if (p && (f.status === 'Inativo' || hubDesligou(f))) addF(f, 'situacao', 'ativo-' + qf.mes, 'corrigir', `Voltou à folha de ${ovMesCurto(qf.mes)}: ativo de novo`, 'Inativo', 'Ativo', { status: 'Ativo', saidaEm: '' });
+        else if (!p && !FUNC_FORA.has(st) && !FUNC_FORA.has(f.status) && st !== 'Férias' && st !== 'Afastado' && !(f.admissao && f.admissao > qf.fim) && !(f.rescisao && parseYmd(f.rescisao) > t))
+          addF(f, 'situacao', 'inativo', 'corrigir', `Fora da folha de ${ovMesCurto(qf.mes)}: inativo (volta a ativo se reaparecer numa folha)`, st, 'Inativo', { status: 'Inativo', saidaEm: qf.saida({ nome: f.nome, codigo: f.codigo }) });
+        return;
+      }
+      if (p && (f.status === 'Inativo' || hubDesligou(f))) addF(f, 'situacao', 'ativo-' + qf.mes, 'corrigir', `Voltou à folha de ${ovMesCurto(qf.mes)}: ativo de novo`, 'Inativo', 'Ativo', { status: 'Ativo', saidaEm: '' });
+      if (!p && !funcFora(f) && !FUNC_FORA.has(f.status)) addF(f, 'situacao', 'inativo-' + qf.mes, 'corrigir', `Sem folha em ${ovMesCurto(qf.mes)}: inativo (pró-labore e RPA são ativos só nos meses em que aparecem)`, funcStatus(f), 'Inativo', { status: 'Inativo', saidaEm: qf.saida({ nome: f.nome, codigo: f.codigo }) });
+    });
+    if (qf) {
+      const noCad = new Set(e.funcionarios.map(chaveF).filter(Boolean)), naLista = new Set(xs.filter(x => x.roster).map(x => ovChavePessoa(x.nome)).filter(Boolean));
+      const visto = new Set();
+      // a folha traz o nome em maiúsculas: no cadastro vai como os outros (Maria Souza, de/da/dos em minúsculas)
+      const nomeCad = (n) => String(n || '').toLowerCase().replace(/(^|[\s'-])([a-zà-ÿ])/g, (m, a, b) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Das|Dos|E)\b/g, (m) => m.toLowerCase()).replace(/^./, (c) => c.toUpperCase());
+      qf.lista.forEach(p => {
+        const k = ovChavePessoa(p.nome); if (!k || noCad.has(k) || naLista.has(k) || visto.has(k)) return; visto.add(k);
+        if (e.funcionarios.some(f => ovMesmaPessoa({ nome: p.nome, codigo: p.codigo }, f))) return;         // Hub 312: já cadastrada com sobrenome a mais ou a menos
+        if (equipe && !equipe.has(k)) return;
+        const vinc = ovVincRotulo(p.vinculo, p.contrib), chave = `novo|${norm(p.nome).trim()}|folha`;
+        if (ign.has(chave)) return;
+        out.push({ chave, entidade: 'funcionario', tipo: 'novo', acao: 'novo', nome: nomeCad(p.nome), txt: `Está na folha de ${ovMesCurto(qf.mes)} (${vinc || 'sem vínculo'}) e não no cadastro: cadastrar`, antes: '—', depois: vinc || 'ativo',
+          patch: { id: '', nome: nomeCad(p.nome), codigo: p.codigo, vinculo: vinc, cargo: '', admissao: '', status: 'Ativo', aquisitivo: '', feriasInicio: '', feriasFim: '', rescisao: '', salario: '', obs: 'Criado a partir da folha' }, fid: '', novo: true, confirmar: false });
+      });
+    }
     // Quem está ativo no cadastro do DP e SUMIU da lista de empregados do Onvio (que acompanha o Domínio): provavelmente foi desligado. Só onde a empresa tem lista, só como
     // sugestão a conferir (`confirmar`: o automático nunca aplica). Quem foi cadastrado há menos de uma semana ainda pode não ter chegado à lista.
-    if (temLista || equipe) {
+    if ((temLista || equipe) && !qf) {
       const naLista = new Set(); casados.forEach((f, x) => { if (x.roster) naLista.add(f); });
-      const corte = ymd(addDays(t, -7)), outras = ovPessoasEmOutras(e.id), cands = [];
+      const corte = ymd(addDays(t, -7)), outras = ovPessoasEmOutras(e.id), cands = [], contrib = ovContribuintesDe(e);
       e.funcionarios.forEach(f => {
-        if ((equipe ? equipe.has(ovChavePessoa(f.nome)) : naLista.has(f)) || funcStatus(f) === 'Desligado' || f.status === 'Desligado' || (f.rescisao && parseYmd(f.rescisao) <= t)) return;
+        if (contrib.nomes.has(ovChavePessoa(f.nome)) || funcGrupo(f) !== 'func') return;     // sócio/pró-labore/RPA cadastrado: fica de fora da lista de empregados de propósito; sem folha é inativo, nunca desligado
+        if (qf && qf.pessoaDe({ nome: f.nome, codigo: f.codigo })) return;       // está na folha: a folha manda (Josué, 04/11/2026)
+        if ((equipe ? equipe.has(ovChavePessoa(f.nome)) : naLista.has(f)) || funcFora(f) || FUNC_FORA.has(f.status) || (f.rescisao && parseYmd(f.rescisao) <= t)) return;
         if (f.admissao && f.admissao > corte) return;
         const chave = `situacao|${funcNorm(f)}|ausente`;
         if (!funcNorm(f) || ign.has(chave)) return;
@@ -6016,9 +6429,26 @@
         cands.push({ chave, entidade: 'funcionario', tipo: 'situacao', acao: 'corrigir', nome: f.nome, txt: equipe ? 'Não consta na equipe ativa do escritório (Onvio Gestão): desligado' : em ? `Não consta na lista desta empresa e consta na de outra (${em}): não é ativo daqui` : 'Não consta na lista de empregados do Onvio: não é mais ativo', antes: funcStatus(f), depois: 'Desligado', patch: { status: 'Desligado', saidaEm: em && f.admissao ? f.admissao : ymd(t) }, fid: f.id, novo: false, confirmar: false });
       });
       // Trava: marcar muita gente de uma vez como desligada (mais de 30% e pelo menos 5) pode ser erro de ligação entre cliente e empresa. Fica para decidir à mão; o automático não aplica.
-      const ativosN = e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length, trava = cands.length >= 5 && cands.length > ativosN * 0.3;
-      cands.forEach(c => { if (trava) { c.confirmar = true; c.txt = `Muitos de uma vez (${cands.length} de ${ativosN}): confira antes de aplicar. ` + c.txt; } out.push(c); });
+      const ativosN = e.funcionarios.filter(funcConta).length, trava = cands.length >= 5 && cands.length > ativosN * 0.3;
+      const listaCortada = !!(state.ovMan[OV_EMPREGADOS] && state.ovMan[OV_EMPREGADOS].cortado);
+      cands.forEach(c => { if (trava) { c.confirmar = true; c.txt = `Muitos de uma vez (${cands.length} de ${ativosN}): confira antes de aplicar. ` + c.txt; } else if (listaCortada) { c.confirmar = true; c.txt = 'A lista do Onvio veio incompleta neste envio: confira antes de aplicar. ' + c.txt; } out.push(c); });
     }
+    // Hub 312: duplicados que já estão no cadastro (criados antes do casamento por sobrenome): unificar num só registro, completado com os dados do outro.
+    // Fica o que tem código Domínio (ou mais campos preenchidos), com o nome mais longo; o outro sai. Admissão igual nos dois: o automático aplica; senão, confere-se à mão.
+    { const fs = e.funcionarios.filter(f => funcNorm(f)), feito = new Set(), cheio = (f) => Object.keys(f).filter(k => String(f[k] == null ? '' : f[k]).trim()).length;
+      for (let i = 0; i < fs.length; i++) for (let j = i + 1; j < fs.length; j++) {
+        const a = fs[i], b = fs[j]; if (feito.has(a) || feito.has(b) || !ovMesmaPessoa(a, b)) continue;
+        if (fs.filter(g => g !== a && ovMesmaPessoa(a, g)).length > 1 || fs.filter(g => g !== b && ovMesmaPessoa(b, g)).length > 1) continue;     // mais de um parecido: não adivinha
+        const [fica, sai] = (!!String(a.codigo || '').trim() !== !!String(b.codigo || '').trim()) ? (String(a.codigo || '').trim() ? [a, b] : [b, a]) : (cheio(a) >= cheio(b) ? [a, b] : [b, a]);
+        const patch = {}; Object.keys(sai).forEach(k => { if (['id', 'nome', 'situacaoMotivo'].includes(k)) return; const v = sai[k]; if (String(v == null ? '' : v).trim() && !String(fica[k] == null ? '' : fica[k]).trim()) patch[k] = v; });
+        if (ovTokensNome(sai.nome).length > ovTokensNome(fica.nome).length) patch.nome = sai.nome;
+        if (funcFora(fica) && !funcFora(sai)) { patch.status = sai.status; patch.saidaEm = ''; }
+        const chave = `duplicado|${funcNorm(fica)}|${funcNorm(sai)}`; if (ign.has(chave)) continue;
+        feito.add(a); feito.add(b);
+        const mesmaAdm = !!a.admissao && a.admissao === b.admissao;
+        out.push({ chave, entidade: 'funcionario', tipo: 'duplicado', acao: 'corrigir', nome: fica.nome, txt: `${mesmaAdm ? '' : 'Confira antes de aplicar: '}cadastrada duas vezes ("${fica.nome}" e "${sai.nome}"${mesmaAdm ? ', mesma admissão' : ''}): unificar num registro só`,
+          antes: '2 registros', depois: '1 registro' + (patch.nome ? ' · ' + patch.nome : ''), patch, fid: fica.id, remover: sai.id, novo: false, confirmar: !mesmaAdm });
+      } }
     return out;
   }
   // Dados da empresa que o cliente do Onvio (CND e NF-e) traz: CNPJ e UF. Complementa o que falta e sugere a correção do que difere.
@@ -6093,7 +6523,7 @@
   const cadOuvintes = [];
   state.cadIdx = new Map(); state.semEscrita = false; state.cadTrocasIdx = null;
   function cadAchata() {
-    const m = new Map(); state.cadRaw.forEach((mapa) => Object.keys(mapa || {}).forEach(k => { const v = mapa[k]; if (v && typeof v === 'object' && !Array.isArray(v)) m.set(k, v); }));
+    const m = new Map(); state.cadRaw.forEach((mapa) => Object.keys(mapa || {}).forEach(k => { const v = mapa[k]; if (v && typeof v === 'object' && !Array.isArray(v) && !v.excluida && !(state.cadExc && state.cadExc[k])) m.set(k, v); }));     // Hub 314: excluída some de todas as telas
     // índice reverso: `${módulo}|${id no módulo}` → CNPJ (o que os módulos usam para achar a identidade de cada empresa deles)
     const ix = new Map(); m.forEach((v, k) => { const vi = v.vinculos || {}; Object.keys(vi).forEach(mod => (Array.isArray(vi[mod]) ? vi[mod] : []).forEach(id => { if (!ix.has(mod + '|' + id)) ix.set(mod + '|' + id, k); })); });
     state.cadIdx = ix; state.cadastro = m; ovVer++;
@@ -6119,6 +6549,7 @@
     const porNome = new Map();
     clientes.forEach(c => {
       const id = cad14(c.cnpj); if (!id) return;
+      if (state.cadExc[id]) return;      // Hub 314: excluída pela coordenação não volta
       if (ehEscritorioProprio(c.nome, c.apelido)) { rel.escritorio.push(c.nome); return; }
       const sit = String(c.sit || '').toUpperCase(), ja = mestre.get(id);
       if (ja) { if (c.cod && !ja.codigosOnvio.includes(c.cod)) ja.codigosOnvio.push(c.cod); return; }
@@ -6138,6 +6569,7 @@
         rel.contagem[mod]++;
         const id = cad14(e.cnpj) || (mod === 'ctb' && /^c[0-9A-Z]{14}$/i.test(String(e.id)) ? cad14(String(e.id).slice(1)) : '');
         const extra = mod === 'dp' ? { funcionarios: Array.isArray(e.funcionarios) ? e.funcionarios.length : 0 } : mod === 'ctb' || mod === 'fis' ? { situacao: e.sit || '', excluida: !!e.excluida } : { ativo: e.ativo !== false };
+        if (id && state.cadExc[id]) return;
         if (!id) {
           if (/^dom[eé]stic/i.test(norm(nome)) || /^domestic/.test(norm(nome))) { rel.domesticas.push({ modulo: rot, id: e.id, nome }); return; }
           const cands = (porNome.get(cadNomeKey(nome)) || []).slice(0, 3).map(i => ({ cnpj: mestre.get(i).cnpj, nome: mestre.get(i).razao }));
@@ -6208,7 +6640,8 @@
   // Registra (ou liga) uma empresa nova de um módulo no cadastro único: quem cria uma empresa por qualquer tela passa por aqui.
   async function cadRegistrar({ cnpj, nome, modulo, id, uf, codigoDominio }) {
     const c14 = cad14(cnpj); if (!c14 || !CAD_MODS[modulo] || ehEscritorioProprio(nome)) return { ok: false, erro: 'sem CNPJ válido' };
-    if (!state.cadastro.size) return { ok: false, erro: 'o cadastro único ainda não foi gerado' };      // antes de a coordenação gerar, nenhum módulo grava nele
+    if (!state.cadastro.size) return { ok: false, erro: 'o cadastro único ainda não foi gerado' };
+    if (state.cadExc[c14]) return { ok: false, erro: 'empresa excluída de todos os módulos (restaure no módulo Empresas)' };      // antes de a coordenação gerar, nenhum módulo grava nele
     const b = 'b' + cadBalde(c14), atual = state.cadRaw.get(b) || {}, ex = atual[c14];
     const m = ex ? { ...ex, vinculos: { dp: [], ctb: [], portal: [], fis: [], ...(ex.vinculos || {}) } } : { id: c14, cnpj: fmtCnpj(c14), razao: String(nome || '').trim(), apelido: '', codigoOnvio: '', codigosOnvio: [], codigoDominio: String(codigoDominio || ''), uf: String(uf || '').trim().toUpperCase().slice(0, 2), situacao: 'fora-do-onvio', origem: 'hub', raiz: c14.slice(0, 8), vinculos: { dp: [], ctb: [], portal: [], fis: [] } };
     if (id && !m.vinculos[modulo].includes(String(id))) m.vinculos[modulo] = [...m.vinculos[modulo], String(id)];
@@ -6501,6 +6934,153 @@
     } finally { state.cadEstado.trocando = false; }
   }
 
+  // ----- Hub 314: excluir uma empresa de todos os módulos (pedido do Josué, 04/11/2026: "a empresa deve sumir de vez") -----
+  // A coordenação exclui pelo módulo Empresas. Antes de apagar, tudo o que a empresa tem em cada módulo vai para um backup em partes
+  // (cad_excluidas/b<lote>_<n>, texto JSON cortado em pedaços: não há limite de tamanho) e a empresa entra na lista de excluídas (cad_excluidas/_idx).
+  // DP e Portal apagam como os próprios módulos apagam (Portal: frentes e contatos juntos, filiais soltas da matriz); Contábil e Fiscal marcam
+  // `excluida`, como fazem na própria tela. O vínculo do Onvio sai e o registro do cadastro único fica marcado `excluida` (some de todas as telas).
+  // Excluída não volta sozinha: os clientes do Onvio com esse CNPJ deixam de ser lidos pelo Hub (sem "empresa nova" nem cadastro único),
+  // e o cadastro único não a recria. Só "Restaurar", no módulo Empresas, põe tudo de volta a partir do backup.
+  const CAD_EXC = 'cad_excluidas', CAD_EXC_PEDACO = 180000;
+  state.cadExc = {};
+  const cadExcluida = (cnpj) => { const k = cad14(cnpj); return !!(k && state.cadExc[k]); };
+  const cadPodeExcluirMod = (mod) => !AUTH() || AUTH().ehAdmin() || nivelMod(CAD_MOD_KEY[mod]) === 'coord';
+  // O que a empresa tem em cada módulo (só leitura): pelo CNPJ gravado no registro e pelos vínculos do cadastro único.
+  async function cadPlanoExclusao(cnpj) {
+    const k = cad14(cnpj); if (!k) return { ok: false, erro: 'CNPJ inválido.' };
+    if (!db) return { ok: false, erro: 'Sem conexão com o banco.' };
+    const c = (() => { for (const mapa of state.cadRaw.values()) if (mapa && mapa[k]) return mapa[k]; return null; })();
+    const vi = (c && c.vinculos) || {}, liga = (mod, id) => (vi[mod] || []).map(String).includes(String(id));
+    const [dp, portal, ctb, fis, sets, cts] = await Promise.all(['dp_empresas', 'empresas', 'ctb_emp', 'fis_emp', 'empresaSetores', 'contatos'].map(x => cadLerCol(x).catch(() => null)));
+    if (!dp || !portal || !ctb || !fis || !sets || !cts) return { ok: false, erro: 'Não consegui ler todos os módulos agora: nada foi excluído. Tente de novo.' };
+    const p = { cnpj14: k, cad: c ? JSON.parse(JSON.stringify(c)) : null, dp: [], portal: [], setores: [], contatos: [], filiais: [], ctb: [], fis: [], vincOnvio: {} };
+    p.dp = dp.filter(d => cad14(d.data.cnpj) === k || liga('dp', d.id));
+    p.portal = portal.filter(d => cad14(d.data.cnpj) === k || d.data.cadId === k || liga('portal', d.id));
+    const pIds = new Set(p.portal.map(d => d.id));
+    p.setores = sets.filter(d => pIds.has(d.data.empresaId)); p.contatos = cts.filter(d => pIds.has(d.data.empresaId));
+    p.filiais = portal.filter(d => !pIds.has(d.id) && pIds.has(d.data.matrizId)).map(d => ({ id: d.id, matrizId: d.data.matrizId, nome: String(d.data.nome || '') }));
+    const deMapa = (docs, mod) => docs.flatMap(d => Object.keys(d.data).filter(id => { const e = d.data[id]; if (!e || typeof e !== 'object' || Array.isArray(e) || e.excluida) return false; const ck = cad14(e.cnpj) || (/^c[0-9A-Z]{14}$/i.test(id) ? cad14(id.slice(1)) : ''); return ck === k || liga(mod, id); }).map(id => ({ doc: d.id, key: id, e: d.data[id] })));
+    p.ctb = deMapa(ctb, 'ctb'); p.fis = deMapa(fis, 'fis');
+    const dpIds = new Set(p.dp.map(d => d.id)), vinc = (state.dpOvCfg && state.dpOvCfg.vinc) || {};
+    Object.keys(vinc).forEach(cod => { if (dpIds.has(vinc[cod])) p.vincOnvio[cod] = vinc[cod]; });
+    const nome = (c && (nomeComSobrenome(c.apelido, c.razao) || c.razao)) || (p.dp[0] && p.dp[0].data.nome) || (p.portal[0] && p.portal[0].data.nome) || (p.ctb[0] && p.ctb[0].e.nome) || (p.fis[0] && p.fis[0].e.nome) || fmtCnpj(k);
+    const faltaPerm = ['dp', 'portal', 'ctb', 'fis'].filter(m => p[m].length && !cadPodeExcluirMod(m)).map(m => CAD_MODS[m]);
+    const resumo = { cnpj: fmtCnpj(k), nome, razao: (c && c.razao) || '', apelido: (c && c.apelido) || '', noCadastro: !!c,
+      dp: p.dp.map(d => ({ id: d.id, nome: String(d.data.nome || ''), funcionarios: Array.isArray(d.data.funcionarios) ? d.data.funcionarios.length : 0 })),
+      portal: p.portal.map(d => ({ id: d.id, nome: String(d.data.nome || '') })), setores: p.setores.length, contatos: p.contatos.length, filiais: p.filiais.map(f => f.nome || f.id),
+      ctb: p.ctb.map(x => ({ id: x.key, nome: String(x.e.nome || '') })), fis: p.fis.map(x => ({ id: x.key, nome: String(x.e.nome || '') })), vincOnvio: Object.keys(p.vincOnvio).length,
+      faltaPerm, pode: !state.semEscrita && !faltaPerm.length && temCoord(), jaExcluida: !!state.cadExc[k] };
+    return { ok: true, plano: p, resumo };
+  }
+  // Texto JSON cortado em pedaços (cada documento do banco fica bem abaixo do limite de 256 KB).
+  async function cadExcGravarBackup(lote, dados) {
+    const txt = JSON.stringify(dados), n = Math.max(1, Math.ceil(txt.length / CAD_EXC_PEDACO));
+    for (let i = 0; i < n; i++) if (!(await persist(() => db.doc(`${CAD_EXC}/${lote}_${i}`).set({ lote, parte: i, partes: n, txt: txt.slice(i * CAD_EXC_PEDACO, (i + 1) * CAD_EXC_PEDACO) })))) return 0;
+    // confere: lê de volta e compara antes de qualquer exclusão
+    let volta = '';
+    for (let i = 0; i < n; i++) { const sn = await db.doc(`${CAD_EXC}/${lote}_${i}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || typeof d.txt !== 'string') return 0; volta += d.txt; }
+    return volta === txt ? n : 0;
+  }
+  async function cadExcLerBackup(lote, partes) {
+    let txt = '';
+    for (let i = 0; i < partes; i++) { const sn = await db.doc(`${CAD_EXC}/${lote}_${i}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || typeof d.txt !== 'string') return null; txt += d.txt; }
+    try { return JSON.parse(txt); } catch (e) { return null; }
+  }
+  async function cadExcSalvarIdx(mut) {
+    const sn = await db.doc(`${CAD_EXC}/_idx`).get(), atual = sn && sn.exists !== false && sn.data ? (sn.data() || {}) : {};
+    const lista = { ...(atual.lista || {}) }; mut(lista);
+    const ok = await persist(() => db.doc(`${CAD_EXC}/_idx`).set({ lista }));
+    if (ok) { state.cadExc = lista; ovVer++; cadAchata(); }
+    return ok;
+  }
+  // Exclui de todos os módulos. `confirmacao` = o nome que a pessoa digitou (o mesmo que a tela mostra).
+  async function cadExcluirTudo(cnpj, confirmacao) {
+    if (state.cadEstado.excluindo) return { ok: false, erro: 'Já há uma exclusão em andamento.' };
+    const r = await cadPlanoExclusao(cnpj); if (!r.ok) return r;
+    const { plano: p, resumo } = r;
+    if (!temCoord() || state.semEscrita) return { ok: false, erro: 'Só a coordenação exclui empresas.' };
+    if (resumo.faltaPerm.length) return { ok: false, erro: 'Para excluir de todos os módulos é preciso ser da coordenação de cada um. Falta: ' + resumo.faltaPerm.join(', ') + '.' };
+    if (cadNorm(confirmacao) !== cadNorm(resumo.nome)) return { ok: false, erro: 'O nome digitado não confere: nada foi excluído.' };
+    const nada = !p.cad && !p.dp.length && !p.portal.length && !p.ctb.length && !p.fis.length;
+    if (nada) return { ok: false, erro: 'Não achei esta empresa em nenhum módulo.' };
+    state.cadEstado.excluindo = true;
+    try {
+      const em = Date.now(), por = autorId(), lote = 'b' + em.toString(36) + '_' + p.cnpj14;
+      const dados = { v: 1, cnpj14: p.cnpj14, em, por, cad: p.cad, dp: p.dp, portal: p.portal, setores: p.setores, contatos: p.contatos, filiais: p.filiais, ctb: p.ctb, fis: p.fis, vincOnvio: p.vincOnvio };
+      const partes = await cadExcGravarBackup(lote, dados);
+      if (!partes) return { ok: false, erro: 'Não consegui gravar e conferir o backup da empresa: nada foi excluído.' };
+      const contagem = { dp: p.dp.length, portal: p.portal.length, setores: p.setores.length, contatos: p.contatos.length, filiais: p.filiais.length, ctb: p.ctb.length, fis: p.fis.length };
+      // 1) entra na lista de excluídas ANTES de apagar: se algo falhar no meio, ela já não volta pelo Onvio e o backup está guardado
+      const ex = state.cadExc[p.cnpj14];
+      const okIdx = await cadExcSalvarIdx(l => { const a = l[p.cnpj14] || {}; l[p.cnpj14] = { nome: resumo.nome, razao: resumo.razao, em, por, porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', backups: [...(a.backups || []), { lote, partes, em }].slice(-10), contagem, pendente: true }; });
+      if (!okIdx) return { ok: false, erro: 'Não consegui registrar a exclusão: nada foi excluído (o backup ficou guardado).' };
+      const raw = cadEscrita(), falhas = [];
+      const tenta = async (rot, fn) => { try { await fn(); } catch (e) { falhas.push(rot); } };
+      // 2) Portal: como a própria tela do Portal exclui
+      for (const d of p.setores) await tenta('Portal (frente)', () => raw.doc('empresaSetores/' + d.id).delete());
+      for (const d of p.contatos) await tenta('Portal (contato)', () => raw.doc('contatos/' + d.id).delete());
+      for (const f of p.filiais) await tenta('Portal (filial)', () => raw.doc('empresas/' + f.id).update({ matrizId: '' }));
+      for (const d of p.portal) await tenta('Portal', () => raw.doc('empresas/' + d.id).delete());
+      // 3) Contábil e Fiscal: marcados como excluídos, como na própria tela de cada um
+      for (const [mod, col] of [['ctb', 'ctb_emp'], ['fis', 'fis_emp']]) {
+        const porDoc = {}; p[mod].forEach(x => { (porDoc[x.doc] = porDoc[x.doc] || {})[x.key] = { ...x.e, excluida: true, excluidaEm: em, excluidaPor: 'cadastro único' }; });
+        for (const doc of Object.keys(porDoc)) await tenta(CAD_MODS[mod], () => raw.doc(`${col}/${doc}`).update(porDoc[doc]));
+      }
+      // 4) vínculo do Onvio e DP
+      if (Object.keys(p.vincOnvio).length) { const ok = await salvarOvCfg((c) => { Object.keys(p.vincOnvio).forEach(cod => { if (c.vinc && c.vinc[cod] === p.vincOnvio[cod]) delete c.vinc[cod]; }); }); if (!ok) falhas.push('vínculo do Onvio'); }
+      for (const d of p.dp) await tenta('DP', () => dpDbStore.deleteOne(d.id));
+      if (p.dp.length) { const ids = new Set(p.dp.map(d => d.id)); state.dpEmpresas = state.dpEmpresas.filter(e => !ids.has(e.id)); }
+      // 5) cadastro único: o registro fica, marcado como excluído (some das telas; o backup tem o original)
+      if (p.cad) {
+        const b = 'b' + cadBalde(p.cnpj14), atual = state.cadRaw.get(b) || {}, novo = { ...atual[p.cnpj14], excluida: true, excluidaEm: em, atualizadoEm: em };
+        const ok = await persist(() => db.doc(`${CAD_COL}/${b}`).update({ [p.cnpj14]: novo }));
+        if (ok) state.cadRaw.set(b, { ...atual, [p.cnpj14]: novo }); else falhas.push('cadastro único');
+      }
+      await cadExcSalvarIdx(l => { if (l[p.cnpj14]) l[p.cnpj14] = { ...l[p.cnpj14], pendente: falhas.length > 0, falhas: [...new Set(falhas)] }; });
+      try { renderDpActiveView(); } catch (e) {}
+      return { ok: !falhas.length, contagem, falhas: [...new Set(falhas)], lote };
+    } finally { state.cadEstado.excluindo = false; }
+  }
+  // Põe de volta tudo o que estava no backup (o que alguém recriou nesse meio-tempo não é sobrescrito).
+  async function cadRestaurar(cnpj) {
+    const k = cad14(cnpj), ex = state.cadExc[k];
+    if (!ex) return { ok: false, erro: 'Esta empresa não está na lista de excluídas.' };
+    if (!temCoord() || state.semEscrita) return { ok: false, erro: 'Só a coordenação restaura empresas.' };
+    if (state.cadEstado.excluindo) return { ok: false, erro: 'Já há uma exclusão em andamento.' };
+    state.cadEstado.excluindo = true;
+    try {
+      const raw = cadEscrita(), falhas = [], feitos = { dp: 0, portal: 0, ctb: 0, fis: 0 };
+      const existe = async (p) => { const sn = await raw.doc(p).get(); return !!(sn && sn.exists !== false && sn.data && sn.data()); };
+      const tenta = async (rot, fn) => { try { await fn(); } catch (e) { falhas.push(rot); } };
+      let cadOrig = null;
+      for (const b of (ex.backups || [])) {
+        const d = await cadExcLerBackup(b.lote, b.partes);
+        if (!d) return { ok: false, erro: 'O backup desta empresa está incompleto: nada foi restaurado.' };
+        if (d.cad && !cadOrig) cadOrig = d.cad;
+        for (const x of d.dp || []) await tenta('DP', async () => { if (!(await existe('dp_empresas/' + x.id))) { await raw.doc('dp_empresas/' + x.id).set(x.data); feitos.dp++; } });
+        for (const x of d.portal || []) await tenta('Portal', async () => { if (!(await existe('empresas/' + x.id))) { await raw.doc('empresas/' + x.id).set(x.data); feitos.portal++; } });
+        for (const x of d.setores || []) await tenta('Portal (frente)', async () => { if (!(await existe('empresaSetores/' + x.id))) await raw.doc('empresaSetores/' + x.id).set(x.data); });
+        for (const x of d.contatos || []) await tenta('Portal (contato)', async () => { if (!(await existe('contatos/' + x.id))) await raw.doc('contatos/' + x.id).set(x.data); });
+        for (const f of d.filiais || []) await tenta('Portal (filial)', async () => { const sn = await raw.doc('empresas/' + f.id).get(), v = sn && sn.data ? sn.data() : null; if (v && !v.matrizId) await raw.doc('empresas/' + f.id).update({ matrizId: f.matrizId }); });
+        for (const [mod, col] of [['ctb', 'ctb_emp'], ['fis', 'fis_emp']]) for (const x of d[mod] || []) await tenta(CAD_MODS[mod], async () => {
+          const sn = await raw.doc(`${col}/${x.doc}`).get(), mapa = sn && sn.data ? (sn.data() || {}) : {}, cur = mapa[x.key];
+          if (!cur || cur.excluida) { await raw.doc(`${col}/${x.doc}`).update({ [x.key]: x.e }); feitos[mod]++; }
+        });
+        if (d.vincOnvio && Object.keys(d.vincOnvio).length) { const ok = await salvarOvCfg((c) => { c.vinc = c.vinc || {}; Object.keys(d.vincOnvio).forEach(cod => { if (!c.vinc[cod]) c.vinc[cod] = d.vincOnvio[cod]; }); }); if (!ok) falhas.push('vínculo do Onvio'); }
+      }
+      if (falhas.length) return { ok: false, erro: 'Parte não voltou (' + [...new Set(falhas)].join(', ') + '). A empresa continua na lista de excluídas: tente de novo.', feitos };
+      // tira da lista de excluídas antes de devolver o registro ao cadastro único (senão ele seria escondido de novo)
+      if (!(await cadExcSalvarIdx(l => { delete l[k]; }))) return { ok: false, erro: 'Os módulos voltaram, mas não consegui tirar a empresa da lista de excluídas. Tente de novo.', feitos };
+      if (cadOrig) {
+        const b = 'b' + cadBalde(k), atual = state.cadRaw.get(b) || {}, novo = { ...cadOrig, atualizadoEm: Date.now() }; delete novo.excluida; delete novo.excluidaEm;
+        const ok = await persist(() => state.cadRaw.has(b) ? db.doc(`${CAD_COL}/${b}`).update({ [k]: novo }) : db.doc(`${CAD_COL}/${b}`).set({ [k]: novo }));
+        if (ok) { state.cadRaw.set(b, { ...atual, [k]: novo }); cadAchata(); }
+      }
+      return { ok: true, feitos };
+    } finally { state.cadEstado.excluindo = false; }
+  }
+  const cadExcluidas = () => Object.keys(state.cadExc).map(k => ({ cnpj14: k, cnpj: fmtCnpj(k), ...state.cadExc[k] })).sort((a, b) => (b.em || 0) - (a.em || 0));
+
   const cadApi = {
     pronto: () => !!db, podeGerir: cadPodeGerir,
     estado: () => ({ mestre: state.cadastro.size, backup: state.cadBkp, relatorio: state.cadRel, ocupado: state.cadEstado.gerando || state.cadEstado.fazendoBackup, clientesOnvio: ovClientes().size }),
@@ -6529,6 +7109,11 @@
     ligar: cadLigar, desligar: cadDesligar, editar: cadEditar,
     trocasPlano: cadTrocasPlanoApi, trocasAplicar: cadAplicarTrocas, trocasDesfazer: cadDesfazerTrocas, trocasLotes: () => (state.cadTrocasIdx && state.cadTrocasIdx.lotes) || [],
     modulosTroca: CAD_TROCA_MODS, backupOk: cadBackupOk, nomePadrao: (cnpj) => cadNome(cnpj, ''),
+    // Hub 314: módulo Empresas
+    exclusaoPlano: async (cnpj) => { const r = await cadPlanoExclusao(cnpj); return r.ok ? { ok: true, resumo: r.resumo } : r; },
+    excluir: (cnpj, confirmacao) => cadExcluirTudo(cnpj, confirmacao), restaurar: (cnpj) => cadRestaurar(cnpj),
+    excluidas: cadExcluidas, excluida: cadExcluida, podeExcluir: () => !!db && !state.semEscrita && temCoord(),
+    nivel: (m) => nivelMod(CAD_MOD_KEY[m] || m), meNome: () => (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '',
   };
   // API para os módulos (quadros do Hub): leitura do cadastro único e registro de empresa nova.
   window.__cadastro = {
@@ -6539,13 +7124,15 @@
     buscar: (texto, max) => cadBuscar(texto, max),
     aoMudar: (cb) => { if (typeof cb === 'function') cadOuvintes.push(cb); },
     pode: { editar: () => cadPodeEditar(), ligar: (m) => cadPodeLigar(m) },
-    abrirEdicao: (cnpj) => { try { openModule('fontes'); try { sessionStorage.setItem('controlhub-cad-editar', cad14(cnpj)); } catch (e) {} const f = $('#fontes-frame'); if (f && f.contentWindow && f.contentWindow.__abrirEdicaoCad) f.contentWindow.__abrirEdicaoCad(cad14(cnpj)); return true; } catch (e) { return false; } },
+    // Hub 314: a empresa abre no módulo Empresas (identidade, módulos, corrigir e excluir de todos os módulos)
+    abrirEdicao: (cnpj) => { try { const k = cad14(cnpj); try { sessionStorage.setItem('controlhub-emp-abrir', k); } catch (e) {} openModule('empresas'); const f = $('#empresas-frame'); if (f && f.contentWindow && f.contentWindow.__abrirEmpresa) { try { sessionStorage.removeItem('controlhub-emp-abrir'); } catch (e) {} f.contentWindow.__abrirEmpresa(k); } return true; } catch (e) { return false; } },
     get: (cnpj) => { const c = cadGet(cnpj); return c ? JSON.parse(JSON.stringify(c)) : null; },
     nome: (cnpj, fallback) => cadNome(cnpj, fallback),
     razao: (cnpj, fallback) => { const c = cadGet(cnpj); return c && c.razao ? c.razao : (fallback || ''); },
     vinculos: (cnpj) => { const c = cadGet(cnpj); return c ? JSON.parse(JSON.stringify(c.vinculos || {})) : {}; },
     registrar: (d) => cadRegistrar(d || {}),
     abrir: (modulo, id) => cadAbrir(modulo, id),
+    excluida: (cnpj) => cadExcluida(cnpj),       // Hub 314: empresa excluída de todos os módulos (os módulos não devem recriá-la)
   };
 
 
@@ -6566,7 +7153,7 @@
       <div class="cad-linha"><span class="cad-l">Código</span><b>${escapeHtml([c.codigoOnvio && 'Onvio ' + c.codigoOnvio, c.codigoDominio && 'Domínio ' + c.codigoDominio].filter(Boolean).join(' · ') || '—')}</b></div>
       <div class="cad-linha"><span class="cad-l">Matriz e filiais</span><b>${filiais ? filiais + (filiais === 1 ? ' outra empresa' : ' outras empresas') + ' com a mesma raiz de CNPJ' : 'sem filiais cadastradas'}</b></div>
       <div class="cad-linha"><span class="cad-l">Está em</span><span class="cad-chips">${chips}</span></div>
-      <div class="cad-linha"><span class="cad-l"></span><button type="button" class="linkish" data-cad-ed="${escapeHtml(c.id)}">Editar no cadastro único</button></div></div>`;
+      <div class="cad-linha"><span class="cad-l"></span><button type="button" class="linkish" data-cad-ed="${escapeHtml(c.id)}">Abrir no módulo Empresas</button></div></div>`;
   }
   document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cad-abrir]'); if (!b) return; e.preventDefault(); if (dlgDetail.open) dlgDetail.close(); cadAbrir(b.dataset.cadAbrir, b.dataset.id); });
   document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-cad-ed]'); if (!b) return; e.preventDefault(); if (dlgDetail.open) dlgDetail.close(); window.__cadastro.abrirEdicao(b.dataset.cadEd); });
@@ -6625,9 +7212,10 @@
       if (cl.ie) chips.push(['Insc. estadual', cl.ie]);
       if (cl.certificado != null) chips.push(['Certificado digital', cl.certificado ? 'tem' + (cl.validade ? ' · vale até ' + fmtDateStr(cl.validade) : '') : 'não tem']);
     }
+    const socios = ovQuadroFolhaHtml(e) + ovSociosHtml(e);
     const topo = `<div class="ov-top"><div class="ov-chips">${chips.map(([k, v]) => `<span class="ov-chip"><small>${escapeHtml(k)}</small><b>${escapeHtml(v)}</b></span>`).join('')}</div>${recebido ? `<span class="ct-ov-idade${velho ? ' velho' : ''}">recebido ${escapeHtml(ovIdade(recebido.recebidoEm))}${velho ? ' · desatualizado' : ''}</span>` : ''}</div>`;
     if (!lista.length) {
-      el.innerHTML = `${topo}<div class="dp-empty"><strong>${cl ? 'Nenhuma solicitação desta empresa no Onvio' : 'Esta empresa não está ligada a nenhum cliente do Onvio'}</strong><span>${cl ? 'O cadastro foi achado pelo CNPJ, mas ela ainda não abriu solicitações nas 10 listas.' : 'Se ela é cliente do Onvio, a coordenação faz a ligação na Entrada de dados, ou confira o CNPJ no cadastro.'}</span>${cl ? '' : '<button type="button" class="linkish" data-ov-fontes>Abrir a Entrada de dados</button>'}</div>`;
+      el.innerHTML = `${topo}${socios}<div class="dp-empty"><strong>${cl ? 'Nenhuma solicitação desta empresa no Onvio' : 'Esta empresa não está ligada a nenhum cliente do Onvio'}</strong><span>${cl ? 'O cadastro foi achado pelo CNPJ, mas ela ainda não abriu solicitações nas 10 listas.' : 'Se ela é cliente do Onvio, a coordenação faz a ligação na Entrada de dados, ou confira o CNPJ no cadastro.'}</span>${cl ? '' : '<button type="button" class="linkish" data-ov-fontes>Abrir a Entrada de dados</button>'}</div>`;
       return;
     }
     const t = hoje(), esc = pend.filter(s => s.vez === 'escritório').length, conc90 = lista.filter(s => s.fim && ovDia(s.alterada) >= ymd(addDays(t, -90))).length;
@@ -6642,11 +7230,53 @@
         <td><span class="ct-ov-vez ${s.vez === 'escritório' ? 'esc' : 'cli'}">${escapeHtml(s.vez || '—')}</span><div class="dp-cell-sub">${escapeHtml(s.sit)}</div>${s.fim ? '' : ovAnaliseHtml(s)}</td>
         <td>${escapeHtml(s.resp || '—')}</td><td class="dp-cell-sub">${escapeHtml(ovFmtDia(s.aberta) || '—')}</td><td class="dp-cell-sub">${escapeHtml(ovFmtDia(s.ult) || '—')}</td></tr>
       ${s.id === state.ovAberta ? `<tr class="ov-det"><td colspan="7">${ovDetalheHtml(s)}</td></tr>` : ''}`;
-    el.innerHTML = `${topo}
+    el.innerHTML = `${topo}${socios}
       <div class="ct-ov-kp"><div><b>${pend.length}</b><span>pendentes</span></div><div class="esc"><b>${esc}</b><span>na vez do escritório</span></div><div><b>${conc90}</b><span>concluídas em 90 dias</span></div><div class="late"><b>${maior}</b><span>dias da mais antiga pendente</span></div></div>
       <div class="ct-ov-barra">${chip('pend', 'Pendentes')}${chip('todas', 'Todas')}<span class="dp-count">${vis.length} solicitação(ões)</span></div>
       <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table ct-ov-tab ov-tab"><thead><tr><th>Nº</th><th>Lista</th><th>Empregado e assunto</th><th>Vez</th><th>Responsável</th><th>Aberta</th><th>Últ. trâmite</th></tr></thead>
       <tbody>${vis.length ? vis.slice(0, state.ovLim).map(linha).join('') : '<tr><td colspan="7"><div class="dp-empty">Nenhuma solicitação neste filtro.</div></td></tr>'}${vis.length > state.ovLim ? `<tr><td colspan="7" style="text-align:center"><button type="button" class="btn btn-sm" data-ov-mais>Mostrar mais (${vis.length - state.ovLim})</button></td></tr>` : ''}</tbody></table></div></div>`;
+  }
+  // Qual folha está decidindo quem é ativo nesta empresa (ou por que a lista do Onvio continua valendo)
+  function ovQuadroFolhaHtml(e) {
+    const f = ovFolha().get(e.id); if (!f || !f.docs || !f.docs.size) return '';
+    const q = ovFolhaQuadro(e);
+    if (!q) return `<div class="ov-folha-q dp-cell-sub">A folha desta empresa ainda não decide quem é ativo: ${escapeHtml(ovFolhaPorque.get(e.id) || 'motivo desconhecido')}. Enquanto isso, vale a lista do Onvio.</div>`;
+    const xs = ovEmpregados(e).filter(x => x.roster), fora = xs.filter(x => x.foraDaFolha).length, ativos = xs.filter(x => x.ativo).length;
+    // o que falta aplicar no cadastro, e se o automático vai aplicar (Hub 307)
+    const difs = ovDifs(e).filter(d => d.entidade === 'funcionario'), sit = difs.filter(d => d.tipo === 'situacao'), conf = sit.filter(d => d.confirmar).length, a = ovAutoCfg();
+    const comp = a.ligada ? ovCompletos() : { ok: true };
+    const pend = !difs.length ? 'o cadastro já está como a folha diz.'
+      : `${difs.length} mudança(s) a aplicar no cadastro (${sit.length} de situação${conf ? `, ${conf} para conferir à mão` : ''}). ` + (!a.ligada ? 'A aplicação automática está <b>desligada</b>: aplique na Entrada de dados ou peça à coordenação para ligar.' : !comp.ok ? `A aplicação automática está parada: ${escapeHtml(comp.motivo)}.` : 'A aplicação automática vai aplicar na próxima rodada (com o Hub aberto por quem pode alterar esta empresa).');
+    return `<div class="ov-folha-q"><b>Folha de ${escapeHtml(ovMesCurto(q.mes))}</b> decide quem é ativo: ${q.pessoas} na folha · ${ativos} ativo${ativos === 1 ? '' : 's'} (com férias, afastados e admitidos depois) · ${fora} fora da folha. ${pend}</div>`;
+  }
+  // Contribuintes (sócios, autônomos) da empresa: quem é vem da lista do Onvio (Vínculo PARTNER, extensão 0.67.0) e da folha; QUANDO esteve
+  // ativo vem só da folha (Extrato Mensal, extensão 0.68.0): ativo nos meses em que aparece, de forma intermitente se for o caso. Só leitura.
+  function ovSociosHtml(e) {
+    const lista = (ovRoster().socios || new Map()).get(e.id) || [], folha = ovFolha().get(e.id);
+    const meses = folha ? [...folha.meses].sort().reverse() : [], ultimo = meses[0] || '';
+    const linhas = new Map();
+    lista.forEach(x => linhas.set(x.codigo || ('n:' + ovChave(x.nome)), { nome: x.nome, codigo: x.codigo, inicio: x.inicio, onvio: true, ativoOnvio: x.ativo, vinculo: '', meses: new Set() }));
+    if (folha) folha.pessoas.forEach((p, k) => {
+      let l = linhas.get(k);
+      if (!l) for (const v of linhas.values()) if (!v.meses.size && ovChave(v.nome) && ovChave(v.nome) === ovChave(p.nome)) { l = v; break; }
+      if (!l) { l = { nome: p.nome, codigo: p.codigo, inicio: '', onvio: false, ativoOnvio: false, vinculo: '', meses: new Set() }; linhas.set(k, l); }
+      p.meses.forEach(m => l.meses.add(m)); if (p.vinculo) l.vinculo = p.vinculo; if (!l.codigo) l.codigo = p.codigo;
+    });
+    const l = [...linhas.values()].sort((a, b) => (b.meses.has(ultimo) - a.meses.has(ultimo)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+    if (!l.length) return '';
+    const ultimos = meses.slice(0, 12).reverse();
+    const situacao = (x) => {
+      if (!folha) return { t: x.ativoOnvio ? 'Ativo no Onvio' : 'Inativo no Onvio', s: 'folha ainda não lida', c: '' };
+      if (x.meses.has(ultimo)) return { t: 'Ativo em ' + ovMesCurto(ultimo), s: x.meses.size < ultimos.length ? 'intermitente' : '', c: 'on' };
+      // regra do Josué (03/11/2026): mês sem folha para o sócio/pró-labore = INATIVO naquele mês, nunca desligado
+      if (x.meses.size) { const u = [...x.meses].sort().pop(); return { t: 'Inativo em ' + ovMesCurto(ultimo), s: 'última vez na folha em ' + ovMesCurto(u), c: 'fora' }; }
+      return { t: 'Inativo em ' + ovMesCurto(ultimo), s: 'fora da folha nos ' + meses.length + ' mês(es) lidos', c: 'fora' };
+    };
+    const ativos = l.filter(x => folha && x.meses.has(ultimo)).length;
+    const cab = folha ? `${ativos} ativo(s) e ${l.length - ativos} inativo(s) em ${escapeHtml(ovMesCurto(ultimo))} · ativo nos meses em que aparece na folha; sem folha no mês, inativo` : 'da lista do Onvio; a folha desta empresa ainda não foi lida';
+    const meseHtml = (x) => ultimos.length ? `<div class="ov-meses" role="img" aria-label="${escapeHtml(ultimos.filter(m => x.meses.has(m)).map(ovMesCurto).join(', ') || 'nenhum mês')}">${ultimos.map(m => `<span class="ov-mes${x.meses.has(m) ? ' on' : ''}" title="${escapeHtml(ovMesCurto(m) + (x.meses.has(m) ? ': na folha' : ': fora da folha'))}">${escapeHtml(ovMesCurto(m).slice(0, 3))}</span>`).join('')}</div>` : '<span class="dp-cell-sub">—</span>';
+    return `<div class="ov-socios"><div class="ov-socios-cab"><b>Contribuintes (sócios e autônomos)</b><span class="dp-count">${l.length}</span><span class="dp-cell-sub">${cab}</span></div>
+      <div class="list-card ct-sheet"><div class="ct-scroll"><table class="ct-table ov-socios-tab"><thead><tr><th>Nome</th><th>Código</th><th>Vínculo</th><th>Na folha${ultimos.length ? ' (' + escapeHtml(ovMesCurto(ultimos[0])) + ' a ' + escapeHtml(ovMesCurto(ultimos[ultimos.length - 1])) + ')' : ''}</th><th>Situação</th></tr></thead><tbody>${l.map(x => { const st = situacao(x); return `<tr><td><div class="dp-cell-main">${escapeHtml(x.nome)}</div>${x.onvio ? '' : '<div class="dp-cell-sub">só na folha</div>'}</td><td class="dp-mono">${escapeHtml(x.codigo || '—')}</td><td>${escapeHtml(x.vinculo || (x.onvio ? 'Sócio' : '—'))}</td><td>${meseHtml(x)}</td><td><span class="ov-sit ${st.c}">${escapeHtml(st.t)}</span>${st.s ? `<div class="dp-cell-sub">${escapeHtml(st.s)}</div>` : ''}</td></tr>`; }).join('')}</tbody></table></div></div></div>`;
   }
   // Painel do DP: cartão com o que o Onvio tem para a carteira.
   function ovCartaoPainel(emps, card) {
@@ -6718,8 +7348,8 @@
   // Conjuntos cortados ou velhos demais não servem de base para gravar nada sozinho (decidir à mão continua possível).
   function ovCompletos() {
     const nomes = [...OV_LISTAS, ...OV_PESSOAIS, OV_EMPREGADOS, 'clientes-cnd', 'clientes-nfe', 'escritorio-funcionarios'].filter(t => state.ovMan[t]);
-    const cortado = nomes.filter(t => state.ovMan[t].cortado);
-    if (cortado.length) return { ok: false, motivo: 'conjunto cortado: ' + cortado.slice(0, 3).join(', ') };
+    // Hub 306 (Josué, 04/11/2026): conjunto cortado não para mais o automático. O que dependeria da lista completa (desligar por ausência)
+    // vai para conferir à mão (confirmar); o resto, que vem de dados que chegaram, é aplicado.
     const velho = nomes.filter(t => Date.now() - (Number(state.ovMan[t].recebidoEm) || 0) > 48 * 3600e3);
     if (velho.length) return { ok: false, motivo: 'dados do Onvio com mais de 48 h (' + velho.slice(0, 2).join(', ') + ')' };
     return { ok: true, motivo: '' };
@@ -6735,6 +7365,8 @@
     return normalizeDpEmpresa(JSON.parse(JSON.stringify(e)));
   }
   const OV_DOC_MAX = 240000;                  // o banco aceita ~256 KB por documento
+  // Texto curto de por que o Hub marcou a pessoa como Inativo/Desligado, gravado na própria pessoa (Hub 311: "de onde veio essa informação?").
+  const ovMotivoSit = (dif, auto) => String((dif.txt || '').replace(/^Muitos de uma vez[^:]*: confira antes de aplicar\. /, '').replace(/^A lista do Onvio veio incompleta[^:]*: confira antes de aplicar\. /, '')).slice(0, 160) + ' · ' + (auto ? 'aplicado automaticamente' : 'aplicado na Entrada de dados') + ' em ' + new Date().toLocaleDateString('pt-BR');
   async function ovAplicarVarios(empId, chaves, auto) {
     const e = findDpEmpresa(empId); if (!e) return { ok: false, n: 0, erro: 'Empresa não encontrada.' };
     if (state.readOnly || !podeEmpresaDp(e)) return { ok: false, n: 0, erro: 'Você só altera as empresas da sua carteira.' };
@@ -6743,8 +7375,9 @@
     difs.forEach(dif => {
       if (dif.entidade === 'empresa') { Object.assign(campos, dif.patch); feitas.push(dif); return; }
       const nome = norm(dif.nome).trim();
-      if (dif.novo) { if (funcs.some(f => funcNorm(f) === nome)) return; funcs.push({ ...dif.patch, id: uid() }); }       // já cadastrado por outro navegador: não duplica
-      else { const f = funcs.find(x => x.id === dif.fid) || funcs.find(x => funcNorm(x) === nome); if (!f) return; Object.assign(f, dif.patch); }
+      if (dif.novo) { if (funcs.some(f => funcNorm(f) === nome)) return; funcs.push({ ...dif.patch, id: uid(), ...(dif.patch && FUNC_FORA.has(dif.patch.status) ? { situacaoMotivo: ovMotivoSit(dif, auto) } : {}) }); }       // já cadastrado por outro navegador: não duplica
+      else if (dif.remover) { const f = funcs.find(x => x.id === dif.fid), k = funcs.findIndex(x => x.id === dif.remover); if (!f || k < 0) return; Object.assign(f, dif.patch); funcs.splice(k, 1); }       // Hub 312: unificar duplicado
+      else { const f = funcs.find(x => x.id === dif.fid) || funcs.find(x => funcNorm(x) === nome); if (!f) return; Object.assign(f, dif.patch); if (dif.tipo === 'situacao') f.situacaoMotivo = dif.patch && dif.patch.status === 'Ativo' ? '' : ovMotivoSit(dif, auto); }
       mexeuFunc = true; feitas.push(dif);
     });
     if (!feitas.length) return { ok: true, n: 0, erro: '' };
@@ -7235,7 +7868,7 @@
   // ----- exportar e imprimir -----
   function ctDadosExport(todos) {
     const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => ptCmp(ctResp(a) || '￿', ctResp(b) || '￿') || byNome(a, b));
-    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(f => funcStatus(f) !== 'Desligado').length }; });
+    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(funcConta).length }; });
   }
   function ctCsv(todos) {
     const rows = [['Analista','Reserva','Hoje com (cobertura)','Empresa','Código','CNPJ/CPF','Tributação','Situação','Funcionários ativos']];
@@ -8017,6 +8650,7 @@
       if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(d.ciclo || ''))) return 'ciclo';
       if (!Array.isArray(d.colunas) || d.colunas.length < 1 || d.colunas.length > 80) return 'colunas';
       if (typeof d.tabela !== 'string' || d.tabela.length > ING_MAX) return 'tamanho';
+      if (d.acumular && (typeof d.acumular !== 'string' || d.colunas.indexOf(d.acumular) === -1)) return 'acumular';
       return '';
     }
     if (!ING_FONTES[d.fonte] || ING_FONTES[d.fonte].indexOf(d.tipoDado) === -1) return 'fonte-desconhecida';
@@ -8028,6 +8662,20 @@
     const pt = {}; Object.keys(d.porTipo && typeof d.porTipo === 'object' ? d.porTipo : {}).slice(0, 30).forEach(k => { pt[ingStr(k, 60)] = Number(d.porTipo[k]) || 0; });
     return { fonte: d.fonte, tipoDado: d.tipoDado, titulo: ingStr(d.titulo, 100), usuario: ingStr(d.usuario, 80), extraidoEm: ingStr(d.extraidoEm, 40), recebidoEm: Date.now(), por: por || '',
       colunas: d.colunas.map(c => ingStr(c, 60)), tabela: d.tabela, nLinhas: Number(d.nLinhas) || 0, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: !!d.cortado, porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) };
+  }
+  // Junta a remessa nova com a anterior: as linhas antigas passam para as colunas novas (pelo nome) e saem as da mesma chave.
+  function ingMesclar(colunas, chave, novas, colAntigas, antigas) {
+    const ik = colunas.indexOf(chave); if (ik < 0) return novas.slice();
+    const pos = colunas.map(n => colAntigas.indexOf(n));
+    const conv = l => { const c = l.split('\t'); return pos.map(i => (i < 0 || c[i] == null ? '' : c[i])).join('\t'); };
+    const ja = new Set(novas.map(l => l.split('\t')[ik]));
+    return novas.concat(antigas.map(conv).filter(l => !ja.has(l.split('\t')[ik])));
+  }
+  function ingPartirLinhas(linhas, max) {
+    const out = []; let cur = [], n = 0;
+    for (const l of linhas) { if (cur.length && n + l.length + 1 > max) { out.push(cur.join('\n')); cur = []; n = 0; } cur.push(l); n += l.length + 1; }
+    if (cur.length) out.push(cur.join('\n'));
+    return out;
   }
   // Uma parte de uma remessa: escreve na posição livre; na última, publica o manifesto e apaga a remessa antiga.
   async function ingGravarParte(d, por) {
@@ -8042,7 +8690,7 @@
       try { const sr = await db.doc(rk).get(), v = sr && sr.data ? sr.data() : null; if (v && v.ciclo !== d.ciclo) throw Object.assign(new Error('ocupado'), { motivo: 'ocupado' }); } catch (x) { if (x && x.motivo) throw x; }
       let atual = null;
       try { const sn = await db.doc('ing_dados/' + base).get(); atual = sn && sn.exists !== false && sn.data ? sn.data() : null; } catch {}
-      c = ing.ciclos[d.ciclo] = { slot: atual && atual.slot === 'a' ? 'b' : 'a', anterior: atual && atual.slot ? { slot: atual.slot, partes: Number(atual.partes) || 0 } : null, recebidas: 0 };
+      c = ing.ciclos[d.ciclo] = { slot: atual && atual.slot === 'a' ? 'b' : 'a', anterior: atual && atual.slot ? { slot: atual.slot, partes: Number(atual.partes) || 0, ciclo: atual.ciclo || '', colunas: Array.isArray(atual.colunas) ? atual.colunas : [], nLinhas: Number(atual.nLinhas) || 0 } : null, recebidas: 0 };
       const ids = Object.keys(ing.ciclos); if (ids.length > 8) delete ing.ciclos[ids[0]];
     }
     if (!c) throw Object.assign(new Error('ciclo-perdido'), { motivo: 'ciclo-perdido' });
@@ -8050,15 +8698,43 @@
     c.recebidas++;
     if (parte < partes - 1) return { final: false };
     if (c.recebidas < partes) throw Object.assign(new Error('incompleto'), { motivo: 'incompleto' });
+    let partesFinal = partes, nLinhasFinal = Number(d.nLinhasTotal) || Number(d.nLinhas) || 0, cortadoFinal = !!d.cortado;
+    // Conjunto que se ACUMULA (folha do Extrato Mensal, extensão 0.68.0): a remessa traz só o que é novo; junta com o que já estava,
+    // trocando as linhas da mesma chave (coluna d.acumular, ex.: Documento). Se a remessa anterior não puder ser lida, recusa (a extensão manda de novo).
+    if (d.acumular && c.anterior && c.anterior.partes) {
+      const novas = [];
+      for (let i = 0; i < partes; i++) {
+        let t = i === parte ? d.tabela : null;
+        if (t === null) { const sn = await db.doc(`ing_partes/${base}~${c.slot}${i}`).get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!v || v.ciclo !== d.ciclo) throw Object.assign(new Error('incompleto'), { motivo: 'incompleto' }); t = v.tabela; }
+        String(t || '').split('\n').forEach(l => { if (l) novas.push(l); });
+      }
+      const antigas = [];
+      for (let i = 0; i < c.anterior.partes && i < ING_PARTES_MAX; i++) {
+        const sn = await db.doc(`ing_partes/${base}~${c.anterior.slot}${i}`).get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+        if (!v || (c.anterior.ciclo && v.ciclo !== c.anterior.ciclo)) throw Object.assign(new Error('acumular'), { motivo: 'acumular' });
+        String(v.tabela || '').split('\n').forEach(l => { if (l) antigas.push(l); });
+      }
+      const juntas = ingMesclar(d.colunas, d.acumular, novas, c.anterior.colunas.length ? c.anterior.colunas : d.colunas, antigas);
+      let pedacos = ingPartirLinhas(juntas, ING_MAX - 2000);
+      if (pedacos.length > ING_PARTES_MAX) { pedacos = pedacos.slice(0, ING_PARTES_MAX); cortadoFinal = true; }       // as mais antigas ficam de fora
+      for (let i = 0; i < pedacos.length; i++) await db.doc(`ing_partes/${base}~${c.slot}${i}`).set({ ciclo: ingStr(d.ciclo, 40), parte: i, tabela: pedacos[i] });
+      partesFinal = pedacos.length; nLinhasFinal = pedacos.reduce((n, t) => n + t.split('\n').length, 0);
+    }
     const pt = {}; Object.keys(d.porTipo && typeof d.porTipo === 'object' ? d.porTipo : {}).slice(0, 40).forEach(k => { pt[ingStr(k, 60)] = Number(d.porTipo[k]) || 0; });
     await db.doc('ing_dados/' + base).set({ fonte: d.fonte, tipoDado: d.tipoDado, categoria: d.categoria, titulo: ingStr(d.titulo, 100), usuario: ingStr(d.usuario, 80), extraidoEm: ingStr(d.extraidoEm, 40),
-      recebidoEm: Date.now(), por: por || '', colunas: d.colunas.map(x => ingStr(x, 60)), nLinhas: Number(d.nLinhasTotal) || Number(d.nLinhas) || 0, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: !!d.cortado,
-      partes, slot: c.slot, ciclo: ingStr(d.ciclo, 40), porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) });
+      recebidoEm: Date.now(), por: por || '', colunas: d.colunas.map(x => ingStr(x, 60)), nLinhas: nLinhasFinal, totalNaOrigem: Number(d.totalNaOrigem) || 0, cortado: cortadoFinal,
+      partes: partesFinal, slot: c.slot, acumular: d.acumular ? ingStr(d.acumular, 60) : '', ciclo: ingStr(d.ciclo, 40), porTipo: pt, versaoExt: ingStr(d.versaoExt, 20) });
     if (c.anterior) for (let i = 0; i < c.anterior.partes && i < ING_PARTES_MAX; i++) { try { await db.doc(`ing_partes/${base}~${c.anterior.slot}${i}`).delete(); } catch {} }
     try { const sr = await db.doc('ing_reservas/' + base).get(), v = sr && sr.data ? sr.data() : null; if (v && v.ciclo === d.ciclo) await db.doc('ing_reservas/' + base).delete(); } catch {}
     delete ing.ciclos[d.ciclo];
     return { final: true };
   }
+  // Só a extensão mais recente entrega dados (Josué, 04/11/2026): o Hub exige pelo menos ING_VERSAO_MIN e, acima disso, a maior versão que já
+  // recebeu (ing_config/cfg.versaoExtMax). Quem atualiza primeiro sobe a régua para todos; versão antiga recebe 'versao-antiga' e nada é gravado.
+  const ING_VERSAO_MIN = '0.70.4';
+  const verNum = (v) => String(v || '').split('.').map(x => parseInt(x, 10) || 0);
+  const verCmp = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length, 3); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; };
+  const ingVersaoExigida = () => { const m = ing.cfg && ing.cfg.versaoExtMax; return m && /^\d+(\.\d+){0,3}$/.test(m) && verCmp(m, ING_VERSAO_MIN) > 0 ? m : ING_VERSAO_MIN; };
   async function ingReceber(e) {
     const d = e.data;
     if (!d || d.ctlhub !== 1 || d.de !== 'ext' || d.tipo !== 'lote') return;
@@ -8067,6 +8743,10 @@
     if (!ing.cfg) return ack(false, 'sem-config');
     if (state.readOnly) return ack(false, 'somente-leitura');
     if (!d.token || d.token !== ing.cfg.token) return ack(false, 'token');
+    const v = ingStr(d.versaoExt, 20), exigida = ingVersaoExigida();
+    if (!/^\d+(\.\d+){0,3}$/.test(v) || verCmp(v, exigida) < 0)
+      return ack(false, 'versao-antiga', { minimo: exigida, mensagem: `A extensão está na versão ${v || 'desconhecida'} e o Hub só aceita a mais recente (${exigida} ou mais nova). Atualize o Control Onvio (baixe de novo e clique em Recarregar em chrome://extensions) e envie outra vez.` });
+    if (verCmp(v, exigida) > 0) { ing.cfg = { ...ing.cfg, versaoExtMax: v }; db.doc('ing_config/cfg').update({ versaoExtMax: v }).catch(() => {}); }      // versão nova: passa a ser a exigida
     const erro = ingValidar(d); if (erro) return ack(false, erro);
     try {
       if (d.partes != null) { const r = await ingGravarParte(d, state.meId); ack(true, '', { aceitos: Number(d.nLinhas) || 0, final: !!r.final }); return; }
@@ -8134,6 +8814,7 @@
 
     db.collection(CAD_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, d.data() || {})); state.cadRaw = m; cadAchata(); ovAposCarga(); }, () => {});
     db.doc(`${CAD_TROCAS}/_idx`).onSnapshot((snap) => { state.cadTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
+    db.doc(`${CAD_EXC}/_idx`).onSnapshot((snap) => { const d = snap && snap.exists !== false && snap.data ? (snap.data() || {}) : {}; state.cadExc = d.lista || {}; ovVer++; cadAchata(); ovAposCarga(); }, () => {});
     db.doc(`${CAD_BKP}/_meta`).onSnapshot((snap) => { state.cadBkp = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
     db.collection('dp_empresas').onSnapshot((snap) => {
       state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i)).filter(e => !ehEscritorioProprio(e.nome));

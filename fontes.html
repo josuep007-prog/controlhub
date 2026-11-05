@@ -112,6 +112,14 @@
   .cx-av{font-size:11px; font-weight:700; color:var(--laranja); border:1px solid currentColor; padding:0 5px;}
   .cx-lotes{display:flex; flex-direction:column; gap:6px; margin-top:8px;} .cx-lote{display:flex; flex-wrap:wrap; align-items:center; gap:10px; justify-content:space-between; border-top:1px solid var(--rule); padding-top:6px; font-size:12.5px;}
   .mono{font-family:"IBM Plex Mono",monospace; font-size:12px;}
+  /* ver os dados completos */
+  #dadosVer{margin-top:14px;} .ver{overflow:hidden;}
+  .ver-top{display:flex; align-items:flex-start; gap:12px; padding:14px 18px; border-bottom:1px solid var(--rule);} .ver-top h3{font:700 15px "Archivo",sans-serif; margin:0 0 2px;} .grow{flex:1; min-width:0;}
+  .ver-aviso{padding:9px 18px; font-size:12.5px; color:var(--brand-red); background:var(--brand-red-soft); border-bottom:1px solid var(--rule);}
+  .ver-barra{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 18px; border-bottom:1px solid var(--rule); background:var(--surface-2);} .ver-barra input{flex:1 1 260px; max-width:420px;}
+  .ver-tab{overflow:auto; max-height:min(70vh, 640px);} .ver-tab td{white-space:nowrap; font-size:12.5px;} .ver-tab th{white-space:nowrap;}
+  .ver-th{all:unset; cursor:pointer;} .ver-th:hover, .ver-th.on{color:var(--ink);} .ver-th:focus-visible{outline:2px solid var(--blue-deep);}
+  .ver-mais{display:flex; align-items:center; gap:12px; justify-content:center; padding:12px;}
   .vazio{padding:34px 18px; text-align:center; color:var(--ink-3); font-size:13px;}
   .aviso{display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:var(--r); border:1px solid var(--rule-strong); background:var(--surface); font-size:13px;}
   .aviso.erro{border-color:var(--brand-red); background:var(--brand-red-soft);}
@@ -367,9 +375,9 @@
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ac-complementar{--c:#4ECC8B;} :root:not([data-theme="light"]) .ac-corrigir{--c:#FF9D42;} :root:not([data-theme="light"]) .ac-novo{--c:#6BAAC9;} }
   .chips.acoes{padding-bottom:6px;} .chips.acoes .chipf.on{background:var(--c, var(--ink)); border-color:var(--c, var(--ink)); color:#fff;} :root[data-theme="dark"] .chips.acoes .chipf.on{color:#0B1015;}
   .chips.acoes .chipf.on i{background:currentColor;}
-  .tp-novo{--c:#2E7FA8;} .tp-codigo{--c:#6A4FA0;} .tp-admissao{--c:#0F7A55;} .tp-ferias{--c:#C2410C;} .tp-rescisao{--c:#B5530C;} .tp-afastamento{--c:#9A6B00;}
-  :root[data-theme="dark"] .tp-novo{--c:#6BAAC9;} :root[data-theme="dark"] .tp-codigo{--c:#9478D6;} :root[data-theme="dark"] .tp-admissao{--c:#4ECC8B;} :root[data-theme="dark"] .tp-ferias{--c:#F0864F;} :root[data-theme="dark"] .tp-rescisao{--c:#FF9D42;} :root[data-theme="dark"] .tp-afastamento{--c:#E2B04A;}
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tp-novo{--c:#6BAAC9;} :root:not([data-theme="light"]) .tp-codigo{--c:#9478D6;} :root:not([data-theme="light"]) .tp-admissao{--c:#4ECC8B;} :root:not([data-theme="light"]) .tp-ferias{--c:#F0864F;} :root:not([data-theme="light"]) .tp-rescisao{--c:#FF9D42;} :root:not([data-theme="light"]) .tp-afastamento{--c:#E2B04A;} }
+  .tp-novo{--c:#2E7FA8;} .tp-codigo{--c:#6A4FA0;} .tp-admissao{--c:#0F7A55;} .tp-ferias{--c:#C2410C;} .tp-rescisao{--c:#B5530C;} .tp-afastamento{--c:#9A6B00;} .tp-situacao{--c:#47545F;} .tp-vinculo{--c:#3C659B;}
+  :root[data-theme="dark"] .tp-situacao{--c:#AAB7C2;} :root[data-theme="dark"] .tp-vinculo{--c:#8CC6EC;} :root[data-theme="dark"] .tp-novo{--c:#6BAAC9;} :root[data-theme="dark"] .tp-codigo{--c:#9478D6;} :root[data-theme="dark"] .tp-admissao{--c:#4ECC8B;} :root[data-theme="dark"] .tp-ferias{--c:#F0864F;} :root[data-theme="dark"] .tp-rescisao{--c:#FF9D42;} :root[data-theme="dark"] .tp-afastamento{--c:#E2B04A;}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tp-situacao{--c:#AAB7C2;} :root:not([data-theme="light"]) .tp-vinculo{--c:#8CC6EC;} :root:not([data-theme="light"]) .tp-novo{--c:#6BAAC9;} :root:not([data-theme="light"]) .tp-codigo{--c:#9478D6;} :root:not([data-theme="light"]) .tp-admissao{--c:#4ECC8B;} :root:not([data-theme="light"]) .tp-ferias{--c:#F0864F;} :root:not([data-theme="light"]) .tp-rescisao{--c:#FF9D42;} :root:not([data-theme="light"]) .tp-afastamento{--c:#E2B04A;} }
   .tp{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:var(--c); background:color-mix(in srgb, var(--c) 11%, transparent); padding:1px 8px; border-radius:99px; white-space:nowrap;}
   .tp em{font-style:normal;}
   .selbar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 16px; border-top:1px solid var(--rule); background:var(--surface-2);}
@@ -456,6 +464,7 @@
     <h2 class="sec">Dados completos <small id="dadosSub"></small></h2>
     <p class="note" style="margin:0 0 10px">Tudo o que a extensão entrega além do resumo acima, em partes, para os módulos usarem. Fica guardado em <b>ing_dados</b> (descrição) e <b>ing_partes</b> (as linhas). Os conjuntos <b>pessoais</b> trazem CPF, salário, nomes e textos.</p>
     <div id="dados"></div>
+    <div id="dadosVer"></div>
   </section>
   </div>
   <div class="aba" data-aba="conexao" hidden>
@@ -543,6 +552,75 @@ var dados = {};
 var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise" };
 var CAT_ORDEM = ["listas", "pessoais", "clientes", "escritorio", "documentos", "noticias", "analise"];
 var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão" };
+/* ---- ver os dados completos que chegaram (todas as linhas e colunas de cada conjunto) ---- */
+// As partes ficam em ing_partes/<conjunto>~<slot><n> (tabela em texto: tab entre colunas, quebra de linha entre linhas), do mesmo ciclo do manifesto.
+// Conjuntos "pessoais" (CPF, salário, dados de empregados): só para quem trabalha o DP (coordenação ou analista), como no resto do Hub.
+var VER = { id:"", linhas:null, cols:[], erro:"", carregando:false, busca:"", col:-1, ord:-1, dir:1, lim:200 };
+function podePessoais(){ try{ var P = window.parent; if(!P || P === window || !P.__auth) return true; var n = P.__hubApi && P.__hubApi.nivel ? P.__hubApi.nivel("dp") : null; return n === "coord" || n === "analista"; }catch(e){ return false; } }
+function ehPessoal(k){ var d = dados[k]; return !!d && (d.categoria === "pessoais" || /^pessoais-|~pessoais-/.test(k)); }
+function abrirDados(k){
+  var m = dados[k]; if(!m) return;
+  if(ehPessoal(k) && !podePessoais()){ toast("Dados pessoais: só a coordenação e os analistas do DP veem."); return; }
+  VER = { id:k, linhas:null, cols:(m.colunas || []).slice(), erro:"", carregando:true, busca:"", col:-1, ord:-1, dir:1, lim:200 };
+  renderVer(); var el = $("#dadosVer"); if(el) el.scrollIntoView({block:"start", behavior:"smooth"});
+  var n = Math.min(Number(m.partes) || 0, 400), slot = m.slot || "a", textos = new Array(n), feitas = 0;
+  var lerParte = function(i){ return db.doc("ing_partes/" + k + "~" + slot + i).get().then(function(s){ var d = s && s.exists !== false && s.data ? s.data() : null; if(!d || (m.ciclo && d.ciclo && d.ciclo !== m.ciclo) || typeof d.tabela !== "string") throw new Error("parte " + (i + 1) + " ausente ou de outro envio"); textos[i] = d.tabela; feitas++; if(VER.id === k){ var p = $("#verProg"); if(p) p.textContent = "Lendo as partes: " + feitas + " de " + n + "…"; } }); };
+  var lote = function(i){ if(i >= n) return Promise.resolve(); var ps = []; for(var j = i; j < Math.min(n, i + 6); j++) ps.push(lerParte(j)); return Promise.all(ps).then(function(){ return lote(i + 6); }); };
+  lote(0).then(function(){
+    if(VER.id !== k) return;
+    VER.linhas = textos.join("\n").split("\n").filter(function(l){ return l !== ""; }).map(function(l){ return l.split("\t"); });
+    var maxC = VER.linhas.reduce(function(x, r){ return Math.max(x, r.length); }, 0);
+    for(var c = VER.cols.length; c < maxC; c++) VER.cols.push("Coluna " + (c + 1));
+    VER.carregando = false; renderVer();
+  }, function(e){ if(VER.id !== k) return; VER.carregando = false; VER.erro = (e && e.message) || "Não foi possível ler as partes."; renderVer(); });
+}
+function verFiltradas(){
+  if(!VER.linhas) return [];
+  var q = norm(VER.busca).split(/\s+/).filter(Boolean), l = VER.linhas;
+  if(q.length) l = l.filter(function(r){ var h = norm(VER.col >= 0 ? (r[VER.col] || "") : r.join(" ")); return q.every(function(w){ return h.indexOf(w) !== -1; }); });
+  if(VER.ord >= 0){ var i = VER.ord, d = VER.dir, num = function(v){ var s = String(v || "").replace(/\./g, "").replace(",", "."); return /^-?\d+(\.\d+)?$/.test(s) ? +s : null; };
+    l = l.slice().sort(function(a, b){ var x = a[i] || "", y = b[i] || "", nx = num(x), ny = num(y); return d * (nx !== null && ny !== null ? nx - ny : x.localeCompare(y, "pt-BR")); }); }
+  return l;
+}
+function renderVer(){
+  var el = $("#dadosVer"); if(!el) return;
+  if(!VER.id){ el.innerHTML = ""; return; }
+  var m = dados[VER.id] || {}, pes = ehPessoal(VER.id);
+  var cab = '<div class="ver-top"><div class="grow"><h3>' + esc(m.titulo || VER.id) + '</h3><span class="note mono">' + esc(VER.id) + ' · ' + (m.nLinhas || 0).toLocaleString("pt-BR") + ' linhas · ' + VER.cols.length + ' colunas · recebido ' + esc(quando(m.recebidoEm)) + '</span></div><button type="button" class="fbtn" data-ver-fechar>Fechar</button></div>' +
+    (pes ? '<div class="ver-aviso">Contém dados pessoais (CPF, salário e outros). Use só para o trabalho do DP e não compartilhe o arquivo baixado.</div>' : '');
+  if(VER.carregando){ el.innerHTML = '<div class="panel ver">' + cab + '<p class="note" id="verProg" style="padding:14px 18px">Lendo as partes…</p></div>'; return; }
+  if(VER.erro){ el.innerHTML = '<div class="panel ver">' + cab + '<div class="aviso erro" style="margin:12px 18px">' + esc(VER.erro) + ' Peça à extensão para enviar de novo.</div></div>'; return; }
+  var vis = verFiltradas(), pag = vis.slice(0, VER.lim);
+  var th = VER.cols.map(function(c, i){ return '<th><button type="button" class="ver-th' + (VER.ord === i ? " on" : "") + '" data-ver-ord="' + i + '">' + esc(c) + (VER.ord === i ? (VER.dir > 0 ? " ↑" : " ↓") : "") + '</button></th>'; }).join("");
+  var tr = pag.map(function(r){ return '<tr>' + VER.cols.map(function(_, i){ return '<td>' + esc(r[i] || "") + '</td>'; }).join("") + '</tr>'; }).join("");
+  var foco = document.activeElement && document.activeElement.id === "verBusca", pos = foco ? document.activeElement.selectionStart : 0;
+  el.innerHTML = '<div class="panel ver">' + cab +
+    '<div class="ver-barra"><input type="search" id="verBusca" placeholder="Buscar em todas as colunas…" value="' + esc(VER.busca) + '" autocomplete="off"><select id="verCol" aria-label="Buscar em"><option value="-1">em todas as colunas</option>' + VER.cols.map(function(c, i){ return '<option value="' + i + '"' + (VER.col === i ? " selected" : "") + '>só em ' + esc(c) + '</option>'; }).join("") + '</select>' +
+    '<span class="note">' + vis.length.toLocaleString("pt-BR") + ' de ' + VER.linhas.length.toLocaleString("pt-BR") + ' linhas</span><span class="grow"></span><button type="button" class="fbtn" data-ver-csv>Baixar CSV (' + vis.length.toLocaleString("pt-BR") + ')</button></div>' +
+    '<div class="ver-tab"><table class="tbl"><thead><tr>' + th + '</tr></thead><tbody>' + (tr || '<tr><td colspan="' + VER.cols.length + '" class="note">Nenhuma linha com essa busca.</td></tr>') + '</tbody></table></div>' +
+    (vis.length > pag.length ? '<div class="ver-mais"><button type="button" class="fbtn" data-ver-mais>Mostrar mais ' + Math.min(500, vis.length - pag.length) + '</button><span class="note">mostrando ' + pag.length + ' de ' + vis.length + '</span></div>' : '') + '</div>';
+  if(foco){ var b = $("#verBusca"); b.focus(); try{ b.setSelectionRange(pos, pos); }catch(e){} }
+}
+function verCsv(){
+  var linhas = [VER.cols].concat(verFiltradas()), cel = function(v){ var s = String(v == null ? "" : v); if(/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  var txt = "﻿" + linhas.map(function(r){ return r.map(cel).join(";"); }).join("\r\n"), nome = VER.id.replace(/[^a-z0-9~_-]+/gi, "-").replace(/~/g, "-") + ".csv";
+  usarCap("downloads").then(function(d){
+    if(d && d.save) return d.save({filename:nome, data:txt}).then(function(){ toast("Arquivo salvo."); }, function(e){ if(!e || e.code !== "declined") toast("Não foi possível salvar o arquivo."); });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], {type:"text/csv"})); a.download = nome; a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }, function(){ toast("Não foi possível salvar o arquivo."); });
+}
+var verBuscaT = null;
+document.addEventListener("input", function(e){ if(e.target && e.target.id === "verBusca"){ VER.busca = e.target.value; VER.lim = 200; clearTimeout(verBuscaT); verBuscaT = setTimeout(renderVer, 180); } });
+document.addEventListener("change", function(e){ if(e.target && e.target.id === "verCol"){ VER.col = +e.target.value; VER.lim = 200; renderVer(); } });
+document.addEventListener("click", function(e){
+  var t = e.target.closest && e.target.closest("[data-ver-dados],[data-ver-fechar],[data-ver-ord],[data-ver-mais],[data-ver-csv]"); if(!t) return;
+  if(t.hasAttribute("data-ver-dados")){ abrirDados(t.getAttribute("data-ver-dados")); return; }
+  if(t.hasAttribute("data-ver-fechar")){ VER = { id:"" }; renderVer(); return; }
+  if(t.hasAttribute("data-ver-ord")){ var i = +t.getAttribute("data-ver-ord"); if(VER.ord === i) VER.dir = -VER.dir; else { VER.ord = i; VER.dir = 1; } renderVer(); return; }
+  if(t.hasAttribute("data-ver-mais")){ VER.lim += 500; renderVer(); return; }
+  if(t.hasAttribute("data-ver-csv")) verCsv();
+});
+
 function renderDados(){
   var ids = Object.keys(dados);
   $("#dadosSub").textContent = ids.length ? ids.length + " conjunto" + (ids.length === 1 ? "" : "s") : "";
@@ -554,9 +632,10 @@ function renderDados(){
     var ks = grupos[c].sort(function(a, b){ return (dados[a].titulo || a).localeCompare(dados[b].titulo || b, "pt-BR"); });
     var linhas = ks.reduce(function(s, k){ return s + (dados[k].nLinhas || 0); }, 0), rec = Math.max.apply(null, ks.map(function(k){ return dados[k].recebidoEm || 0; })), fx = rec ? faixaIdade(rec) : "fni";
     return '<details class="panel grupo-d"' + (c === "listas" || c === "pessoais" ? " open" : "") + '><summary class="gd-top ' + fx + '"><span class="seta-d" aria-hidden="true"></span><span class="cat ' + esc(c) + '">' + esc(CAT_ROT[c] || c) + '</span><span class="gd-desc">' + esc(CAT_DESC[c] || "") + '</span><span class="gd-n">' + ks.length + ' conjunto' + (ks.length === 1 ? "" : "s") + ' · ' + linhas.toLocaleString("pt-BR") + ' linha' + (linhas === 1 ? "" : "s") + '</span><span class="idade">' + esc(quando(rec)) + '</span></summary>' +
-      '<div class="tab-wrap"><table class="tbl"><thead><tr><th>Conjunto</th><th class="num">Linhas</th><th class="num">Partes</th><th>Recebido</th><th>Lido por</th><th class="num">Colunas</th>' + (coord ? '<th></th>' : '') + '</tr></thead><tbody>' +
+      '<div class="tab-wrap"><table class="tbl"><thead><tr><th>Conjunto</th><th class="num">Linhas</th><th class="num">Partes</th><th>Recebido</th><th>Lido por</th><th class="num">Colunas</th><th></th>' + (coord ? '<th></th>' : '') + '</tr></thead><tbody>' +
       ks.map(function(k){ var d = dados[k], por = d.usuario || (d.por && nomes[d.por]) || "—";
         return '<tr><td class="emp">' + esc(d.titulo || k) + '<div class="note mono">' + esc(k) + '</div></td><td class="num">' + (d.nLinhas || 0).toLocaleString("pt-BR") + (d.cortado ? ' <span class="note">(cortado de ' + (d.totalNaOrigem || 0) + ')</span>' : '') + '</td><td class="num">' + (d.partes || 0) + '</td><td><span class="idade-p ' + faixaIdade(d.recebidoEm || 0) + '">' + esc(quando(d.recebidoEm)) + '</span></td><td>' + esc(por) + '</td><td class="num">' + ((d.colunas && d.colunas.length) || 0) + '</td>' +
+          '<td><button type="button" class="fbtn" data-ver-dados="' + esc(k) + '">Ver dados</button></td>' +
           (coord ? '<td><button type="button" class="fbtn" data-descartar-dados="' + esc(k) + '">Descartar</button></td>' : '') + '</tr>'; }).join("") +
       '</tbody></table></div></details>';
   }).join("");
@@ -630,7 +709,7 @@ $("#colarOk").onclick = function(){
 /* ---- para decidir: aplicar os dados do Onvio no cadastro do DP é decisão só daqui ----
    A lista e a execução vêm do Hub (window.parent.__hubApi.api("onvio")), que confere a permissão (coordenação em qualquer empresa,
    analista só na carteira dele) e grava no cadastro com o histórico. Em lote: uma confirmação, uma de cada vez, com o resultado de cada. */
-var TIPOS_DIF = [["novo", "Funcionário novo"], ["codigo", "Código Domínio"], ["admissao", "Admissão"], ["ferias", "Férias"], ["feriasFim", "Fim das férias"], ["rescisao", "Rescisão"], ["afastamento", "Afastamento"], ["cnpj", "CNPJ da empresa"], ["uf", "UF da empresa"]];
+var TIPOS_DIF = [["novo", "Funcionário novo"], ["situacao", "Situação"], ["vinculo", "Vínculo"], ["codigo", "Código Domínio"], ["admissao", "Admissão"], ["ferias", "Férias"], ["feriasFim", "Fim das férias"], ["rescisao", "Rescisão"], ["afastamento", "Afastamento"], ["cnpj", "CNPJ da empresa"], ["uf", "UF da empresa"]];
 var ACOES = [["complementar", "Complementar", "preenche o que está vazio"], ["corrigir", "Corrigir", "o valor do Hub é diferente do Onvio"], ["novo", "Cadastro novo", "só existe no Onvio"]];
 var ROT_ACAO = {}, VERBO_ACAO = { complementar:"Complementar", corrigir:"Corrigir", novo:"Cadastrar" }; ACOES.forEach(function(a){ ROT_ACAO[a[0]] = a[1]; });
 var ROT_TIPO = {}; TIPOS_DIF.forEach(function(t){ ROT_TIPO[t[0]] = t[1]; });
@@ -1216,6 +1295,7 @@ function abrirAba(n, guardar){
 }
 document.addEventListener("click", function(e){ var b = e.target.closest && e.target.closest("[data-aba-btn],[data-ir-aba]"); if(b){ abrirAba(b.getAttribute("data-aba-btn") || b.getAttribute("data-ir-aba"), true); window.scrollTo(0, 0); } });
 function ultimoEnvio(){ var m = 0; Object.keys(dados).forEach(function(k){ m = Math.max(m, dados[k].recebidoEm || 0); }); Object.keys(lotes).forEach(function(k){ m = Math.max(m, lotes[k].recebidoEm || 0); }); return m; }
+function verMaior(a, b){ var x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for(var i = 0; i < 4; i++){ var d = (x[i] || 0) - (y[i] || 0); if(d) return d > 0; } return false; }
 function renderTopo(){
   var el = $("#resumoTopo"); if(!el) return;
   var ult = ultimoEnvio(), fx = ult ? faixaIdade(ult) : "fni", nC = Object.keys(dados).length, pess = Object.keys(dados).some(function(k){ return dados[k].categoria === "pessoais"; });
@@ -1224,15 +1304,15 @@ function renderTopo(){
   el.innerHTML =
     '<button type="button" class="kt' + (nDif + nSem ? " alerta" : " ok") + '" data-ir-aba="decidir"><b>' + (nDif + nSem) + '</b><span>para decidir</span><small>' + (cad.listas ? plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") + (nDif && minhas < nDif ? " · " + minhas + " suas" : "") : "aguardando as solicitações completas") + '</small></button>' +
     '<button type="button" class="kt ' + fx + '" data-ir-aba="recebido"><b>' + (ult ? quando(ult) : "—") + '</b><span>último envio da extensão</span><small>' + plural(nC, "conjunto completo", "conjuntos completos") + (pess ? " · com dados pessoais" : " · sem dados pessoais") + '</small></button>' +
-    '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · ver como conectar" : "gere o código em Conexão") + '</small></button>';
+    '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · aceita só a extensão " + (cfg.versaoExtMax && verMaior(cfg.versaoExtMax, "0.70.4") ? cfg.versaoExtMax : "0.70.4") + " ou mais nova" : "gere o código em Conexão") + '</small></button>';
 }
 
 /* ---- início ---- */
 usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   if(!dbNs){ $("#semBanco").hidden = false; render(); return null; }
-  db = { doc: function(p){ var r = dbNs.doc(p); return { onSnapshot:function(cb, er){ return r.onSnapshot(cb, er); }, set:function(o){ return r.set(clonar(o)); }, delete:function(){ return r.delete(); } }; }, collection: function(n){ var c = dbNs.collection(n); return { onSnapshot:function(cb, er){ return c.onSnapshot(cb, er); } }; } };
+  db = { doc: function(p){ var r = dbNs.doc(p); return { get:function(){ return r.get(); }, onSnapshot:function(cb, er){ return r.onSnapshot(cb, er); }, set:function(o){ return r.set(clonar(o)); }, delete:function(){ return r.delete(); } }; }, collection: function(n){ var c = dbNs.collection(n); return { onSnapshot:function(cb, er){ return c.onSnapshot(cb, er); } }; } };
   db.doc("ing_config/cfg").onSnapshot(function(s){ cfg = s.exists ? s.data() : null; render(); }, function(){});
-  db.collection("ing_dados").onSnapshot(function(snap){ dados = {}; snap.docs.forEach(function(d){ dados[d.id] = d.data(); }); renderDados(); }, function(){});
+  db.collection("ing_dados").onSnapshot(function(snap){ var antes = VER.id && dados[VER.id] ? dados[VER.id].ciclo : null; dados = {}; snap.docs.forEach(function(d){ dados[d.id] = d.data(); }); renderDados(); if(VER.id && !dados[VER.id]){ VER = { id:"" }; renderVer(); } else if(VER.id && dados[VER.id].ciclo !== antes && !VER.carregando){ abrirDados(VER.id); } }, function(){});
   db.collection("ing_lotes").onSnapshot(function(snap){ lotes = {}; snap.docs.forEach(function(d){ lotes[d.id] = d.data(); }); buscarNomes(); render(); }, function(){});
   return usarCap("user").catch(function(){ return null; });
 }).then(function(u){
