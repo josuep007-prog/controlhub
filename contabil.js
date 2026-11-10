@@ -225,7 +225,20 @@ function aplicarIdentidade(mapa){
     var i = null; try{ i = C && C.pronto() ? C.identidade("ctb", e.id, e.nomeBanco, e.cnpj) : null; }catch(x){}
     if(i && i.ligado){ e.nome = i.nome || e.nomeBanco; e.cadLigado = true; e.cadRazao = i.razao || ""; e.cadCnpj14 = i.cnpj14 || ""; }
     else { e.nome = e.nomeBanco; e.cadLigado = false; e.cadRazao = ""; e.cadCnpj14 = ""; }
+    gesttaRef(e, C);
   });
+}
+/* Hub 317 (Josué, 06/11/2026): o Gestta é a referência absoluta. Empresa sem tarefa no Gestta no mês atual nem no anterior some do módulo
+   (foraGestta, nada é apagado) e analista fora da equipe ativa do Gestta sai da carteira (o nome gravado volta ao salvar: semIdentidade). */
+var CAMPOS_ANALISTA = ["analista", "apoio"];
+function gesttaRef(e, C){
+  CAMPOS_ANALISTA.forEach(function(c){ if(("_" + c + "Oculto") in e){ if(!e[c]) e[c] = e["_" + c + "Oculto"]; delete e["_" + c + "Oculto"]; } });
+  e.foraGestta = false;
+  if(!C || !C.ativa) return;
+  try{
+    e.foraGestta = !e.excluida && !C.ativa("ctb", e.id, e.cnpj, e.nomeBanco);
+    CAMPOS_ANALISTA.forEach(function(c){ if(e[c] && !C.analistaAtivo(e[c])){ e["_" + c + "Oculto"] = e[c]; e[c] = ""; } });
+  }catch(x){}
 }
 function fichaCadHTML(e){
   var C = cadC(); if(!C || !C.pronto()) return "";
@@ -260,7 +273,8 @@ function fichaCadHTML(e){
   if(C0 && C0.aoMudar) C0.aoMudar(function(){ clearTimeout(t0); t0 = setTimeout(function(){ try{ aplicarIdentidade(S.empresas); renderTudo(); }catch(x){} }, 250); });
 })();
 function semIdentidade(e, ant){
-  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14") o[k] = e[k]; });
+  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14" && k !== "foraGestta" && !/^_.+Oculto$/.test(k)) o[k] = e[k]; });
+  CAMPOS_ANALISTA.forEach(function(c){ var oc = e["_" + c + "Oculto"] || (ant && ant["_" + c + "Oculto"]); if(oc && !o[c]) o[c] = oc; });     // Hub 317: o analista escondido (fora do Gestta) não é apagado ao salvar
   if(ant && ant.cadLigado){ o.nome = ant.nomeBanco; if(!cnpjDig(o.cnpj)) o.cnpj = ant.cnpj; e.nomeBanco = ant.nomeBanco; } else e.nomeBanco = e.nome;
   return o;
 }
@@ -298,7 +312,8 @@ function nivelAcesso(){ var a = AUTH(); return a ? a.nivel("contabil") : "coord"
 // "Você": o analista da carteira que está usando. Descoberto pelo nome da conta; dá para escolher à mão.
 function analistas(){
   var s = {};
-  Object.keys(S.empresas).forEach(function(k){ var e = S.empresas[k]; if(e.excluida) return; if(e.analista) s[e.analista] = true; if(e.apoio) s[e.apoio] = true; });
+  Object.keys(S.empresas).forEach(function(k){ var e = S.empresas[k]; if(e.excluida || e.foraGestta) return; if(e.analista) s[e.analista] = true; if(e.apoio) s[e.apoio] = true; });
+  try{ var C = cadC(), g = C && C.analistas ? C.analistas("ctb") : null; if(g) g.forEach(function(n){ s[n] = true; }); }catch(x){}     // Hub 317: a equipe do Gestta do setor
   return Object.keys(s).sort(function(a, b){ return a.localeCompare(b, "pt-BR"); });
 }
 function casarNome(nomeConta){
@@ -381,7 +396,7 @@ function normEmp(x, id){
     criado: t(x.criado, 40), atual: t(x.atual, 40), excluida: !!x.excluida
   };
 }
-function listaEmpresas(){ return Object.keys(S.empresas).map(function(k){ return S.empresas[k]; }).filter(function(e){ return !e.excluida; }); }
+function listaEmpresas(){ return Object.keys(S.empresas).map(function(k){ return S.empresas[k]; }).filter(function(e){ return !e.excluida && !e.foraGestta; }); }
 function ordNome(a, b){ return a.nome.localeCompare(b.nome, "pt-BR"); }
 var CLIENTE = {ativa:1, saindo:1, suspensa:1};
 // Tributação que valia numa competência (antes da mudança, vale a anterior).
@@ -1046,7 +1061,7 @@ function renderEquipe(){
       var agora = ausAtiva(a, hjA), emps = empresasDoTitular(a.analista).length, rc = resumoCobertura(a);
       return '<div class="aus-row"><span style="min-width:0"><b>' + esc(a.analista) + '</b> <span class="pill ' + (agora ? "pill-today" : "pill-soon") + '">' + (agora ? "ausente agora" : "a partir de " + esc(dataBR(a.inicio).slice(0, 5))) + '</span><span class="sub">' + esc(a.motivo) + ' · ' + esc(dataBR(a.inicio)) + ' a ' + esc(dataBR(a.fim)) + ' · ' + emps + ' empresa' + (emps === 1 ? '' : 's') + ' · ' + esc(rc) + (a.obs ? ' · ' + esc(a.obs) : '') + '</span></span>' + (S.coord ? '<button type="button" class="fbtn" data-aus-ed="' + esc(a.id) + '">Editar</button>' : '<span></span>') + '</div>';
     }).join("") : '<div class="empty-mini">Nenhuma ausência registrada para hoje ou para os próximos dias.</div>') + '</div></section>';
-  grid.innerHTML = evoCard + entCard + ausCard + prodCard + cobCard + revCard;
+  grid.innerHTML = evoCard + entCard + ausCard + prodCard + cobCard + revCard + gtCardHtml(compEmFechamento());
   marcarAnim(grid, anim, "pn-anim");
 }
 function relatorioEquipeHtml(){
@@ -1124,7 +1139,39 @@ function menuStatus(alvo, atual, rotulos, info, aoEscolher, extra){
 function stCell(s, attrs, pode, titulo){
   return '<button type="button" class="st ' + (s || "p") + '" ' + attrs + (pode ? "" : " disabled") + ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">' + ST_SIM[s] + '</button>';
 }
-function infoMarca(v){ if(!v || !v[1]) return ""; var n = nomeDe(v[2]); return ST_ROT[v[0]] + " em " + dataBR(v[1]) + (n ? " por " + n : ""); }
+function infoMarca(v){ if(!v || !v[1]) return ""; if(v[2] === "gestta") return ST_ROT[v[0]] + " em " + dataBR(v[1]) + " pelo Gestta (tarefa concluída)"; var n = nomeDe(v[2]); return ST_ROT[v[0]] + " em " + dataBR(v[1]) + (n ? " por " + n : ""); }
+/* Hub 325 (Rodada A): as tarefas do Gestta. Tarefa concluída marca sozinha a etapa vazia (origem "gestta"); tarefa aberta com meta vencida
+   pinta de vermelho a etapa pendente. Tudo vem do Hub (window.__cadastro); sem as tarefas (ou velhas, ou cortadas) nada aparece. */
+var GT_EST = {multa:"gerando multa", atrasada:"atrasada", impedimento:"com impedimento", aberta:"aberta", feita:"concluída", "feita-atraso":"concluída com atraso"};
+function gtTar(e, comp, k){ var C = cadC(); if(!C || !C.tarefa || !e) return null; try{ return C.tarefa("ctb", e.id, e.cnpj, comp, k); }catch(x){ return null; } }
+function gtTxt(t){ return t ? "Gestta: tarefa " + GT_EST[t.estado] + (t.meta ? " · meta " + dataBR(t.meta) : "") + (t.resp ? " · " + t.resp : "") : ""; }
+function gtRuim(t){ return !!t && (t.estado === "atrasada" || t.estado === "multa"); }
+function gtAlertas(e){
+  var C = cadC(), out = []; if(!C || !e) return out;
+  try{
+    var cert = C.certificado ? C.certificado("ctb", e.id, e.cnpj) : null;
+    if(cert && cert.vencido) out.push({c:"late", t:"Certificado digital vencido", s:"venceu em " + dataBR(cert.validade)});
+    else if(cert && cert.vence30) out.push({c:"today", t:"Certificado digital vence em " + cert.dias + " dia" + (cert.dias === 1 ? "" : "s"), s:"vale até " + dataBR(cert.validade)});
+    var env = C.enviosErro ? C.enviosErro("ctb", e.id, e.cnpj) : [];
+    if(env.length) out.push({c:"late", t:"Documento não chegou ao cliente", s:env.length + " envio" + (env.length === 1 ? "" : "s") + " do Gestta ao portal com erro: " + env.slice(0, 2).map(function(x){ return x.tarefa; }).join(", ")});
+  }catch(x){}
+  return out;
+}
+// as tarefas do Contábil no Gestta, por responsável (a competência em fechamento), e as que ainda não viram etapa
+function gtCardHtml(comp){
+  var C = cadC(); if(!C || !C.tarefasEquipe) return "";
+  var motivo = C.tarefasMotivo ? C.tarefasMotivo() : "", eq = motivo ? null : C.tarefasEquipe("ctb", comp);
+  var corpo;
+  if(!eq) corpo = '<div class="empty-mini" style="padding:12px 14px">' + esc(motivo || "As tarefas do Gestta ainda não chegaram.") + ' Nada é marcado sozinho enquanto isso.</div>';
+  else {
+    var lin = eq.map(function(x){ var pct = x.total ? Math.round((x.feitas + x.atraso) / x.total * 100) : 0;
+      return '<tr><td>' + esc(x.nome) + '</td><td class="num">' + x.abertas + '</td><td class="num' + (x.atrasadas ? ' gt-n-atr' : '') + '">' + x.atrasadas + '</td><td class="num">' + x.feitas + '</td><td class="num">' + x.atraso + '</td><td class="num"><b>' + pct + '%</b></td></tr>'; }).join("");
+    var nr = S.coord && C.naoReconhecidas ? C.naoReconhecidas("ctb") : [];
+    corpo = (lin ? '<div class="gt-tab-wrap"><table class="gt-tab"><thead><tr><th>Responsável</th><th class="num">Abertas</th><th class="num">Atrasadas</th><th class="num">No prazo</th><th class="num">Com atraso</th><th class="num">Concluídas</th></tr></thead><tbody>' + lin + '</tbody></table></div>' : '<div class="empty-mini" style="padding:12px 14px">Nenhuma tarefa do Contábil nesta competência.</div>') +
+      (nr.length ? '<p class="note" style="margin:10px 14px 0">' + nr.length + ' nome' + (nr.length === 1 ? '' : 's') + ' de tarefa ainda não viram etapa (ex.: ' + esc(nr.slice(0, 3).map(function(x){ return x.nome; }).join(", ")) + '). Ligue em Entrada de dados › Gestta › Tarefas e obrigações.</p>' : '');
+  }
+  return '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Pelo Gestta</h3><span class="sub">tarefas do Contábil · competência ' + esc(compRot(comp).toLowerCase()) + ' · concluída marca a etapa sozinha</span></div><div class="pn-card-body">' + corpo + '</div></section>';
+}
 
 /* ============ navegação (abas como as do DP) ============ */
 var VIEWS = ["painel","agenda","fechamento","carteira","prazos","equipe","cadastro"];
@@ -1345,7 +1392,7 @@ function renderPainel(){
   }).join("") : '<div class="empty-mini" style="padding:12px 14px">Nenhuma empresa no controle.</div>';
   var anaCard = '<section class="pn-card pn-wide"><div class="pn-card-head"><h3>Carteira por analista</h3><span class="sub">atraso do fechamento e carga ponderada pela tributação · clique no nome para ver as empresas</span></div><div class="pn-card-body flush">' + anaCorpo + '</div></section>';
 
-  grid.innerHTML = filaCard + vencCard + meuCard + travaCard + movCard + anaCard;
+  grid.innerHTML = filaCard + vencCard + meuCard + travaCard + movCard + anaCard + gtCardHtml(compEmFechamento());
   marcarAnim(grid, anim, "pn-anim");
 }
 document.addEventListener("click", function(e){
@@ -1399,8 +1446,9 @@ function renderFechamento(){
       ETAPAS.map(function(et){
         var s = stEtapa(r.ent, e, et.k), fixo = !etapaAplica(e, et.k), v = r.ent.e && r.ent.e[et.k];
         var ob = r.ent.ob && r.ent.ob[et.k];
-        var tit = et.l + ": " + (fixo ? "não se aplica (" + (et.k === "folha" ? "empresa sem folha" : "sem imobilizado") + ", na ficha)" : (infoMarca(v) || ST_ROT[s])) + (ob ? " · Obs.: " + ob : "") + (pode ? "" : " · só o analista da empresa ou a coordenação marca");
-        return '<td class="et">' + stCell(s, 'data-et="' + et.k + '"' + (ob ? ' data-obs="1"' : ''), pode && !fixo, tit) + '</td>';
+        var gt = s || fixo ? null : gtTar(e, comp, et.k);
+        var tit = et.l + ": " + (fixo ? "não se aplica (" + (et.k === "folha" ? "empresa sem folha" : "sem imobilizado") + ", na ficha)" : (infoMarca(v) || ST_ROT[s])) + (ob ? " · Obs.: " + ob : "") + (gt ? " · " + gtTxt(gt) : "") + (pode ? "" : " · só o analista da empresa ou a coordenação marca");
+        return '<td class="et">' + stCell(s, 'data-et="' + et.k + '"' + (ob ? ' data-obs="1"' : '') + (gtRuim(gt) ? ' style="border-color:var(--dp-late)"' : ''), pode && !fixo, tit) + '</td>';
       }).join("") +
       '<td><span class="prog"><i><b style="width:' + pct + '%"></b></i>' + (r.fechada ? (r.ent.sm ? "sem movimento" : "fechada") : r.feitas + "/" + r.total) + '</span></td>' +
       '<td><button type="button" class="pend-btn' + (r.pend ? " tem" : "") + '" data-pend' + (pode ? "" : " disabled") + ' title="' + esc(r.pend ? "Aguardando o cliente desde " + dataBR(r.ent.pendEm) + ": " + r.pend : "Registrar o que falta o cliente mandar") + '">' + (r.pend ? "⏳ " + esc(r.pend) : (pode ? "+ pendência" : "")) + '</button></td>' +
@@ -1449,7 +1497,9 @@ function marcarEtapas(comp, e, mudancas){
   var ent = JSON.parse(JSON.stringify(entrada(comp, e.id)));
   ent.e = ent.e || {};
   var dia = ymd(hoje());
-  Object.keys(mudancas).forEach(function(k){ var s = mudancas[k]; if(s) ent.e[k] = [s, dia, S.meId || ""]; else delete ent.e[k]; });
+  Object.keys(mudancas).forEach(function(k){ var s = mudancas[k], ant = ent.e[k];
+    if(!s && ant && ant[2] === "gestta"){ var C = cadC(); if(C && C.desfazerMarca) C.desfazerMarca("ctb", e.id, e.cnpj, comp, k); }        // desfeita: o Gestta não marca de novo
+    if(s) ent.e[k] = [s, dia, S.meId || ""]; else delete ent.e[k]; });
   var r0 = resumo(e, comp).fechada;
   (S.comps[comp] = S.comps[comp] || {})[e.id] = ent;
   var r1 = resumo(e, comp);
@@ -1815,6 +1865,7 @@ function abrirFicha(id){
         '<label class="campo largo">Observações<textarea name="obs" rows="2" maxlength="1200"' + dis + '>' + esc(x.obs) + '</textarea></label>' +
         '<label class="campo largo">Pasta dos documentos<input name="pasta" maxlength="300" value="' + esc(x.pasta) + '" placeholder="Ex.: U:\\Contabil\\Clientes\\Empresa"' + dis + '></label>' +
       '</div>' + dpTxt +
+      (e ? gtAlertas(e).map(function(g){ return '<div class="gt-aviso ' + g.c + '"><b>' + esc(g.t) + '</b> <span>' + esc(g.s) + '</span></div>'; }).join("") : '') +
       (e ? '<div class="ficha-sec"><h3>Fechamento (últimas competências)</h3>' + hist + '</div>' : '') +
     '</form>' +
     '<div class="dlg-acoes">' + (e && S.coord ? '<button type="button" class="linkish red esq" id="fExcluir">Excluir da carteira</button>' : '') +

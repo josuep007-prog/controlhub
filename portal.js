@@ -306,7 +306,9 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     if(i >= 0) favoritas.splice(i, 1); else favoritas.push(id);
     gravaFavoritas(); renderAll();
   }
+  var funcBruto = null;
   function definirDados(key, lista){
+    if(key === "funcionarios"){ funcBruto = lista; state.funcionarios = filtrarFuncGestta(lista); return; }
     if(!(key in bruto)){ state[key] = lista; return; }
     bruto[key] = lista;
     aplicarGrupos();
@@ -338,11 +340,18 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     semUso = emps.filter(function(e){ return e.semUsoPortal && !matrizDe[e.id]; });
     // as cópias do nome da empresa (frentes e contatos) acompanham o nome mostrado, sem gravar
     [bruto.setores, bruto.contatos].forEach(function(l){ (l || []).forEach(function(x){ var em = x.empresaId && porId[x.empresaId]; if(em && em.cadLigado) x.empresaNome = em.nome; }); });
-    state.empresas = emps.filter(function(e){ return !matrizDe[e.id]; });
-    if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId]; });
-    if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId]; });
+    // Hub 317 (Josué, 06/11/2026): o Gestta é a referência absoluta. Empresa sem tarefa no Gestta no mês atual nem no anterior some daqui
+    // (nada é apagado; volta sozinha), e analista fora da equipe ativa do Gestta sai das frentes (só na tela; o que está gravado não muda).
+    var C = cadC(), fora = {};
+    if(C && C.ativa) emps.forEach(function(e){ try{ if(!C.ativa("portal", e.id, e.cadId || e.cnpj, e.nomeBanco || e.nome)) fora[e.id] = 1; }catch(x){} });
+    state.empresas = emps.filter(function(e){ return !matrizDe[e.id] && !fora[e.id]; });
+    if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId] && !fora[s.empresaId]; }).map(function(s){ return analistaAtivoPortal(s.analistaNome) ? s : Object.assign({}, s, {analistaId:"", analistaNome:"", analistaForaGestta:s.analistaNome}); });
+    if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId] && !fora[c.empresaId]; });
+    if(funcBruto) state.funcionarios = filtrarFuncGestta(funcBruto);
   }
-  (function(){ var C = cadC(), t = null; if(C && C.aoMudar) C.aoMudar(function(){ clearTimeout(t); t = setTimeout(function(){ try{ if(bruto.empresas){ aplicarGrupos(); renderAll(); } }catch(x){} }, 250); }); })();
+  function analistaAtivoPortal(nome){ var C = cadC(); if(!nome || !C || !C.analistaAtivo) return true; try{ return C.analistaAtivo(nome); }catch(x){ return true; } }
+  function filtrarFuncGestta(lista){ return (lista || []).filter(function(f){ return analistaAtivoPortal(f.nome); }); }
+  (function(){ var C = cadC(), t = null; if(C && C.aoMudar) C.aoMudar(function(){ clearTimeout(t); t = setTimeout(function(){ try{ if(bruto.empresas || funcBruto){ aplicarGrupos(); renderAll(); } }catch(x){} }, 250); }); })();
   // Nova empresa: começa pelo cadastro único (nome e CNPJ vêm de lá); quem não está lá continua podendo ser digitada.
   (function(){
     var achados = {};
@@ -1719,6 +1728,8 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     if(qn){
       state.contatos.forEach(function(c){ if(normBusca(c.nome).indexOf(qn) !== -1 || normBusca(c.email).indexOf(qn) !== -1) achadasPorPessoa[c.empresaId] = true; });
       state.setores.forEach(function(sd){ if(normBusca(sd.analistaNome).indexOf(qn) !== -1) achadasPorPessoa[sd.empresaId] = true; });
+      // Hub 326: também pelo nome ou e-mail de quem recebe um setor no Gestta (a partir de 3 letras)
+      if(qn.length >= 3) state.empresas.forEach(function(e){ if(achadasPorPessoa[e.id]) return; SETORES.some(function(st){ var gl = gesttaDoSetor(e, st.key) || []; return gl.some(function(g){ return normBusca(g.nome).indexOf(qn) !== -1 || normBusca(g.email).indexOf(qn) !== -1; }); }) && (achadasPorPessoa[e.id] = true); });
     }
     Object.assign(achadasPorPessoa, matrizesPorBuscaFilial(qn, qd));
     var lista = state.empresas.filter(function(e){
@@ -1838,7 +1849,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   function ensureArqUI(){
     if(!$("#arq-css")){
       var st = document.createElement("style"); st.id = "arq-css";
-      st.textContent = ".arq-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.arq-intro{color:var(--ink-3,#5F6D77);margin:6px 0 2px}.arq-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--rule,#DCE3E9);border-radius:12px;background:var(--surface,#fff)}.arq-lin b{display:block}.arq-lin small{color:var(--ink-3,#5F6D77)}.arq-vazio{padding:22px 6px;color:var(--ink-3,#5F6D77)}#btnArquivadas .arq-n,#btnSemUso .arq-n{font-variant-numeric:tabular-nums}.arq-just{flex:1 1 100%;display:flex;flex-direction:column;gap:5px}.arq-just label{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:600;color:var(--ink-3,#5F6D77)}.arq-just textarea{width:100%;min-height:54px;resize:vertical;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--rule,#DCE3E9);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#101820)}.arq-just textarea:focus{outline:2px solid var(--blue-deep,#3C659B);outline-offset:1px}";
+      st.textContent = ".arq-lista{display:flex;flex-direction:column;gap:8px;margin-top:10px}.arq-intro{color:var(--ink-3,#5F6D77);margin:6px 0 2px}.arq-item{display:flex;flex-direction:column;gap:4px}.arq-item .arq-lin{padding:6px 14px;border-style:dashed}.arq-lin{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;border:1px solid var(--rule,#DCE3E9);border-radius:12px;background:var(--surface,#fff)}.arq-lin b{display:block}.arq-lin small{color:var(--ink-3,#5F6D77)}.arq-vazio{padding:22px 6px;color:var(--ink-3,#5F6D77)}#btnArquivadas .arq-n,#btnSemUso .arq-n{font-variant-numeric:tabular-nums}.arq-just{flex:1 1 100%;display:flex;flex-direction:column;gap:5px}.arq-just label{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:600;color:var(--ink-3,#5F6D77)}.arq-just textarea{width:100%;min-height:54px;resize:vertical;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--rule,#DCE3E9);border-radius:10px;background:var(--surface,#fff);color:var(--ink,#101820)}.arq-just textarea:focus{outline:2px solid var(--blue-deep,#3C659B);outline-offset:1px}";
       document.head.appendChild(st);
     }
     if(!$("#btnArquivadas")){
@@ -1891,11 +1902,14 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       return;
     }
     box.innerHTML = (vSem ? '<p class="arq-intro">Empresas sem necessidade de uso do portal do cliente saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>'
-      : '<p class="arq-intro">Empresas arquivadas saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente.</p>') +
+      : '<p class="arq-intro">Empresas arquivadas saem só da lista de Consulta. Nas outras abas (Hoje, Foco, Impedimentos, Relatórios) elas continuam aparecendo normalmente. Clique numa empresa para ver o progresso dela.</p>') +
       (lista.length ? '<div class="arq-lista">' + lista.map(function(e){
         var quando = e[campoEm] ? diaBR(String(e[campoEm]).slice(0, 10)) : "";
-        return '<div class="arq-lin"><div><b>' + esc(e.nome) + '</b><small>' + (e.cnpj ? 'CNPJ ' + esc(e.cnpj) + ' · ' : '') + rot + (quando ? ' em ' + quando : '') + '</small></div><button type="button" class="fbtn" data-action="' + acao + '" data-id="' + e.id + '">' + btn + '</button>' +
-          (vSem ? '<div class="arq-just"><label for="sju-' + e.id + '"><span>Justificativa</span><span class="fsave" id="fs-sju-' + e.id + '"></span></label><textarea id="sju-' + e.id + '" class="sju-texto" data-id="' + e.id + '" rows="2" maxlength="500" placeholder="Por que esta empresa não precisa usar o portal do cliente?">' + esc(valorRascunho("ju:" + e.id, e.semUsoPortalJust || "")) + '</textarea></div>' : '') + '</div>';
+        // Hub 329 (Josué, 10/11/2026: "quero que dê pra consultar o progresso da empresa mesmo ela estando arquivada"): a mesma linha da
+        // Consulta (trilhas, % e o detalhe que abre), com as frentes lidas do banco mesmo se o Gestta escondeu a empresa.
+        var docs = (bruto.setores || state.setores).filter(function(x){ return x.empresaId === e.id; });
+        return '<div class="arq-item">' + renderEmpresaRow(e, docs) + '<div class="arq-lin"><small>' + rot + (quando ? ' em ' + quando : '') + '</small><button type="button" class="fbtn" data-action="' + acao + '" data-id="' + e.id + '">' + btn + '</button>' +
+          (vSem ? '<div class="arq-just"><label for="sju-' + e.id + '"><span>Justificativa</span><span class="fsave" id="fs-sju-' + e.id + '"></span></label><textarea id="sju-' + e.id + '" class="sju-texto" data-id="' + e.id + '" rows="2" maxlength="500" placeholder="Por que esta empresa não precisa usar o portal do cliente?">' + esc(valorRascunho("ju:" + e.id, e.semUsoPortalJust || "")) + '</textarea></div>' : '') + '</div></div>';
       }).join("") + '</div>' : '<div class="arq-vazio">' + (vSem ? 'Nenhuma empresa sem necessidade de uso do portal.' : 'Nenhuma empresa arquivada.') + '</div>');
   }
   function gravarArquivo(ids, arquivar){
@@ -2039,8 +2053,8 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
             ? '<button type="button" class="linkish" data-action="abrir-foco-empresa" data-id="'+e.id+'">Abrir no Foco</button>'
             : '<button type="button" class="linkish" data-action="toggle-foco" data-id="'+e.id+'">★ Levar ao Foco</button>') +
           '<button type="button" class="linkish" data-action="imp-form-abrir" data-id="'+e.id+'">Registrar impedimento</button>' +
-          '<button type="button" class="linkish" data-action="arquivar-empresa" data-id="'+e.id+'" title="Tira a empresa só da lista de Consulta, sem apagar nada">Arquivar</button>' +
-          '<button type="button" class="linkish" data-action="marcar-sem-uso" data-id="'+e.id+'" title="Empresa que não usa o portal do cliente: sai só da lista de Consulta">Sem necessidade de uso</button>' +
+          (e.arquivada || e.semUsoPortal ? '' : '<button type="button" class="linkish" data-action="arquivar-empresa" data-id="'+e.id+'" title="Tira a empresa só da lista de Consulta, sem apagar nada">Arquivar</button>' +
+          '<button type="button" class="linkish" data-action="marcar-sem-uso" data-id="'+e.id+'" title="Empresa que não usa o portal do cliente: sai só da lista de Consulta">Sem necessidade de uso</button>') +
           '<button type="button" class="linkish" data-action="editar-empresa" data-id="'+e.id+'" aria-expanded="'+(editando?"true":"false")+'">'+(editando ? "Fechar cadastro" : "Editar cadastro")+'</button>' +
           '</span>' +
         '</div>' +
@@ -2313,7 +2327,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
             '<div class="ftc-form-btns"><button type="submit" class="fbtn">Salvar contato</button><button type="button" class="fbtn" data-action="foco-contato-cancelar">Cancelar</button></div>' +
           '</form>'
         : '<button type="button" class="linkish ftc-add" data-action="foco-contato-abrir" data-docid="'+x.docId+'">+ Cadastrar contato</button>';
-      extra = '<div class="ftc-wrap">'+listaContatos+formContato+'</div>' + extra;
+      extra = '<div class="ftc-wrap">'+listaContatos+gesttaContatosHTML(e, x.setor.key, contatosSetor)+formContato+'</div>' + extra;
     }
     // No item de "Treinamento dos clientes" a linha inteira abre/fecha (não só o botão Contatos),
     // já que o controle ali é só um selo, sem nada para clicar sem querer.
@@ -3116,14 +3130,34 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     '</div>';
     return tagsHtml + '<span class="tagwrap"><button type="button" class="tagbtn" data-action="toggle-tagmenu" data-tagkey="'+esc(chaveMenu)+'">+ Etiqueta</button>' + tagMenu + '</span>';
   }
+  // Hub 326 (Josué, 09/11/2026: "procurar o e-mail do cliente"): quem do cliente recebe cada setor no Gestta. Lido do envio do Gestta
+  // (nada é gravado aqui: o banco tem 5.000 documentos); "Incluir no Portal" cria o contato, como o cadastro à mão.
+  function gesttaDoSetor(empresa, setorKey){
+    var C = cadC(); if(!C || !C.contatosGestta) return null;
+    var l = null; try{ l = C.contatosGestta("portal", empresa.id, empresa.cadCnpj14 || empresa.cadId || empresa.cnpj); }catch(x){ l = null; }
+    return l ? l.filter(function(g){ return g.setor === setorKey; }) : null;
+  }
+  function mesmoContatoGt(c, g){ var ce = String(c.email || "").trim().toLowerCase(); return (g.email && ce && ce === g.email) || normBusca(c.nome).trim() === normBusca(g.nome).trim(); }
+  function foraDoGestta(c, gl){ return !!(gl && gl.length && !gl.some(function(g){ return mesmoContatoGt(c, g); })); }
+  function botaoCopiarEmail(email){ return email ? '<button type="button" class="gt-copiar" data-action="copiar-email" data-email="'+esc(email)+'" title="Copiar o e-mail" aria-label="Copiar o e-mail '+esc(email)+'">Copiar</button>' : ''; }
+  function gesttaContatosHTML(empresa, setorKey, contatosPortal){
+    var gl = gesttaDoSetor(empresa, setorKey); if(!gl) return "";
+    var faltam = gl.filter(function(g){ return !contatosPortal.some(function(c){ return mesmoContatoGt(c, g); }); });
+    if(!faltam.length) return "";
+    return '<div class="gt-contatos"><div class="gt-contatos-tit">No Gestta, recebem '+esc(SETOR_LABEL[setorKey] || setorKey)+' <span class="note">· ainda não estão no Portal</span></div>' +
+      faltam.map(function(g){
+        return '<div class="gt-contato"><div class="gt-contato-who"><b>'+esc(g.nome || g.email)+'</b><span>'+(g.email ? esc(g.email) : 'sem e-mail no Gestta')+'</span></div>' +
+          '<div class="gt-contato-ctl">'+botaoCopiarEmail(g.email)+'<button type="button" class="linkish" data-action="gt-contato-incluir" data-empresa="'+empresa.id+'" data-setor="'+setorKey+'" data-nome="'+esc(g.nome || g.email)+'" data-email="'+esc(g.email)+'">Incluir no Portal</button></div></div>';
+      }).join("") + '</div>';
+  }
   function contatosSetorHTML(empresa, setorKey, docId){
-    var lista = contatosDoSetor(empresa.id, setorKey);
+    var lista = contatosDoSetor(empresa.id, setorKey), gl = gesttaDoSetor(empresa, setorKey);
     var rows = lista.map(function(c){
       var cst = c.statusTreinamento || "pendente";
       return '<div class="prow" data-id="'+c.id+'" data-contato-id="'+c.id+'">' +
         '<div class="pmain">' +
           '<button type="button" class="contact-name-link" data-action="ir-contato" data-id="'+c.id+'" title="Ver cadastro deste contato">'+esc(c.nome)+'</button>' + seloMesmaPessoa(c) + contatoTagsEtiquetaHTML(c, docId) +
-          '<span class="pmain-sub">'+esc(c.email||"e-mail não informado")+(c.telefone ? ' · '+esc(c.telefone) : '')+'</span>' +
+          '<span class="pmain-sub">'+esc(c.email||"e-mail não informado")+(c.telefone ? ' · '+esc(c.telefone) : '')+' '+botaoCopiarEmail(c.email)+(foraDoGestta(c, gl) ? '<span class="gt-fora" title="Este contato não aparece entre quem recebe este setor no Gestta">não está no Gestta</span>' : '')+'</span>' +
         '</div>' +
         '<div class="prow-ctl">' +
           cadastroSelectHTML(c, setorKey, "cag-") +
@@ -3147,7 +3181,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
 
     return '<div class="sblock-contatos">' +
       '<div class="sblock-contatos-title">Contatos de clientes' + (rows ? '' : ' <span class="note">· nenhum cadastrado</span>') + '</div>' +
-      listaHtml + formContato +
+      listaHtml + gesttaContatosHTML(empresa, setorKey, lista) + formContato +
     '</div>';
   }
 
@@ -4581,6 +4615,18 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       dbRef.collection("empresas").doc(addId).update({setoresDemanda:novoDem}).then(function(){
         ensureSetorDoc(addEmp, addSetorKey);
       }).catch(function(){ mostrarToast("Não foi possível adicionar o setor."); });
+      return;
+    }
+    if(a === "copiar-email"){
+      var em = el.getAttribute("data-email") || "", feito = function(){ mostrarToast("E-mail copiado: " + em); };
+      try{ navigator.clipboard.writeText(em).then(feito, function(){ mostrarToast(em); }); }catch(x){ mostrarToast(em); }
+      return;
+    }
+    if(a === "gt-contato-incluir"){
+      var gEmp = el.getAttribute("data-empresa"), gSet = el.getAttribute("data-setor"), gNome = el.getAttribute("data-nome") || "", gEmail = el.getAttribute("data-email") || "";
+      if(contatoJaVinculado(gNome, gEmail, gEmp, gSet)){ mostrarToast("Esse contato já está nesta frente."); return; }
+      el.disabled = true;
+      vincularPessoaAEmpresa({nome:gNome, email:gEmail}, gEmp, gSet).then(function(){ mostrarToast("“" + gNome + "” incluído no Portal."); }).catch(function(){ el.disabled = false; mostrarToast("Não foi possível incluir o contato agora."); });
       return;
     }
     if(a === "foco-contato-abrir"){

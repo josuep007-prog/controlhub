@@ -6,7 +6,7 @@
   var H = window.__hubApi;
   if (!H || window.__assistenteHub) return;
   var doc = document;
-  var MODN = {dp: "DP", contabil: "Contábil", fiscal: "Fiscal", portal: "Portal do Cliente", cardapio: "Cardápio"};
+  var MODN = {dp: "DP", contabil: "Contábil", fiscal: "Fiscal", portal: "Portal do Cliente", cardapio: "Cardápio", pop: "POP Master"};
 
   /* ============ utilidades ============ */
   function $(s, r) { return (r || doc).querySelector(s); }
@@ -54,7 +54,7 @@
   function depAtivo() { return !window.__auth && cfgDep.ativo === true; }
   function minhasDeps() { var l = minhaLinha && Array.isArray(minhaLinha.deps) ? minhaLinha.deps : []; return DEP_ORD.filter(function (d) { return l.indexOf(d) !== -1; }); }
   // O assistente consulta este módulo para esta pessoa? (cardápio é de todos; a coordenação vê tudo; sem a separação ligada, todos veem tudo.)
-  function podeMod(k) { if (window.__auth) return window.__auth.podeVer(k); if (k === "cardapio" || !depAtivo() || ehCoord) return true; return minhasDeps().indexOf(k) !== -1; }
+  function podeMod(k) { if (k === "pop") return true; if (window.__auth) return window.__auth.podeVer(k); if (k === "cardapio" || !depAtivo() || ehCoord) return true; return minhasDeps().indexOf(k) !== -1; }
   // Departamentos do relatório padrão: os da pessoa; a coordenação sem departamento marcado vê todos.
   function depsDoRelatorio() { var m = minhasDeps(); return m.length ? m : (ehCoord ? DEP_ORD.slice() : []); }
   function semDepartamento() { return depAtivo() && !ehCoord && !minhasDeps().length; }
@@ -462,7 +462,9 @@
     if (!t) return Promise.resolve([T("Pode escrever a pergunta que eu respondo.")]);
     if (pendente && /^(sim|confirmo|confirma|confirmar|pode|pode sim|ok|isso|isso mesmo|manda ver|faz)$/.test(t)) { var c1 = pendente; return c1.confirmar().then(function () { return []; }); }
     if (pendente && /^(nao|cancela|cancelar|deixa|deixa pra la|esquece)$/.test(t)) { var c2 = pendente; c2.cancelar(); return Promise.resolve([]); }
-    var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
+    if (aula && /^(encerra(r)?|sair|parar|fim|terminar)( (d?a|o))? ?(aula|modo professor)?$/.test(t)) return encerrarAula().then(function (b) { return b || []; });
+    if (!op.semAula && /^(modo professor|vira professor|vire professor|professor|me ensin(a|e|ar)|ensin(a|e|ar)|(uma )?aula (de|sobre|do|da))\b/.test(t)) return aulaPorTexto(texto).then(function (b) { return b || responder(texto, Object.assign({}, op, {semAula: true})); });
+    var porRegras = function (aviso) { return carregarTodos().then(quemSou).then(function () { return ehPergProcedimento(t) ? respostaProcedimento(texto).then(function (bp) { return bp || entender(texto, t); }) : entender(texto, t); }).then(function (bl) { return aviso ? [{tipo: "rodape", texto: aviso}].concat(bl) : bl; }); };
     // Toda resposta vem da IA. Sem IA (ou no limite do dia) a pessoa vê o motivo e escolhe: tentar de novo ou, só se quiser, as regras simples.
     var semIA = function (motivo) {
       var r = [T(motivo + " As respostas do assistente dependem da IA."), CH([{rot: "Tentar de novo", enviar: texto, forcarIA: true}, {rot: "Responder pelas regras (sem IA)", enviar: texto, forcarRegras: true}])];
@@ -950,6 +952,242 @@
     });
     return out;
   }
+  // Cartões dos POPs encontrados: lista clicável + atalhos para abrir e executar o primeiro.
+  function cartoesPop(cartoes, r) {
+    if (!r || !r.pops || !r.pops.length) return;
+    var linhas = r.pops.map(function (p) { return {t: p.titulo, sub: [p.codigo, p.departamento + " › " + p.caminho, p.cenario, p.situacao !== "Aprovado" ? p.situacao : "", p.passoEncontrado ? "achado no passo " + p.passoEncontrado : ""].filter(Boolean).join(" · "), tom: p.situacao !== "Aprovado" ? "warn" : "", mod: "pop", abrir: {pop: p.id}}; });
+    cartoes.push({tipo: "linhas", titulo: "POP Master · " + (r.total === 1 ? "1 procedimento" : r.total + " procedimentos"), linhas: linhas, todas: linhas, nota: ""});
+    var p0 = r.pops[0];
+    cartoes.push(CH([{rot: "🎓 Modo professor: me ensina o " + p0.codigo, acao: function () { return iniciarAula(p0.id); }}, {rot: "▶ Executar " + p0.codigo + " passo a passo", acao: function () { return abrirItem("pop", {pop: p0.id, executar: true}); }}, {rot: "Abrir o " + p0.codigo, acao: function () { return abrirItem("pop", {pop: p0.id}); }}]));
+  }
+  // Sem IA: "como faço…" também procura nos POPs antes das outras regras.
+  function ehPergProcedimento(t) { return /^(como|qual (e |eh )?o (procedimento|passo)|quais (sao )?os passos|onde|o que (eu )?(faco|preciso fazer))\b/.test(t) || /\b(procedimento|passo a passo|pop)\b/.test(t); }
+  function respostaProcedimento(texto) {
+    return modulo("pop", true).then(function (a) {
+      if (!a || !a.buscarPops) return null;
+      var r = a.buscarPops(texto, "", 5);
+      if (!r.pops.length) return null;
+      var p = r.pops[0], blocos = [];
+      blocos.push({tipo: "md", texto: "No POP Master, **" + p.titulo + "** (" + p.codigo + ", v" + p.versao + ")" + (p.aviso ? " — " + p.aviso : "") + ":\n\n" + (p.objetivo ? p.objetivo + "\n\n" : "") + (p.passos || []).join("\n") + (p.dono ? "\n\nDúvidas: " + p.dono + "." : "")});
+      var extras = []; cartoesPop(extras, r);
+      return blocos.concat(extras);
+    }).catch(function () { return null; });
+  }
+  /* ============ modo professor: o Tax vira professor numa sala de aula em tela cheia ============ */
+  var aula = null; // {p, i, n, exp:{}, duv:{}}
+  var sala = null, salaTecla = null;
+  function aulaVisual(on, txt) { try { acKey = ""; atualizarAcessorios(); if (txt) balao(txt, 1800); } catch (e) {} }
+  function aulaPorTexto(texto) {
+    var q = texto.replace(/\b(modo professor|vira professor|vire professor|professor|me ensina[r]?|me ensine|ensina[r]?|ensine|aula|uma aula|como se faz|como fazer|como faz|como faço|sobre|de|do|da|o|a)\b/gi, " ").replace(/\s+/g, " ").trim();
+    if (!q) return Promise.resolve(null);
+    return modulo("pop", true).then(function (a) {
+      if (!a || !a.buscarPops) return null;
+      var r = a.buscarPops(q, "", 5);
+      if (!r.pops.length) return null;
+      return iniciarAula(r.pops[0].id).then(function (bl) {
+        if (r.pops.length > 1) bl.push({tipo: "rodape", texto: "Não era esse? Outros procedimentos parecidos:"}, CH(r.pops.slice(1, 4).map(function (p) { return {rot: "🎓 " + p.codigo + " · " + p.titulo, acao: function () { return iniciarAula(p.id); }}; })));
+        return bl;
+      });
+    }).catch(function () { return null; });
+  }
+  function iniciarAula(id) {
+    return modulo("pop", true).then(function (a) {
+      if (!a || !a.aulaPop) return [T("O POP Master não está disponível agora para a aula.")];
+      var p = a.aulaPop(id);
+      if (!p || !p.passosDet || !p.passosDet.length) return [T("Esse POP ainda não tem passos cadastrados para eu ensinar.")];
+      aula = {p: p, i: -1, n: p.passosDet.length, exp: {}, duv: {}};
+      aulaVisual(true, "Vamos aprender! 🎓");
+      abrirSala();
+      return [T("Abri a sala de aula do " + p.codigo + " · " + p.titulo + "."), CH([{rot: "🎓 Voltar para a sala de aula", acao: function () { if (aula && aula.p.id === p.id) abrirSala(); else return iniciarAula(p.id); return Promise.resolve(null); }}])];
+    });
+  }
+  function aulaFallback(p, s) {
+    var l = ["**O que fazer:** " + s.texto];
+    if (s.resp) l.push("**Quem faz:** " + s.resp);
+    if (s.tipo === "decisao") l.push("Este passo é uma **decisão**. Veja a resposta que se aplica:\n" + s.ramos.map(function (r) { return "• **" + r.rotulo + "**" + (r.nota ? ": " + r.nota : "") + " → " + r.destino; }).join("\n"));
+    if (p.sistemas && p.sistemas.length) l.push("**Sistemas deste POP:** " + p.sistemas.join(", "));
+    l.push("*Com a IA ligada eu explico o porquê de cada passo e os erros mais comuns. Se travar, fale com " + (p.dono || "a coordenação do setor") + ".*");
+    return l.join("\n\n");
+  }
+  function aulaCtx(p) { return {codigo: p.codigo, titulo: p.titulo, departamento: p.departamento, caminho: p.caminho, cenario: p.cenario, objetivo: p.objetivo, executor: p.executor, dono: p.dono, sistemas: p.sistemas, entradas: p.entradas, saidas: p.saidas, riscos: p.riscos, situacao: p.situacao, passos: p.passos}; }
+  var REGRAS_AULA = "Regras: baseie-se no POP e em conhecimento contábil/fiscal/trabalhista geral e consolidado. NÃO invente nomes de menus, telas, botões ou caminhos de sistema que não estejam no POP; se o caminho exato no sistema não estiver descrito, diga para confirmar com o dono do processo. Se o POP não estiver aprovado, lembre que pode mudar.";
+  function aulaIA(pedido, onText) {
+    iaOcupada = true; pensando(true); contarUso(); atualizarSub();
+    var op = {modelTier: "quick", cache: false}; if (onText) op.onText = function (u) { onText(String(u.text || "")); };
+    return iaNs([{role: "user", content: pedido}], op).then(function (r) { iaOcupada = false; pensando(false); return (r && r.text || "").trim(); }, function () { iaOcupada = false; pensando(false); return ""; });
+  }
+  function aulaExplicar(i, outroJeito, onText) {
+    var p = aula.p, s = p.passosDet[i];
+    if (!iaOk || !iaNs || iaOcupada) return Promise.resolve(aulaFallback(p, s));
+    var pedido = "Você é " + nomeTax() + ", o assistente da ControlTax, agora no papel de PROFESSOR paciente e didático, numa sala de aula, ensinando um Procedimento Operacional Padrão (POP) para alguém da equipe que nunca fez essa tarefa. Fale diretamente com a pessoa (você), em tom de aula.\n\n" +
+      "POP completo (para contexto):\n" + JSON.stringify(aulaCtx(p)) + "\n\n" +
+      "Explique SOMENTE o passo " + s.n + " de " + p.passosDet.length + ": " + JSON.stringify(s) + "\n\n" +
+      "Estrutura (markdown simples, sem título, no máximo 170 palavras):\n" +
+      "**O que fazer:** em linguagem simples.\n**Por que:** a razão do passo dentro do processo.\n**Na prática:** como executar e o que conferir.\n**Cuidado:** o erro mais comum a evitar.\n" +
+      (s.tipo === "decisao" ? "É um passo de decisão: explique como decidir e para onde cada resposta leva.\n" : "") + REGRAS_AULA + (p.dono ? " Dono do processo: " + p.dono + "." : "") +
+      (outroJeito ? "\n\nA pessoa NÃO entendeu a explicação anterior: explique de outro jeito, mais simples, com um exemplo concreto do dia a dia de um escritório de contabilidade." : "");
+    return aulaIA(pedido, onText).then(function (t) { return t || aulaFallback(p, s); });
+  }
+  function aulaDuvida(i, perg, onText) {
+    var p = aula.p, s = i >= 0 && i < aula.n ? p.passosDet[i] : null;
+    if (!iaOk || !iaNs) return Promise.resolve("Estou sem a IA agora, então não consigo responder dúvidas livres. Leve essa pergunta para " + (p.dono || "a coordenação do setor") + ".");
+    if (iaOcupada) return Promise.resolve("Ainda estou terminando a explicação anterior. Tente de novo em instantes.");
+    var pedido = "Você é " + nomeTax() + ", professor paciente da ControlTax, dando aula sobre este POP:\n" + JSON.stringify(aulaCtx(p)) + "\n\n" +
+      (s ? "A turma está no passo " + s.n + ": " + JSON.stringify(s) + "\n\n" : "") +
+      "Dúvida do aluno: " + perg + "\n\nResponda de forma didática, curta (até 120 palavras), em markdown simples, sem título. " + REGRAS_AULA;
+    return aulaIA(pedido, onText).then(function (t) { return t || "Não consegui responder agora. Tente de novo."; });
+  }
+  function encerrarAula() {
+    var tinha = !!aula; fecharSala(); aula = null; aulaVisual(false);
+    return Promise.resolve(tinha ? [T("Aula encerrada. Quando quiser outra, é só pedir “me ensina …” ou tocar em 🎓 nos resultados de procedimentos.")] : null);
+  }
+
+  /* ---- a sala: quadro-negro à esquerda, o Tax grande de professor à direita ---- */
+  var SALA_CSS = '#tx-sala{position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;gap:12px;padding:14px 18px 16px;box-sizing:border-box;background:radial-gradient(120% 90% at 70% 0%,#3A4250 0%,#232831 55%,#181C22 100%);color:#F1F5EE;font-family:"IBM Plex Sans",system-ui,sans-serif;animation:slEntra .28s ease-out}' +
+    '@keyframes slEntra{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:none}}' +
+    '#tx-sala *{box-sizing:border-box}' +
+    '#tx-sala .sl-top{display:flex;align-items:center;gap:12px;min-width:0}' +
+    '#tx-sala .sl-tag{flex:none;font:600 11px/1 "IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;background:#F2C14E;color:#1B1F24;padding:6px 9px;border-radius:6px}' +
+    '#tx-sala .sl-tit{flex:1;min-width:0;font:600 17px/1.3 Archivo,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '#tx-sala button{font:inherit;cursor:pointer}' +
+    '#tx-sala .sl-x{flex:none;background:transparent;border:1px solid rgba(255,255,255,.28);color:#F1F5EE;border-radius:8px;padding:7px 12px;font-size:13px}#tx-sala .sl-x:hover{background:rgba(255,255,255,.1)}' +
+    '#tx-sala .sl-palco{flex:1;min-height:0;display:flex;gap:22px;align-items:stretch}' +
+    '#tx-sala .sl-quadro{flex:1;min-width:0;display:flex;flex-direction:column;background:#22412F;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:6px 6px;border:12px solid #7A5230;border-radius:10px;box-shadow:inset 0 0 40px rgba(0,0,0,.45),0 14px 40px rgba(0,0,0,.45);padding:22px 26px;overflow:auto;position:relative}' +
+    '#tx-sala .sl-etapa{font:600 12px/1 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:#F2C14E;margin-bottom:10px}' +
+    '#tx-sala .sl-passo{font:700 clamp(20px,2.4vw,30px)/1.25 Archivo,sans-serif;margin:0 0 6px;color:#FFFFFF;text-wrap:balance}' +
+    '#tx-sala .sl-resp{font-size:13px;color:#BFD3C4;margin-bottom:16px}' +
+    '#tx-sala .sl-exp{font-size:clamp(15px,1.25vw,17px);line-height:1.65;white-space:pre-wrap;color:#EEF4EC;max-width:78ch}' +
+    '#tx-sala .sl-exp b{color:#FFE08A}#tx-sala .sl-exp i{color:#CFE0D3}' +
+    '#tx-sala .sl-giz{display:inline-flex;gap:5px;padding:6px 0}#tx-sala .sl-giz i{width:8px;height:8px;border-radius:50%;background:#EEF4EC;opacity:.4;animation:slGiz 1s infinite}#tx-sala .sl-giz i:nth-child(2){animation-delay:.15s}#tx-sala .sl-giz i:nth-child(3){animation-delay:.3s}@keyframes slGiz{50%{opacity:1;transform:translateY(-3px)}}' +
+    '#tx-sala .sl-duv{margin-top:18px;padding:12px 14px;border-left:3px solid #F2C14E;background:rgba(0,0,0,.18);border-radius:0 8px 8px 0;white-space:pre-wrap;line-height:1.55;font-size:15px;max-width:78ch}#tx-sala .sl-duv .sl-q{display:block;font-size:12px;color:#F2C14E;margin-bottom:6px;font-family:"IBM Plex Mono",monospace}' +
+    '#tx-sala .sl-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}' +
+    '#tx-sala .sl-prof{flex:none;width:clamp(200px,24vw,320px);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative}' +
+    '#tx-sala .sl-balao{position:relative;align-self:stretch;background:#FFFDF6;color:#1B1F24;border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45;box-shadow:0 8px 24px rgba(0,0,0,.35);margin-bottom:22%}' +
+    '#tx-sala .sl-balao::after{content:"";position:absolute;bottom:-9px;left:50%;margin-left:-9px;border:9px solid transparent;border-bottom:0;border-top-color:#FFFDF6}' +
+    '#tx-sala .sl-tax{position:relative;width:78%;animation:slBob 2.4s ease-in-out infinite;transform-origin:50% 100%;filter:drop-shadow(0 10px 14px rgba(0,0,0,.45))}' +
+    '#tx-sala.sl-fala .sl-tax{animation:slFala .5s ease-in-out infinite}' +
+    '@keyframes slBob{50%{transform:translateY(-6px)}}@keyframes slFala{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg) translateY(-3px)}}' +
+    '#tx-sala .sl-corpo svg{display:block;width:100%;height:auto}' +
+    '#tx-sala .sl-tax .tx-lB,#tx-sala .sl-tax .tx-ec,#tx-sala .sl-tax .tx-eh{visibility:hidden}' +
+    '#tx-sala .sl-tax .tx-eo{animation:txPisca 5.5s steps(1) infinite}#tx-sala .sl-tax .tx-ec{animation:txPisca2 5.5s steps(1) infinite}' +
+    '#tx-sala .sl-cap{position:absolute;left:0;width:100%;pointer-events:none;z-index:1}#tx-sala .sl-cap svg{display:block;width:100%;height:100%}' +
+    '#tx-sala .sl-ponteiro{position:absolute;left:-26%;top:40%;width:46%;height:5px;background:linear-gradient(90deg,#F1F5EE 0 10%,#B07D1E 10%);border-radius:3px;transform-origin:100% 50%;transform:rotate(14deg);animation:slAponta 2.4s ease-in-out infinite}' +
+    '@keyframes slAponta{50%{transform:rotate(6deg)}}' +
+    '#tx-sala .sl-mesa{width:110%;height:16px;margin-top:-4px;background:#7A5230;border-radius:4px 4px 0 0;box-shadow:0 6px 0 #5C3D22}' +
+    '#tx-sala .sl-trilha{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}' +
+    '#tx-sala .sl-dot{min-width:30px;height:30px;padding:0 6px;border-radius:15px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#C9D2DA;font:600 12px/1 "IBM Plex Mono",monospace}' +
+    '#tx-sala .sl-dot.vis{background:rgba(242,193,78,.18);color:#F2C14E;border-color:rgba(242,193,78,.5)}#tx-sala .sl-dot.on{background:#F2C14E;color:#1B1F24;border-color:#F2C14E}' +
+    '#tx-sala .sl-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
+    '#tx-sala .sl-b{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.06);color:#F1F5EE;border-radius:9px;padding:10px 14px;font-size:14px}#tx-sala .sl-b:hover{background:rgba(255,255,255,.14)}#tx-sala .sl-b:disabled{opacity:.35;cursor:default}' +
+    '#tx-sala .sl-b.pri{background:#F2C14E;border-color:#F2C14E;color:#1B1F24;font-weight:600}#tx-sala .sl-b.pri:hover{background:#FFD36B}' +
+    '#tx-sala .sl-perg{flex:1;min-width:220px;display:flex;gap:6px}#tx-sala .sl-perg input{flex:1;min-width:0;border:1px solid rgba(255,255,255,.28);background:rgba(0,0,0,.25);color:#F1F5EE;border-radius:9px;padding:10px 12px;font:inherit;font-size:14px}#tx-sala .sl-perg input::placeholder{color:#9AA6B2}' +
+    '#tx-sala :focus-visible{outline:2px solid #F2C14E;outline-offset:2px}' +
+    '@media (max-width:760px){#tx-sala{padding:10px 12px 12px;gap:8px}#tx-sala .sl-palco{flex-direction:column-reverse;gap:8px}#tx-sala .sl-prof{width:100%;flex-direction:row;align-items:flex-end;gap:10px}#tx-sala .sl-tax{width:84px;flex:none}#tx-sala .sl-balao{flex:1;margin:0 0 6px;font-size:13px;align-self:auto}#tx-sala .sl-balao::after{left:auto;right:-9px;bottom:14px;margin:0;border:9px solid transparent;border-right:0;border-left-color:#FFFDF6}#tx-sala .sl-prof{padding-top:26px}#tx-sala .sl-ponteiro,#tx-sala .sl-mesa{display:none}#tx-sala .sl-quadro{border-width:8px;padding:16px}#tx-sala .sl-tit{font-size:14px}#tx-sala .sl-perg{min-width:100%;order:9}}' +
+    '@media (prefers-reduced-motion:reduce){#tx-sala,#tx-sala .sl-tax,#tx-sala .sl-ponteiro{animation:none!important}}';
+  function salaBalao(t) { if (sala) $(".sl-balao", sala).textContent = t; }
+  function abrirSala() {
+    if (!aula) return;
+    try { fecharPainel(); } catch (e) {}
+    if (!doc.getElementById("tx-sala-css")) { var st = doc.createElement("style"); st.id = "tx-sala-css"; st.textContent = SALA_CSS; doc.head.appendChild(st); }
+    if (!sala) {
+      sala = doc.createElement("div"); sala.id = "tx-sala"; sala.setAttribute("role", "dialog"); sala.setAttribute("aria-modal", "true"); sala.setAttribute("aria-label", "Sala de aula do " + nomeTax());
+      sala.innerHTML = '<div class="sl-top"><span class="sl-tag">🎓 Sala de aula</span><span class="sl-tit"></span><button type="button" class="sl-x">✕ Sair da aula</button></div>' +
+        '<div class="sl-palco"><div class="sl-quadro" tabindex="-1"><div class="sl-etapa"></div><h2 class="sl-passo"></h2><div class="sl-resp"></div><div class="sl-exp" aria-live="polite"></div><div class="sl-duv" hidden></div><div class="sl-cta"></div></div>' +
+        '<div class="sl-prof" aria-hidden="true"><div class="sl-balao"></div><div class="sl-tax"><span class="sl-ponteiro"></span><span class="sl-cap"></span><span class="sl-corpo"></span></div><div class="sl-mesa"></div></div></div>' +
+        '<div class="sl-trilha" role="group" aria-label="Passos da aula"></div>' +
+        '<div class="sl-acoes"><button type="button" class="sl-b sl-ant">◀ Anterior</button><button type="button" class="sl-b sl-outro">Não entendi, explica de outro jeito</button><button type="button" class="sl-b sl-ouvir" title="Ouvir a explicação">🔊 Ouvir</button>' +
+        '<form class="sl-perg"><input type="text" maxlength="400" placeholder="Pergunte ao professor sobre este passo…" aria-label="Sua dúvida"><button type="submit" class="sl-b">Perguntar</button></form><button type="button" class="sl-b pri sl-prox">Próximo ▶</button></div>';
+      doc.body.appendChild(sala);
+      $(".sl-x", sala).onclick = function () { encerrarAula(); };
+      $(".sl-ant", sala).onclick = function () { salaIr(aula.i - 1); };
+      $(".sl-prox", sala).onclick = function () { salaIr(aula.i + 1); };
+      $(".sl-outro", sala).onclick = function () { if (aula.i >= 0 && aula.i < aula.n) { delete aula.exp[aula.i]; salaIr(aula.i, true); } };
+      $(".sl-ouvir", sala).onclick = function () { falar(($(".sl-passo", sala).textContent || "") + ". " + ($(".sl-exp", sala).textContent || "")); };
+      $(".sl-perg", sala).onsubmit = function (e) {
+        e.preventDefault(); var inp = $("input", this), q = inp.value.trim(); if (!q || !aula) return;
+        inp.value = ""; var i = aula.i, box = $(".sl-duv", sala);
+        box.hidden = false; box.innerHTML = '<span class="sl-q"></span><span class="sl-giz"><i></i><i></i><i></i></span>'; $(".sl-q", box).textContent = "Sua dúvida: " + q;
+        sala.classList.add("sl-fala"); salaBalao("Boa pergunta! Deixa eu explicar…");
+        var pinta = function (t) { if (aula && aula.i === i) { box.innerHTML = '<span class="sl-q"></span>' + mdHtml(t); $(".sl-q", box).textContent = "Sua dúvida: " + q; } };
+        aulaDuvida(i, q, pinta).then(function (t) { sala && sala.classList.remove("sl-fala"); if (!aula || aula.i !== i) return; (aula.duv[i] = aula.duv[i] || []).push({q: q, r: t}); pinta(t); salaBalao("Ficou claro? Pode perguntar mais."); box.scrollIntoView({block: "nearest", behavior: "smooth"}); });
+      };
+      if (salaTecla) doc.removeEventListener("keydown", salaTecla);
+      salaTecla = function (e) {
+        if (!sala || !aula) return;
+        if (e.key === "Escape") { e.preventDefault(); encerrarAula(); return; }
+        if (/INPUT|TEXTAREA/.test((e.target || {}).tagName || "")) return;
+        if (e.key === "ArrowRight") { e.preventDefault(); salaIr(aula.i + 1); }
+        if (e.key === "ArrowLeft" && aula.i > -1) { e.preventDefault(); salaIr(aula.i - 1); }
+      };
+      doc.addEventListener("keydown", salaTecla);
+    }
+    var s = skinDe(skinKey);
+    $(".sl-corpo", sala).innerHTML = svgSkin(skinKey);
+    $(".sl-cap", sala).innerHTML = svgRows(CHAPEUS.professor.rows, CHAPEUS.professor.pal);
+    var cap = $(".sl-cap", sala); cap.style.top = (-3 / (s.rows.length + 2) * 100) + "%"; cap.style.height = (4 / (s.rows.length + 2) * 100) + "%";
+    $(".sl-tit", sala).textContent = aula.p.codigo + " · " + aula.p.titulo;
+    sala.hidden = false;
+    salaIr(aula.i < 0 ? -1 : aula.i);
+    setTimeout(function () { var b = $(".sl-prox", sala); if (b) b.focus({preventScroll: true}); }, 30);
+  }
+  function fecharSala() { if (salaTecla) { doc.removeEventListener("keydown", salaTecla); salaTecla = null; } if (sala) { sala.remove(); sala = null; } try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} }
+  function salaIr(i, outroJeito) {
+    if (!aula || !sala) return;
+    var p = aula.p, n = aula.n;
+    i = Math.max(-1, Math.min(n, i)); aula.i = i;
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    var q = $(".sl-quadro", sala), et = $(".sl-etapa", sala), ps = $(".sl-passo", sala), rs = $(".sl-resp", sala), ex = $(".sl-exp", sala), dv = $(".sl-duv", sala), cta = $(".sl-cta", sala);
+    cta.innerHTML = ""; dv.hidden = true; dv.innerHTML = ""; q.scrollTop = 0;
+    var tr = $(".sl-trilha", sala); tr.innerHTML = "";
+    var mk = function (rot, k, tit) { var b = doc.createElement("button"); b.type = "button"; b.className = "sl-dot" + (k === i ? " on" : (k < i ? " vis" : "")); b.textContent = rot; b.title = tit; b.setAttribute("aria-label", tit); if (k === i) b.setAttribute("aria-current", "step"); b.onclick = function () { salaIr(k); }; tr.appendChild(b); };
+    mk("Início", -1, "Introdução");
+    p.passosDet.forEach(function (x, k) { mk(String(k + 1), k, "Passo " + (k + 1) + ": " + x.texto); });
+    mk("🎉", n, "Recapitulação");
+    var ant = $(".sl-ant", sala), prox = $(".sl-prox", sala), outro = $(".sl-outro", sala), perg = $(".sl-perg", sala);
+    ant.disabled = i <= -1; outro.hidden = i < 0 || i >= n; perg.style.display = i >= n ? "none" : "";
+    prox.hidden = i >= n; prox.textContent = i === -1 ? "Começar a aula ▶" : (i + 1 >= n ? "Concluir aula 🎉" : "Próximo passo ▶");
+    var btn = function (rot, pri, fn) { var b = doc.createElement("button"); b.type = "button"; b.className = "sl-b" + (pri ? " pri" : ""); b.textContent = rot; b.onclick = fn; cta.appendChild(b); };
+    if (i === -1) {
+      et.textContent = "Introdução · " + n + " passos"; ps.textContent = p.titulo; rs.textContent = [p.departamento, p.caminho].filter(Boolean).join(" › ");
+      var l = [];
+      if (p.aviso) l.push("⚠️ " + p.aviso);
+      if (p.objetivo) l.push("**Para que serve:** " + p.objetivo);
+      if (p.gatilho || p.frequencia) l.push("**Quando fazer:** " + [p.gatilho, p.frequencia].filter(Boolean).join(" · "));
+      if (p.executor) l.push("**Quem faz:** " + p.executor + (p.dono ? " · dono do processo: " + p.dono : ""));
+      if (p.sistemas && p.sistemas.length) l.push("**Sistemas que você vai usar:** " + p.sistemas.join(", "));
+      if (p.entradas && p.entradas.length) l.push("**Tenha em mãos antes de começar:** " + p.entradas.join("; "));
+      if (p.saidas && p.saidas.length) l.push("**No fim você terá:** " + p.saidas.join("; "));
+      if (p.tempoMedio) l.push("**Tempo médio:** " + p.tempoMedio);
+      ex.innerHTML = mdHtml(l.join("\n\n") || "Vamos ver este procedimento passo a passo.");
+      salaBalao("Olá! Eu sou o professor " + nomeTax() + ". A aula de hoje é: " + p.titulo + ". São " + n + " passos — eu explico um de cada vez, e você pode me perguntar o que quiser.");
+      return;
+    }
+    if (i >= n) {
+      et.textContent = "Fim da aula"; ps.textContent = "Parabéns! 🎉"; rs.textContent = "Você viu os " + n + " passos de " + p.titulo + ".";
+      ex.innerHTML = mdHtml("**Recapitulando:**\n\n" + (p.passos || []).join("\n") + (p.dono ? "\n\nDúvidas que sobrarem: " + p.dono + "." : ""));
+      btn("▶ Fazer agora de verdade (executar passo a passo)", true, function () { var id = p.id; encerrarAula(); abrirItem("pop", {pop: id, executar: true}); });
+      btn("↺ Repetir a aula", false, function () { salaIr(0); });
+      btn("Sair da aula", false, function () { encerrarAula(); });
+      salaBalao("Mandou bem! Agora que tal fazer de verdade? Eu deixo o POP aberto em modo de execução para você.");
+      aulaVisual(true, "Mandou bem! 🎉");
+      return;
+    }
+    var st = p.passosDet[i];
+    et.textContent = "Passo " + (i + 1) + " de " + n + (st.tipo === "decisao" ? " · decisão" : "");
+    ps.textContent = st.texto; rs.textContent = st.resp ? "Quem faz: " + st.resp : "";
+    var FALAS = ["Presta atenção neste aqui!", "Esse passo é importante, olha só…", "Vamos lá, passo " + (i + 1) + "!", "Acompanha comigo no quadro.", "Quase lá! Mais um passo."];
+    salaBalao(st.tipo === "decisao" ? "Aqui você precisa decidir. Vou te mostrar cada caminho." : (i + 1 === n ? "Último passo! Capricha." : FALAS[i % FALAS.length]));
+    var mostrar = function (t) { if (aula && aula.i === i) ex.innerHTML = mdHtml(t); };
+    var duvidas = function () { var d = aula.duv[i]; if (!d || !d.length) return; dv.hidden = false; dv.innerHTML = d.map(function (x) { return '<span class="sl-q">' + esc("Sua dúvida: " + x.q) + "</span>" + mdHtml(x.r); }).join("\n\n"); };
+    if (aula.exp[i]) { mostrar(aula.exp[i]); duvidas(); return; }
+    ex.innerHTML = '<span class="sl-giz"><i></i><i></i><i></i></span>';
+    sala.classList.add("sl-fala");
+    aulaExplicar(i, outroJeito, mostrar).then(function (t) {
+      if (sala) sala.classList.remove("sl-fala");
+      if (!aula) return; aula.exp[i] = t;
+      if (aula.i === i) { mostrar(t); duvidas(); if (lerPref().lerVoz) falar(st.texto + ". " + t); }
+    });
+  }
   function ferramentasIA(cartoes) {
     var MODS = ["dp", "contabil", "fiscal", "portal", "cardapio"];
     var TIPOS = ["vencimentos", "atrasos", "pendencias", "carteira", "cardapio", "competencia", "historico", "prazosConferir", "feriados", "fechado", "impostos", "funil", "semTreinamento", "onvio", "convencao", "convencoes", "convencao_busca", "contribuicao", "ausencias", "funcionarios", "lembretes", "uso"];
@@ -965,6 +1203,16 @@
             if (r && r.linhas && r.linhas.length) anexarLista(cartoes, i.modulo, r, a);
             if (r && a.exemplo && a.exemplo()) r = Object.assign({}, r, {aviso: "dados de exemplo"});
             return r ? compacto(r, 25) : "Esse módulo não tem esse tipo de consulta.";
+          });
+        }},
+      {name: "procedimentos", description: "Procura no POP Master (Procedimentos Operacionais Padrão da ControlTax) como executar uma tarefa do trabalho: 'como faço…', 'qual o procedimento de…', 'passo a passo de…'. Devolve os POPs que respondem, com objetivo, quem faz, sistemas e os passos (inclusive decisões e para onde cada resposta leva). texto = o que a pessoa quer fazer, em poucas palavras (ex.: conciliação bancária); departamento opcional: Comercial, Contábil, Financeiro, Fiscal, Fiscal Simples Nacional, Inovação, Pessoal, Projetos, Gestão de Pessoas, Societário ou TI.",
+        inputSchema: {type: "object", properties: {texto: {type: "string"}, departamento: {type: "string"}}, required: ["texto"]},
+        execute: function (i) {
+          return modulo("pop", true).then(function (a) {
+            if (!a || !a.buscarPops) return "O POP Master não está disponível agora.";
+            var r = a.buscarPops(i.texto || "", i.departamento || "", 5);
+            cartoesPop(cartoes, r);
+            return r;
           });
         }},
       {name: "empresa", description: "Ficha completa de uma empresa (pelo nome ou CNPJ) em todos os módulos onde ela existe: DP, Contábil, Fiscal e Portal.",
@@ -1107,7 +1355,7 @@
   }
   function regrasIA() {
     var ativo = H.ativo(), nomeAtivo = MODN[ativo] || "tela inicial", p = lerPref();
-    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio e agenda de treinamentos dos clientes e dos analistas) e Cardápio (refeitório).\n" +
+    return "Você é o " + nomeTax() + ", o assistente (mascote) do Control Hub da ControlTax, um escritório de contabilidade em Vitória/ES. Módulos: DP (departamento pessoal: empresas, funcionários, agenda, convenções, cartela de clientes), Contábil (fechamento mensal, prazos de impostos, obrigações anuais), Fiscal (obrigações acessórias, agenda de entregas, fechamento), Portal do Cliente (implantação do Onvio e agenda de treinamentos dos clientes e dos analistas) e Cardápio (refeitório). Há também o POP Master: os procedimentos operacionais padrão (como executar cada tarefa) dos 11 departamentos, aberto a todos.\n" +
       "Anexos (foto, PDF, planilha ou texto que a pessoa colou ou mandou): 1) diga em uma ou duas linhas o que identificou (tipo de documento e os dados principais); 2) registre no módulo certo usando SÓ as ferramentas de preparação, que mostram um cartão para a pessoa confirmar: cardápio (semana ou mês) → preparar_cardapio_lote; documento ou comprovante de uma empresa → preparar_acao tipo observacao com um resumo curto; documento que o cliente mandou → preparar_acao tipo pendencia com modo recebida; ausência/férias → preparar_acao tipo ausencia; qualquer outra coisa → resuma e pergunte onde registrar. 3) NUNCA invente dado que não esteja legível no anexo: o que estiver ilegível ou ambíguo, pergunte; não preencha campos em branco por suposição. 4) Para datas sem ano, use o ano e o mês de hoje (ou o seguinte, se o documento indicar). Os arquivos não ficam guardados: só o que for registrado pelos cartões.\n" +
       "Treinamentos: pergunta sobre treinamentos (de hoje, da semana, atrasados) é do módulo portal, nunca do dp. Use consultar com modulo=portal: tipo vencimentos = treinamentos agendados no período (contatos de clientes e analistas); atrasos = treinamentos atrasados e impedimentos; semTreinamento = contatos ainda sem treinamento. Só use o dp para treinamentos se a pessoa disser DP/pessoal. Se a pessoa citar um módulo pelo nome (“no portal do cliente”, “no fiscal”), consulte exatamente esse módulo.\n" +
       "Hoje é " + pad2(hoje().getDate()) + "/" + pad2(hoje().getMonth() + 1) + "/" + hoje().getFullYear() + " (" + ymd(hoje()) + ", " + hoje().toLocaleDateString("pt-BR", {weekday: "long"}) + "); a data atual vale mais que qualquer data citada em mensagens anteriores da conversa. Use só números que vieram das ferramentas nesta resposta; se a ferramenta trouxer um resumo pronto (como o funil do portal), use os totais dele em vez de recalcular. " + pad2(new Date().getHours()) + "h. A pessoa está em: " + nomeAtivo + "." + (euNome ? " Quem fala com você: " + euNome + "." : "") + "\n" +
@@ -1116,6 +1364,7 @@
       "Diga de onde veio a informação quando ajudar (ex.: “no Fiscal › Agenda”). As consultas que você fizer aparecem para a pessoa como listas clicáveis logo abaixo da sua resposta: não repita item por item, resuma (quantos, os mais urgentes, o que fazer). " +
       "Para mudar algo use preparar_acao (ou preparar_lote para várias empresas): a pessoa confirma num cartão; diga que falta confirmar e nunca diga que já foi feito. " +
       "Para comparar meses ou ver tendência, consulte competencia de cada mês; para números lado a lado use grafico; para filtros combinados use buscar_empresas; para carga da equipe use carga_analistas. " +
+      "Procedimentos de trabalho (POP Master): quando perguntarem como fazer/executar uma tarefa do escritório (\"como faço a conciliação bancária?\", \"qual o procedimento de admissão no DP?\", \"passo a passo do DAS\"), use a ferramenta procedimentos com o assunto em poucas palavras e o departamento se citado (DP/pessoal = Pessoal; Simples Nacional/DAS/PGDAS = Fiscal Simples Nacional). Responda com o nome e o código do POP e os passos numerados na ordem, explicando as decisões (o que fazer em cada resposta). Se o POP não estiver aprovado ou estiver com revisão vencida, avise. Se nada for encontrado, diga que ainda não há POP para isso e sugira a coordenação do setor; nunca invente passos. A ferramenta ajuda é só para como usar as telas do Control Hub. " +
       "Para mostrar uma tela use abrir. Para termos do setor (siglas, obrigações) use glossario; para como usar o sistema, use ajuda. Se faltar informação (qual empresa, qual período), pergunte. Se um módulo vier marcado como dados de exemplo, avise. " +
       "Se pedirem rascunho de e-mail ou WhatsApp para cliente, escreva o texto pronto, cordial e objetivo, assinado “Equipe ControlTax”, só com dados que você consultou. Se pedirem para explicar ao cliente, use linguagem simples, sem siglas soltas. " +
       (p.iniciante ? "A pessoa é nova no setor: explique os termos e o porquê de cada passo, com calma. " : "") +
@@ -1544,6 +1793,7 @@
     H.abrirModulo(mod);
     return modulo(mod).then(function (a) {
       if (!a) return false;
+      if (ab.pop && a.abrirPop) return a.abrirPop(ab.pop, ab.executar);
       if (ab.empresa && a.abrirEmpresa) return a.abrirEmpresa(ab.empresa, ab.aba);
       if (ab.aba || mod === "cardapio") return a.irPara(ab.aba, ab.opts);
       return true;
@@ -2886,6 +3136,7 @@
     carnaval: {nome: "Confete", pal: {P: "#E91E63", Y: "#FFC107", G: "#4CAF50", B: "#2196F3"}, rows: ["..P....Y...G..", "....G.....B...", ".Y.....P....Y.", ".............."]},
     coroa: {nome: "Coroa", pal: {Y: "#F4C430", R: "#D7263D"}, rows: ["..............", "...Y..R..Y....", "...YY.YY.YY...", "...YYYYYYYY..."]},
     bone: {nome: "Boné", pal: {B: "#3C659B", W: "#FFFFFF"}, rows: ["..............", ".....BBBB.....", "....BBWBBB....", "....BBBBBBBBB."]},
+    professor: {nome: "Capelo de professor", pal: {K: "#1F2A36", Y: "#F2C14E"}, rows: ["...KKKKKKKK...", ".KKKKKKKKKKKK.", "....KKKKKK.Y..", "....KKKKKK.YY."]},
     laco: {nome: "Laço", pal: {P: "#E85D9E"}, rows: ["..............", "..............", "........P.P...", ".........P...."]},
     capacete: {nome: "Capacete do DP", pal: {Y: "#F2B705", D: "#C99A04"}, rows: ["..............", ".....YYYY.....", "....YYYYYY....", "...DDDDDDDD..."]}
   };
@@ -2895,6 +3146,7 @@
   }
   function chapeuAtual() {
     var p = lerPref(), m = new Date().getMonth(), d = new Date().getDate();
+    if (aula) return "professor";
     if (p.chapeu && p.chapeu !== "auto" && p.chapeu !== "nenhum" && conquistado(p.chapeu)) return p.chapeu;
     if (p.chapeu === "nenhum") return "";
     if (p.sazonal !== false) {
