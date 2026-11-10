@@ -52,7 +52,7 @@
     '.xs-sec{font:700 10.5px var(--display,Archivo,sans-serif);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3,#5F6D77);padding:10px 8px 4px}' +
     '.xs-it{all:unset;box-sizing:border-box;display:grid;grid-template-columns:36px 1fr auto;gap:11px;align-items:start;padding:10px 8px;border-radius:10px;cursor:pointer;position:relative}.xs-it:hover{background:var(--surface-2,#F5F8FA)}.xs-it:focus-visible{outline:2px solid var(--blue-deep,#3C659B);outline-offset:-2px}' +
     '.xs-ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}.xs-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}' +
-    '.xs-ic.xs-imp{background:rgba(194,0,12,.13);color:#D3202B}.xs-ic.tax{background:var(--warn-soft,#FBEBDD);color:var(--status-warn,#B5530C)}' +
+    '.xs-ic.xs-imp{background:rgba(194,0,12,.13);color:#D3202B}.xs-ic.tax{background:var(--blue-pale,#DCE8F1);color:var(--blue-deep,#3C659B)}' +
     '.xs-tx{min-width:0}.xs-tx b{display:block;font:600 13px/1.3 var(--body,sans-serif);overflow-wrap:anywhere}.xs-tx>span{display:block;font-size:12px;color:var(--ink-3,#5F6D77);margin-top:1px;overflow-wrap:anywhere}.xs-tx small{display:block;font-size:11px;color:var(--ink-3,#5F6D77);margin-top:3px}' +
     '.xs-dot{width:9px;height:9px;border-radius:50%;background:var(--blue-deep,#3C659B);margin-top:6px}.xs-it.lida .xs-dot{visibility:hidden}.xs-it.lida .xs-tx b{font-weight:500;color:var(--ink-2,#47545F)}' +
     '.xs-tag{display:inline-block;font:600 10px var(--body,sans-serif);padding:0 6px;border-radius:999px;background:rgba(194,0,12,.13);color:#D3202B;margin-left:6px;vertical-align:1px}' +
@@ -345,6 +345,41 @@
       (vis.slice(0, 200).map(function (e) { var d = new Date(e.em || 0); return '<div class="x-ev"><span class="h">' + (e.dia === ymd(hoje()) ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : dmy(e.dia).slice(0, 5) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes())) + '</span><div><b>' + esc(e.t) + '</b><div class="m">' + esc(e.u) + " · " + esc(e.m) + '</div></div></div>'; }).join("") || '<div class="x-vazio">Nenhum registro com esses filtros.</div>') + '</div></div><p class="x-nota">O registro guarda quem gravou, em qual módulo e quando, por 30 dias. Ele não guarda o valor anterior, então o desfazer continua sendo o do assistente (últimos pedidos) e o histórico de cada empresa.</p>';
   }
 
+  /* ---------- resumo das atividades por módulo (a partir do registro hub_log) ---------- */
+  function resumoCalc(itens, dias) {
+    var hj = ymd(hoje()), ini = ymd(addDias(hoje(), -(dias - 1))), iniAnt = ymd(addDias(hoje(), -(2 * dias - 1))), mods = {}, lista = [];
+    itens.forEach(function (e) {
+      var m = e.m || "Hub", q = mods[m] = mods[m] || {m: m, n: 0, ant: 0, us: {}, dias: {}, ult: 0, ev: []};
+      if (e.dia >= ini && e.dia <= hj) { q.n++; q.us[e.u || "?"] = (q.us[e.u || "?"] || 0) + 1; q.dias[e.dia] = (q.dias[e.dia] || 0) + 1; q.ult = Math.max(q.ult, e.em || 0); if (q.ev.length < 3) q.ev.push(e); }
+      else if (e.dia >= iniAnt && e.dia < ini) q.ant++;
+    });
+    Object.keys(mods).forEach(function (k) { if (mods[k].n || mods[k].ant) lista.push(mods[k]); });
+    return lista.sort(function (a, b) { return b.n - a.n; });
+  }
+  function renderResumo(itens) {
+    var P = E.resP || 7, lista = resumoCalc(itens, P), tot = 0, pes = {}, totAnt = 0;
+    lista.forEach(function (q) { tot += q.n; totAnt += q.ant; Object.keys(q.us).forEach(function (u) { pes[u] = 1; }); });
+    var mx = Math.max.apply(null, lista.map(function (q) { return q.n; }).concat([1]));
+    var rotP = P === 1 ? "hoje" : "últimos " + P + " dias";
+    var tend = function (n, a) { if (!a && !n) return ""; if (!a) return '<span class="x-pill ok">novo</span>'; var pc = Math.round((n - a) / a * 100); return '<span class="x-pill ' + (pc >= 0 ? "ok" : "warn") + '">' + (pc > 0 ? "+" : "") + pc + "% vs. período anterior</span>"; };
+    var dd = []; for (var i = P - 1; i >= 0; i--) dd.push(ymd(addDias(hoje(), -i)));
+    var quando = function (t) { var d = new Date(t || 0); return (ymd(d) === ymd(hoje()) ? "hoje" : pad(d.getDate()) + "/" + pad(d.getMonth() + 1)) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+    var botoes = [[1, "Hoje"], [7, "7 dias"], [30, "30 dias"]].map(function (b) { return '<button class="btn' + (P === b[0] ? " btn-primary" : "") + '" data-res-p="' + b[0] + '">' + b[1] + "</button>"; }).join("");
+    var cards = lista.map(function (q) {
+      var us = Object.keys(q.us).map(function (u) { return {u: u, n: q.us[u]}; }).sort(function (a, b) { return b.n - a.n; });
+      var dmx = Math.max.apply(null, dd.map(function (d) { return q.dias[d] || 0; }).concat([1]));
+      var spark = '<div style="display:flex;align-items:flex-end;gap:2px;height:34px;margin:8px 0" aria-label="Atividade por dia">' + dd.map(function (d) { var v = q.dias[d] || 0; return '<i title="' + dmy(d).slice(0, 5) + ": " + v + '" style="flex:1;min-width:2px;border-radius:2px 2px 0 0;background:' + (v ? "var(--blue-mid)" : "var(--rule)") + ";height:" + Math.max(v ? 12 : 4, Math.round(v / dmx * 100)) + '%"></i>'; }).join("") + "</div>";
+      return '<div class="x-card"><h3>' + esc(q.m) + "<span>" + q.n + " ação(ões) · " + us.length + " pessoa(s)</span></h3><div class=\"x-cb\">" + tend(q.n, q.ant) + spark +
+        '<div class="x-bar"><span>Volume</span><span class="t"><i class="s-ok" style="width:' + Math.max(2, Math.round(q.n / mx * 100)) + '%"></i></span><span>' + q.n + "</span></div>" +
+        (us.slice(0, 3).map(function (x) { return '<div style="font-size:12.5px;display:flex;justify-content:space-between;gap:8px"><span>' + esc(x.u) + "</span><b>" + x.n + "</b></div>"; }).join("") || "") +
+        '<div class="x-dim" style="margin-top:6px;font-size:12px">Última: ' + (q.ult ? quando(q.ult) : "—") + '</div><div class="x-tools" style="margin-top:8px"><button class="btn" data-res-ver="' + esc(q.m) + '">Ver o que mudou</button></div></div></div>';
+    }).join("");
+    return '<div class="x-tools" style="margin-bottom:10px">' + botoes + '<span class="x-dim">Resumo do registro de alterações · ' + rotP + "</span></div>" +
+      '<div class="x-grid x-g4" style="margin-bottom:12px"><div class="x-kpi"><b>' + tot + "</b><span>ações registradas</span></div><div class=\"x-kpi\"><b>" + Object.keys(pes).length + "</b><span>pessoas ativas</span></div><div class=\"x-kpi\"><b>" + lista.filter(function (q) { return q.n; }).length + "</b><span>módulos com atividade</span></div><div class=\"x-kpi\"><b style=\"font-size:15px\">" + (tend(tot, totAnt) || "—") + "</b><span>comparado ao período anterior</span></div></div>" +
+      (cards ? '<div class="x-grid x-g2">' + cards + "</div>" : '<div class="x-vazio">Nenhuma atividade registrada neste período.</div>') +
+      '<div class="x-nota">Conta o que cada módulo grava no registro de alterações. Módulo que não grava nada aparece sem atividade. Gravações em lote, como importações, contam como uma ação.</div>';
+  }
+
   /* ---------- relatório mensal por setor e por analista (copiar ou baixar) ---------- */
   var MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   var f1 = function (n) { return (Math.round(n * 10) / 10).toString().replace(".", ","); };
@@ -587,6 +622,7 @@
     if (perm.length > 1) l.push(["geral", "Visão geral"]);
     perm.forEach(function (m) { l.push([m, MODN[m]]); });
     l.push(["rel", "Relatório"]);
+    l.push(["resumo", "Atividade por módulo"]);
     l.push(["tempo", "Linha do tempo"]);
     l.push(["minhas", "Minhas alterações"]);
     if (H().cfg && H().cfg.ehAdmin && H().cfg.ehAdmin()) l.push(["erros", "Erros de tela"]);
@@ -600,6 +636,7 @@
     if (aba === "minhas" && E.altModo === "equipe") { corpo.innerHTML = altModos() + '<div class="x-vazio">Carregando…</div>'; carregaEquipe().then(function (l) { if (E.vista === "coord" && E.aba.coord === "minhas" && E.altModo === "equipe") corpo.innerHTML = altModos() + renderEquipe(l); }).catch(function () { corpo.innerHTML = altModos() + '<div class="x-nota">Não consegui ler as alterações. <button class="btn" data-atualiza>Tentar de novo</button></div>'; }); return; }
     if (aba === "minhas") { corpo.innerHTML = renderMinhas(); if (!E.ligouDesfazer && H().desfazer && H().desfazer.aoMudar) { E.ligouDesfazer = true; H().desfazer.aoMudar(function () { if (E.vista === "coord" && E.aba.coord === "minhas") { var c = E.raiz && E.raiz.querySelector("#xmCorpo"); if (c) c.innerHTML = renderMinhas(); } }); } return; }
     if (aba === "erros") { corpo.innerHTML = '<div class="x-vazio">Carregando…</div>'; lerErros(14).then(function (l) { E.errosLista = l; if (E.vista === "coord" && E.aba.coord === "erros") corpo.innerHTML = renderErros(l); }).catch(function () { corpo.innerHTML = '<div class="x-nota">Não consegui ler os erros. <button class="btn" data-atualiza>Tentar de novo</button></div>'; }); return; }
+    if (aba === "resumo") { corpo.innerHTML = '<div class="x-vazio">Carregando…</div>'; var P0 = E.resP || 7; lerLog(2 * P0).then(function (it) { var adm = H().cfg && H().cfg.ehAdmin && H().cfg.ehAdmin(), ok = permitidos().map(function (m) { return MODN[m]; }); E.resItens = adm ? it : it.filter(function (e) { return ok.indexOf(e.m) !== -1; }); if (E.vista === "coord" && E.aba.coord === "resumo") corpo.innerHTML = renderResumo(E.resItens); }); return; }
     if (aba === "log") { corpo.innerHTML = '<div class="x-vazio">Carregando…</div>'; lerLog(LOGN).then(function (it) { var adm = H().cfg && H().cfg.ehAdmin && H().cfg.ehAdmin(), ok = permitidos().map(function (m) { return MODN[m]; }); E.logItens = adm ? it : it.filter(function (e) { return ok.indexOf(e.m) !== -1; }); if (E.vista === "coord" && E.aba.coord === "log") corpo.innerHTML = renderLog(E.logItens); }); return; }
     if (!d) { corpo.innerHTML = '<div class="x-vazio">Carregando…</div>'; return; }
     if (aba === "rel") { corpo.innerHTML = '<div class="x-vazio">Montando o relatório…</div>'; lerLog(31).then(function (it) { var adm = H().cfg && H().cfg.ehAdmin && H().cfg.ehAdmin(); if (E.vista !== "coord" || E.aba.coord !== "rel") return; E.relModelo = relatorio(d, E.relSetor || "", adm ? it : it.filter(function (e) { return permitidos().map(function (m) { return MODN[m]; }).indexOf(e.m) !== -1; })); corpo.innerHTML = relHtml(E.relModelo, E.relSetor || "") + '<div class="x-tools"><button class="btn" data-atualiza>Atualizar</button></div>'; }).catch(function () { corpo.innerHTML = '<div class="x-nota">Não consegui montar o relatório. <button class="btn" data-atualiza>Tentar de novo</button></div>'; }); return; }
@@ -632,6 +669,8 @@
     if ((b = t.closest("[data-erros-limpa]"))) { if (!b.getAttribute("data-sim")) { b.setAttribute("data-sim", "1"); b.textContent = "Clique de novo para apagar tudo"; setTimeout(function () { if (b.isConnected) { b.removeAttribute("data-sim"); b.textContent = "Limpar registros"; } }, 4000); return; } var ps = []; for (var i = 0; i < 32; i++) ps.push(E.db.doc("hub_erros/" + ymd(addDias(hoje(), -i))).delete().catch(function () {})); Promise.all(ps).then(function () { E.errosLista = []; toast("Registros de erros apagados."); montaCoord(E.raiz, false); }); return; }
     if (t.closest("[data-rel-copia]")) { if (E.relModelo) copiaRel(relTexto(E.relModelo)); return; }
     if (t.closest("[data-rel-baixa]")) { if (E.relModelo) baixaRel(E.relModelo); return; }
+    if ((b = t.closest("[data-res-p]"))) { E.resP = +b.getAttribute("data-res-p"); pintaCoord(); return; }
+    if ((b = t.closest("[data-res-ver]"))) { E.logF = {u: "", m: b.getAttribute("data-res-ver")}; E.aba.coord = "log"; montaCoord(E.raiz, false); return; }
     if (t.closest("[data-mais-log]")) { LOGN += 7; montaCoord(E.raiz, false); }
   }
   function mudaCoord(e) { if (e.target.id === "tlQ") { verTempo(e.target.value.trim()); return; } if (e.target.id === "eqU" || e.target.id === "eqM") { E.altF = E.altF || {u: "", m: "", q: ""}; E.altF[e.target.id === "eqU" ? "u" : "m"] = e.target.value; var c0 = E.raiz.querySelector("#xmCorpo"); if (c0) c0.innerHTML = altModos() + renderEquipe(E.altEquipe || []); return; } if (e.target.id === "relS") { E.relSetor = e.target.value; pintaCoord(); return; } var m = {lU: "u", lM: "m"}[e.target.id]; if (m) { E.logF[m] = e.target.value; var c = E.raiz.querySelector("#xmCorpo"); if (c) c.innerHTML = renderLog(E.logItens || []); } }

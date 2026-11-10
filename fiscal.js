@@ -246,7 +246,20 @@ function aplicarIdentidade(mapa){
     var i = null; try{ i = C && C.pronto() ? C.identidade("fis", e.id, e.nomeBanco, e.cnpj) : null; }catch(x){}
     if(i && i.ligado){ e.nome = i.nome || e.nomeBanco; e.cadLigado = true; e.cadRazao = i.razao || ""; e.cadCnpj14 = i.cnpj14 || ""; }
     else { e.nome = e.nomeBanco; e.cadLigado = false; e.cadRazao = ""; e.cadCnpj14 = ""; }
+    gesttaRef(e, C);
   });
+}
+/* Hub 317 (Josué, 06/11/2026): o Gestta é a referência absoluta. Empresa sem tarefa no Gestta no mês atual nem no anterior some do módulo
+   (foraGestta, nada é apagado) e analista fora da equipe ativa do Gestta sai da carteira (o nome gravado volta ao salvar: semIdentidade). */
+var CAMPOS_ANALISTA = ["analista"];
+function gesttaRef(e, C){
+  CAMPOS_ANALISTA.forEach(function(c){ if(("_" + c + "Oculto") in e){ if(!e[c]) e[c] = e["_" + c + "Oculto"]; delete e["_" + c + "Oculto"]; } });
+  e.foraGestta = false;
+  if(!C || !C.ativa) return;
+  try{
+    e.foraGestta = !e.excluida && !C.ativa("fis", e.id, e.cnpj, e.nomeBanco);
+    CAMPOS_ANALISTA.forEach(function(c){ if(e[c] && !C.analistaAtivo(e[c])){ e["_" + c + "Oculto"] = e[c]; e[c] = ""; } });
+  }catch(x){}
 }
 function fichaCadHTML(e){
   var C = cadC(); if(!C || !C.pronto()) return "";
@@ -281,7 +294,8 @@ function fichaCadHTML(e){
   if(C0 && C0.aoMudar) C0.aoMudar(function(){ clearTimeout(t0); t0 = setTimeout(function(){ try{ aplicarIdentidade(S.R.emp); renderTudo(); }catch(x){} }, 250); });
 })();
 function semIdentidade(e, ant){
-  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14") o[k] = e[k]; });
+  var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14" && k !== "foraGestta" && !/^_.+Oculto$/.test(k)) o[k] = e[k]; });
+  CAMPOS_ANALISTA.forEach(function(c){ var oc = e["_" + c + "Oculto"] || (ant && ant["_" + c + "Oculto"]); if(oc && !o[c]) o[c] = oc; });     // Hub 317: o analista escondido (fora do Gestta) não é apagado ao salvar
   if(ant && ant.cadLigado){ o.nome = ant.nomeBanco; if(!cnpjDig(o.cnpj)) o.cnpj = ant.cnpj; e.nomeBanco = ant.nomeBanco; } else e.nomeBanco = e.nome;
   return o;
 }
@@ -322,7 +336,8 @@ function nivelAcesso(){ var a = AUTH(); return a ? a.nivel("fiscal") : "coord"; 
 /* ============ identidade e permissões ============ */
 function analistas(){
   var s = {};
-  Object.keys(S.empresas).forEach(function(k){ var e = S.empresas[k]; if(!e.excluida && e.analista) s[e.analista] = true; });
+  Object.keys(S.empresas).forEach(function(k){ var e = S.empresas[k]; if(!e.excluida && !e.foraGestta && e.analista) s[e.analista] = true; });
+  try{ var C = cadC(), g = C && C.analistas ? C.analistas("fis") : null; if(g) g.forEach(function(n){ s[n] = true; }); }catch(x){}     // Hub 317: a equipe do Gestta do setor
   return Object.keys(s).sort(function(a, b){ return a.localeCompare(b, "pt-BR"); });
 }
 function casarNome(nomeConta){
@@ -381,7 +396,7 @@ function normEmp(x, id){
     atual: t(x.atual, 40), excluida: !!x.excluida
   };
 }
-function listaEmpresas(){ return Object.keys(S.empresas).map(function(k){ return S.empresas[k]; }).filter(function(e){ return !e.excluida; }); }
+function listaEmpresas(){ return Object.keys(S.empresas).map(function(k){ return S.empresas[k]; }).filter(function(e){ return !e.excluida && !e.foraGestta; }); }
 function ordNome(a, b){ return a.nome.localeCompare(b.nome, "pt-BR"); }
 function compEmFechamento(){ return compShift(compAtual(), -1); }
 function inicioControle(){ return /^\d{4}-\d{2}$/.test(S.cfg.inicio || "") ? S.cfg.inicio : compEmFechamento(); }
@@ -601,7 +616,25 @@ function menuStatus(alvo, atual, ordem, rotulos, info, aoEscolher){
 function stCell(s, attrs, pode, titulo){
   return '<button type="button" class="st ' + (s || "p") + '" ' + attrs + (pode ? "" : " disabled") + ' title="' + esc(titulo) + '" aria-label="' + esc(titulo) + '">' + ST_SIM[s] + '</button>';
 }
-function infoMarca(v, rot){ if(!v || !v[1]) return ""; var n = nomeDe(v[2]); return (rot || ST_ROT)[v[0]] + " em " + dataBR(v[1]) + (n ? " por " + n : ""); }
+function infoMarca(v, rot){ if(!v || !v[1]) return ""; if(v[2] === "gestta") return (rot || ST_ROT)[v[0]] + " em " + dataBR(v[1]) + " pelo Gestta (tarefa concluída)"; var n = nomeDe(v[2]); return (rot || ST_ROT)[v[0]] + " em " + dataBR(v[1]) + (n ? " por " + n : ""); }
+/* Hub 325 (Rodada A): as tarefas do Gestta. Tarefa concluída marca sozinha a entrega vazia (origem "gestta"); tarefa aberta com meta vencida
+   pinta de vermelho a obrigação pendente. Tudo vem do Hub (window.__cadastro); sem as tarefas (ou velhas, ou cortadas) nada aparece. */
+var GT_EST = {multa:"gerando multa", atrasada:"atrasada", impedimento:"com impedimento", aberta:"aberta", feita:"concluída", "feita-atraso":"concluída com atraso"};
+function gtTar(e, comp, k){ var C = cadC(); if(!C || !C.tarefa || S.exemplo || !e) return null; try{ return C.tarefa("fis", e.id, e.cnpj, comp, k); }catch(x){ return null; } }
+function gtTxt(t){ return t ? "Gestta: tarefa " + GT_EST[t.estado] + (t.meta ? " · meta " + dataBR(t.meta) : "") + (t.resp ? " · " + t.resp : "") : ""; }
+function gtRuim(t){ return !!t && (t.estado === "atrasada" || t.estado === "multa"); }
+function gtAlertas(e){
+  var C = cadC(), out = []; if(!C || S.exemplo || !e) return out;
+  try{
+    var cert = C.certificado ? C.certificado("fis", e.id, e.cnpj) : null;
+    if(cert && cert.tem === false) out.push({c:"today", t:"Sem certificado digital", s:"pelo Onvio (NF-e)"});
+    else if(cert && cert.vencido) out.push({c:"late", t:"Certificado digital vencido", s:"venceu em " + dataBR(cert.validade)});
+    else if(cert && cert.vence30) out.push({c:"today", t:"Certificado digital vence em " + cert.dias + " dia" + (cert.dias === 1 ? "" : "s"), s:"vale até " + dataBR(cert.validade)});
+    var env = C.enviosErro ? C.enviosErro("fis", e.id, e.cnpj) : [];
+    if(env.length) out.push({c:"late", t:"Documento não chegou ao cliente", s:env.length + " envio" + (env.length === 1 ? "" : "s") + " do Gestta ao portal com erro: " + env.slice(0, 2).map(function(x){ return x.tarefa; }).join(", ")});
+  }catch(x){}
+  return out;
+}
 
 /* ============ navegação (abas como as do DP) ============ */
 var VIEWS = ["painel", "agenda", "empresas", "fechamento", "cadastro"];
@@ -779,6 +812,7 @@ function renderPainel(){
     s.obVenc.forEach(function(o){ al.push({p:0, d:o.data, e:e, t:o.def.l + " de " + compCurta(o.comp), s:"venceu em " + dataBR(o.ds), c:"late", aba:"obrig"}); });
     if(s.fechAtras.length) al.push({p:1, d:limiteFech(s.fechAtras[0]), e:e, t:"Fechamento de " + s.fechAtras.map(compCurta).join(", "), s:"prazo era " + dataBR(ymd(limiteFech(s.fechAtras[0]))), c:"late", aba:"hist"});
     if(s.cli){ var dp = diasParado(entrada(s.cliComp, e.id)); if(dp >= 5) al.push({p:2, d:h, e:e, t:"Aguardando: " + s.cli, s:"parado há " + dp + " dias", c:"today", aba:"obs"}); }
+    gtAlertas(e).forEach(function(g){ al.push({p:g.c === "late" ? 0 : 2, d:h, e:e, t:g.t, s:g.s, c:g.c, aba:"dados"}); });        // Hub 325: certificado e envio ao portal com erro
   });
   al.sort(function(a, b){ return a.p - b.p || a.d - b.d; });
   var alCard = card("Atenção", al.length ? al.length + " ponto" + (al.length === 1 ? "" : "s") + (S.eu ? " nas suas empresas" : "") : "", al.length ? al.slice(0, 8).map(function(a){
@@ -810,9 +844,21 @@ function renderPainel(){
     return '<button type="button" class="vc-item vc-btn" style="--k:' + i + '" data-ir-dia="' + o.ds + '">' + diaBox(o.data) + '<span style="min-width:0"><span class="dp-cell-main" style="display:block">' + esc(o.def.l) + '</span><span class="dp-cell-sub" style="display:block">' + esc(compCurta(o.comp)) + ' · ' + (o.emps.length - o.pend.length) + ' de ' + o.emps.length + ' entregues</span></span><span class="cd ' + c.c + '">' + esc(c.t) + '</span></button>';
   }).join("") : '<div class="empty-mini">Nenhuma entrega pendente pela frente.</div>', '<button type="button" class="pn-link" data-ir="agenda">Abrir agenda</button>', "pn-span2");
 
-  grid.innerHTML = colsCard + heatCard + alCard + metCard + proxCard + anaCard;
+  grid.innerHTML = colsCard + heatCard + alCard + metCard + proxCard + anaCard + gtCard(card, cef);
   $$(".col", grid).forEach(function(c, k){ c.style.setProperty("--k", k); });
   marcarAnim(grid, anim, "pn-anim");
+}
+// Hub 325: as tarefas do Fiscal no Gestta, por responsável (a competência em fechamento), e as que ainda não viram obrigação
+function gtCard(card, comp){
+  var C = cadC(); if(!C || !C.tarefasEquipe || S.exemplo) return "";
+  var motivo = C.tarefasMotivo ? C.tarefasMotivo() : "", eq = motivo ? null : C.tarefasEquipe("fis", comp);
+  if(!eq) return card("Pelo Gestta", "", '<div class="empty-mini">' + esc(motivo || "As tarefas do Gestta ainda não chegaram.") + ' Nada é marcado sozinho enquanto isso.</div>', "", "pn-span2");
+  var lin = eq.filter(function(x){ return !S.eu || norm(x.nome) === norm(S.eu); }).map(function(x){ var pct = x.total ? Math.round((x.feitas + x.atraso) / x.total * 100) : 0;
+    return '<tr><td>' + esc(x.nome) + '</td><td class="num">' + x.abertas + '</td><td class="num' + (x.atrasadas ? ' gt-n-atr' : '') + '">' + x.atrasadas + '</td><td class="num">' + x.feitas + '</td><td class="num">' + x.atraso + '</td><td class="num"><b>' + pct + '%</b></td></tr>'; }).join("");
+  var nr = S.coord && C.naoReconhecidas ? C.naoReconhecidas("fis") : [];
+  return card("Pelo Gestta", "tarefas do Fiscal · competência " + esc(compRot(comp).toLowerCase()) + " · concluída marca a entrega sozinha",
+    (lin ? '<div class="gt-tab-wrap"><table class="gt-tab"><thead><tr><th>Responsável</th><th class="num">Abertas</th><th class="num">Atrasadas</th><th class="num">No prazo</th><th class="num">Com atraso</th><th class="num">Concluídas</th></tr></thead><tbody>' + lin + '</tbody></table></div>' : '<div class="empty-mini">Nenhuma tarefa do Fiscal nesta competência.</div>') +
+    (nr.length ? '<p class="note" style="margin-top:10px">' + nr.length + ' nome' + (nr.length === 1 ? '' : 's') + ' de tarefa ainda não viram obrigação (ex.: ' + esc(nr.slice(0, 3).map(function(x){ return x.nome; }).join(", ")) + '). Ligue em Entrada de dados › Gestta › Tarefas e obrigações.</p>' : ''), "", "pn-span2");
 }
 $("#pnGrid").addEventListener("click", function(e){ var m = e.target.closest("[data-mapa]"); if(m){ S.pn.mapa = m.getAttribute("data-mapa"); renderTudo(true); } });
 
@@ -859,10 +905,10 @@ function renderAgenda(){
     return '<div class="ob-bloco"><div class="ob-h"><b>' + esc(o.def.l) + '</b><span class="cd ' + (o.pend.length ? c.c : "ok") + '">' + (o.pend.length ? esc(c.t) : "tudo entregue") + '</span><span class="cont">' + (o.emps.length - o.pend.length) + ' de ' + o.emps.length + '</span></div>' +
       '<div class="ob-sub">competência ' + esc(compRot(o.comp).toLowerCase()) + (o.def.d ? ' · ' + esc(o.def.d) : '') + '</div>' +
       emps.map(function(e){
-        var v = (entrada(o.comp, e.id).ob || {})[o.def.k], s = v && v[0] ? v[0] : "", feito = feitoOb(s), pode = podeMarcar(e);
-        if(v && v[2]) ids.push(v[2]);
-        return '<div class="ob-emp' + (feito ? " feito" : "") + '"><button type="button" class="qd' + (feito ? " on" : "") + '" data-ob="' + esc(o.def.k) + '" data-comp="' + o.comp + '" data-emp="' + esc(e.id) + '"' + (pode ? "" : " disabled") + ' aria-pressed="' + feito + '" title="' + esc(feito ? infoMarca(v, OB_ROT) + " · clique para desmarcar" : pode ? "Marcar como entregue" : "Só o analista da empresa ou a coordenação marca") + '">' + (s === "r" ? "R" : s === "n" ? "–" : feito ? "✓" : "") + '</button>' +
-          '<button type="button" class="nm" data-ficha="' + esc(e.id) + '" data-aba="obrig">' + esc(e.nome) + '</button><small>' + esc(feito ? (s === "n" ? "não se aplica" : (s === "r" ? "retificada " : "entregue ") + dataBR(v[1]).slice(0, 5)) : (e.analista || "sem analista").split(" ")[0]) + '</small></div>';
+        var v = (entrada(o.comp, e.id).ob || {})[o.def.k], s = v && v[0] ? v[0] : "", feito = feitoOb(s), pode = podeMarcar(e), gt = feito ? null : gtTar(e, o.comp, o.def.k);
+        if(v && v[2] && v[2] !== "gestta") ids.push(v[2]);
+        return '<div class="ob-emp' + (feito ? " feito" : "") + (gtRuim(gt) ? " gt-atr" : "") + '"' + (gt ? ' title="' + esc(gtTxt(gt)) + '"' : '') + '><button type="button" class="qd' + (feito ? " on" : "") + '" data-ob="' + esc(o.def.k) + '" data-comp="' + o.comp + '" data-emp="' + esc(e.id) + '"' + (pode ? "" : " disabled") + ' aria-pressed="' + feito + '" title="' + esc(feito ? infoMarca(v, OB_ROT) + " · clique para desmarcar" : pode ? "Marcar como entregue" : "Só o analista da empresa ou a coordenação marca") + '">' + (s === "r" ? "R" : s === "n" ? "–" : feito ? "✓" : "") + '</button>' +
+          '<button type="button" class="nm" data-ficha="' + esc(e.id) + '" data-aba="obrig">' + esc(e.nome) + '</button><small>' + esc(feito ? (s === "n" ? "não se aplica" : (s === "r" ? "retificada " : "entregue ") + dataBR(v[1]).slice(0, 5) + (v[2] === "gestta" ? " · Gestta" : "")) : gt ? "Gestta: " + GT_EST[gt.estado] : (e.analista || "sem analista").split(" ")[0]) + '</small></div>';
       }).join("") + '</div>';
   }).join("") : '<div class="empty-mini" style="padding:14px 0">Nada vence neste dia' + (A.ana || A.reg || A.ob ? " com esses filtros" : "") + '.' + (function(){ var nx = Object.keys(porDia).sort().filter(function(x){ return x > A.dia; })[0]; return nx ? ' <button type="button" class="linkish" data-ag-dia="' + nx + '">Próximo: ' + esc(dataBR(nx).slice(0, 5)) + ' · ' + esc(porDia[nx].map(function(o){ return o.def.l; }).join(", ")) + '</button>' : ''; })() + '</div>';
   buscarNomes(ids);
@@ -871,6 +917,8 @@ function renderAgenda(){
 }
 function marcarEntrega(comp, e, k, s){
   var ent = clone(entrada(comp, e.id)); ent.ob = ent.ob || {};
+  var antes = ent.ob[k];
+  if(!s && antes && antes[2] === "gestta"){ var C = cadC(); if(C && C.desfazerMarca) C.desfazerMarca("fis", e.id, e.cnpj, comp, k); }        // desfeita: o Gestta não marca de novo
   if(s) ent.ob[k] = [s, ymd(hoje()), quemSou()]; else delete ent.ob[k];
   return salvarCompEntrada(comp, e.id, ent);
 }
@@ -1102,7 +1150,7 @@ function abrirFicha(id, aba){
   d.innerHTML = '<div class="dlg-head"><h2>' + esc(e ? e.nome : "Nova empresa") + '</h2>' + (e ? regPill(e.regime) : '') + '<button type="button" class="x" id="fFechar" aria-label="Fechar">✕</button></div>' +
     (e ? '<div class="ftabs" role="tablist">' + FICHA_ABAS.map(function(a){ return '<button type="button" class="ftab' + (a[0] === fichaAba ? " on" : "") + '" role="tab" data-faba="' + a[0] + '">' + a[1] + '</button>'; }).join("") + '</div>' : '') +
     '<form class="dlg-body" id="fForm" novalidate>' +
-      '<div data-pane="dados"' + (fichaAba === "dados" ? "" : " hidden") + '>' +
+      '<div data-pane="dados"' + (fichaAba === "dados" ? "" : " hidden") + '>' + (e ? gtAlertas(e).map(function(g){ return '<div class="gt-aviso ' + g.c + '"><b>' + esc(g.t) + '</b> <span>' + esc(g.s) + '</span></div>'; }).join("") : "") +
         fichaCadHTML(e) +
         (pode ? '' : '<p class="note" style="margin-bottom:10px">Só o analista da empresa ou a coordenação altera esta ficha.</p>') +
         '<div class="campos">' +
@@ -1182,15 +1230,15 @@ function pintarFichaObrig(){
     var fora = e.naoAplica.indexOf(d.k) !== -1;
     return '<span class="r" title="' + esc(d.d + " · vence " + rotPrazo(d)) + '">' + esc(d.l) + '</span>' + cs.map(function(cc){
       if(fora || !existeNaComp(d, cc) || !naComp(e, cc)) return '<span class="h">·</span>';
-      var v = (entrada(cc, e.id).ob || {})[d.k], s = v && v[0] ? v[0] : "", data = prazoDe(d, cc);
-      if(v && v[2]) ids.push(v[2]);
-      var tit = d.l + " · " + compRot(cc) + " · vence " + dataBR(ymd(data)) + ": " + (infoMarca(v, OB_ROT) || (data < hoje() ? "vencida e pendente" : "pendente"));
-      return '<span style="text-align:center">' + stCell(s, 'data-fob="' + esc(d.k) + '" data-comp="' + cc + '"' + (!s && data < hoje() ? ' style="border-color:var(--dp-late)"' : ''), pode, tit) + '</span>';
+      var v = (entrada(cc, e.id).ob || {})[d.k], s = v && v[0] ? v[0] : "", data = prazoDe(d, cc), gt = s ? null : gtTar(e, cc, d.k);
+      if(v && v[2] && v[2] !== "gestta") ids.push(v[2]);
+      var tit = d.l + " · " + compRot(cc) + " · vence " + dataBR(ymd(data)) + ": " + (infoMarca(v, OB_ROT) || (data < hoje() ? "vencida e pendente" : "pendente")) + (gt ? " · " + gtTxt(gt) : "");
+      return '<span style="text-align:center">' + stCell(s, 'data-fob="' + esc(d.k) + '" data-comp="' + cc + '"' + (!s && (data < hoje() || gtRuim(gt)) ? ' style="border-color:var(--dp-late)"' : ''), pode, tit) + '</span>';
     }).join("");
   }).join("");
   buscarNomes(ids);
   box.innerHTML = defs.length ? '<div class="tlq" style="grid-template-columns:minmax(120px,170px) repeat(' + cs.length + ', minmax(30px,1fr)); row-gap:6px"><span></span>' + cs.map(function(cc){ return '<span class="h">' + esc(compCurta(cc)) + '</span>'; }).join("") + linhas + '</div>' +
-    '<div class="legenda" style="border:0; padding:10px 0 0">' + ["", "c", "r", "n"].map(function(s){ return '<span><span class="st ' + (s || "p") + '">' + ST_SIM[s] + '</span> ' + OB_ROT[s] + '</span>'; }).join("") + '<span>· coluna = competência; borda vermelha = vencida</span></div>' +
+    '<div class="legenda" style="border:0; padding:10px 0 0">' + ["", "c", "r", "n"].map(function(s){ return '<span><span class="st ' + (s || "p") + '">' + ST_SIM[s] + '</span> ' + OB_ROT[s] + '</span>'; }).join("") + '<span>· coluna = competência; borda vermelha = vencida (ou tarefa atrasada no Gestta)</span></div>' +
     '<div class="ficha-sec"><h3>Obrigações que se aplicam a esta empresa</h3><div style="display:flex; flex-wrap:wrap; gap:6px 16px">' + defs.map(function(d){ return '<label class="chk"><input type="checkbox" data-aplica="' + esc(d.k) + '"' + (e.naoAplica.indexOf(d.k) === -1 ? " checked" : "") + (pode ? "" : " disabled") + '> ' + esc(d.l) + '</label>'; }).join("") + '</div><p class="note">Desmarque o que a empresa não entrega (ex.: sem movimento de ICMS). Vale para todas as competências.</p></div>'
     : '<p class="note">Nenhuma obrigação do catálogo para este regime e atividade.</p>';
 }

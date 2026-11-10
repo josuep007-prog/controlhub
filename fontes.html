@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>:root{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>:root{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}.gt-mapa-tit{margin:14px 0 6px; font-size:13px}
+</style>
 <title>Entrada de dados · Control Hub</title>
 <script>try{var __t=localStorage.getItem('controlhub-theme');if(__t==='light'||__t==='dark')document.documentElement.setAttribute('data-theme',__t);}catch(e){}</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -337,6 +338,18 @@
   .cad-ac{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;} .cad-ac .btn{padding:5px 10px; font-size:11.5px;}
   .cad-de{color:var(--ink-3); text-decoration:line-through;} .cad-lig{display:flex; gap:6px; align-items:center; flex-wrap:wrap;} .cad-lig select{max-width:260px; font-size:12px; padding:5px 7px;}
   .auto-bloco{padding:14px 16px 12px; margin-bottom:14px;}
+  .dec-sub{display:flex; width:max-content; max-width:100%; gap:0; margin:0 0 14px; border:1px solid var(--rule-strong, var(--rule)); border-radius:var(--r); overflow:hidden; background:var(--surface);}
+  .dec-sub button{font:inherit; font-size:13px; font-weight:600; padding:8px 16px; border:0; background:transparent; color:var(--ink-2); cursor:pointer;} .dec-sub button + button{border-left:1px solid var(--rule);}
+  .dec-sub button.on{background:var(--ink); color:var(--surface);} .dec-sub em{font-style:normal; margin-left:6px; font-size:12px; font-weight:600;} .dec-sub em:empty{display:none;}
+  .dec-sub button:focus-visible{outline:2px solid var(--blue, #3C659B); outline-offset:-2px;}
+  .cad-bloco .tab-wrap{max-height:none;}
+  .gt-ref{padding:12px 16px; margin-bottom:12px;} .gt-ref .cb-top{padding:0 0 8px;} .gt-ref-st{display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 8px;}
+  .gt-st{font-size:12.5px; font-weight:600; padding:4px 8px; border-radius:var(--r); border:1px solid var(--rule);} .gt-st.ok{color:var(--ink);} .gt-st.off{color:var(--ink); background:var(--ambar-soft);}
+  .gt-ref .gt-det{margin:6px 0 0; padding:8px 0 0; border-top:1px solid var(--rule); box-shadow:none; border-radius:0;} .gt-ref-mod{margin:6px 0;} .gt-ref-l{margin:4px 0 8px 18px; padding:0; columns:2 260px; font-size:12.5px; color:var(--ink-2);}
+  .gt-det{margin-bottom:12px; padding:10px 16px;} .gt-det summary{cursor:pointer; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap;} .gt-det > .note{display:block; margin:8px 0;}
+  .gt-tbl select, .gt-tbl input[type=text]{font:inherit; font-size:12.5px; padding:4px 6px; border:1px solid var(--rule-strong, var(--rule)); border-radius:var(--r); background:var(--surface); color:var(--ink); min-width:180px;}
+  .gt-par{display:inline-block; margin:1px 8px 1px 0; font-size:12px; color:var(--ink-2);} .gt-par.sem{color:var(--ink); font-weight:600;}
+  .gt-difs .sub{display:block; font-size:11.5px; color:var(--ink-3); margin-top:3px;} #secGestta{margin-top:0;}
   .auto-bloco.ligada{border-color:var(--verde, #1a7f4b); box-shadow:inset 3px 0 0 var(--verde, #1a7f4b);}
   .auto-bloco .ab-top{display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px;}
   .auto-bloco h3{margin:0 0 2px; font-size:14px;}
@@ -442,12 +455,21 @@
   <div class="aviso erro" id="semBanco" hidden><div><b>Sem conexão com o banco do Hub.</b> Abra esta tela pelo Control Hub.</div></div>
   <div class="resumo-topo" id="resumoTopo"></div>
   <div class="aba" data-aba="decidir">
+  <div class="dec-sub" role="tablist" aria-label="De onde vêm as diferenças"><button type="button" role="tab" data-dec="onvio">Onvio <em id="decN-onvio"></em></button><button type="button" role="tab" data-dec="gestta">Gestta <em id="decN-gestta"></em></button></div>
   <section id="secCadastro">
     <h2 class="sec">Conferir com o cadastro do DP <small id="cadSub"></small></h2>
     <p class="note aba-intro">O Onvio só sugere. Nada muda no cadastro do DP sem você decidir aqui, e o que for aplicado fica no histórico da empresa. A coordenação decide em qualquer empresa; o analista, nas empresas da carteira dele. Marque várias para decidir em lote.</p>
     <div id="autoBox"></div>
     <div id="cadro"></div>
     <div id="vincro" style="margin-top:16px"></div>
+  </section>
+  <section id="secGestta">
+    <h2 class="sec">Conferir com o Gestta <small id="gtSub"></small></h2>
+    <p class="note aba-intro">O Gestta alimenta os cadastros do DP, Contábil, Fiscal e Portal do Cliente: o analista de cada setor, a tributação, as inscrições do Fiscal e as empresas com demanda em cada setor. Só sugere; aplica a coordenação de cada módulo, e o que for aplicado fica no histórico.</p>
+    <div id="gtRef"></div>
+    <div id="gtAuto"></div>
+    <div id="gtCfg"></div>
+    <div id="gtDifs"></div>
   </section>
   </div>
   <div class="aba" data-aba="empresas" hidden>
@@ -560,9 +582,9 @@ function linhasDe(l){
   return l.tabela ? l.tabela.split("\n").map(function(t){ var c = t.split("\t"); return { lista:c[ix["Lista"]] || "", num:c[ix["Nº"]] || "", sit:c[ix["Situação"]] || "", vez:c[ix["Vez"]] || "", cli:c[ix["Cliente"]] || "", resp:c[ix["Responsável"]] || "", aberta:c[ix["Aberta em"]] || "", ult:c[ix["Última movimentação"]] || "", parado:c[ix["Dias parado"]] || "", grav:c[ix["Gravidade"]] || "", bruto:c }; }) : [];
 }
 var dados = {};
-var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise" };
-var CAT_ORDEM = ["listas", "pessoais", "clientes", "escritorio", "documentos", "noticias", "analise"];
-var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão" };
+var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise", tarefas:"Gestta · Tarefas", cadastros:"Gestta · Cadastros", alertas:"Gestta · Alertas" };
+var CAT_ORDEM = ["listas", "pessoais", "clientes", "escritorio", "documentos", "noticias", "analise", "tarefas", "cadastros", "alertas"];
+var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão", tarefas:"Gestta: as tarefas do mês atual e do anterior de todos os setores", cadastros:"Gestta: clientes, equipe, setores e a cartela (quem atende cada setor)", alertas:"Gestta: envios ao Onvio com erro e templates sem pasta no portal" };
 /* ---- ver os dados completos que chegaram (todas as linhas e colunas de cada conjunto) ---- */
 // As partes ficam em ing_partes/<conjunto>~<slot><n> (tabela em texto: tab entre colunas, quebra de linha entre linhas), do mesmo ciclo do manifesto.
 // Conjuntos "pessoais" (CPF, salário, dados de empregados): só para quem trabalha o DP (coordenação ou analista), como no resto do Hub.
@@ -968,7 +990,8 @@ function renderCadastro(){
   renderAuto(api);
   var nDif = cad.difs.length, nSem = cad.sem.length;
   $("#cadSub").textContent = cad.listas ? plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") : "";
-  var nb = $("#nbDecidir"); if(nb){ nb.textContent = nDif + nSem; nb.hidden = !(nDif + nSem); }
+  var nb = $("#nbDecidir"); if(nb){ var tot = nDif + nSem + (typeof gt !== "undefined" ? gt.n : 0); nb.textContent = tot; nb.hidden = !tot; }
+  if(typeof atualizarDecSub === "function") atualizarDecSub();
   renderTopo();
   if(!api){ el.innerHTML = '<div class="panel vazio-f">Abra esta tela pelo Control Hub para conferir os dados do Onvio com o cadastro do DP.</div>'; ev.innerHTML = ""; return; }
   if(!cad.listas){ el.innerHTML = '<div class="panel vazio-f"><b>Ainda não chegaram as solicitações completas do Onvio.</b><br>Na extensão, em Configurações → Control Hub, clique em <b>Enviar tudo agora</b>. Elas aparecem aqui assim que o Hub receber.</div>'; ev.innerHTML = ""; return; }
@@ -1205,6 +1228,217 @@ document.addEventListener("click", function(e){
   }
 });
 
+
+/* ---- Gestta → cadastros dos módulos (Hub 316): analista de cada setor, tributação e empresas com demanda ----
+   A lista e a gravação vêm do Hub (window.parent.__hubApi.api("gestta")), que confere a permissão (coordenação de cada módulo)
+   e grava no módulo com o histórico. Nada muda sem a decisão daqui (ou o automático, se a coordenação ligar). */
+var GT_ROT_MOD = { dp:"DP", contabil:"Contábil", fiscal:"Fiscal", portal:"Portal do Cliente" };
+var gt = { mod:"", acao:"", busca:"", limite:80, sel:{}, difs:[], ouvindo:false, api:false, carregando:true, n:0 };
+function hubGt(){ try{ var P = window.parent; return P !== window && P.__hubApi && P.__hubApi.api ? P.__hubApi.api("gestta") : null; }catch(e){ return null; } }
+function gtChave(d){ return d.k + "|" + d.chave; }
+var gtT = null;
+function agendarGestta(){ clearTimeout(gtT); gtT = setTimeout(renderGestta, 350); }
+function gtFiltradas(ignora){
+  var b = gt.busca ? norm(gt.busca) : "";
+  return gt.difs.filter(function(d){
+    if(ignora !== "mod" && gt.mod && d.mod !== gt.mod) return false;
+    if(ignora !== "acao" && gt.acao && d.acao !== gt.acao) return false;
+    return !b || d._h.indexOf(b) !== -1;
+  });
+}
+function renderGestta(){
+  var el = $("#gtDifs"); if(!el) return;
+  var api = hubGt(); gt.api = !!api; gt.difs = [];
+  if(!api){ el.innerHTML = ""; $("#gtCfg").innerHTML = ""; $("#gtAuto").innerHTML = ""; gt.n = 0; return; }
+  if(!gt.ouvindo){ gt.ouvindo = true; try{ api.aoMudar(agendarGestta); api.garantir(); }catch(e){} }
+  var tem = false; try{ tem = api.tem(); gt.carregando = api.carregando(); if(tem && !gt.carregando){ gt.difs = api.difs(); gt.difs.forEach(function(d){ d._h = norm([d.empNome, d.cnpj, d.modRot, d.rot, d.antes, d.depois].join(" ")); }); } }catch(e){}
+  gt.n = gt.difs.length;
+  var vivos = {}; gt.difs.forEach(function(d){ vivos[gtChave(d)] = 1; }); Object.keys(gt.sel).forEach(function(k){ if(!vivos[k]) delete gt.sel[k]; });
+  $("#gtSub").textContent = tem ? (gt.carregando ? "carregando…" : plural(gt.n, "diferença", "diferenças")) : "";
+  var nb = $("#nbDecidir"); if(nb){ var tot = (cad.difs ? cad.difs.length : 0) + (cad.sem ? cad.sem.length : 0) + gt.n; nb.textContent = tot; nb.hidden = !tot; }
+  atualizarDecSub(); renderTopo();
+  if(!tem){ $("#gtRef").innerHTML = ""; el.innerHTML = '<div class="panel vazio-f"><b>O Gestta ainda não chegou ao Hub.</b><br>Na extensão, em Configurações › Avançado › Control Hub › <b>Gestta no Hub</b>, com o Gestta aberto e logado pela coordenação, clique em <b>Enviar o Gestta agora</b>. Os clientes e a cartela por setor aparecem aqui assim que o Hub receber.</div>'; $("#gtCfg").innerHTML = ""; $("#gtAuto").innerHTML = ""; return; }
+  renderGtRef(api); renderGtAuto(api); renderGtCfg(api);
+  if(gt.carregando){ var falha = ""; try{ falha = api.falhaModulos ? api.falhaModulos() : ""; }catch(e){} el.innerHTML = falha ? '<div class="panel vazio-f"><b>Não consegui ler os cadastros dos módulos para comparar com o Gestta.</b><br>' + esc(falha) + ' <button type="button" class="fbtn" id="gtReler">Tentar de novo</button></div>' : '<div class="panel vazio-f">Lendo o que veio do Gestta e os cadastros dos módulos…</div>'; return; }
+  el.innerHTML = htmlGtDifs();
+}
+/* Hub 317: o Gestta é a referência absoluta (empresas em atividade e cadastro único de analistas). Só mostra: esconder é automático e reversível. */
+function renderGtRef(api){
+  var box = $("#gtRef"); if(!box || !api.referencia) return;
+  var r = null; try{ r = api.referencia(); }catch(e){}
+  if(!r){ box.innerHTML = ""; return; }
+  var abertos = {}; Array.prototype.forEach.call(box.querySelectorAll("details[open]"), function(d){ abertos[d.getAttribute("data-gt-det")] = 1; });
+  var MODR = { dp:"DP", contabil:"Contábil", fiscal:"Fiscal", portal:"Portal do Cliente" };
+  var nFora = 0; Object.keys(r.fora).forEach(function(k){ nFora += r.fora[k].length; });
+  var lista = function(xs){ return xs.length ? '<ul class="gt-ref-l">' + xs.slice(0, 300).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join("") + (xs.length > 300 ? '<li>e mais ' + (xs.length - 300) + '</li>' : '') + '</ul>' : '<p class="note">Nenhuma.</p>'; };
+  var h = '<div class="panel gt-ref"><div class="cb-top"><h3>O Gestta é a referência</h3><span class="note">Empresa sem tarefa no Gestta no mês atual nem no anterior <b>some de todos os módulos</b>, e analista fora da equipe ativa do Gestta <b>sai das carteiras e listas</b>. Nada é apagado: volta sozinho quando voltar a ter atividade. Sem a lista do Gestta (ou incompleta, ou com mais de 72 horas), nada é escondido.</span></div>' +
+    '<div class="gt-ref-st"><span class="gt-st ' + (r.empresas.ok ? 'ok' : 'off') + '">' + (r.empresas.ok ? '✓ ' + r.empresas.n.toLocaleString("pt-BR") + ' empresas em atividade no Gestta' : '! Empresas: ' + esc(r.empresas.motivo) + ' · nada escondido') + '</span>' +
+    '<span class="gt-st ' + (r.analistas.ok ? 'ok' : 'off') + '">' + (r.analistas.ok ? '✓ ' + r.analistas.lista.length + ' analistas ativos no Gestta' : '! Analistas: ' + esc(r.analistas.motivo) + ' · ninguém sai') + '</span></div>';
+  if(r.empresas.ok) h += '<details class="gt-det" data-gt-det="fora"' + (abertos.fora ? " open" : "") + '><summary><b>Empresas escondidas</b> <span class="note">' + plural(nFora, "cadastro", "cadastros") + ' sem tarefa no Gestta</span></summary>' +
+    Object.keys(MODR).filter(function(k){ return r.fora[k]; }).map(function(k){ return '<div class="gt-ref-mod"><b>' + MODR[k] + ' · ' + r.fora[k].length + '</b>' + lista(r.fora[k]) + '</div>'; }).join("") + '</details>';
+  if(r.analistas.ok){
+    h += '<details class="gt-det" data-gt-det="cadana"' + (abertos.cadana ? " open" : "") + '><summary><b>Cadastro de analistas</b> <span class="note">' + plural(r.analistas.lista.length, "pessoa ativa", "pessoas ativas") + ' no Gestta, com os setores e os módulos</span></summary>' +
+      '<table class="tbl gt-tbl"><thead><tr><th>Analista</th><th>Setores no Gestta</th><th>Módulos do Hub</th></tr></thead><tbody>' + r.analistas.lista.map(function(a){ return '<tr><td>' + esc(a.nome) + '</td><td>' + esc(a.setores.join(", ") || "—") + '</td><td>' + esc(a.mods.map(function(m){ return MODR[m] || m; }).join(", ") || "nenhum") + '</td></tr>'; }).join("") + '</tbody></table></details>';
+    h += '<details class="gt-det" data-gt-det="anafora"' + (abertos.anafora ? " open" : "") + '><summary><b>Nomes fora do Gestta</b> <span class="note">' + plural(r.analistasFora.length, "nome", "nomes") + ' nos módulos que não estão na equipe ativa (saem das carteiras)</span></summary>' +
+      (r.analistasFora.length ? '<p class="note">Se for a mesma pessoa com outro nome, ligue em “Analistas do Gestta”.</p><table class="tbl gt-tbl"><thead><tr><th>Nome no Hub</th><th>Onde</th></tr></thead><tbody>' + r.analistasFora.map(function(a){ return '<tr><td>' + esc(a.nome) + '</td><td>' + esc(a.mods.join(", ")) + '</td></tr>'; }).join("") + '</tbody></table>' : '<p class="note">Nenhum.</p>') + '</details>';
+  }
+  box.innerHTML = h + '</div>';
+}
+function renderGtAuto(api){
+  var box = $("#gtAuto"); if(!box) return;
+  var a = api.auto(), coord = api.podeConfigurar(), dis = coord ? "" : " disabled", u = a.ultima;
+  function ck(t, rot, sub){ return '<label class="chk"><input type="checkbox" data-gt-auto-tipo="' + t + '"' + (a.tipos[t] ? " checked" : "") + dis + '> <b>' + rot + '</b><span class="sub">' + sub + '</span></label>'; }
+  box.innerHTML = '<div class="panel auto-bloco' + (a.ligada ? " ligada" : "") + '"><div class="ab-top"><div><h3>Aplicar automaticamente o que vem do Gestta</h3><span class="note">Com isto ligado, o Hub aplica sozinho, <b>sem pedir confirmação</b>, cada vez que o Gestta chegar. Só onde a pessoa com o Hub aberto é da coordenação do módulo; o que está marcado “conferir antes” e o que for “Ignorar” ficam de fora. Tudo fica no histórico.' + (coord ? '' : ' Só a coordenação liga ou desliga.') + '</span></div>' +
+    '<label class="sw"><input type="checkbox" id="gtAutoLigar"' + (a.ligada ? " checked" : "") + dis + '><span>' + (a.ligada ? "Ligado" : "Desligado") + '</span></label></div>' +
+    '<div class="ab-tipos">' + ck("complementar", "Complementar", "preenche analista, tributação e inscrições vazios") + ck("corrigir", "Corrigir", "troca valores diferentes pelo do Gestta") + ck("novo", "Cadastrar empresas", "empresa com demanda no setor e sem cadastro no módulo") + '</div>' +
+    '<div class="ab-pe"><span>' + (u && u.em ? 'Última aplicação automática: <b>' + esc(quando(Date.parse(u.em))) + '</b> · ' + esc(u.resumo || (u.n + " alteração(ões)")) : 'Ainda não aplicou nada sozinho.') + '</span>' + (a.ligada ? '<button type="button" class="fbtn" id="gtAutoAgora"' + (a.rodando ? " disabled" : "") + '>' + (a.rodando ? "Aplicando…" : "Aplicar agora") + '</button>' : '') + '</div></div>';
+}
+function renderGtCfg(api){
+  var box = $("#gtCfg"); if(!box) return;
+  var aberto = box.querySelector("details[open]") ? box.querySelectorAll("details[open]") : [], abertos = {};
+  Array.prototype.forEach.call(aberto, function(d){ abertos[d.getAttribute("data-gt-det")] = 1; });
+  var coord = api.podeConfigurar(), dis = coord ? "" : " disabled", setores = api.setores(), anal = api.analistas();
+  var semMod = setores.filter(function(s){ return !s.mod; }).length, semPar = anal.filter(function(a){ return !a.casou; }).length;
+  var opt = function(v, rot, cur){ return '<option value="' + v + '"' + (cur === v ? " selected" : "") + '>' + rot + '</option>'; };
+  var hs = '<details class="panel gt-det" data-gt-det="setores"' + (abertos.setores ? " open" : "") + '><summary><b>Setores do Gestta</b> <span class="note">' + plural(setores.length, "setor", "setores") + (semMod ? ' · ' + semMod + ' sem módulo (não entram)' : '') + '</span></summary>' +
+    '<p class="note">Cada setor do Gestta alimenta um módulo do Hub: o analista do setor vira o analista da empresa no módulo, e o setor com responsável ou tarefas diz que a empresa tem demanda ali. O Portal do Cliente usa os três (frentes Pessoal, Contábil e Fiscal).' + (coord ? '' : ' Só a coordenação muda.') + '</p>' +
+    '<table class="tbl gt-tbl"><thead><tr><th>Setor no Gestta</th><th class="num">Clientes com responsável</th><th>Módulo do Hub</th></tr></thead><tbody>' +
+    setores.map(function(s){ var cur = s.escolhido ? (s.mod || "-") : ""; return '<tr><td>' + esc(s.nome) + '</td><td class="num">' + s.clientes + '</td><td><select data-gt-setor="' + esc(s.chave) + '" aria-label="Módulo do setor ' + esc(s.nome) + '"' + dis + '>' + opt("", "Automático: " + (s.padrao ? GT_ROT_MOD[s.padrao] : "nenhum"), cur) + opt("dp", "DP (Pessoal)", cur) + opt("contabil", "Contábil", cur) + opt("fiscal", "Fiscal", cur) + opt("-", "Nenhum (não entra)", cur) + '</select></td></tr>'; }).join("") + '</tbody></table></details>';
+  var todos = {}; ["dp", "contabil", "fiscal", "portal"].forEach(function(m){ api.conhecidos(m).forEach(function(n){ todos[norm(n)] = n; }); });
+  var ha = '<details class="panel gt-det" data-gt-det="analistas"' + (abertos.analistas ? " open" : "") + '><summary><b>Analistas do Gestta</b> <span class="note">' + plural(anal.length, "pessoa", "pessoas") + (semPar ? ' · ' + semPar + ' sem par no Hub' : '') + '</span></summary>' +
+    '<p class="note">O nome de cada responsável do Gestta é trocado pelo nome usado no Hub (igual, ou o primeiro e o último nome). Quem não tem par aparece com “conferir antes” nas diferenças. Escreva o nome do Hub para ligar; deixe em branco para o automático.</p>' +
+    '<datalist id="gtNomesHub">' + Object.keys(todos).sort().map(function(k){ return '<option value="' + esc(todos[k]) + '"></option>'; }).join("") + '</datalist>' +
+    '<table class="tbl gt-tbl"><thead><tr><th>No Gestta</th><th class="num">Clientes</th><th>No Hub</th><th>Nome a usar</th></tr></thead><tbody>' +
+    anal.map(function(a){ return '<tr' + (a.casou ? '' : ' class="gt-sempar"') + '><td>' + esc(a.nome) + '</td><td class="num">' + a.clientes + '</td><td>' + a.noHub.map(function(r){ return '<span class="gt-par' + (r.casou ? '' : ' sem') + '">' + esc(GT_ROT_MOD[r.mod]) + ': ' + esc(r.nome || "—") + (r.casou ? '' : ' (sem par)') + '</span>'; }).join(" ") + '</td><td><input type="text" list="gtNomesHub" data-gt-anal="' + esc(a.chave) + '" value="' + esc(a.escolhido) + '" placeholder="automático" aria-label="Nome no Hub para ' + esc(a.nome) + '"' + dis + '></td></tr>'; }).join("") + '</tbody></table></details>';
+  // Hub 325 (Rodada A): tarefas do Gestta → obrigações do Fiscal e etapas do Contábil; a marcação automática (ligada de fábrica)
+  var ht = "";
+  if(api.tarefasMapa){
+    var mk = api.marcar(), ch = api.chavesTarefa(), tm = api.tarefasMotivo(), nr = 0;
+    var MODT = [["fiscal", "Fiscal", "obrigação"], ["contabil", "Contábil", "etapa"]];
+    var corpo = tm ? '<p class="note">' + esc(tm) + '. Nada é marcado enquanto isso.</p>' : MODT.map(function(m){
+      var l = api.tarefasMapa(m[0]); nr += l.filter(function(x){ return !x.chave; }).length;
+      if(!l.length) return '<p class="note"><b>' + m[1] + ':</b> nenhuma tarefa deste setor chegou do Gestta.</p>';
+      return '<h4 class="gt-mapa-tit">' + m[1] + ' <span class="note">' + plural(l.length, "nome de tarefa", "nomes de tarefa") + '</span></h4><table class="tbl gt-tbl"><thead><tr><th>Tarefa no Gestta</th><th class="num">Tarefas</th><th>Vira a ' + m[2] + '</th></tr></thead><tbody>' +
+        l.map(function(x){ return '<tr' + (x.chave ? '' : ' class="gt-sempar"') + '><td>' + esc(x.nome) + '</td><td class="num">' + x.n + '</td><td><select data-gt-mapa="' + m[0] + '" data-gt-nome="' + esc(x.nome) + '" aria-label="' + esc(m[2] + ' da tarefa ' + x.nome) + '"' + dis + '><option value="-"' + (x.chave ? '' : ' selected') + '>— não marca nada</option>' +
+          Object.keys(ch[m[0]]).map(function(k){ return '<option value="' + k + '"' + (x.chave === k ? ' selected' : '') + '>' + esc(ch[m[0]][k]) + '</option>'; }).join("") + '</select></td></tr>'; }).join("") + '</tbody></table>';
+    }).join("");
+    var u = mk.ultima;
+    ht = '<details class="panel gt-det" data-gt-det="tarefas"' + (abertos.tarefas ? " open" : "") + '><summary><b>Tarefas e obrigações</b> <span class="note">Fiscal e Contábil' + (nr ? ' · ' + plural(nr, "nome sem obrigação", "nomes sem obrigação") : '') + '</span></summary>' +
+      '<p class="note">Tarefa concluída no Gestta marca sozinha a obrigação do Fiscal ou a etapa do Contábil da competência, com a data da conclusão e a origem “pelo Gestta”. Marcação feita à mão nunca é trocada; desmarcar no módulo desfaz e não volta. Tarefa aberta com meta vencida fica em vermelho no módulo.' + (coord ? '' : ' Só a coordenação muda.') + '</p>' +
+      '<label class="chk"><input type="checkbox" id="gtMarcar"' + (mk.ligada ? " checked" : "") + dis + '> <b>Marcar sozinho pelas tarefas concluídas</b></label>' +
+      '<p class="note">' + (u ? 'Última marcação: ' + esc(quando(Date.parse(u.em))) + ' · ' + plural(u.n, "marcação", "marcações") + (u.falhas ? ' · ' + u.falhas + ' não gravadas (tenta de novo)' : '') : 'Ainda não marcou nada neste navegador.') + (coord ? ' <button type="button" class="fbtn" id="gtMarcarAgora">Marcar agora</button>' : '') + '</p>' + corpo + '</details>';
+  }
+  // Hub 326 (Josué, 09/11/2026): o Portal do Cliente pelo Gestta, sozinho (ligado de fábrica)
+  var hp = "";
+  if(api.portal){
+    var po = api.portal(), up = po.ultima;
+    hp = '<details class="panel gt-det" data-gt-det="portal"' + (abertos.portal ? " open" : "") + '><summary><b>Portal do Cliente pelo Gestta</b> <span class="note">' + (po.ligada ? "aplica sozinho" : "desligado") + (po.conferir ? ' · ' + plural(po.conferir, "empresa para conferir", "empresas para conferir") : '') + '</span></summary>' +
+      '<p class="note">O Portal segue o Gestta: empresa com tarefa num setor entra no Portal com a demanda daquele setor (só ter analista na cartela não basta); o setor sem demanda no Gestta sai (nada é apagado); o analista de cada frente é o da cartela (quem não está na equipe do Portal entra nela) e o contato sem e-mail ganha o do Gestta. A demanda depende só das tarefas (a cartela dá só o analista). Empresa sem tarefa no Gestta sai do Portal (e dos outros módulos) mesmo com empregado ativo. Mudança feita à mão no Portal vale até o Gestta mudar de novo. Empresa parecida com outra (sem CNPJ ou filial) fica “conferir antes”. Só aplica quando quem tem o Hub aberto é da coordenação do Portal; fica no histórico.' + (coord ? '' : ' Só a coordenação muda.') + '</p>' +
+      ((po.travas && po.travas.length) ? '<div class="note" role="status" style="border-left:3px solid var(--warn,#b45309);padding:6px 10px;margin:6px 0;"><b>Por que o Portal pode não ter mudado:</b><ul style="margin:4px 0 0 18px;padding:0;">' + po.travas.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+      '<label class="chk"><input type="checkbox" id="gtPortal"' + (po.ligada ? " checked" : "") + dis + '> <b>Atualizar o Portal sozinho pelo Gestta</b></label>' +
+      '<p class="note">' + (up ? 'Última atualização: ' + esc(quando(Date.parse(up.em))) + ' · ' + esc(up.resumo || 'nada novo') + (up.falhas ? ' · ' + up.falhas + ' não gravadas (tenta de novo)' : '') : 'Ainda não atualizou nada neste navegador.') + (po.pode ? ' <button type="button" class="fbtn" id="gtPortalAgora"' + (po.rodando ? " disabled" : "") + '>' + (po.rodando ? "Atualizando…" : "Atualizar agora") + '</button>' : '') + '</p></details>';
+  }
+  box.innerHTML = hs + ha + ht + hp;
+}
+function htmlGtDifs(){
+  var baseM = gtFiltradas("mod"), baseA = gtFiltradas("acao"), vis = gtFiltradas("");
+  var porMod = {}, porAcao = {}; baseM.forEach(function(d){ porMod[d.mod] = (porMod[d.mod] || 0) + 1; }); baseA.forEach(function(d){ porAcao[d.acao] = (porAcao[d.acao] || 0) + 1; });
+  var h = '<div class="panel cad-bloco"><div class="cb-top"><h3>Diferenças com os cadastros dos módulos</h3><span class="note">Pelo Gestta: o <b>analista de cada setor</b> (DP, Contábil, Fiscal e as frentes do Portal), a <b>tributação</b> (regime federal), as inscrições do Fiscal e as <b>empresas com demanda</b> num setor que ainda não estão no módulo. Aplica a coordenação de cada módulo; Ignorar some com a diferença sem mudar nada.</span></div>';
+  if(!gt.difs.length) return h + '<div class="vazio-ok"><span class="ok-ic" aria-hidden="true">✓</span><div><b>Nada para decidir.</b><span>Os cadastros dos módulos batem com o Gestta.</span></div></div></div>';
+  var selN = Object.keys(gt.sel).length, selecionaveis = vis.filter(function(d){ return d.pode; });
+  var todas = selecionaveis.length && selecionaveis.every(function(d){ return gt.sel[gtChave(d)]; });
+  h += '<div class="barra"><input type="search" id="gtBusca" placeholder="Buscar empresa, CNPJ, analista…" value="' + esc(gt.busca) + '" autocomplete="off" aria-label="Buscar nas diferenças do Gestta"><span class="cont">' + plural(vis.length, "diferença", "diferenças") + '</span></div>' +
+    '<div class="chips" role="group" aria-label="Filtrar por módulo"><button type="button" class="chipf' + (!gt.mod ? " on" : "") + '" data-gt-mod="">Todos os módulos <em>' + baseM.length + '</em></button>' +
+    ["dp", "contabil", "fiscal", "portal"].filter(function(m){ return porMod[m]; }).map(function(m){ return '<button type="button" class="chipf' + (gt.mod === m ? " on" : "") + '" data-gt-mod="' + m + '">' + GT_ROT_MOD[m] + ' <em>' + porMod[m] + '</em></button>'; }).join("") + '</div>' +
+    '<div class="chips acoes" role="group" aria-label="Filtrar pelo que fazer"><button type="button" class="chipf' + (!gt.acao ? " on" : "") + '" data-gt-acao="">Todas <em>' + baseA.length + '</em></button>' +
+    ACOES.filter(function(a){ return porAcao[a[0]]; }).map(function(a){ return '<button type="button" class="chipf ac-' + a[0] + (gt.acao === a[0] ? " on" : "") + '" data-gt-acao="' + a[0] + '"><i></i>' + (a[0] === "novo" ? "Empresa nova" : a[1]) + ' <em>' + porAcao[a[0]] + '</em></button>'; }).join("") + '</div>';
+  if(selecionaveis.length) h += '<div class="selbar' + (selN ? " ativa" : "") + '"><label class="chk"><input type="checkbox" id="gtTodas"' + (todas ? " checked" : "") + '> Selecionar ' + (gt.mod || gt.acao || gt.busca ? "as " + selecionaveis.length + " desta lista" : "todas as " + selecionaveis.length) + '</label><span class="sel-n">' + (selN ? plural(selN, "selecionada", "selecionadas") : "Marque para decidir várias de uma vez.") + '</span><span class="spacer"></span>' +
+    '<button type="button" class="btn verde" id="gtAplicarSel"' + (selN ? "" : " disabled") + '>Aplicar' + (selN ? " " + selN : "") + '</button><button type="button" class="fbtn" id="gtIgnorarSel"' + (selN ? "" : " disabled") + '>Ignorar' + (selN ? " " + selN : "") + '</button>' + (selN ? '<button type="button" class="linkish" id="gtLimpar">Limpar seleção</button>' : '') + '</div>';
+  if(!vis.length) return h + '<div class="vazio-f">Nenhuma diferença com esses filtros.</div></div>';
+  var grupos = [], por = {};
+  vis.slice(0, gt.limite).forEach(function(d){ var g = por[d.k]; if(!g){ g = por[d.k] = { k:d.k, nome:d.empNome, cnpj:d.cnpj, itens:[] }; grupos.push(g); } g.itens.push(d); });
+  h += '<div class="tab-wrap"><table class="tbl dif-tbl gt-difs"><thead><tr><th class="ck"></th><th>Módulo</th><th>O que fazer</th><th>No cadastro → no Gestta</th><th></th></tr></thead><tbody>' +
+    grupos.map(function(g){
+      return '<tr class="grp"><td class="ck"></td><td colspan="4"><b>' + esc(g.nome) + '</b><span class="g-resp mono">' + esc(g.cnpj) + '</span><span class="g-n">' + plural(g.itens.length, "diferença", "diferenças") + '</span></td></tr>' +
+        g.itens.map(function(d){ var k = gtChave(d), on = !!gt.sel[k];
+          return '<tr class="dif' + (on ? " on" : "") + '" data-gt-k="' + esc(d.k) + '" data-gt-chave="' + esc(d.chave) + '"><td class="ck">' + (d.pode ? '<input type="checkbox" data-gt-sel="' + esc(k) + '"' + (on ? " checked" : "") + ' aria-label="Selecionar">' : '') + '</td>' +
+            '<td class="fn">' + esc(d.modRot) + '</td><td><span class="tp ac-' + esc(d.acao) + '"><i></i>' + esc(d.acao === "novo" ? "Empresa nova" : (ROT_ACAO[d.acao] || d.acao)) + '</span> <span class="dtx">' + esc(d.rot) + '</span>' + (d.confirmar ? '<span class="tp tp-conf"><i></i>conferir antes</span>' : '') + (d.nota ? '<span class="sub">' + esc(d.nota) + '</span>' : '') + '</td>' +
+            '<td class="mudanca"><span class="cad-de">' + esc(d.antes) + '</span><span class="seta" aria-hidden="true">→</span><b>' + esc(d.depois) + '</b></td><td class="acs">' +
+            (d.pode ? '<div class="cad-ac"><button type="button" class="btn verde" data-gt-aplicar>' + (d.acao === "novo" ? "Cadastrar" : VERBO_ACAO[d.acao] || "Aplicar") + '</button><button type="button" class="fbtn" data-gt-ignorar>Ignorar</button></div>' : '<span class="note">' + (d.nota && /equipe do Portal/.test(d.nota) ? 'falta a pessoa no Portal' : 'só a coordenação do ' + esc(d.modRot)) + '</span>') + '</td></tr>'; }).join("");
+    }).join("") +
+    (vis.length > gt.limite ? '<tr><td colspan="5" class="mais-td"><button type="button" class="fbtn" data-gt-mais>Mostrar mais (' + (vis.length - gt.limite) + ' restantes)</button></td></tr>' : '') + '</tbody></table></div></div>';
+  return h;
+}
+function gtResultado(p, ok){ p.then(function(r){ toast(r && r.ok ? ok : ((r && r.erro) || "Não foi possível concluir.")); renderGestta(); }, function(){ toast("Não foi possível concluir."); renderGestta(); }); }
+function gtLote(aplicar){
+  var api = hubGt(); if(!api) return;
+  var itens = gt.difs.filter(function(d){ return gt.sel[gtChave(d)] && d.pode; });
+  if(!itens.length){ toast("Marque as diferenças primeiro."); return; }
+  var mods = {}; itens.forEach(function(d){ mods[d.modRot] = (mods[d.modRot] || 0) + 1; });
+  abrirLote({
+    titulo: (aplicar ? "Aplicar " : "Ignorar ") + plural(itens.length, "diferença do Gestta", "diferenças do Gestta"),
+    botao: (aplicar ? "Aplicar " : "Ignorar ") + itens.length,
+    resumo: '<p>' + (aplicar ? 'Vai gravar nos cadastros: ' : 'Vai deixar de mostrar, sem mudar nada: ') + Object.keys(mods).map(function(m){ return esc(m) + ' (' + mods[m] + ')'; }).join(", ") + '. ' + (aplicar ? 'Complementar preenche o que está vazio, Corrigir troca pelo valor do Gestta e Cadastrar cria a empresa no módulo. Fica no histórico.' : '') + ' Uma de cada vez; você pode parar no meio.</p>',
+    itens: itens.map(function(d){ return { rot: d.empNome + " · " + d.modRot, sub: d.rot + ": " + d.antes + " → " + d.depois, fazer: function(){ return aplicar ? api.aplicar(d.k, d.chave) : api.ignorar(d.k, d.chave); } }; }),
+    aoFim: function(){ gt.sel = {}; renderGestta(); }
+  });
+}
+document.addEventListener("input", function(e){ if(e.target.id === "gtBusca"){ gt.busca = e.target.value; gt.limite = 80; clearTimeout(gtT); gtT = setTimeout(renderGestta, 220); } });
+document.addEventListener("change", function(e){
+  var t = e.target, api = hubGt(); if(!api || !t || !t.closest || !t.closest("#secGestta")) return;
+  if(t.id === "gtTodas"){ gtFiltradas("").filter(function(d){ return d.pode; }).forEach(function(d){ if(t.checked) gt.sel[gtChave(d)] = 1; else delete gt.sel[gtChave(d)]; }); renderGestta(); return; }
+  if(t.hasAttribute("data-gt-sel")){ var k = t.getAttribute("data-gt-sel"); if(t.checked) gt.sel[k] = 1; else delete gt.sel[k]; renderGestta(); return; }
+  if(t.hasAttribute("data-gt-setor")){ var s = t.getAttribute("data-gt-setor"), v = t.value; api.salvarCfg(function(c){ if(v) c.setores[s] = v; else delete c.setores[s]; }).then(function(r){ toast(r.ok ? "Setor salvo: as diferenças foram refeitas." : r.erro); renderGestta(); }); return; }
+  if(t.id === "gtPortal"){ api.salvarCfg(function(c){ c.portal = t.checked; }).then(function(r){ toast(r.ok ? (t.checked ? "O Portal volta a seguir o Gestta sozinho." : "O Portal não segue mais o Gestta sozinho: as diferenças ficam para decidir.") : r.erro); renderGestta(); }); return; }
+  if(t.id === "gtMarcar"){ api.salvarCfg(function(c){ c.marcar = t.checked; }).then(function(r){ toast(r.ok ? (t.checked ? "Marcação pelo Gestta ligada." : "Marcação pelo Gestta desligada.") : r.erro); renderGestta(); }); return; }
+  if(t.hasAttribute("data-gt-mapa")){ var mm = t.getAttribute("data-gt-mapa"), nn = t.getAttribute("data-gt-nome"), vv = t.value; api.salvarCfg(function(c){ c.mapa = c.mapa || {}; c.mapa[mm] = (c.mapa[mm] || []).filter(function(x){ return norm(x.p) !== norm(nn); }); c.mapa[mm].push({p:nn, k:vv}); }).then(function(r){ toast(r.ok ? "Salvo: as marcações seguem a escolha." : r.erro); renderGestta(); }); return; }
+  if(t.hasAttribute("data-gt-anal")){ var a = t.getAttribute("data-gt-anal"), n = t.value.trim(); api.salvarCfg(function(c){ if(n) c.analistas[a] = n; else delete c.analistas[a]; }).then(function(r){ toast(r.ok ? "Nome salvo." : r.erro); renderGestta(); }); return; }
+  if(t.id === "gtAutoLigar"){
+    if(!t.checked){ api.salvarCfg(function(c){ c.auto.ligada = false; }).then(function(r){ toast(r.ok ? "Aplicação automática do Gestta desligada." : r.erro); renderGestta(); }); return; }
+    var p = api.autoPrevisao(), tp = api.auto().tipos;
+    confirmar("Ligar a aplicação automática do Gestta?\n\nO Hub passa a aplicar sozinho, sem pedir confirmação:" + (tp.complementar ? "\n• complementar campos vazios (" + p.complementar + " agora)" : "") + (tp.corrigir ? "\n• corrigir valores diferentes (" + p.corrigir + " agora)" : "") + (tp.novo ? "\n• cadastrar empresas nos módulos (" + p.novo + " agora)" : "") + (p.conferir ? "\n\n" + p.conferir + " marcada(s) “conferir antes” ficam para decidir à mão." : "") + "\n\nFica no histórico de cada empresa.", "Ligar").then(function(ok){
+      if(!ok){ renderGestta(); return; }
+      api.salvarCfg(function(c){ c.auto.ligada = true; }).then(function(r){ toast(r.ok ? "Aplicação automática do Gestta ligada." : r.erro); renderGestta(); });
+    });
+    return;
+  }
+  var at = t.getAttribute("data-gt-auto-tipo"); if(at){ api.salvarCfg(function(c){ c.auto.tipos[at] = t.checked; }).then(function(r){ if(!r.ok) toast(r.erro); renderGestta(); }); }
+});
+document.addEventListener("click", function(e){
+  var t = e.target, api = hubGt(); if(!api || !t.closest || !t.closest("#secGestta")) return;
+  if(t.closest("[data-gt-mais]")){ gt.limite += 120; renderGestta(); return; }
+  var m = t.closest("[data-gt-mod]"); if(m){ gt.mod = m.getAttribute("data-gt-mod"); gt.limite = 80; renderGestta(); return; }
+  var ac = t.closest("[data-gt-acao]"); if(ac){ gt.acao = ac.getAttribute("data-gt-acao"); gt.limite = 80; renderGestta(); return; }
+  if(t.closest("#gtAplicarSel")){ gtLote(true); return; }
+  if(t.closest("#gtIgnorarSel")){ gtLote(false); return; }
+  if(t.closest("#gtLimpar")){ gt.sel = {}; renderGestta(); return; }
+  if(t.closest("#gtPortalAgora")){ var bp = t.closest("#gtPortalAgora"); bp.disabled = true; bp.textContent = "Atualizando…"; api.portalAgora().then(function(r){ toast(r && r.ok ? (r.n ? r.n + " alteração(ões) no Portal pelo Gestta." : "O Portal já está igual ao Gestta.") : "Não atualizou: " + ((r && r.motivo) || "erro")); renderGestta(); }); return; }
+  if(t.closest("#gtMarcarAgora")){ var bm = t.closest("#gtMarcarAgora"); bm.disabled = true; bm.textContent = "Marcando…"; api.marcarAgora().then(function(r){ toast(r && r.ok ? (r.n ? r.n + " marcação(ões) pelo Gestta." : "Nada novo para marcar.") : "Não marcou: " + ((r && r.motivo) || "erro")); renderGestta(); }); return; }
+  if(t.closest("#gtReler")){ api.garantir(true); renderGestta(); return; }
+  if(t.closest("#gtAutoAgora")){ var b = t.closest("#gtAutoAgora"); b.disabled = true; b.textContent = "Aplicando…"; api.autoAgora().then(function(r){ toast(r && r.ok ? (r.n ? r.n + " alteração(ões) aplicada(s)." : "Nada para aplicar agora.") : "Ainda carregando o Gestta. Tente de novo em instantes."); renderGestta(); }); return; }
+  var tr = t.closest("tr[data-gt-k]");
+  if(tr && (t.closest("[data-gt-aplicar]") || t.closest("[data-gt-ignorar]"))){
+    var k = tr.getAttribute("data-gt-k"), ch = tr.getAttribute("data-gt-chave"), d = gt.difs.filter(function(x){ return x.k === k && x.chave === ch; })[0];
+    if(!d){ toast("Essa diferença já não existe."); renderGestta(); return; }
+    var aplicar = !!t.closest("[data-gt-aplicar]");
+    confirmar(d.empNome + " · " + d.modRot + "\n" + d.rot + ": " + d.antes + " → " + d.depois + (d.nota ? "\n(" + d.nota + ")" : "") + "\n\n" + (aplicar ? (d.acao === "novo" ? "Cadastrar a empresa no " + d.modRot + "? " : d.acao === "complementar" ? "Complementar o cadastro? " : "Corrigir com o valor do Gestta? ") + "Fica registrado no histórico." : "Não mostrar mais esta diferença? O cadastro não muda."), aplicar ? (d.acao === "novo" ? "Cadastrar" : VERBO_ACAO[d.acao] || "Aplicar") : "Ignorar").then(function(ok){
+      if(!ok) return; delete gt.sel[gtChave(d)];
+      gtResultado(aplicar ? api.aplicar(k, ch) : api.ignorar(k, ch), aplicar ? "Aplicado e registrado no histórico." : "Diferença ignorada.");
+    });
+  }
+});
+
+/* ---- Para decidir: Onvio ou Gestta, uma de cada vez (antes ficavam empilhadas numa página só) ---- */
+var DEC_CHAVE = "controlhub-fontes-dec", decEscolha = (function(){ try{ return localStorage.getItem(DEC_CHAVE) || ""; }catch(e){ return ""; } })();
+function nDecOnvio(){ return (cad.difs ? cad.difs.length : 0) + (cad.sem ? cad.sem.length : 0); }
+function decAtual(){ if(decEscolha === "onvio" || decEscolha === "gestta") return decEscolha; return !nDecOnvio() && gt.n ? "gestta" : "onvio"; }
+function atualizarDecSub(){
+  var a = decAtual(), on = $("#secCadastro"), ge = $("#secGestta"); if(!on || !ge) return;
+  on.hidden = a !== "onvio"; ge.hidden = a !== "gestta";
+  Array.prototype.forEach.call(document.querySelectorAll("[data-dec]"), function(b){ var x = b.getAttribute("data-dec") === a; b.classList.toggle("on", x); b.setAttribute("aria-selected", String(x)); });
+  var n1 = $("#decN-onvio"), n2 = $("#decN-gestta"); if(n1) n1.textContent = nDecOnvio() || ""; if(n2) n2.textContent = gt.n || "";
+}
+document.addEventListener("click", function(e){ var b = e.target.closest && e.target.closest("[data-dec]"); if(!b) return; decEscolha = b.getAttribute("data-dec"); try{ localStorage.setItem(DEC_CHAVE, decEscolha); }catch(x){} atualizarDecSub(); renderTopo(); window.scrollTo(0, 0); });
 
 /* ---- cadastro único de empresas ---- */
 var CU = { rel: null, ocupado: false, msg: "" };
@@ -1473,11 +1707,11 @@ function renderTopo(){
   var el = $("#resumoTopo"); if(!el) return;
   var ult = ultimoEnvio(), fx = ult ? faixaIdade(ult) : "fni", nC = Object.keys(dados).length, pess = Object.keys(dados).some(function(k){ return dados[k].categoria === "pessoais"; });
   var st = $("#ponteSt"); if(st){ st.className = "ponte-st " + fx; st.textContent = ult ? "último envio " + quando(ult) : (cfg && cfg.token ? "aguardando o primeiro envio" : "sem pareamento"); }
-  var nDif = cad.difs.length, nSem = cad.sem.length, minhas = cad.difs.filter(function(d){ return d.pode; }).length;
+  var nDif = cad.difs.length, nSem = cad.sem.length, minhas = cad.difs.filter(function(d){ return d.pode; }).length, nGt = (typeof gt !== "undefined" && gt.n) || 0;
   el.innerHTML =
-    '<button type="button" class="kt' + (nDif + nSem ? " alerta" : " ok") + '" data-ir-aba="decidir"><b>' + (nDif + nSem) + '</b><span>para decidir</span><small>' + (cad.listas ? plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") + (nDif && minhas < nDif ? " · " + minhas + " suas" : "") : "aguardando as solicitações completas") + '</small></button>' +
+    '<button type="button" class="kt' + (nDif + nSem + nGt ? " alerta" : " ok") + '" data-ir-aba="decidir"><b>' + (nDif + nSem + nGt) + '</b><span>para decidir</span><small>' + (cad.listas ? "Onvio: " + plural(nDif, "diferença", "diferenças") + " · " + plural(nSem, "cliente sem empresa", "clientes sem empresa") + (nDif && minhas < nDif ? " · " + minhas + " suas" : "") : "Onvio: aguardando as solicitações completas") + (nGt ? " · Gestta: " + plural(nGt, "diferença", "diferenças") : "") + '</small></button>' +
     '<button type="button" class="kt ' + fx + '" data-ir-aba="recebido"><b>' + (ult ? quando(ult) : "—") + '</b><span>último envio da extensão</span><small>' + plural(nC, "conjunto completo", "conjuntos completos") + (pess ? " · com dados pessoais" : " · sem dados pessoais") + '</small></button>' +
-    '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · aceita só a extensão " + (cfg.versaoExtMax && verMaior(cfg.versaoExtMax, "0.70.4") ? cfg.versaoExtMax : "0.70.4") + " ou mais nova" : "gere o código em Conexão") + '</small></button>';
+    '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · aceita só a extensão " + (cfg.versaoExtMax && verMaior(cfg.versaoExtMax, "0.79.0") ? cfg.versaoExtMax : "0.79.0") + " ou mais nova" : "gere o código em Conexão") + '</small></button>';
 }
 
 /* ---- início ---- */
@@ -1498,7 +1732,8 @@ var abaGuardada = ""; try{ abaGuardada = localStorage.getItem(ABA_CHAVE) || ""; 
 abrirAba(["decidir", "empresas", "recebido", "conexao"].indexOf(abaGuardada) !== -1 ? abaGuardada : "decidir", false);
 render();
 renderCadastro();
-setInterval(function(){ render(); renderCadastro(); if(abaAtual === "empresas" && !CU.ocupado) renderCU(); }, 60000);
+renderGestta();
+setInterval(function(){ render(); renderCadastro(); renderGestta(); if(abaAtual === "empresas" && !CU.ocupado) renderCU(); }, 60000);
 })();
 </script>
 </body>

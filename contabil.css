@@ -537,3 +537,14 @@ html::before{background:radial-gradient(closest-side,var(--fd3),transparent);lef
 .cad-chip{font:600 11.5px "IBM Plex Sans",sans-serif; padding:3px 8px; border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-3); border-radius:0;}
 .cad-chip.on{color:var(--ink); border-color:var(--blue-deep);}
 button.cad-chip.on{cursor:pointer;} button.cad-chip.on:hover{background:var(--blue-pale);}
+
+/* Hub 325: tarefas do Gestta (avisos de certificado e de envio ao portal, tabela por responsável) */
+.gt-aviso{display:flex; flex-wrap:wrap; gap:4px 8px; align-items:baseline; padding:8px 10px; margin:0 0 10px; border-radius:var(--r,4px); border:1px solid var(--rule); border-left:3px solid var(--dp-today); background:var(--surface); font-size:12.5px; color:var(--ink)}
+.gt-aviso.late{border-left-color:var(--dp-late)}
+.gt-aviso span{color:var(--ink-2)}
+.gt-tab-wrap{overflow-x:auto; padding:0 14px}
+.gt-tab{width:100%; border-collapse:collapse; font-size:12.5px}
+.gt-tab th,.gt-tab td{padding:5px 8px; border-bottom:1px solid var(--rule); text-align:left; color:var(--ink)}
+.gt-tab th{font-weight:600; color:var(--ink-2); font-size:12px}
+.gt-tab .num{text-align:right; font-variant-numeric:tabular-nums}
+.gt-tab .gt-n-atr{color:var(--dp-late); font-weight:700}

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="pop.css?v=3">
+<title>POP Master · Control Hub</title>
+<script src="tema.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head>
+<body>
+<div class="module-view">
+  <div class="module-view-head">
+    <a class="hub-back" href="index.html" id="hubBack" title="Voltar ao Control Hub" aria-label="Voltar ao Control Hub"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a>
+    <h2><i aria-hidden="true"></i>POP Master Controltax</h2>
+    <span class="save-state" id="salv" role="status" aria-live="polite" hidden></span>
+    <span class="dp-sync" id="popSync"></span>
+    <span class="coord-tag" id="papelTag" hidden></span>
+    <button type="button" class="btn" id="btnNovo" hidden>+ Novo POP</button>
+  </div>
+  <div class="dp-tabs" id="tabs" role="tablist" aria-label="Partes do módulo">
+    <button type="button" class="dp-tab" role="tab" data-view="inicio">Início</button>
+    <button type="button" class="dp-tab" role="tab" data-view="mapa">Mapa de processos</button>
+    <button type="button" class="dp-tab" role="tab" data-view="trilha">Minha trilha <span class="dp-tab-badge tab-ok" id="bdTrilha" hidden></span></button>
+    <span class="tab-sep" aria-hidden="true"></span>
+    <button type="button" class="dp-tab" role="tab" data-view="catalogo">Catálogo <span class="dp-tab-badge" id="bdRev" hidden></span></button>
+    <button type="button" class="dp-tab" role="tab" data-view="painel">Gestão</button>
+    <button type="button" class="dp-tab" role="tab" data-view="governanca">Governança <span class="dp-tab-badge" id="bdConf" hidden></span></button>
+    <button type="button" class="dp-tab" role="tab" data-view="metodologia">Metodologia CBOK</button>
+    <button type="button" class="dp-tab" role="tab" data-view="importar" id="tabImportar">Importar</button>
+  </div>
+  <div class="avisos">
+    <div class="aviso erro" id="semBanco" hidden><div><b>Sem conexão com o banco do Hub.</b> Os POPs ficam só neste navegador. Abra o módulo pelo Control Hub para usar o catálogo compartilhado.</div></div>
+    <div class="aviso" id="carregando"><span>Carregando POPs…</span></div>
+  </div>
+
+  <!-- INÍCIO: encontrar o procedimento -->
+  <section class="view" id="v-inicio">
+    <div class="hero">
+      <div class="hero-tx">
+        <span class="hero-ola" id="heroOla">Olá!</span>
+        <h1>O que você precisa fazer?</h1>
+        <p>Digite com suas palavras. A busca procura no nome do procedimento, na tarefa, nas palavras-chave e em cada passo.</p>
+      </div>
+      <div class="busca">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="qBusca" placeholder="Ex.: fechar a folha, admissão, DAS, conciliação bancária…" autocomplete="off" aria-label="Buscar procedimento">
+        <kbd>/</kbd>
+      </div>
+      <div class="sugest" id="qSug"></div>
+    </div>
+    <div id="qRes" class="res-wrap" hidden></div>
+    <div id="inicioCorpo"></div>
+  </section>
+
+  <!-- MAPA DE PROCESSOS -->
+  <section class="view" id="v-mapa" hidden>
+    <div class="dp-toolbar">
+      <div class="seg" id="mpModo" role="group" aria-label="Como ver o mapa"><button type="button" data-mp="colunas" class="on">Navegar</button><button type="button" data-mp="arvore">Árvore completa</button></div>
+      <input type="search" id="mpFiltro" placeholder="Filtrar o mapa…" autocomplete="off">
+      <span class="cont" id="mpCont"></span>
+    </div>
+    <nav class="trilho" id="mpTrilho" aria-label="Onde você está"></nav>
+    <div id="mpColunas" class="miller"></div>
+    <div id="mpArvore" hidden>
+      <p class="note pad-x">Departamento → Setor → Atividade → Tarefa → Cenário → POP → Passo.</p>
+      <div class="list-card"><div id="arTree" class="arv"></div></div>
+    </div>
+  </section>
+
+  <!-- MINHA TRILHA -->
+  <section class="view" id="v-trilha" hidden>
+    <div id="trCorpo"></div>
+  </section>
+
+  <!-- PAINEL -->
+  <section class="view" id="v-painel">
+    <div class="kpi-grid" id="pnKpis"></div>
+    <div class="pn-grid" id="pnGrid"></div>
+  </section>
+
+  <!-- CATÁLOGO -->
+  <section class="view" id="v-catalogo" hidden>
+    <div class="dp-toolbar">
+      <input type="search" id="ctBusca" placeholder="Buscar POP, código, tarefa, dono ou passo…" autocomplete="off">
+      <select id="ctDep" aria-label="Departamento"></select>
+      <select id="ctFase" aria-label="Fase do ciclo de vida"></select>
+      <div class="seg" id="ctSt" role="group" aria-label="Situação"></div>
+      <span class="cont" id="ctCont"></span>
+    </div>
+    <div class="list-card">
+      <div class="tbl-wrap"><table class="tbl" id="ctTab"></table></div>
+    </div>
+  </section>
+
+  <!-- METODOLOGIA -->
+  <section class="view" id="v-metodologia" hidden>
+    <div class="pn-grid" id="mtGrid"></div>
+  </section>
+
+  <!-- GOVERNANÇA -->
+  <section class="view" id="v-governanca" hidden>
+    <div class="pn-grid" id="gvGrid"></div>
+  </section>
+
+  <!-- IMPORTAR -->
+  <section class="view" id="v-importar" hidden>
+    <div class="pn-grid">
+      <section class="pn-card pn-span2">
+        <div class="pn-card-head"><h3>Colar mapeamento do Excel</h3><span class="sub">colunas A a F: Departamento · Setor · Atividade · Tarefa · Cenário · Passo</span></div>
+        <div class="pn-card-body" style="gap:10px">
+          <p class="note">Selecione as colunas A até F da aba de mapeamento (com ou sem cabeçalho), copie com Ctrl+C e cole abaixo. Células vazias em Departamento, Setor, Atividade e Tarefa repetem a linha de cima; cenário vazio vira <b>Padrão</b>. Cada cenário vira um POP em rascunho com os passos na ordem. O departamento precisa ser um dos 11 do catálogo.</p>
+          <textarea id="impTxt" rows="9" placeholder="Cole aqui as linhas copiadas do Excel"></textarea>
+          <div class="campos">
+            <label class="campo">Modelo do título<input id="impTit" value="Procedimento para {tarefa} {no/na} {cenario}"><span class="sub">{tarefa}, {cenario} e {no/na} são trocados automaticamente</span></label>
+            <label class="campo">Dono do processo (padrão)<input id="impDono" placeholder="Ex.: Coordenação do Pessoal"></label>
+          </div>
+          <div id="impRes" class="import-res"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="impOk" disabled>Criar POPs em rascunho</button><button type="button" class="fbtn" id="impLimpar">Limpar</button></div>
+        </div>
+      </section>
+      <section class="pn-card">
+        <div class="pn-card-head"><h3>Exportar</h3><span class="sub">backup e planilha</span></div>
+        <div class="pn-card-body" style="gap:10px">
+          <p class="note">A planilha sai no mesmo formato A–F (um passo por linha), pronta para o Robô POP ou para revisão no Excel.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="fbtn" id="expCsv">Planilha de mapeamento (CSV)</button><button type="button" class="fbtn" id="expJson">Backup completo (JSON)</button></div>
+        </div>
+      </section>
+    </div>
+  </section>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<dialog class="dlg dlg-pop" id="dlgVer"></dialog>
+<dialog class="dlg dlg-ed" id="dlgEd"></dialog>
+<dialog class="dlg dlg-exec" id="dlgExec"></dialog>
+<dialog class="dlg" id="dlgConf" style="width:min(460px, calc(100vw - 24px))"><div class="confirm-txt" id="confTxt"></div><div class="dlg-acoes"><button type="button" class="fbtn" id="confNao">Cancelar</button><button type="button" class="btn" id="confSim">Confirmar</button></div></dialog>
+<div id="printArea" aria-hidden="true"></div>
+<script src="pop.js?v=4"></script>
+</body>
+</html>

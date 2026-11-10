@@ -550,7 +550,7 @@
       ultimaFalhaGrav = e?.code === 'invalid_argument' ? { code: 'sem_permissao', message: 'Você não tem permissão para editar esta lista.' } : e?.code === 'quota_exceeded' ? { code: 'quota_exceeded', message: 'Limite de armazenamento atingido.' } : { code: e?.code || '', message: String(e?.message || '') };
       if (e?.code === 'invalid_argument') { state.readOnly = true; toast('Você não tem permissão para editar esta lista.'); render(); if (state.activeModule === 'dp') applyDpReadOnly(); }
       else if (e?.code === 'sem_permissao') { toast(e.message || 'Você não tem permissão para alterar isto.'); }
-      else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido. Exclua registros antigos para continuar.');
+      else if (e?.code === 'quota_exceeded') toast('Limite de armazenamento atingido' + (e?.message ? ` (${String(e.message).slice(0, 140)})` : '') + '. Abra Uso do banco para ver o que ocupa espaço.');
       else toast('Não foi possível salvar. Tente de novo em instantes.');
       return false;
     }
@@ -1051,6 +1051,8 @@
   const wd = (d) => DIAS_SEM[d.getDay()];
 
   function dpResponsaveis() {
+    const gt = gtAnalistasMod('dp');                       // Hub 317: o cadastro de analistas é o do Gestta (setor que vai ao DP)
+    if (gt && gt.length) return gt.slice().sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const map = new Map();
     state.dpEquipe.forEach(n => { const k = norm(n); if (!map.has(k)) map.set(k, n); });
     state.dpEmpresas.forEach(e => { if (e.responsavel) { const k = norm(e.responsavel); if (!map.has(k)) map.set(k, e.responsavel); } });
@@ -5895,6 +5897,7 @@
   function ovAposCarga() {
     clearTimeout(ovT);
     ovT = setTimeout(() => {
+      if (state.dpTodas && typeof gtFiltrarDp === 'function') { const novo = gtFiltrarDp(state.dpTodas); if (novo.length !== state.dpEmpresas.length) state.dpEmpresas = novo; }     // Hub 323: a folha chegou e pode trazer empresas de volta
       evCacheClear();
       if (state.activeModule === 'dp') renderDpActiveView();
       if (dlgDetail.open && dpAtual && !dpDraft) { renderOvFicha(); renderOvDifFicha(); renderDetailProx(); updateDetailHeader(); }
@@ -5926,13 +5929,13 @@
   // ----- clientes (CND e NF-e) e vínculo com as empresas do DP -----
   const ovClientes = () => ovMemo('cli', () => {
     const m = new Map();
-    const exc = state.cadExc || {}, fora = (v) => { const k = cnpjClean(v); return k.length === 14 && !!exc[k]; };     // Hub 314: excluída de todos os módulos não volta pelo Onvio
+    const exc = state.cadExc || {}, fora = (v, nome) => { const k = cnpjClean(v); return (k.length === 14 && !!exc[k]) || gtEmpresaFora(v, nome); };      // Hub 317: sem tarefa no Gestta também fica fora     // Hub 314: excluída de todos os módulos não volta pelo Onvio
     ovLer('clientes-cnd').forEach(r => {
-      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF'])) return;
+      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF'], r['Cliente'])) return;
       m.set(c, { cod: c, nome: r['Cliente'], cnpj: r['CNPJ ou CPF'], im: r['Inscrição municipal'], ie: r['Inscrição estadual'], uf: r['UF'], usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', sit: r['Situação'] || '', certificado: null, validade: '' });
     });
     ovLer('clientes-nfe').forEach(r => {
-      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF']) || (m.get(c) && fora(m.get(c).cnpj))) return;
+      const c = String(r['Código'] || '').trim(); if (!c || fora(r['CNPJ ou CPF'], r['Cliente']) || (m.get(c) && fora(m.get(c).cnpj, m.get(c).nome))) return;
       const a = m.get(c) || { cod: c, nome: r['Cliente'], cnpj: '', im: '', ie: '', uf: '', usaOnvio: r['Usa o Onvio'] === 'sim', apelido: '', certificado: null, validade: '' };
       a.apelido = r['Apelido'] || a.apelido; if (!a.cnpj) a.cnpj = r['CNPJ ou CPF']; if (!a.uf) a.uf = r['UF']; if (!a.sit) a.sit = r['Situação'] || '';
       a.certificado = r['Tem certificado'] === 'sim'; a.validade = ovDia(r['Validade do certificado']);
@@ -6119,7 +6122,7 @@
     const m = new Map();
     ovSolicitacoes().semVinc.forEach(g => m.set(g.k, { ...g, nEmp: 0 }));
     ovRoster().semEmp.forEach(g => { const a = m.get(g.k); if (a) { a.nEmp += g.nEmp; if (!a.cod && g.cod) a.cod = g.cod; } else m.set(g.k, { k: g.k, cod: g.cod, cli: g.cli, n: 0, nEmp: g.nEmp, cand: g.cand }); });
-    return [...m.values()].sort((a, b) => (b.n + b.nEmp) - (a.n + a.nEmp));
+    return [...m.values()].filter(g => !ovGrupoFora(g)).sort((a, b) => (b.n + b.nEmp) - (a.n + a.nEmp));      // Hub 317: cliente sem tarefa no Gestta não vira empresa
   });
   // Análise calculada pela extensão (analise-solicitacoes, sem texto de solicitação), por Chave "<tipo>:<id>": gravidade, prazo legal, prometido.
   const ovAnalise = () => ovMemo('analise', () => { const m = new Map(); ovLer('analise-solicitacoes').forEach(r => m.set(r['Chave'], r)); return m; });
@@ -6736,6 +6739,7 @@
     const q = cadNorm(texto), qd = cnpjClean(texto), out = [], lim = Math.max(1, Math.min(max || 20, 100));
     if (!q && qd.length < 3) return out;
     for (const c of state.cadastro.values()) {
+      if (gtEmpresaFora(c.id, c.razao)) continue;          // Hub 317
       const hay = cadNorm([c.razao, c.apelido, c.codigoOnvio, c.codigoDominio, (c.codigosOnvio || []).join(' ')].join(' '));
       if ((qd.length >= 3 && c.id.includes(qd)) || (q && q.split(' ').every(w => hay.includes(w)))) {
         out.push({ cnpj14: c.id, cnpj: c.cnpj || fmtCnpj(c.id), razao: c.razao || '', apelido: c.apelido || '', nome: cadNome(c.id, c.razao), codigo: c.codigoDominio || c.codigoOnvio || '', codigoDominio: c.codigoDominio || '', uf: c.uf || '', situacao: c.situacao || '', modulos: c.modulos || [] });
@@ -7084,7 +7088,7 @@
   const cadApi = {
     pronto: () => !!db, podeGerir: cadPodeGerir,
     estado: () => ({ mestre: state.cadastro.size, backup: state.cadBkp, relatorio: state.cadRel, ocupado: state.cadEstado.gerando || state.cadEstado.fazendoBackup, clientesOnvio: ovClientes().size }),
-    todos: () => [...state.cadastro.values()],
+    todos: () => [...state.cadastro.values()].filter(c => !gtEmpresaFora(c.id, c.razao)),     // Hub 317: sem tarefa no Gestta, escondida
     get: cadGet,
     // Monta o relatório SEM gravar nada (lê os quatro cadastros agora).
     async relatorio() {
@@ -7133,6 +7137,13 @@
     registrar: (d) => cadRegistrar(d || {}),
     abrir: (modulo, id) => cadAbrir(modulo, id),
     excluida: (cnpj) => cadExcluida(cnpj),       // Hub 314: empresa excluída de todos os módulos (os módulos não devem recriá-la)
+    // Hub 317: o Gestta é a referência absoluta. Empresa sem tarefa no mês atual nem no anterior e analista fora da equipe ativa somem dos módulos
+    // (escondidos: nada é apagado e voltam sozinhos). Sem a lista do Gestta (ou velha, ou incompleta) tudo continua à vista.
+    ativa: (mod, id, cnpj, nome) => !gtEmpresaFora((id && cadVinc(mod, id)) || cnpj, nome),
+    analistaAtivo: (nome) => gtAnalistaAtivo(nome),
+    analistaGestta: (nome) => gtAnalistaDe(nome),
+    analistas: (mod) => { const l = gtAnalistasMod(mod === 'ctb' ? 'contabil' : mod === 'fis' ? 'fiscal' : mod === 'portal' ? '' : mod); return l ? l.slice() : null; },
+    referencia: () => { const a = gtAtivo(); return { empresas: !!a.empresas, analistas: !!a.analistas, motivoEmp: a.motivoEmp, motivoAna: a.motivoAna }; },
   };
 
 
@@ -7423,7 +7434,7 @@
     if (!ovTodosCarregados()) return { ok: false, motivo: 'carregando' };
     const comp = ovCompletos(); if (!comp.ok) return { ok: false, motivo: 'incompleto', detalhe: comp.motivo };
     if (!(await ovAutoLiderar())) return { ok: false, motivo: 'outro-executor' };
-    ovAuto.rodando = true; ovAuto.denovo = false;
+    ovAuto.rodando = true; ovAuto.denovo = false; state.autoAplicando = (state.autoAplicando || 0) + 1;
     const tot = { complementar: 0, corrigir: 0, novo: 0, empresa: 0 }; let falhas = 0;
     try {
       for (let rodada = 0; rodada < 6; rodada++) {
@@ -7448,7 +7459,7 @@
         }
         if (!fez) break;
       }
-    } finally { ovAuto.rodando = false; }
+    } finally { ovAuto.rodando = false; state.autoAplicando = Math.max(0, (state.autoAplicando || 1) - 1); }
     const n = OV_AUTO_TIPOS.reduce((a, t) => a + tot[t], 0);
     if (n || falhas) {
       const resumo = [[tot.novo, 'cadastro(s) novo(s)'], [tot.complementar, 'complemento(s)'], [tot.corrigir, 'correção(ões)'], [tot.empresa, 'empresa(s) nova(s)']].filter(([x]) => x).map(([x, t]) => x + ' ' + t).join(', ') + (falhas ? ` · ${falhas} falha(s)` : '');
@@ -7487,6 +7498,930 @@
   });
   document.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.ov-r')) { ev.preventDefault(); ev.target.click(); } });
   // === fim do bloco Onvio fase 1 ===
+
+  // === GESTTA · CADASTROS DOS MÓDULOS (Hub 316, Josué 06/11/2026) ===
+  // A extensão entrega o Gestta em ing_dados/gestta~<tipo> (clientes, cartela por setor, setores, equipe, tarefas). Aqui o Hub compara com os
+  // cadastros do DP, Contábil, Fiscal e Portal do Cliente e PROPÕE: complementar (campo vazio), corrigir (valor diferente do Gestta) ou cadastrar
+  // (empresa com demanda num setor e sem cadastro no módulo daquele setor). Quem decide é a Entrada de dados; aplica a coordenação de cada módulo
+  // (ou o automático, se a coordenação ligar). Cada aplicação fica no histórico da empresa (DP e Fiscal) e em gt_hist.
+  const GT_MODS = { dp: 'DP', contabil: 'Contábil', fiscal: 'Fiscal', portal: 'Portal do Cliente' };
+  const GT_SETOR_PORTAL = { dp: 'pessoal', contabil: 'contabil', fiscal: 'fiscal' };
+  const GT_SETOR_ROT = { dp: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' };
+  const GT_TIPOS = ['gestta-clientes', 'gestta-cartela', 'gestta-setores', 'gestta-equipe', 'gestta-tarefas', 'gestta-empresas-ativas', 'gestta-contatos'];
+  const GT_BASE = ['gestta-empresas-ativas', 'gestta-equipe', 'gestta-cartela'];   // Hub 322: a cartela diz o setor de quem não tem setor no cadastro do Gestta       // pequenos: lidos por todo Hub aberto (dizem quem está em atividade)
+  function gtCfgNorm(c) {
+    c = c && typeof c === 'object' ? c : {};
+    const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+    const setores = {}; Object.keys(obj(c.setores)).slice(0, 200).forEach(k => { const v = c.setores[k]; if (v === '-' || GT_SETOR_PORTAL[v]) setores[String(k).slice(0, 80)] = v; });
+    const analistas = {}; Object.keys(obj(c.analistas)).slice(0, 400).forEach(k => { const v = String(c.analistas[k] || '').trim().slice(0, 80); if (v) analistas[String(k).slice(0, 80)] = v; });
+    const a = obj(c.auto), t = obj(a.tipos), u = a.ultima && typeof a.ultima === 'object' ? a.ultima : null;
+    // Hub 325: correspondência tarefa → obrigação/etapa escrita pela coordenação ({ fiscal: [{p, k}], contabil: [...] }) e a marcação automática (ligada de fábrica)
+    const mapa = {}; ['fiscal', 'contabil'].forEach(m => { mapa[m] = (Array.isArray(obj(c.mapa)[m]) ? c.mapa[m] : []).filter(x => x && x.p && x.k).slice(0, 200).map(x => ({ p: String(x.p).slice(0, 80), k: String(x.k).slice(0, 30) })); });
+    return { marcar: c.marcar !== false, portal: c.portal !== false, mapa, setores, analistas, auto: { ligada: a.ligada === true, tipos: { complementar: t.complementar !== false, corrigir: t.corrigir === true, novo: t.novo === true },
+      ultima: u ? { em: String(u.em || '').slice(0, 40), por: String(u.por || '').slice(0, 80), n: Number(u.n) || 0, resumo: String(u.resumo || '').slice(0, 240) } : null } };
+  }
+  state.gtMan = {}; state.gtTab = {}; state.gtCarga = {}; state.gtCfg = gtCfgNorm(null); state.gtIgn = {}; state.gtMods = null; state.gtModsEm = 0; state.gtModsP = null;
+  let gtVer = 0, gtT = null;
+  const gtOuvintes = [];
+  const gtAvisar = () => { gtVer++; clearTimeout(gtT); gtT = setTimeout(() => { gtAtivoMudou(); gtOuvintes.slice().forEach(cb => { try { cb(); } catch (e) {} }); gtAutoAgendar(); gtMarcarAgendar(); gtPortalAgendar(); }, 200); };
+  function gtIniciar() {
+    db.collection('ing_dados').onSnapshot((snap) => {
+      const m = {}; snap.docs.forEach(d => { const v = d.data(); if (v && /^gestta~/.test(d.id)) m[d.id.replace(/^gestta~/, '')] = v; });
+      state.gtMan = m; gtAvisar();
+      GT_BASE.forEach(t => { if (m[t]) gtLer(t); });
+      if (gtOuvintes.length || state.gtCfg.auto.ligada) GT_TIPOS.forEach(t => { if (m[t]) gtLer(t); });
+    }, () => {});
+    db.doc('gt_config/cfg').onSnapshot((sn) => { state.gtCfg = gtCfgNorm(sn && sn.exists !== false && sn.data ? sn.data() : null); gtAvisar(); }, () => {});
+    db.collection('gt_ignorar').onSnapshot((snap) => { const m = {}; snap.docs.forEach(d => { const v = d.data(); m[d.id] = Array.isArray(v && v.chaves) ? v.chaves.map(x => String(x).slice(0, 200)).slice(-400) : []; }); state.gtIgn = m; gtAvisar(); }, () => {});
+  }
+  function gtParse(colunas, texto) {
+    const cols = Array.isArray(colunas) ? colunas : []; if (!texto) return [];
+    return String(texto).split('\n').filter(Boolean).map(l => { const c = l.split('\t'), o = {}; for (let i = 0; i < cols.length; i++) o[cols[i]] = c[i] == null ? '' : c[i]; return o; });
+  }
+  function gtCarregar(tipo) {
+    const man = state.gtMan[tipo], cache = () => (state.gtTab[tipo] && state.gtTab[tipo].linhas) || [];
+    if (!man || !db) return Promise.resolve(cache());
+    const chave = man.ciclo + '|' + man.slot, atual = state.gtCarga[tipo];
+    if (atual && atual.chave === chave && (atual.p || Date.now() - atual.falhou < 30000)) return atual.p || Promise.resolve(cache());
+    const rec = { chave, p: null, falhou: 0 }; state.gtCarga[tipo] = rec;
+    rec.p = (async () => {
+      const n = Math.min(Number(man.partes) || 0, ING_PARTES_MAX), base = `ing_partes/gestta~${tipo}~${man.slot}`, textos = new Array(n);
+      for (let i = 0; i < n; i += 6) {
+        await Promise.all(Array.from({ length: Math.min(6, n - i) }, async (_, k) => {
+          const s = await db.doc(base + (i + k)).get(), d = s && s.exists !== false && s.data ? s.data() : null;
+          if (!d || d.ciclo !== man.ciclo || typeof d.tabela !== 'string') throw new Error('parte ausente');
+          textos[i + k] = d.tabela;
+        }));
+      }
+      const linhas = gtParse(man.colunas, textos.join('\n'));
+      state.gtTab[tipo] = { ciclo: man.ciclo, linhas }; gtAvisar();
+      if (tipo === 'gestta-tarefas' || tipo === 'gestta-envios-onvio-erro' || tipo === 'gestta-contatos') setTimeout(() => cadOuvintes.forEach(cb => { try { cb(); } catch (e) {} }), 250);      // Hub 325: o Fiscal e o Contábil redesenham com as tarefas
+      return linhas;
+    })().catch(() => { rec.falhou = Date.now(); rec.p = null; return cache(); });
+    return rec.p;
+  }
+  function gtLer(tipo) {
+    const man = state.gtMan[tipo]; if (!man) return [];
+    const c = state.gtTab[tipo]; if (!c || c.ciclo !== man.ciclo) gtCarregar(tipo);
+    return c ? c.linhas : [];
+  }
+  const gtCarregado = (tipo) => !state.gtMan[tipo] || (state.gtTab[tipo] && state.gtTab[tipo].ciclo === state.gtMan[tipo].ciclo);
+  // Os cadastros do Contábil, Fiscal e Portal moram nos módulos (quadros): para comparar, o Hub lê as coleções uma vez (e de novo a cada minuto, se pedido).
+  function gtModulos(forcar) {
+    if (!db) return Promise.resolve(null);
+    if (state.gtModsP) return state.gtModsP;
+    if (!forcar && state.gtMods && Date.now() - state.gtModsEm < 60000) return Promise.resolve(state.gtMods);
+    state.gtModsP = (async () => {
+      const [ctb, fis, portal, sets, func, cts] = await Promise.all(['ctb_emp', 'fis_emp', 'empresas', 'empresaSetores', 'funcionarios', 'contatos'].map(c => cadLerCol(c).catch(() => null)));
+      if (!ctb || !fis || !portal || !sets) { const f = [!ctb && 'Contábil', !fis && 'Fiscal', !portal && 'Portal (empresas)', !sets && 'Portal (frentes)'].filter(Boolean); throw new Error('não consegui ler: ' + f.join(', ')); }
+      const mapa = (docs) => { const m = new Map(); docs.forEach(d => Object.keys(d.data).forEach(id => { const e = d.data[id]; if (e && typeof e === 'object' && !Array.isArray(e) && !e.excluida) m.set(id, e); })); return m; };
+      state.gtMods = { ctb: mapa(ctb), fis: mapa(fis), portal: portal.map(d => ({ id: d.id, ...d.data })), sets: new Map(sets.map(d => [d.id, d.data])), func: (func || []).map(d => ({ id: d.id, nome: String(d.data.nome || '').trim() })).filter(f => f.nome),
+        cts: (cts || []).map(d => ({ id: d.id, empresaId: String(d.data.empresaId || ''), nome: String(d.data.nome || '').trim(), email: String(d.data.email || '').trim(), setores: Array.isArray(d.data.setores) ? d.data.setores.map(String) : [] })) };
+      state.gtModsEm = Date.now(); state.gtModsFalha = ''; gtAvisar();
+      return state.gtMods;
+    })().catch((e) => { state.gtModsFalha = (e && e.message) || 'erro de leitura'; state.gtModsFalhaEm = Date.now(); gtAvisar(); return state.gtMods; }).finally(() => { state.gtModsP = null; });
+    return state.gtModsP;
+  }
+  // ----- setor do Gestta → módulo do Hub (a coordenação pode trocar na Entrada de dados) -----
+  const gtSetorPadrao = (nome) => { const n = norm(nome); if (!n) return ''; if (/pessoal|\bdp\b|folha|recursos humanos|\brh\b/.test(n)) return 'dp'; if (/contab/.test(n)) return 'contabil'; if (/fiscal|tribut/.test(n)) return 'fiscal'; return ''; };
+  const gtSetorMod = (nome) => { const v = state.gtCfg.setores[norm(nome)]; return v === '-' ? '' : v || gtSetorPadrao(nome); };
+  // ----- analista do Gestta → nome usado no módulo (igual, primeiro e último nome, ou o que a coordenação escolheu) -----
+  const gtTokens = (s) => norm(s).replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(w => w && !/^(de|da|do|das|dos|e)$/.test(w));
+  // Hub 319 (Josué, 06/11/2026: "Debora → Debora Bicas" aparecia em 237 frentes do Portal): quem está cadastrado só pelo primeiro nome
+  // ("Debora") casa com o nome completo ("Debora Bicas") quando esse primeiro nome é único dos dois lados (`outra`: a lista do outro lado).
+  function gtCasarNome(nome, lista, outra) {
+    const t = gtTokens(nome); if (!t.length) return '';
+    const ex = lista.find(x => gtTokens(x).join(' ') === t.join(' ')); if (ex) return ex;
+    const fl = lista.filter(x => { const u = gtTokens(x); return u.length > 1 && t.length > 1 && u[0] === t[0] && u[u.length - 1] === t[t.length - 1]; }); if (fl.length === 1) return fl[0];
+    const sub = lista.filter(x => { const u = gtTokens(x); if (u[0] !== t[0]) return false; const [a, b] = u.length <= t.length ? [u, t] : [t, u]; return a.length > 1 && a.every(w => b.includes(w)); }); if (sub.length === 1) return sub[0];
+    const prim = (xs) => (xs || []).filter(x => gtTokens(x)[0] === t[0]);
+    const so = prim(lista); if (so.length !== 1) return '';
+    const u = gtTokens(so[0]); if (u.length > 1 && t.length > 1) return '';    // dois nomes completos diferentes: não é a mesma pessoa
+    if (outra && prim(outra).length > 1) return '';                            // outro lado tem duas pessoas com esse primeiro nome
+    return so[0];
+  }
+  function gtConhecidos(mod) {
+    const M = state.gtMods, uniq = (xs) => { const m = new Map(); xs.forEach(n => { const s = String(n || '').trim(); if (s && !m.has(norm(s))) m.set(norm(s), s); }); return [...m.values()]; };
+    if (mod === 'dp') return uniq(dpResponsaveis());
+    if (!M) return [];
+    if (mod === 'contabil') return uniq([...M.ctb.values()].flatMap(e => [e.analista, e.apoio]));
+    if (mod === 'fiscal') return uniq([...M.fis.values()].map(e => e.analista));
+    return uniq(M.func.map(f => f.nome));
+  }
+  // { nome, casou } — casou=false quando o nome é o do Gestta, sem par no módulo (fica para conferir antes)
+  // Hub 317 (Josué, 06/11/2026: "a referência absoluta é o que chega do Gestta"): no DP, Contábil e Fiscal o analista é gravado com o nome do
+  // Gestta. No Portal a frente guarda o id da pessoa da equipe do Portal: casa pelo nome (ou pelo escolhido em "Analistas do Gestta").
+  function gtNomeNoHub(nomeGestta, mod) {
+    const g = String(nomeGestta || '').trim(); if (!g) return { nome: '', casou: false };
+    if (mod !== 'portal') return { nome: g, casou: true };
+    const esc = state.gtCfg.analistas[norm(g)], lista = gtConhecidos('portal'), eq = gtAtivo().analistas, outra = eq ? eq.lista.map(x => x.nome) : null;
+    const c = (esc && gtCasarNome(esc, lista)) || gtCasarNome(g, lista, outra);
+    return { nome: c || g, casou: !!c };
+  }
+  // ----- regime federal do Gestta → tributação de cada módulo -----
+  const gtTribDp = (r) => { const n = norm(r); if (!n) return ''; if (/\bmei\b|microempreendedor/.test(n)) return 'MEI'; if (/simples/.test(n)) return 'SIMPLES NACIONAL'; if (/presum/.test(n)) return 'LUCRO PRESUMIDO'; if (/real/.test(n)) return 'LUCRO REAL'; return ''; };
+  const GT_TRIB_CTB = { simples: 'Simples Nacional', presumido: 'Lucro Presumido', presumido_caixa: 'Lucro Presumido (caixa)', real_trim: 'Lucro Real Trimestral', real_mensal: 'Lucro Real Mensal', isenta: 'Isenta / Imune' };
+  const gtTribCtb = (r) => { const n = norm(r); if (!n) return ''; if (/simples|\bmei\b|microempreendedor/.test(n)) return 'simples'; if (/presum/.test(n)) return /caixa/.test(n) ? 'presumido_caixa' : 'presumido'; if (/real/.test(n)) return /mensal|estimativa/.test(n) ? 'real_mensal' : 'real_trim'; if (/isent|imune/.test(n)) return 'isenta'; return ''; };
+  const gtFamCtb = (k) => String(k || '').replace(/_.*$/, '');
+  const GT_REG_FIS = { simples: 'Simples Nacional', presumido: 'Lucro Presumido', real: 'Lucro Real' };
+  const gtRegFis = (r) => { const n = norm(r); if (!n) return ''; if (/simples|\bmei\b|microempreendedor/.test(n)) return 'simples'; if (/presum/.test(n)) return 'presumido'; if (/real/.test(n)) return 'real'; return ''; };
+  // ----- o que o Gestta diz de cada cliente: setores com demanda, responsável por setor, regime e inscrições -----
+  const gtProntos = () => !!state.gtMan['gestta-clientes'] && ['gestta-clientes', 'gestta-cartela', 'gestta-tarefas'].every(gtCarregado);
+  const gtClientes = () => gtMemo('cli', () => {
+    const exc = state.cadExc || {}, porId = new Map(), porCnpjIni = new Map();
+    gtLer('gestta-clientes').forEach(r => {
+      const k = cad14(r['CNPJ']); if (!k || exc[k] || r['Ativo'] === 'não' || ehEscritorioProprio(r['Nome'], r['Nome fantasia'])) return;
+      // Hub 319: o mesmo CNPJ cadastrado duas vezes no Gestta virava duas empresas com as mesmas diferenças (contagem dobrada e
+      // "já não existe" ao aplicar a segunda). Agora os ids do mesmo CNPJ apontam para um cliente só.
+      const id = String(r['Id'] || ''), ja = porCnpjIni.get(k);
+      if (ja) { porId.set(id, ja); ['regime', 'ie', 'uf', 'cidade', 'fantasia'].forEach(c => { if (!ja[c]) ja[c] = String(r[{ regime: 'Regime', ie: 'Inscrição estadual', uf: 'UF', cidade: 'Cidade', fantasia: 'Nome fantasia' }[c]] || '').trim(); }); return; }
+      const c = { id, k, nome: String(r['Nome'] || '').trim(), fantasia: String(r['Nome fantasia'] || '').trim(), regime: String(r['Regime'] || '').trim(), ie: String(r['Inscrição estadual'] || '').trim(), uf: String(r['UF'] || '').trim().toUpperCase(), cidade: String(r['Cidade'] || '').trim(), setores: {} };
+      porId.set(id, c); porCnpjIni.set(k, c);
+    });
+    const porCnpj = porCnpjIni;
+    const setorDe = (c, mod) => (c.setores[mod] = c.setores[mod] || { resp: '', setor: '', tarefas: 0 });
+    gtLer('gestta-cartela').forEach(r => {
+      const c = porId.get(String(r['Id do cliente'] || '')) || porCnpj.get(cad14(r['CNPJ'])); if (!c) return;
+      const mod = gtSetorMod(r['Setor']); if (!mod) return;
+      const s = setorDe(c, mod), resp = String(r['Responsável'] || '').trim();
+      if (resp && !s.resp) { s.resp = resp; s.setor = String(r['Setor'] || '').trim(); }
+    });
+    gtLer('gestta-tarefas').forEach(r => { const c = porCnpj.get(cad14(r['CNPJ'])); if (!c) return; const mod = gtSetorMod(r['Setor']); if (!mod) return; const s = setorDe(c, mod); s.tarefas++; if (!s.setor) s.setor = String(r['Setor'] || '').trim(); });
+    return [...porCnpj.values()];
+  });
+  const gtM = {};
+  function gtMemo(nome, fn) {
+    const m = gtM[nome];
+    if (m && m.ver === gtVer && m.emps === state.dpEmpresas && m.mods === state.gtMods && m.cad === state.cadastro && m.ro === state.readOnly) return m.v;
+    const v = fn(); gtM[nome] = { ver: gtVer, emps: state.dpEmpresas, mods: state.gtMods, cad: state.cadastro, ro: state.readOnly, v }; return v;
+  }
+  const gtPodeMod = (mod) => !!db && !state.readOnly && !state.semEscrita && (!AUTH() || AUTH().ehAdmin() || nivelMod(mod) === 'coord');
+  const gtVinc = (k, mod) => { const c = state.cadastro.get(k); return (c && c.vinculos && Array.isArray(c.vinculos[mod]) ? c.vinculos[mod] : []).map(String); };
+  function gtRegistros(k) {
+    const M = state.gtMods || { ctb: new Map(), fis: new Map(), portal: [], sets: new Map() };
+    const vd = gtVinc(k, 'dp'), vc = gtVinc(k, 'ctb'), vf = gtVinc(k, 'fis'), vp = gtVinc(k, 'portal');
+    const dp = state.dpEmpresas.find(e => cad14(e.cnpj) === k) || state.dpEmpresas.find(e => vd.includes(String(e.id))) || null;
+    const deMapa = (m, v) => { for (const [id, e] of m) if (cad14(e.cnpj) === k || id === 'c' + k) return { id, e }; for (const id of v) if (m.has(id)) return { id, e: m.get(id) }; return null; };
+    const portal = M.portal.find(p => !p.matrizId && (cad14(p.cnpj) === k || p.cadId === k)) || M.portal.find(p => cad14(p.cnpj) === k || p.cadId === k || vp.includes(String(p.id))) || null;
+    return { dp, ctb: deMapa(M.ctb, vc), fis: deMapa(M.fis, vf), portal };
+  }
+  const gtIgnorada = (k, ch) => (state.gtIgn[k] || []).includes(ch);
+  // ----- Portal do Cliente pelo Gestta (Hub 326) -----
+  // Contatos do cliente por setor (gestta-contatos, extensão 0.88.0): k → [{ mod, setor, setorGestta, nome, email }]. Só os ativos no Gestta.
+  const gtContatos = () => gtMemo('contatos', () => {
+    const m = new Map(); if (!state.gtMan['gestta-contatos']) return m;
+    gtLer('gestta-contatos').forEach(r => {
+      const k = cad14(r['CNPJ']); if (!k || r['Ativo'] === 'não' || ehEscritorioProprio(r['Cliente'])) return;
+      const nome = String(r['Contato'] || '').trim(), email = String(r['E-mail'] || '').trim().toLowerCase(); if (!nome && !email) return;
+      const mod = gtSetorMod(r['Setor']), l = m.get(k) || [];
+      if (!l.some(x => x.mod === mod && (email ? x.email === email : norm(x.nome) === norm(nome)))) l.push({ mod, setor: GT_SETOR_PORTAL[mod] || '', setorGestta: String(r['Setor'] || '').trim(), nome, email });
+      m.set(k, l);
+    });
+    return m;
+  });
+  // Ligar ou desligar a demanda de um setor pede a cartela e as tarefas inteiras e recentes (senão um setor "some" por falta de leitura)
+  // Hub 328 (Josué, 09/11/2026): desde o Hub 327 a demanda vem só das tarefas; a cartela (só o nome do analista) incompleta ou velha não trava mais a demanda.
+  const gtDemandaSegura = () => !gtManMotivo('gestta-tarefas', 'A lista de tarefas');
+  // O que impede o Portal de seguir o Gestta agora (para a Entrada de dados dizer, em vez de não acontecer nada em silêncio).
+  function gtPortalTravas() {
+    const t = [], m = (x) => x && x !== 'carregando' ? x : '';
+    const mt = m(gtManMotivo('gestta-tarefas', 'A lista de tarefas')); if (mt) t.push('A demanda dos setores não muda: ' + mt.charAt(0).toLowerCase() + mt.slice(1) + '. Envie de novo o Gestta (Tarefas).');
+    const me = m(gtAtivo().motivoEmp); if (me) t.push('Nenhuma empresa sai do Portal: ' + me.charAt(0).toLowerCase() + me.slice(1) + '. Envie de novo o Gestta (Tarefas).');
+    const mc = m(gtManMotivo('gestta-cartela', 'A cartela')); if (mc) t.push('O analista das frentes pode não estar atualizado: ' + mc.charAt(0).toLowerCase() + mc.slice(1) + ' (ela vai no máximo 1 vez a cada 20 h).');
+    return t;
+  }
+  function gtDifsPortal(c, p, temDemanda, add) {
+    const M = state.gtMods; if (!M) return;
+    const mods = ['dp', 'contabil', 'fiscal'], comDem = mods.filter(temDemanda);
+    const respPortal = (mod) => { const s = c.setores[mod]; return s && s.resp ? gtNomeNoHub(s.resp, 'portal') : { nome: '', casou: false }; };
+    const pessoa = (nome, setor) => { const f = nome ? M.func.find(x => norm(x.nome) === norm(nome)) : null; return f ? { id: f.id, nome: f.nome, setor } : nome ? { id: '', nome, setor, novo: true } : null; };
+    if (!p) {
+      if (!comDem.length || !gtDemandaSegura()) return;
+      const frentes = comDem.map(mod => ({ setor: GT_SETOR_PORTAL[mod], analista: pessoa(respPortal(mod).nome, GT_SETOR_PORTAL[mod]) }));
+      const nomeK = cadNomeKey(c.nome), rz = c.k.slice(0, 8);
+      const parecida = M.portal.find(x => !x.matrizId && !cad14(x.cnpj) && nomeK && cadNomeKey(x.nome) === nomeK);
+      const matriz = !parecida && c.k.slice(8, 12) !== '0001' && M.portal.find(x => !x.matrizId && cad14(x.cnpj).slice(0, 8) === rz);
+      add('portal', 'empresa', 'novo', 'Empresa nova no Portal (' + frentes.map(f => SETOR_ROT_PORTAL[f.setor]).join(', ') + ')', '—', c.nome, { nome: c.nome, frentes }, null,
+        parecida ? { confirmar: true, nota: `talvez seja “${parecida.nome}” (sem CNPJ no Portal): ligue no Cadastro único em vez de cadastrar` }
+          : matriz ? { confirmar: true, nota: `parece filial de “${matriz.nome}” (mesma raiz de CNPJ): no Portal, cadastre como filial dela` } : {});
+      return;
+    }
+    if (p.matrizId || p.arquivada) return;             // filial ligada à matriz e empresa arquivada: o Portal decide
+    const dem = p.setoresDemanda || {}, gtDem = p.gtDem || {}, emp = { id: p.id, nome: p.nome }, seguro = gtDemandaSegura();
+    mods.forEach(mod => {
+      const sk = GT_SETOR_PORTAL[mod], rot = GT_SETOR_ROT[mod], tem = temDemanda(mod), r = respPortal(mod);
+      // demanda: muda quando o Gestta diz diferente do Portal, salvo se a diferença foi feita à mão depois do último valor que o Gestta aplicou
+      const manual = sk in gtDem && !!dem[sk] !== !!gtDem[sk] && !!gtDem[sk] === tem;
+      if (seguro && !manual && tem !== !!dem[sk]) {
+        add('portal', 'demanda-' + sk, tem ? 'novo' : 'corrigir', 'Demanda · ' + rot, dem[sk] ? 'com demanda' : 'sem demanda', tem ? 'com demanda' : 'sem demanda', { setor: sk, ligar: tem, analista: tem ? pessoa(r.nome, sk) : null }, emp);
+        return;
+      }
+      if (!tem || !dem[sk] || !r.nome) return;
+      const fr = M.sets.get(p.id + '_' + sk) || null, atual = fr ? String(fr.analistaNome || '') : '';
+      if (norm(r.nome) === norm(atual)) return;
+      if (fr && fr.gtAnalista && norm(fr.gtAnalista) === norm(r.nome) && norm(atual) !== norm(fr.gtAnalista)) return;   // trocado à mão depois do Gestta: vale até o Gestta mudar
+      const f = pessoa(r.nome, sk);
+      // Hub 324: quem não está na equipe do Portal entra nela ao aplicar
+      add('portal', 'analista-' + sk, atual ? 'corrigir' : 'complementar', 'Analista · ' + rot, atual, r.nome, f, emp,
+        f && f.novo ? { nota: `${r.nome} entra também na equipe do Portal ao aplicar (se já estiver lá com outro nome, ligue em “Analistas do Gestta”)` } : {});
+    });
+    // e-mail: o contato do Portal sem e-mail ganha o do Gestta (mesmo nome, mesmo setor); nada é criado nem apagado (o banco tem 5.000 documentos)
+    const gl = gtContatos().get(c.k) || []; if (!gl.length) return;
+    M.cts.filter(x => x.empresaId === p.id && !x.email).forEach(x => {
+      const g = gl.find(y => y.email && norm(y.nome) === norm(x.nome) && (!x.setores.length || x.setores.includes(y.setor)));
+      if (g) add('portal', 'email-' + x.id, 'complementar', 'E-mail de ' + x.nome, '', g.email, { contatoId: x.id, email: g.email }, emp);
+    });
+  }
+  const SETOR_ROT_PORTAL = { pessoal: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' };
+  // Diferença: { chave, k, mod, campo, acao, rot, antes, depois, valor, empId, empNome, pode, confirmar, nota }
+  function gtDifs() {
+    const chave = `${state.readOnly}|${['dp', 'contabil', 'fiscal', 'portal'].map(nivelMod).join(',')}|${JSON.stringify(state.gtCfg)}`;
+    const m = gtM.difs;
+    if (m && m.chave === chave && m.ver === gtVer && m.emps === state.dpEmpresas && m.mods === state.gtMods && m.cad === state.cadastro) return m.v;
+    const out = [], M = state.gtMods;
+    if (!gtProntos() || !M) { gtM.difs = { chave, ver: gtVer, emps: state.dpEmpresas, mods: M, cad: state.cadastro, v: out }; return out; }
+    const vistas = new Set(), nomesDp = new Map(); state.dpEmpresas.forEach(e => { if (!cad14(e.cnpj)) { const n = cadNomeKey(e.nome); if (n) nomesDp.set(n, e); } });
+    gtClientes().forEach(c => {
+      if (gtEmpresaFora(c.k, c.nome)) return;            // Hub 317: sem tarefa no mês atual nem no anterior, não entra em módulo nenhum
+      const R = gtRegistros(c.k), nomeEmp = (c.fantasia || c.nome) + ' | ' + (cnpjFinal(c.k) || ''), ign = (ch) => gtIgnorada(c.k, ch);
+      const add = (mod, campo, acao, rot, antes, depois, valor, emp, extra) => {
+        const ch = `${mod}|${campo}|${norm(String(depois || '')).slice(0, 80)}`; if (ign(ch)) return;
+        if (vistas.has(c.k + '|' + ch)) return; vistas.add(c.k + '|' + ch);    // nunca a mesma diferença duas vezes
+
+        out.push({ chave: ch, k: c.k, cnpj: fmtCnpj(c.k), mod, modRot: GT_MODS[mod], campo, acao, rot, antes: antes || '—', depois: depois || '—', valor, empId: emp ? emp.id : '', empNome: emp && emp.nome ? emp.nome : nomeEmp, pode: gtPodeMod(mod), confirmar: false, nota: '', ...(extra || {}) });
+      };
+      // Hub 327 (Josué, 09/11/2026: "se a empresa tem analista mas não tem tarefa ela também deve ser descartada"): demanda = tarefa no setor
+      // (mês atual ou anterior); o responsável da cartela só dá o nome do analista, nunca a demanda
+      const temDemanda = (mod) => { const s = c.setores[mod]; return !!(s && s.tarefas); };
+      const resp = (mod) => { const s = c.setores[mod]; return s && s.resp ? gtNomeNoHub(s.resp, mod === 'portal' ? 'portal' : mod) : { nome: '', casou: false }; };
+      const confNome = (r) => r.casou ? {} : { confirmar: true, nota: 'nome do Gestta, sem par no Hub: confira em “Analistas do Gestta”' };
+      // DP
+      if (temDemanda('dp')) {
+        const e = R.dp, r = resp('dp'), trib = gtTribDp(c.regime);
+        if (!e) {
+          const parecida = nomesDp.get(cadNomeKey(c.nome));
+          add('dp', 'empresa', 'novo', 'Empresa nova no DP', '—', c.nome, { nome: c.nome, uf: c.uf, tributacao: trib, responsavel: r.nome }, null, parecida ? { confirmar: true, nota: `talvez seja “${parecida.nome}” (sem CNPJ no DP): ligue no Cadastro único em vez de cadastrar` } : confNome(r));
+        } else if (ativa(e)) {
+          if (r.nome && norm(r.nome) !== norm(e.responsavel)) add('dp', 'responsavel', e.responsavel ? 'corrigir' : 'complementar', 'Analista do Pessoal', e.responsavel, r.nome, r.nome, { id: e.id, nome: nomeCurto(e) }, confNome(r));
+          if (trib && norm(trib) !== norm(e.tributacao)) add('dp', 'tributacao', e.tributacao ? 'corrigir' : 'complementar', 'Tributação', e.tributacao, trib, trib, { id: e.id, nome: nomeCurto(e) });
+        }
+      }
+      // Contábil
+      if (temDemanda('contabil')) {
+        const x = R.ctb, r = resp('contabil'), trib = gtTribCtb(c.regime);
+        if (!x) add('contabil', 'empresa', 'novo', 'Empresa nova no Contábil', '—', c.nome, { nome: c.nome, trib, analista: r.nome }, null, confNome(r));
+        else if (!x.e.sit || ['ativa', 'saindo', 'suspensa'].includes(x.e.sit)) {
+          const emp = { id: x.id, nome: x.e.nome };
+          if (r.nome && norm(r.nome) !== norm(x.e.analista)) add('contabil', 'analista', x.e.analista ? 'corrigir' : 'complementar', 'Analista do Contábil', x.e.analista, r.nome, r.nome, emp, confNome(r));
+          if (trib && gtFamCtb(trib) !== gtFamCtb(x.e.trib)) add('contabil', 'trib', x.e.trib ? 'corrigir' : 'complementar', 'Tributação', GT_TRIB_CTB[x.e.trib] || x.e.trib, GT_TRIB_CTB[trib], trib, emp);
+        }
+      }
+      // Fiscal
+      if (temDemanda('fiscal')) {
+        const x = R.fis, r = resp('fiscal'), reg = gtRegFis(c.regime);
+        if (!x) add('fiscal', 'empresa', 'novo', 'Empresa nova no Fiscal', '—', c.nome, { nome: c.nome, regime: reg, analista: r.nome, ie: c.ie, uf: /^[A-Z]{2}$/.test(c.uf) ? c.uf : '', municipio: c.cidade }, null, confNome(r));
+        else if (x.e.sit !== 'inativa') {
+          const emp = { id: x.id, nome: x.e.nome };
+          if (r.nome && norm(r.nome) !== norm(x.e.analista)) add('fiscal', 'analista', x.e.analista ? 'corrigir' : 'complementar', 'Analista do Fiscal', x.e.analista, r.nome, r.nome, emp, confNome(r));
+          if (reg && reg !== x.e.regime) add('fiscal', 'regime', x.e.regime ? 'corrigir' : 'complementar', 'Regime', GT_REG_FIS[x.e.regime] || x.e.regime, GT_REG_FIS[reg], reg, emp);
+          const txt = (campo, rot, v, atual, cmp) => { v = String(v || '').trim(); atual = String(atual || '').trim(); if (v && cmp(v) !== cmp(atual)) add('fiscal', campo, atual ? 'corrigir' : 'complementar', rot, atual, v, v, emp); };
+          txt('ie', 'Inscrição estadual', c.ie, x.e.ie, (s) => /\d/.test(s) ? s.replace(/\D/g, '') : norm(s));
+          if (/^[A-Z]{2}$/.test(c.uf)) txt('uf', 'UF', c.uf, x.e.uf, (s) => s.toUpperCase());
+          txt('municipio', 'Município', c.cidade, x.e.municipio, (s) => norm(s));
+        }
+      }
+      // Portal do Cliente (Hub 326, Josué 09/11/2026: "saber quais empresas têm demanda em quais setores, o analista atualizado, sem cadastrar
+      // e excluir empresas e funcionários à mão, e o e-mail do cliente"; decidido: aplicar sozinho, com histórico). O Gestta diz a empresa,
+      // a demanda de cada setor, o analista de cada frente e o e-mail dos contatos; a mudança feita à mão no Portal vale até o Gestta mudar
+      // de novo (o Hub guarda o que ele mesmo aplicou em gtDem/gtAnalista e só volta a mexer quando o valor do Gestta muda).
+      gtDifsPortal(c, R.portal, temDemanda, add);
+    });
+    out.sort((a, b) => ptCmp(a.empNome, b.empNome) || ptCmp(a.modRot, b.modRot) || ptCmp(a.rot, b.rot));
+    gtM.difs = { chave, ver: gtVer, emps: state.dpEmpresas, mods: M, cad: state.cadastro, v: out };
+    return out;
+  }
+  // ----- gravar -----
+  const gtAgora = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const GT_VERBO = { complementar: 'Complementado', corrigir: 'Corrigido', novo: 'Cadastrado' };
+  // Hub 320 (06/11/2026, "Limite de armazenamento atingido"): o banco do artefato aceita 5.000 documentos no total, e o histórico
+  // do Gestta gravava um documento por aplicação (com a aplicação automática ligada, milhares numa manhã). Agora cada pessoa
+  // escreve num documento por mês (gt_hist/h<AAAA-MM>~<pessoa>~<n>, até GT_HIST_POR_DOC itens), e gtHistCompactar junta os antigos.
+  const GT_HIST_POR_DOC = 400, gtHistAtual = { chave: '', n: 0 };
+  let gtHistFila = Promise.resolve();
+  function gtHist(d, auto) { const p = gtHistFila.then(() => gtHistGravar(d, auto)); gtHistFila = p.catch(() => {}); return p; }   // um de cada vez: os registros vão para o mesmo documento
+  async function gtHistGravar(d, auto) {
+    try {
+      const item = { em: new Date().toISOString(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', mod: d.mod, cnpj: d.k, empresa: String(d.empNome || '').slice(0, 160), campo: d.campo, acao: d.acao, antes: String(d.antes || '').slice(0, 160), depois: String(d.depois || '').slice(0, 160), auto: !!auto };
+      const mes = item.em.slice(0, 7), quem = String(autorId() || 'x').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12) || 'x', chave = mes + '~' + quem;
+      if (gtHistAtual.chave !== chave) { gtHistAtual.chave = chave; gtHistAtual.n = 0; }
+      for (let tent = 0; tent < 60; tent++) {
+        const ref = db.doc(`gt_hist/h${chave}~${gtHistAtual.n}`);
+        let itens = []; try { const sn = await ref.get(); const v = sn && sn.exists !== false && sn.data ? sn.data() : null; itens = v && Array.isArray(v.itens) ? v.itens : []; } catch (e) {}
+        if (itens.length >= GT_HIST_POR_DOC) { gtHistAtual.n++; continue; }
+        await ref.set({ mes, por: item.por, itens: [...itens, item] });
+        return;
+      }
+    } catch (e) {}
+  }
+  // Junta os registros soltos (um documento por aplicação, como era até o Hub 319) em documentos de até GT_HIST_POR_DOC itens.
+  // O primeiro documento de cada lote vira o lote (gravar num documento que já existe passa mesmo com o banco cheio); os outros
+  // são apagados depois. Quem já está num lote (o id fica em "ids") e ficou solto por uma interrupção só é apagado, nunca repetido.
+  let gtCompactando = false;
+  async function gtHistCompactar() {
+    if (gtCompactando || !db || state.readOnly || state.semEscrita || !temCoord()) return { ok: false, movidos: 0, apagados: 0 };
+    gtCompactando = true; let movidos = 0, apagados = 0;
+    const pausa = (ms) => new Promise(r => setTimeout(r, ms));
+    const apagar = async (id) => { for (let t = 0; t < 3; t++) { try { await db.doc('gt_hist/' + id).delete(); apagados++; return; } catch (e) { await pausa(e && e.code === 'resource_exhausted' ? 3000 : 600); } } };
+    try {
+      const docs = await cadLerCol('gt_hist');
+      const jaEmLote = new Set(); docs.forEach(d => { if (Array.isArray(d.data.ids)) d.data.ids.forEach(i => jaEmLote.add(String(i))); });
+      const soltos = docs.filter(d => !Array.isArray(d.data.itens) && d.data.acao);
+      const restos = soltos.filter(d => jaEmLote.has(d.id)), novos = soltos.filter(d => !jaEmLote.has(d.id)).sort((x, y) => String(x.data.em || '').localeCompare(String(y.data.em || '')));
+      for (const d of restos) { await apagar(d.id); if (apagados % 40 === 0) await pausa(400); }
+      const grupos = new Map(); novos.forEach(d => { const m = String(d.data.em || '').slice(0, 7) || 'sem-data'; if (!grupos.has(m)) grupos.set(m, []); grupos.get(m).push(d); });
+      for (const [mes, ls] of grupos) for (let i = 0; i < ls.length; i += GT_HIST_POR_DOC) {
+        const lote = ls.slice(i, i + GT_HIST_POR_DOC), cont = lote[0];
+        await db.doc('gt_hist/' + cont.id).set({ mes, compactado: true, ids: lote.map(x => x.id), itens: lote.map(x => x.data) });
+        movidos += lote.length;
+        for (const x of lote.slice(1)) { await apagar(x.id); if (apagados % 40 === 0) await pausa(400); }
+      }
+    } catch (e) { return { ok: false, movidos, apagados, erro: (e && e.message) || 'erro' }; }
+    finally { gtCompactando = false; }
+    if (apagados) toast(`Histórico do Gestta compactado: ${apagados} documento(s) liberado(s) no banco.`);
+    return { ok: true, movidos, apagados };
+  }
+  { let n = 0; const tenta = () => { if (db && AUTH() && AUTH().usuario && AUTH().usuario()) gtHistCompactar(); else if (n++ < 40) setTimeout(tenta, 3000); }; setTimeout(tenta, 15000); }
+  // Mapa repartido em baldes (ctb_emp, fis_emp): relê o documento e grava só a chave da empresa.
+  async function gtGravarMapa(col, id, mut) {
+    const path = `${col}/b${cadBalde(id)}`;
+    let mapa = null; try { const sn = await db.doc(path).get(); mapa = sn && sn.exists !== false && sn.data ? (sn.data() || {}) : null; } catch (e) { return { ok: false, erro: 'Não consegui reler o cadastro do módulo.' }; }
+    const atual = mapa && mapa[id] && typeof mapa[id] === 'object' ? mapa[id] : null;
+    const novo = mut(atual ? JSON.parse(JSON.stringify(atual)) : null);
+    if (!novo) return { ok: false, erro: 'Essa diferença já não existe.' };
+    if (JSON.stringify(novo).length > 60000) return { ok: false, erro: 'O cadastro da empresa ficou grande demais.' };
+    const ok = await persist(() => mapa ? db.doc(path).update({ [id]: novo }) : db.doc(path).set({ [id]: novo }));
+    if (ok && state.gtMods) { const m = col === 'ctb_emp' ? state.gtMods.ctb : state.gtMods.fis; m.set(id, novo); state.gtMods = { ...state.gtMods }; }
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+  const gtComp = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+  // Pessoa do Gestta na equipe do Portal: acha pelo nome ou cadastra uma vez só (num lote, várias diferenças da mesma pessoa esperam o mesmo cadastro)
+  const gtFuncNovos = new Map();
+  function gtFuncPortal(nome, setor) {
+    const nm = String(nome || '').trim(), k = norm(nm); if (!nm) return Promise.resolve(null);
+    const ja = state.gtMods && state.gtMods.func.find(x => norm(x.nome) === k); if (ja) return Promise.resolve(ja);
+    if (gtFuncNovos.has(k)) return gtFuncNovos.get(k);
+    const p = (async () => {
+      const id = 'gt' + uid(), dado = { nome: nm.slice(0, 80), setor: setor || 'pessoal', cargo: 'Analista', statusTreinamento: 'pendente', impedimento: { ativo: false, descricao: '' }, observacoes: 'Cadastrado(a) a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).', exemplo: false, criadoEm: new Date().toISOString() };
+      const ok = await persist(() => db.doc('funcionarios/' + id).set(dado));
+      if (!ok) return null;
+      const novo = { id, nome: dado.nome };
+      if (state.gtMods) state.gtMods = { ...state.gtMods, func: [...state.gtMods.func, novo] };
+      return novo;
+    })().finally(() => setTimeout(() => gtFuncNovos.delete(k), 60000));
+    gtFuncNovos.set(k, p);
+    return p;
+  }
+  // Portal: lê o documento na hora antes de gravar (outra pessoa pode ter mexido) e guarda o que o Gestta aplicou (gtDem, gtAnalista)
+  const gtDocGet = async (path) => { try { const sn = await db.doc(path).get(); return sn && sn.exists !== false && sn.data ? sn.data() : null; } catch (e) { return undefined; } };
+  async function gtFrentePortal(emp, setor, analista, origem) {
+    const id = emp.id + '_' + setor, fr = await gtDocGet('empresaSetores/' + id); if (fr === undefined) return { ok: false, erro: 'Não consegui ler a frente.' };
+    let f = analista; if (f && !f.id && f.nome) { const n = await gtFuncPortal(f.nome, setor); if (!n) return { ok: false, erro: 'Não foi possível cadastrar ' + f.nome + ' na equipe do Portal.' }; f = { id: n.id, nome: n.nome }; }
+    const quem = f && f.id ? { analistaId: f.id, analistaNome: f.nome, gtAnalista: f.nome } : {};
+    let dado;
+    if (!fr) dado = { empresaId: emp.id, empresaNome: emp.nome, setor, analistaId: '', analistaNome: '', etapas: gtEtapasPortal(), impedimento: { ativo: false, descricao: '' }, exemplo: false, criadoEm: new Date().toISOString(), origem, ...quem };
+    else if (!f) return { ok: true, id, fr };
+    else if (norm(fr.analistaNome) === norm(f.nome) && norm(fr.gtAnalista) === norm(f.nome)) return { ok: true, id, fr };
+    const ok = await persist(() => fr ? db.doc('empresaSetores/' + id).update(quem) : db.doc('empresaSetores/' + id).set(dado));
+    if (!ok) return { ok: false, erro: 'Não foi possível salvar a frente.' };
+    if (state.gtMods) { const sets = new Map(state.gtMods.sets); sets.set(id, fr ? { ...fr, ...quem } : dado); state.gtMods = { ...state.gtMods, sets }; }
+    return { ok: true, id };
+  }
+  const gtEtapasPortal = () => ({ habilitacaoDominio: { status: 'pendente', data: '', obs: '' }, treinamentoAnalista: { status: 'pendente', data: '', obs: '' }, cadastroUsuario: { status: 'pendente', data: '', obs: '' }, treinamentoCliente: { status: 'pendente', data: '', obs: '' } });
+  async function gtAplicarPortal(d, auto, marca) {
+    const v = d.valor || {}, origem = 'Gestta' + (auto ? ' (automático)' : '') + ' em ' + fmtDMY(hoje());
+    if (d.campo === 'empresa') {
+      const id = 'gt' + d.k, ja = await gtDocGet('empresas/' + id);
+      if (ja === undefined) return { ok: false, erro: 'Não consegui reler o Portal.' };
+      if (ja || (state.gtMods && state.gtMods.portal.some(x => cad14(x.cnpj) === d.k || x.cadId === d.k))) return { ok: false, erro: 'Essa empresa já está no Portal.' };
+      const dem = { pessoal: false, contabil: false, fiscal: false }; (v.frentes || []).forEach(f => { dem[f.setor] = true; });
+      const e = { nome: String(v.nome || '').slice(0, 160), cnpj: fmtCnpj(d.k), cadId: d.k, ativo: true, folhaAtiva: !!dem.pessoal, precisaRubricas: false, setoresDemanda: dem, gtDem: { ...dem },
+        impedimento: { ativo: false, descricao: '' }, exemplo: false, criadoEm: new Date().toISOString(), origem: 'Cadastrada a partir do ' + origem };
+      const ok = await persist(() => db.doc('empresas/' + id).set(e));
+      if (!ok) return { ok: false, erro: 'Não foi possível salvar.' };
+      if (state.gtMods) state.gtMods = { ...state.gtMods, portal: [...state.gtMods.portal, { id, ...e }] };
+      cadRegistrar({ cnpj: e.cnpj, nome: e.nome, modulo: 'portal', id });
+      for (const f of v.frentes || []) { const r = await gtFrentePortal({ id, nome: e.nome }, f.setor, f.analista, origem); if (!r.ok) return r; }
+      return { ok: true };
+    }
+    if (/^demanda-/.test(d.campo)) {
+      const e = await gtDocGet('empresas/' + d.empId); if (e === undefined) return { ok: false, erro: 'Não consegui reler o Portal.' }; if (!e) return { ok: false, erro: 'Essa empresa não existe mais no Portal.' };
+      const dem = { pessoal: false, contabil: false, fiscal: false, ...(e.setoresDemanda || {}) }, gtDem = { ...(e.gtDem || {}) };
+      if (!!dem[v.setor] === !!v.ligar) return { ok: false, erro: 'Essa diferença já não existe.' };
+      dem[v.setor] = !!v.ligar; gtDem[v.setor] = !!v.ligar;
+      const patch = { setoresDemanda: dem, gtDem }; if (v.setor === 'pessoal' && v.ligar) patch.folhaAtiva = true;
+      const ok = await persist(() => db.doc('empresas/' + d.empId).update(patch));
+      if (!ok) return { ok: false, erro: 'Não foi possível salvar.' };
+      if (state.gtMods) state.gtMods = { ...state.gtMods, portal: state.gtMods.portal.map(x => x.id === d.empId ? { ...x, ...patch } : x) };
+      if (v.ligar) { const r = await gtFrentePortal({ id: d.empId, nome: e.nome || d.empNome }, v.setor, v.analista, origem); if (!r.ok) return r; }
+      return { ok: true };
+    }
+    if (/^analista-/.test(d.campo)) {
+      const f = v; if (!f || (!f.id && !f.novo)) return { ok: false, erro: d.nota || 'A pessoa não está na equipe do Portal.' };
+      const fr = state.gtMods && state.gtMods.sets.get(d.empId + '_' + f.setor);
+      if (fr && norm(fr.analistaNome) === norm(f.nome)) return { ok: false, erro: 'Essa diferença já não existe.' };
+      return gtFrentePortal({ id: d.empId, nome: d.empNome }, f.setor, f, origem);
+    }
+    if (/^email-/.test(d.campo)) {
+      const c = await gtDocGet('contatos/' + v.contatoId); if (c === undefined) return { ok: false, erro: 'Não consegui reler o contato.' };
+      if (!c || String(c.email || '').trim()) return { ok: false, erro: 'Essa diferença já não existe.' };
+      const ok = await persist(() => db.doc('contatos/' + v.contatoId).update({ email: v.email, emailOrigem: origem }));
+      if (!ok) return { ok: false, erro: 'Não foi possível salvar.' };
+      if (state.gtMods) state.gtMods = { ...state.gtMods, cts: state.gtMods.cts.map(x => x.id === v.contatoId ? { ...x, email: v.email } : x) };
+      return { ok: true };
+    }
+    return { ok: false, erro: 'Diferença desconhecida.' };
+  }
+  async function gtAplicarUma(d, auto) {
+    if (!gtPodeMod(d.mod)) return { ok: false, erro: 'Só a coordenação do ' + GT_MODS[d.mod] + ' aplica no cadastro dele.' };
+    const autor = (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', marca = auto ? ' (automaticamente)' : '';
+    const linhaHist = `${GT_VERBO[d.acao] || 'Alterado'} pelo Gestta${marca}: ${d.rot}: ${d.antes} → ${d.depois}`;
+    if (d.mod === 'dp') {
+      if (d.acao === 'novo') {
+        if (state.dpEmpresas.some(e => cad14(e.cnpj) === d.k)) return { ok: false, erro: 'Já existe uma empresa com este CNPJ no DP.' };
+        const v = d.valor || {}, cnpj = fmtCnpj(d.k);
+        const e = normalizeDpEmpresa({ id: 'gt-' + d.k, nome: v.nome, cnpj, uf: v.uf || '', tributacao: v.tributacao || '', responsavel: v.responsavel || '', situacao: 'Ativa', observacoes: 'Cadastrada a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).', order: Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1 });
+        e.historico.unshift({ id: uid(), data: gtAgora(), alteracao: 'Empresa cadastrada a partir do Gestta' + marca + ' (Entrada de dados)', autor: autorId() });
+        e.updatedAt = Date.now();
+        state.dpEmpresas = [...state.dpEmpresas, e];
+        const salvo = await persist(() => dpStore.saveOne(e));
+        if (!salvo) { state.dpEmpresas = state.dpEmpresas.filter(x => x.id !== e.id); return { ok: false, erro: 'Não foi possível salvar.' }; }
+        cadRegistrar({ cnpj, nome: e.nome, modulo: 'dp', id: e.id, uf: e.uf });
+      } else {
+        const e0 = findDpEmpresa(d.empId); if (!e0) return { ok: false, erro: 'Empresa não encontrada.' };
+        const e = await ovEmpresaFresca(e0);
+        if (norm(e[d.campo]) === norm(d.valor)) return { ok: false, erro: 'Essa diferença já não existe.' };
+        e[d.campo] = d.valor;
+        e.historico.unshift({ id: uid(), data: gtAgora(), alteracao: linhaHist, autor: autorId() });
+        e.updatedAt = Date.now();
+        const salvo = await persist(() => dpStore.updateFields(e.id, { [d.campo]: e[d.campo], historico: e.historico, updatedAt: e.updatedAt }));
+        if (!salvo) return { ok: false, erro: 'Não foi possível salvar.' };
+        state.dpEmpresas = state.dpEmpresas.map(x => x.id === e.id ? e : x);
+      }
+      try { renderDpActiveView(); } catch (e) {}
+    } else if (d.mod === 'contabil' || d.mod === 'fiscal') {
+      const col = d.mod === 'contabil' ? 'ctb_emp' : 'fis_emp', iso = new Date().toISOString();
+      let r;
+      if (d.acao === 'novo') {
+        const v = d.valor || {}, id = 'c' + d.k, obs = 'Cadastrada a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).';
+        r = await gtGravarMapa(col, id, (atual) => {
+          if (atual && !atual.excluida) return null;
+          return d.mod === 'contabil'
+            ? { id, nome: String(v.nome || '').slice(0, 160), anterior: '', cnpj: fmtCnpj(d.k), grupo: '', desde: '', sistema: '', migrado: '', trib: v.trib || '', tribAnt: '', tribMud: '', analista: String(v.analista || '').slice(0, 60), apoio: '', sit: 'ativa', sitData: '', semFolha: false, semImob: false, semInfo: [], contatos: '', obs, pasta: '', criado: iso, atual: iso, excluida: false }
+            : { id, nome: String(v.nome || '').slice(0, 160), cnpj: fmtCnpj(d.k), regime: v.regime || '', ativ: '', ie: String(v.ie || '').slice(0, 30), im: '', municipio: String(v.municipio || '').slice(0, 60), uf: String(v.uf || '').slice(0, 2), analista: String(v.analista || '').slice(0, 60), sit: 'ativa', desde: gtComp(), ate: '', naoAplica: [], obs, hist: [{ d: iso, t: 'Cadastrada a partir do Gestta' + marca, u: autor.slice(0, 60) }], criado: iso, atual: iso };
+        });
+        if (r.ok) cadRegistrar({ cnpj: fmtCnpj(d.k), nome: v.nome, modulo: d.mod === 'contabil' ? 'ctb' : 'fis', id, uf: v.uf || '' });
+      } else {
+        r = await gtGravarMapa(col, d.empId, (e) => {
+          if (!e || e.excluida) return null;
+          const igual = d.campo === 'trib' ? gtFamCtb(e.trib) === gtFamCtb(d.valor) : norm(e[d.campo]) === norm(d.valor);
+          if (igual) return null;
+          e[d.campo] = d.valor; e.atual = iso;
+          if (d.mod === 'fiscal') e.hist = [...(Array.isArray(e.hist) ? e.hist : []), { d: iso, t: linhaHist.slice(0, 200), u: autor.slice(0, 60) }].slice(-40);
+          return e;
+        });
+      }
+      if (!r.ok) return r;
+    } else if (d.mod === 'portal') {
+      const r = await gtAplicarPortal(d, auto, marca); if (!r.ok) return r;
+    } else return { ok: false, erro: 'Módulo desconhecido.' };
+    gtHist(d, auto); gtAvisar();
+    return { ok: true, erro: '' };
+  }
+  async function gtAplicar(k, chave) {
+    const d = gtDifs().find(x => x.k === k && x.chave === chave); if (!d) return { ok: false, erro: 'Essa diferença já não existe.' };
+    if (!d.pode) return { ok: false, erro: d.nota || ('Só a coordenação do ' + d.modRot + ' aplica.') };
+    return gtAplicarUma(d, false);
+  }
+  async function gtIgnorar(k, chave) {
+    const d = gtDifs().find(x => x.k === k && x.chave === chave);
+    if (!d || !gtPodeMod(d.mod)) return { ok: false, erro: d ? 'Só a coordenação do ' + d.modRot + ' decide.' : 'Essa diferença já não existe.' };
+    const chaves = [...new Set([...(state.gtIgn[k] || []), chave])].slice(-400);
+    state.gtIgn = { ...state.gtIgn, [k]: chaves }; gtAvisar();
+    const ok = await persist(async () => {
+      let ja = []; try { const sn = await db.doc('gt_ignorar/' + k).get(); ja = sn && sn.exists !== false && sn.data && Array.isArray(sn.data().chaves) ? sn.data().chaves : []; } catch (e) {}
+      return db.doc('gt_ignorar/' + k).set({ chaves: [...new Set([...ja.map(x => String(x).slice(0, 200)), ...chaves])].slice(-400) });
+    });
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+  async function gtSalvarCfg(mut) {
+    if (!temCoord() || state.readOnly || state.semEscrita) return { ok: false, erro: 'Só a coordenação muda o que vem do Gestta.' };
+    let c = state.gtCfg; try { const sn = await db.doc('gt_config/cfg').get(); if (sn && sn.exists !== false && sn.data) c = gtCfgNorm(sn.data()); } catch (e) {}
+    c = JSON.parse(JSON.stringify(c)); mut(c); c = gtCfgNorm(c);
+    state.gtCfg = c; gtAvisar();
+    const ok = await persist(() => db.doc('gt_config/cfg').set(c));
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+  // Setores e analistas que chegaram do Gestta, com o que o Hub faz com cada um (para a coordenação conferir e trocar).
+  function gtSetores() {
+    const n = new Map();
+    gtLer('gestta-setores').forEach(r => { const s = String(r['Setor'] || '').trim(); if (s) n.set(norm(s), { nome: s, clientes: 0 }); });
+    gtLer('gestta-cartela').forEach(r => { const s = String(r['Setor'] || '').trim(); if (!s) return; const x = n.get(norm(s)) || { nome: s, clientes: 0 }; if (String(r['Responsável'] || '').trim()) x.clientes++; n.set(norm(s), x); });
+    return [...n.values()].sort((a, b) => ptCmp(a.nome, b.nome)).map(x => ({ ...x, chave: norm(x.nome), mod: gtSetorMod(x.nome), padrao: gtSetorPadrao(x.nome), escolhido: state.gtCfg.setores[norm(x.nome)] !== undefined }));
+  }
+  function gtAnalistas() {
+    const m = new Map();
+    gtLer('gestta-cartela').forEach(r => { const nome = String(r['Responsável'] || '').trim(), mod = gtSetorMod(r['Setor']); if (!nome || !mod) return; const x = m.get(norm(nome)) || { nome, mods: new Set(), clientes: 0 }; x.mods.add(mod); x.clientes++; m.set(norm(nome), x); });
+    return [...m.values()].sort((a, b) => ptCmp(a.nome, b.nome)).map(x => {
+      const mods = [...x.mods], res = mods.map(mod => ({ mod, ...gtNomeNoHub(x.nome, mod) }));
+      return { nome: x.nome, chave: norm(x.nome), clientes: x.clientes, mods, escolhido: state.gtCfg.analistas[norm(x.nome)] || '', noHub: res, casou: res.every(r => r.casou) };
+    });
+  }
+  // ----- aplicar sozinho (opcional; desligado de fábrica) -----
+  const gtAuto = { rodando: false, feitas: new Set(), timer: null, local: null };
+  function gtAutoAgendar() { clearTimeout(gtAuto.timer); if (!state.gtCfg.auto.ligada) return; gtAuto.timer = setTimeout(() => { gtAutoRodar(); }, 3000); }
+  function gtAutoPrevisao() { const t = state.gtCfg.auto.tipos, p = { complementar: 0, corrigir: 0, novo: 0, conferir: 0 }; gtDifs().forEach(d => { if (!d.pode || (d.mod === 'portal' && state.gtCfg.portal !== false && !d.confirmar)) return; if (d.confirmar) p.conferir++; else if (t[d.acao]) p[d.acao]++; }); return p; }
+  async function gtAutoRodar(forcar) {
+    const cfg = state.gtCfg.auto; if ((!cfg.ligada && !forcar) || gtAuto.rodando || !db) return { ok: false, motivo: 'desligada' };
+    GT_TIPOS.forEach(t => { if (state.gtMan[t]) gtLer(t); });
+    if (!state.gtMods) await gtModulos(false);
+    if (!gtProntos() || !state.gtMods) return { ok: false, motivo: 'carregando' };
+    gtAuto.rodando = true; state.autoAplicando = (state.autoAplicando || 0) + 1; let n = 0; const por = { complementar: 0, corrigir: 0, novo: 0 };
+    try {
+      for (const d of gtDifs().slice()) {
+        const id = d.k + '|' + d.chave;
+        if (!d.pode || d.confirmar || !cfg.tipos[d.acao] || gtAuto.feitas.has(id) || (d.mod === 'portal' && state.gtCfg.portal !== false)) continue;
+        gtAuto.feitas.add(id);
+        const r = await gtAplicarUma(d, true); if (r.ok) { n++; por[d.acao]++; }
+      }
+      if (n) { const u = { em: new Date().toISOString(), por: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', n, resumo: [por.complementar && por.complementar + ' complemento(s)', por.corrigir && por.corrigir + ' correção(ões)', por.novo && por.novo + ' empresa(s) nova(s)'].filter(Boolean).join(', ') }; gtAuto.local = u; gtSalvarCfg(c => { c.auto.ultima = u; }); }
+    } finally { gtAuto.rodando = false; state.autoAplicando = Math.max(0, (state.autoAplicando || 1) - 1); }
+    return { ok: true, n };
+  }
+  // ----- Portal pelo Gestta, sozinho (Hub 326; ligado de fábrica, gt_config/cfg.portal) -----
+  // Um navegador por vez (ing_auto/gtportal), só a coordenação do Portal, uma vez por remessa do Gestta. Aplica tudo o que não pede
+  // conferência (empresa nova, demanda, frente, analista, e-mail que falta), com o histórico "pelo Gestta (automaticamente)".
+  const gtPortal = { rodando: false, feito: '', timer: null, ultima: null, feitas: new Set() };
+  const GT_PORTAL_TIPOS = ['gestta-clientes', 'gestta-cartela', 'gestta-tarefas', 'gestta-empresas-ativas', 'gestta-equipe', 'gestta-contatos'];
+  const gtPortalCiclo = () => GT_PORTAL_TIPOS.map(t => (state.gtMan[t] && state.gtMan[t].ciclo) || '-').join('|') + '|' + JSON.stringify(state.gtCfg.setores) + '|' + JSON.stringify(state.gtCfg.analistas);
+  function gtPortalAgendar() { clearTimeout(gtPortal.timer); if (state.gtCfg.portal === false || !state.gtMan['gestta-clientes'] || !gtPodeMod('portal')) return; if (gtPortal.feito === gtPortalCiclo()) return; gtPortal.timer = setTimeout(() => { gtPortalRodar(false); }, 5000); }
+  async function gtPortalLiderar() {
+    const eu = state.meId || autorId() || 'x', agora = Date.now();
+    try { const sn = await db.doc('ing_auto/gtportal').get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null; if (v && v.por !== eu && Number(v.ate) > agora) return false; } catch (e) {}
+    try { await db.doc('ing_auto/gtportal').set({ por: eu, ate: agora + 300000 }); const sn = await db.doc('ing_auto/gtportal').get(), v = sn && sn.data ? sn.data() : null; return !!v && v.por === eu; } catch (e) { return false; }
+  }
+  async function gtPortalRodar(forcar) {
+    if (!db || state.readOnly || state.semEscrita || gtPortal.rodando || (state.gtCfg.portal === false && !forcar) || !gtPodeMod('portal')) return { ok: false, motivo: 'parado' };
+    GT_PORTAL_TIPOS.forEach(t => { if (state.gtMan[t]) gtLer(t); });
+    const ciclo = gtPortalCiclo();
+    if (!forcar && gtPortal.feito === ciclo) return { ok: true, n: 0, motivo: 'já aplicado' };
+    if (!GT_PORTAL_TIPOS.every(gtCarregado)) return { ok: false, motivo: 'carregando' };
+    await gtModulos(true);                     // o Portal como está agora (uma leitura por remessa do Gestta): nada de decidir sobre uma cópia velha
+    if (!gtProntos() || !state.gtMods) return { ok: false, motivo: 'carregando' };
+    const lista = gtDifs().filter(d => d.mod === 'portal' && d.pode && !d.confirmar && !gtPortal.feitas.has(d.k + '|' + d.chave));
+    if (!lista.length) { gtPortal.feito = ciclo; return { ok: true, n: 0 }; }
+    if (!(await gtPortalLiderar())) return { ok: false, motivo: 'outro navegador está aplicando' };
+    gtPortal.rodando = true; state.autoAplicando = (state.autoAplicando || 0) + 1;
+    let n = 0, falhas = 0; const por = { empresa: 0, demanda: 0, analista: 0, email: 0 };
+    try {
+      // empresas novas primeiro (as frentes e o analista vêm junto), depois a demanda, o analista e o e-mail
+      const ordem = (d) => d.campo === 'empresa' ? 0 : /^demanda/.test(d.campo) ? 1 : /^analista/.test(d.campo) ? 2 : 3;
+      for (const d of lista.sort((a, b) => ordem(a) - ordem(b))) {
+        gtPortal.feitas.add(d.k + '|' + d.chave);
+        const r = await gtAplicarUma(d, true);
+        if (r.ok) { n++; por[d.campo === 'empresa' ? 'empresa' : d.campo.split('-')[0]]++; }
+        else if (!/já não existe|já está no Portal/.test(r.erro || '')) { falhas++; if (/salvar/.test(r.erro || '') && falhas >= 3) break; }   // banco recusando: para (o resto fica para a próxima remessa)
+        if (n && n % 25 === 0) { try { await db.doc('ing_auto/gtportal').set({ por: state.meId || autorId() || 'x', ate: Date.now() + 300000 }); } catch (e) {} }
+      }
+      gtPortal.ultima = { em: new Date().toISOString(), n, falhas, resumo: [por.empresa && por.empresa + ' empresa(s) nova(s)', por.demanda && por.demanda + ' demanda(s)', por.analista && por.analista + ' analista(s)', por.email && por.email + ' e-mail(s)'].filter(Boolean).join(', ') };
+      if (!falhas) gtPortal.feito = ciclo;
+      if (n) toast('Portal do Cliente atualizado pelo Gestta: ' + gtPortal.ultima.resumo + '.');
+    } finally { gtPortal.rodando = false; state.autoAplicando = Math.max(0, (state.autoAplicando || 1) - 1); try { await db.doc('ing_auto/gtportal').set({ por: '', ate: 0 }); } catch (e) {} }
+    if (n) gtModulos(true);
+    gtAvisar();
+    return { ok: !falhas, n, falhas };
+  }
+  const gtApi = {
+    pronto: () => true, manifestos: () => state.gtMan, tem: () => !!state.gtMan['gestta-clientes'],
+    garantir: (forcar) => { GT_TIPOS.forEach(t => { if (state.gtMan[t]) gtLer(t); }); return gtModulos(!!forcar); },
+    // sem os cadastros dos módulos e sem leitura em andamento, tenta de novo (no máximo a cada 30 s): a tela não fica presa em "Lendo…"
+    carregando: () => { if (!state.gtMods && !state.gtModsP && Date.now() - (state.gtModsFalhaEm || 0) > 30000) gtModulos(true); return !gtProntos() || !state.gtMods; },
+    falhaModulos: () => state.gtMods ? '' : (state.gtModsFalha || ''),
+    difs: () => gtDifs().slice(), aplicar: gtAplicar, ignorar: gtIgnorar,
+    setores: gtSetores, analistas: gtAnalistas, conhecidos: (mod) => gtConhecidos(mod), modulos: () => ({ ...GT_MODS }),
+    cfg: () => JSON.parse(JSON.stringify(state.gtCfg)), salvarCfg: gtSalvarCfg, podeConfigurar: () => temCoord() && !state.readOnly && !state.semEscrita,
+    podeMod: gtPodeMod, referencia: gtReferencia, compactarHistorico: () => gtHistCompactar(), podarRestauro: () => restauroPodar(),
+    portal: () => ({ travas: gtPortalTravas(), ligada: state.gtCfg.portal !== false, ultima: gtPortal.ultima, rodando: gtPortal.rodando, pode: gtPodeMod('portal'), pendentes: gtDifs().filter(d => d.mod === 'portal' && !d.confirmar).length, conferir: gtDifs().filter(d => d.mod === 'portal' && d.confirmar).length }),
+    portalAgora: () => { gtPortal.feitas.clear(); gtPortal.feito = ''; return gtPortalRodar(true); },
+    auto: () => ({ ...state.gtCfg.auto, ultima: gtAuto.local || state.gtCfg.auto.ultima, rodando: gtAuto.rodando }), autoPrevisao: gtAutoPrevisao, autoAgora: () => { gtAuto.feitas.clear(); return gtAutoRodar(true); },
+    aoMudar: (cb) => { if (typeof cb === 'function') { gtOuvintes.push(cb); return () => { const i = gtOuvintes.indexOf(cb); if (i >= 0) gtOuvintes.splice(i, 1); }; } return () => {}; }
+  };
+  // ===== Fiscal e Contábil pelo Gestta (Hub 325, Rodada A, Josué 06/11/2026: "marcar sozinho, com origem") =====
+  // As tarefas do Gestta (gestta-tarefas, com a Competência desde a extensão 0.86.0) viram o estado das obrigações do Fiscal e das etapas
+  // do Contábil: tarefa concluída marca sozinha a obrigação/etapa vazia da competência (['c', data da conclusão, 'gestta']); marcação manual
+  // nunca é trocada; desfeita pela coordenação, vai para gt_ignorar e não volta. Tarefa aberta com meta vencida só pinta de vermelho na tela.
+  // Trava: sem a lista de tarefas (ou cortada, ou com mais de 72 h) nada é marcado.
+  const GT_MAPA_PADRAO = {
+    fiscal: [[/dctf\s*-?\s*web/, 'dctfweb'], [/efd\s*-?\s*contrib|sped\s*contrib/, 'efdcontrib'], [/efd\s*-?\s*icms|sped\s*fiscal|efd\s*icms\s*\/?\s*ipi/, 'efdicms'],
+      [/reinf/, 'reinf'], [/destda/, 'destda'], [/defis/, 'defis'], [/pgdas|\bdas\b|simples\s*nacional/, 'pgdas'], [/\birpj\b|\bcsll\b/, 'irpj'],
+      [/\bpis\b|\bcofins\b/, 'piscofins'], [/\biss\b|issqn/, 'iss'], [/\bicms\b/, 'icms']],
+    contabil: [[/concilia/, 'conc'], [/deprecia/, 'depr'], [/confer\w*\s*fiscal/, 'fisc'], [/folha/, 'folha'], [/impost/, 'imp'], [/financeir|extrato|banc/, 'fin']]
+  };
+  const GT_ETAPAS_CTB = ['fin', 'folha', 'depr', 'fisc', 'imp', 'conc'];
+  const gtModCod = (m) => m === 'fis' ? 'fiscal' : m === 'ctb' ? 'contabil' : m;
+  // a chave da obrigação/etapa pelo nome da tarefa: primeiro o que a coordenação escreveu (gt_config/cfg.mapa), depois o padrão
+  function gtChaveTarefa(mod, nome) {
+    const n = norm(nome); if (!n) return '';
+    for (const x of (state.gtCfg.mapa && state.gtCfg.mapa[mod]) || []) if (x.p && n.includes(norm(x.p))) return x.k === '-' ? '' : x.k;     // '-' = a coordenação disse que não é obrigação/etapa
+    for (const [re, k] of GT_MAPA_PADRAO[mod] || []) if (re.test(n)) return k;
+    return '';
+  }
+  // 'AAAA-MM-DD HH:MM' (UTC, como sai da extensão) ou 'AAAA-MM-DD' → data local AAAA-MM-DD
+  const gtDia = (v) => { const s = String(v || '').trim(); if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)) { const d = new Date(s.replace(' ', 'T') + ':00Z'); return isNaN(d) ? s.slice(0, 10) : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); } return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : ''; };
+  const gtHojeYmd = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  // As tarefas do Gestta de um módulo (fiscal | contabil), já com a empresa (cnpj), a competência, a chave e o estado.
+  function gtTarefasMod(mod) {
+    return gtMemo('tarefas~' + mod, () => {
+      if (!state.gtMan['gestta-tarefas']) return [];
+      if (!gtCarregado('gestta-tarefas')) { gtLer('gestta-tarefas'); return []; }
+      const vistos = new Set(), hoje = gtHojeYmd(), out = [];
+      gtLer('gestta-tarefas').forEach(r => {
+        const id = String(r['Id'] || ''); if (!id || vistos.has(id)) return;
+        if (gtSetorMod(r['Setor']) !== mod) return;
+        const k = cad14(r['CNPJ']), nome = String(r['Tarefa'] || '');
+        if (!k || ehEscritorioProprio(r['Cliente']) || cadExcluida(k)) return;
+        vistos.add(id);
+        const sit = norm(r['Situação']), feita = sit === 'concluida', meta = gtDia(r['Meta']), concl = gtDia(r['Concluída em']);
+        if (sit === 'ignorada' || sit === 'desconsiderada') return;
+        const estado = feita ? (r['Concluída com atraso'] === 'sim' || (meta && concl && concl > meta) ? 'feita-atraso' : 'feita') : sit === 'impedimento' ? 'impedimento' : (meta && meta < hoje) ? (r['Gerando multa'] === 'sim' ? 'multa' : 'atrasada') : 'aberta';
+        out.push({ id, nome, k, cliente: String(r['Cliente'] || ''), setor: String(r['Setor'] || ''), resp: String(r['Responsável'] || ''), comp: /^\d{4}-\d{2}$/.test(r['Competência'] || '') ? r['Competência'] : '', meta, concl, estado, chave: gtChaveTarefa(mod, nome) });
+      });
+      return out;
+    });
+  }
+  const gtTarefasOk = () => gtManMotivo('gestta-tarefas', 'A lista de tarefas');
+  // Por empresa e competência: { chave → tarefa } (a mais grave quando há mais de uma da mesma obrigação)
+  const GT_PESO = { multa: 0, atrasada: 1, impedimento: 2, aberta: 3, 'feita-atraso': 4, feita: 5 };
+  function gtTarefasIdx(mod) {
+    return gtMemo('tarefasIdx~' + mod, () => {
+      const m = new Map();
+      gtTarefasMod(mod).forEach(t => { if (!t.comp || !t.chave) return; const kk = t.k + '|' + t.comp + '|' + t.chave, a = m.get(kk); if (!a || GT_PESO[t.estado] < GT_PESO[a.estado]) m.set(kk, t); });
+      return m;
+    });
+  }
+  const gtMarcaIgn = (mod, comp, chave) => 'marca|' + mod + '|' + comp + '|' + chave;
+  // ----- a marcação automática (um navegador por vez; só a coordenação do módulo; uma vez por lista recebida) -----
+  const gtMarca = { rodando: false, feito: '', timer: null, ultima: null };
+  const gtBalde4 = (id) => { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h % 4; };
+  function gtMarcarAgendar() { clearTimeout(gtMarca.timer); if (state.gtCfg.marcar === false || !state.gtMan['gestta-tarefas'] || !(gtPodeMod('fiscal') || gtPodeMod('contabil'))) return; gtMarca.timer = setTimeout(() => { gtMarcarRodar(false); }, 4000); }
+  async function gtMarcaLiderar() {
+    const eu = state.meId || autorId() || 'x', agora = Date.now();
+    try { const sn = await db.doc('ing_auto/gtmarca').get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null; if (v && v.por !== eu && Number(v.ate) > agora) return false; } catch (e) {}
+    try { await db.doc('ing_auto/gtmarca').set({ por: eu, ate: agora + 120000 }); const sn = await db.doc('ing_auto/gtmarca').get(), v = sn && sn.data ? sn.data() : null; return !!v && v.por === eu; } catch (e) { return false; }
+  }
+  // O que marcar: por documento da competência, as entradas (empresa) com as chaves novas. Devolve também o motivo de não marcar.
+  function gtMarcasPlano() {
+    const M = state.gtMods; if (!M) return { motivo: 'carregando', docs: [] };
+    const motivo = gtTarefasOk(); if (motivo) return { motivo, docs: [] };
+    const docs = new Map();
+    for (const mod of ['fiscal', 'contabil']) {
+      if (!gtPodeMod(mod)) continue;
+      const col = mod === 'fiscal' ? 'fis_comp' : 'ctb_comp', mapa = mod === 'fiscal' ? M.fis : M.ctb;
+      gtTarefasIdx(mod).forEach(t => {
+        if (t.estado !== 'feita' && t.estado !== 'feita-atraso') return;
+        if (gtIgnorada(t.k, gtMarcaIgn(mod, t.comp, t.chave))) return;
+        const R = gtRegistros(t.k), reg = mod === 'fiscal' ? R.fis : R.ctb; if (!reg || !mapa.has(reg.id)) return;
+        const path = col + '/' + t.comp + '~' + gtBalde4(reg.id), d = docs.get(path) || { mod, col, comp: t.comp, ents: new Map() };
+        const e = d.ents.get(reg.id) || []; e.push({ chave: t.chave, dia: t.concl || gtHojeYmd(), k: t.k, nome: t.nome }); d.ents.set(reg.id, e); docs.set(path, d);
+      });
+    }
+    return { motivo: '', docs: [...docs.entries()].map(([path, d]) => ({ path, ...d })) };
+  }
+  async function gtMarcarRodar(forcar) {
+    if (!db || state.readOnly || state.semEscrita || gtMarca.rodando || (state.gtCfg.marcar === false && !forcar)) return { ok: false, motivo: 'parado' };
+    const man = state.gtMan['gestta-tarefas']; if (!man) return { ok: false, motivo: 'sem tarefas' };
+    if (!gtCarregado('gestta-tarefas')) { gtLer('gestta-tarefas'); return { ok: false, motivo: 'carregando' }; }
+    const marcaCiclo = man.ciclo + '|' + JSON.stringify(state.gtCfg.mapa || {}) + '|' + JSON.stringify(state.gtCfg.setores);
+    if (!forcar && gtMarca.feito === marcaCiclo) return { ok: true, n: 0, motivo: 'já marcado' };
+    if (!state.gtMods) await gtModulos(false);
+    const plano = gtMarcasPlano(); if (plano.motivo) return { ok: false, motivo: plano.motivo };
+    if (!plano.docs.length) { gtMarca.feito = marcaCiclo; return { ok: true, n: 0 }; }
+    if (!(await gtMarcaLiderar())) return { ok: false, motivo: 'outro navegador está marcando' };
+    gtMarca.rodando = true; let n = 0, falhas = 0;
+    try {
+      for (const d of plano.docs) {
+        let doc = null; try { const sn = await db.doc(d.path).get(); doc = sn && sn.exists !== false && sn.data ? (sn.data() || {}) : null; } catch (e) { falhas++; continue; }
+        const mud = {};
+        d.ents.forEach((itens, eid) => {
+          const ent = doc && doc[eid] && typeof doc[eid] === 'object' ? JSON.parse(JSON.stringify(doc[eid])) : {}, campo = d.mod === 'fiscal' ? 'ob' : 'e';
+          ent[campo] = ent[campo] && typeof ent[campo] === 'object' ? ent[campo] : {};
+          let mudou = false;
+          itens.forEach(it => { const v = ent[campo][it.chave]; if (Array.isArray(v) && v[0]) return; ent[campo][it.chave] = ['c', it.dia, 'gestta']; mudou = true; n++; });
+          if (!mudou) return;
+          if (d.mod === 'contabil') { const pend = GT_ETAPAS_CTB.filter(k => { const v = ent.e[k]; const s = Array.isArray(v) ? v[0] : ''; return s !== 'c' && s !== 'n'; }); if (!pend.length && !ent.fechadaEm) ent.fechadaEm = itens.map(i => i.dia).sort().pop(); }
+          mud[eid] = ent;
+        });
+        if (!Object.keys(mud).length) continue;
+        if (JSON.stringify(Object.assign({}, doc || {}, mud)).length > 240000) { falhas++; continue; }          // teto do documento: não grava pela metade
+        const ok = await persist(() => doc ? db.doc(d.path).update(mud) : db.doc(d.path).set(mud));
+        if (!ok) falhas++;
+      }
+      gtMarca.ultima = { em: new Date().toISOString(), n, falhas };
+      if (!falhas) gtMarca.feito = marcaCiclo;
+    } finally { gtMarca.rodando = false; }
+    gtAvisar();
+    return { ok: !falhas, n, falhas };
+  }
+  // Desfazer (coordenação): tira a marca do Gestta e guarda a decisão em gt_ignorar, para não voltar sozinha
+  async function gtDesfazerMarca(modCod, id, cnpj, comp, chave) {
+    const mod = gtModCod(modCod), k = cad14((id && cadVinc(modCod, id)) || cnpj);
+    if (!gtPodeMod(mod)) return { ok: false, erro: 'Só a coordenação do ' + GT_MODS[mod] + ' desfaz.' };
+    if (!k) return { ok: false, erro: 'Empresa sem CNPJ.' };
+    const chaves = [...new Set([...(state.gtIgn[k] || []), gtMarcaIgn(mod, comp, chave)])].slice(-400);
+    const ok = await persist(() => db.doc('gt_ignorar/' + k).set({ chaves }));
+    if (ok) { state.gtIgn = { ...state.gtIgn, [k]: chaves }; gtAvisar(); }
+    return { ok: !!ok, erro: ok ? '' : 'Não foi possível salvar.' };
+  }
+  // Envios do Gestta ao portal com erro (gestta-envios-onvio-erro), por empresa e setor; certificado pelo clientes-nfe do Onvio
+  function gtEnviosErro(mod, k) {
+    const idx = gtMemo('enviosErro', () => { const m = new Map(); if (!state.gtMan['gestta-envios-onvio-erro']) return m; gtLer('gestta-envios-onvio-erro').forEach(r => { const c = cad14(r['CNPJ']); if (!c) return; const md = gtSetorMod(r['Setor']); (m.get(c + '|' + md) || m.set(c + '|' + md, []).get(c + '|' + md)).push({ tarefa: String(r['Tarefa'] || ''), erro: String(r['Erro'] || '').slice(0, 200), comp: String(r['Competência'] || '').slice(0, 7), doc: String(r['Documento'] || '') }); }); return m; });
+    return idx.get(k + '|' + mod) || [];
+  }
+  function gtCertificado(k) {
+    if (!k || typeof ovClientes !== 'function') return null;
+    let x = null; try { for (const c of ovClientes().values()) if (cad14(c.cnpj) === k && c.certificado != null) { x = c; break; } } catch (e) { return null; }
+    if (!x) return null;
+    if (!x.certificado) return { tem: false, validade: '', dias: null, vencido: false, vence30: false };
+    if (!x.validade) return { tem: true, validade: '', dias: null, vencido: false, vence30: false };
+    const dias = Math.round((new Date(x.validade + 'T12:00:00') - new Date(gtHojeYmd() + 'T12:00:00')) / 864e5);
+    return { tem: true, validade: x.validade, dias, vencido: dias < 0, vence30: dias >= 0 && dias <= 30 };
+  }
+  // Para os módulos (Fiscal e Contábil) pelo window.__cadastro
+  Object.assign(window.__cadastro, {
+    tarefasMotivo: () => gtTarefasOk(),
+    // a tarefa do Gestta daquela obrigação/etapa: { estado, nome, meta, concl, resp } ou null
+    tarefa: (modCod, id, cnpj, comp, chave) => { const k = cad14((id && cadVinc(modCod, id)) || cnpj); if (!k || gtTarefasOk()) return null; const t = gtTarefasIdx(gtModCod(modCod)).get(k + '|' + comp + '|' + chave); return t ? { estado: t.estado, nome: t.nome, meta: t.meta, concl: t.concl, resp: t.resp } : null; },
+    tarefasEmpresa: (modCod, id, cnpj) => { const k = cad14((id && cadVinc(modCod, id)) || cnpj); return k && !gtTarefasOk() ? gtTarefasMod(gtModCod(modCod)).filter(t => t.k === k).map(t => ({ ...t })) : []; },
+    // por responsável (a régua da aba Equipe): abertas, atrasadas, concluídas no prazo e com atraso, da competência (ou de todas)
+    tarefasEquipe: (modCod, comp) => { if (gtTarefasOk()) return null; const m = new Map(); gtTarefasMod(gtModCod(modCod)).forEach(t => { if (comp && t.comp !== comp) return; const nome = t.resp || 'Sem responsável', x = m.get(nome) || { nome, abertas: 0, atrasadas: 0, feitas: 0, atraso: 0, total: 0 }; x.total++; if (t.estado === 'feita') x.feitas++; else if (t.estado === 'feita-atraso') x.atraso++; else if (t.estado === 'atrasada' || t.estado === 'multa') x.atrasadas++; else x.abertas++; m.set(nome, x); }); return [...m.values()].sort((a, b) => b.atrasadas - a.atrasadas || ptCmp(a.nome, b.nome)); },
+    naoReconhecidas: (modCod) => { const m = new Map(); gtTarefasMod(gtModCod(modCod)).forEach(t => { if (t.chave) return; const x = m.get(norm(t.nome)) || { nome: t.nome, n: 0 }; x.n++; m.set(norm(t.nome), x); }); return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 200); },
+    desfazerMarca: gtDesfazerMarca,
+    enviosErro: (modCod, id, cnpj) => { const k = cad14((id && cadVinc(modCod, id)) || cnpj); return k ? gtEnviosErro(gtModCod(modCod), k) : []; },
+    certificado: (modCod, id, cnpj) => gtCertificado(cad14((id && cadVinc(modCod, id)) || cnpj)),
+    marcarAgora: () => gtMarcarRodar(true), marcaUltima: () => gtMarca.ultima,
+    // Hub 326: quem do cliente recebe cada setor no Gestta (nome e e-mail), para o Portal; null enquanto a lista não chegou
+    contatosGestta: (modCod, id, cnpj) => { if (!state.gtMan['gestta-contatos']) return null; gtLer('gestta-contatos'); const k = cad14((id && cadVinc(modCod, id)) || cnpj); return k ? (gtContatos().get(k) || []).map(x => ({ ...x })) : []; },
+    contatosGesttaMotivo: () => state.gtMan['gestta-contatos'] ? gtManMotivo('gestta-contatos', 'A lista de contatos') : 'A lista de contatos ainda não chegou do Gestta (extensão 0.88.0 ou mais nova)'
+  });
+  // Para a Entrada de dados: as chaves de cada módulo, as tarefas que ainda não viram obrigação/etapa e a marcação
+  const GT_CHAVES = { fiscal: { pgdas: 'PGDAS-D (DAS)', dctfweb: 'DCTFWeb', efdicms: 'EFD ICMS/IPI', efdcontrib: 'EFD-Contribuições', reinf: 'EFD-Reinf', destda: 'DeSTDA', defis: 'DEFIS', icms: 'ICMS', iss: 'ISS', piscofins: 'PIS/COFINS', irpj: 'IRPJ/CSLL' },
+    contabil: { fin: 'Financeiro', folha: 'Lançamento de folha', depr: 'Depreciação', fisc: 'Conferência fiscal', imp: 'Lançamento dos impostos', conc: 'Conciliação' } };
+  Object.assign(gtApi, {
+    chavesTarefa: () => JSON.parse(JSON.stringify(GT_CHAVES)),
+    tarefasMapa: (mod) => { const m = new Map(); gtTarefasMod(mod).forEach(t => { const x = m.get(norm(t.nome)) || { nome: t.nome, n: 0, chave: t.chave }; x.n++; m.set(norm(t.nome), x); }); return [...m.values()].sort((a, b) => (a.chave ? 1 : 0) - (b.chave ? 1 : 0) || b.n - a.n).slice(0, 300); },
+    tarefasMotivo: () => gtTarefasOk(),
+    marcar: () => ({ ligada: state.gtCfg.marcar !== false, ultima: gtMarca.ultima, rodando: gtMarca.rodando }),
+    marcarAgora: () => gtMarcarRodar(true)
+  });
+  // ===== Gestta como referência absoluta (Hub 317, Josué 06/11/2026) =====
+  // "O cadastro de analistas também precisa ser único e compartilhado para os módulos, e a referência absoluta é o que chega do Gestta.
+  // A empresa só deve ser considerada nos módulos se possuir tarefa ativa no Gestta. Todo analista ou empresa que não tiver em atividade
+  // no Gestta deve ser descartado de tudo." Decidido: tarefa no mês atual ou anterior; ESCONDER (reversível, nada é apagado; volta sozinho
+  // se voltar a ter atividade); analista inativo sai das carteiras e listas (a empresa fica sem analista até o Gestta dizer quem atende;
+  // o valor gravado não é apagado). Trava: sem a lista do Gestta (ou incompleta, ou com mais de 72 h) nada é escondido.
+  const GT_VALIDO_H = 72;
+  function gtManMotivo(t, rot) {
+    const m = state.gtMan[t];
+    if (!m) return rot + ' ainda não chegou do Gestta';
+    if (m.cortado) return rot + ' veio incompleta no último envio';
+    if (Date.now() - (Number(m.recebidoEm) || 0) > GT_VALIDO_H * 3600e3) return rot + ' tem mais de ' + GT_VALIDO_H + ' horas';
+    if (!gtCarregado(t)) { gtLer(t); return 'carregando'; }
+    if (!gtLer(t).length) return rot + ' veio vazia';
+    return '';
+  }
+  const gtModsDeSetores = (txt) => [...new Set(String(txt || '').split('|').map(s => gtSetorMod(s.trim())).filter(Boolean))];
+  function gtAtivo() {
+    return gtMemo('ativo', () => {
+      const r = { empresas: null, analistas: null, motivoEmp: gtManMotivo('gestta-empresas-ativas', 'A lista de empresas em atividade'), motivoAna: gtManMotivo('gestta-equipe', 'A equipe') };
+      if (!r.motivoEmp) {
+        const cnpjs = new Set(), nomes = new Set(), raizes = new Set();
+        gtLer('gestta-empresas-ativas').forEach(x => { const c = cnpjClean(x['CNPJ']); if (c) { cnpjs.add(c); if (c.length === 14) raizes.add(c.slice(0, 8)); } const n = cadNomeKey(x['Cliente']); if (n) nomes.add(n); });
+        r.empresas = { cnpjs, nomes, raizes, nomesL: [...nomes].map(n => ' ' + n + ' '), n: Math.max(cnpjs.size, nomes.size), em: Number(state.gtMan['gestta-empresas-ativas'].recebidoEm) || 0, memo: new Map() };
+      }
+      if (!r.motivoAna) {
+        const lista = [], porNome = new Map();
+        // Hub 322 (Josué, 06/11/2026: "a Thyara, analista do Contábil, sumiu"): no Gestta há analistas ativas com o campo Setores vazio;
+        // o setor delas vem da cartela (onde são responsáveis por clientes) e, se já lidas, das tarefas do mês.
+        const daCartela = new Map(), soma = (nome, setor) => { const k = norm(String(nome || '').trim()), s = String(setor || '').trim(); if (!k || !s) return; if (!daCartela.has(k)) daCartela.set(k, new Set()); daCartela.get(k).add(s); };
+        gtLer('gestta-cartela').forEach(r => soma(r['Responsável'], r['Setor']));
+        if (state.gtMan['gestta-tarefas'] && gtCarregado('gestta-tarefas')) gtLer('gestta-tarefas').forEach(r => soma(r['Responsável'], r['Setor']));
+        // Hub 330 (Josué, 10/11/2026: "tem gente que está como analista do DP mas na prática não é; deve aparecer só quem tem tarefas
+        // ativas do DP em seu nome"): com a lista de tarefas válida (inteira e recente), o módulo de cada pessoa vem só das tarefas dela
+        // no mês atual e no anterior (setor → módulo). Setor no cadastro do Gestta ou na cartela não basta. Sem tarefas válidas, o de antes.
+        const tarefasOk = !gtManMotivo('gestta-tarefas', 'A lista de tarefas'), porTarefa = new Map();
+        if (tarefasOk) gtLer('gestta-tarefas');
+        const usaTarefas = tarefasOk && gtCarregado('gestta-tarefas');
+        if (usaTarefas) gtLer('gestta-tarefas').forEach(t => { const k = norm(String(t['Responsável'] || '').trim()), m = gtSetorMod(t['Setor']); if (!k || !m) return; if (!porTarefa.has(k)) porTarefa.set(k, new Set()); porTarefa.get(k).add(m); });
+        r.modsPorTarefa = usaTarefas;
+        gtLer('gestta-equipe').forEach(x => { if (x['Ativo'] !== 'sim') return; const nome = String(x['Nome'] || '').trim(); if (!nome || porNome.has(norm(nome))) return; const extra = [...(daCartela.get(norm(nome)) || [])]; const setores = [...new Set([...String(x['Setores'] || '').split('|').map(s => s.trim()).filter(Boolean), ...extra])]; const mods = usaTarefas ? [...(porTarefa.get(norm(nome)) || [])] : [...new Set([...gtModsDeSetores(x['Setores']), ...extra.map(s => gtSetorMod(s)).filter(Boolean)])]; const it = { nome, papel: String(x['Papel'] || ''), setores, mods }; lista.push(it); porNome.set(norm(nome), it); });
+        lista.sort((a, b) => ptCmp(a.nome, b.nome));
+        r.analistas = lista.length ? { lista, porNome } : null;
+        if (!lista.length) r.motivoAna = 'A equipe do Gestta não tem ninguém ativo';
+      }
+      return r;
+    });
+  }
+  // Empresa fora: sem tarefa no mês atual nem no anterior. Empresas do escritório nunca vão ao Hub pelo Gestta, então não são julgadas aqui.
+  // Hub 323 (Josué, 06/11/2026: "várias empresas sumiram do módulo Departamento Pessoal"): só esconde quando dá para afirmar que não há tarefa.
+  // Fica: CNPJ igual; mesma raiz de CNPJ (matriz no Gestta, filial no Hub, ou o contrário); ou nome igual ou contido (≥ 2 palavras), que
+  // cobre empresa sem CNPJ no Hub, CNPJ diferente nos dois cadastros e cliente do Gestta sem CNPJ (CPF, empregador doméstico).
+  function gtMotivoSemFolha(cnpj, nome) {
+    const a = gtAtivo().empresas; if (!a) return '';
+    if (ehEscritorioProprio(nome)) return '';
+    const k = cnpjClean(cnpj);
+    if ((k.length === 14 || k.length === 11) && a.cnpjs.has(k)) return '';
+    if (k.length === 14 && a.raizes.has(k.slice(0, 8))) return '';
+    const n = cadNomeKey(String(nome || '').replace(/\s*\|\s*[\d-]+\s*$/, ''));
+    if (n) {
+      let ok = a.memo.get(n);
+      if (ok === undefined) { const nn = ' ' + n + ' ', duas = n.split(' ').length >= 2; ok = a.nomes.has(n) || (duas && a.nomesL.some(x => x.includes(nn) || (x.trim().split(' ').length >= 2 && nn.includes(x)))); a.memo.set(n, ok); }
+      if (ok) return '';
+    }
+    return k.length === 14 ? 'CNPJ sem tarefa no Gestta' : k.length === 11 ? 'CPF sem tarefa no Gestta' : n ? 'sem CNPJ e o nome não está no Gestta' : 'sem CNPJ nem nome';
+  }
+  // Hub 329 (Josué, 10/11/2026: "retire as empresas sem tarefa mesmo que tenha empregado ativo", "isso deve valer para o módulo pessoal também"):
+  // a folha ativa não segura mais a empresa (era a exceção do Hub 323); ficam só os casamentos por CNPJ, raiz e nome.
+  const gtMotivoFora = (cnpj, nome) => gtMotivoSemFolha(cnpj, nome);
+  const gtEmpresaFora = (cnpj, nome) => !!gtMotivoFora(cnpj, nome);
+  // Nome do Gestta da pessoa (o cadastro único de analistas), ou '' se ela não está ativa no Gestta. Sem a equipe do Gestta, não decide.
+  function gtAnalistaDe(nome) {
+    const s = String(nome || '').trim(); if (!s) return '';
+    const a = gtAtivo().analistas; if (!a) return s;
+    const ex = a.porNome.get(norm(s)); if (ex) return ex.nome;
+    for (const g of Object.keys(state.gtCfg.analistas)) if (norm(state.gtCfg.analistas[g]) === norm(s) && a.porNome.has(g)) return a.porNome.get(g).nome;   // ligado à mão em "Analistas do Gestta"
+    return gtCasarNome(s, a.lista.map(x => x.nome), state.gtMods ? state.gtMods.func.map(f => f.nome) : null);
+  }
+  const gtAnalistaAtivo = (nome) => !gtAtivo().analistas || !!gtAnalistaDe(nome);
+  const gtAnalistasMod = (mod) => { const a = gtAtivo().analistas; return a ? a.lista.filter(x => !mod || x.mods.includes(mod)).map(x => x.nome) : null; };
+  // DP: a lista inteira fica em state.dpTodas; state.dpEmpresas é a que as telas usam (sem as empresas fora do Gestta e sem analista inativo).
+  // O nome escondido volta ao gravar (dpDbStore.saveOne), para nada ser apagado sem decisão.
+  function gtFiltrarDp(lista) {
+    const a = gtAtivo();
+    if (!a.empresas && !a.analistas) return lista;
+    return lista.filter(e => !gtEmpresaFora(e.cnpj, e.nome)).map(e => {
+      if (!a.analistas) return e;
+      const r = e.responsavel && !gtAnalistaAtivo(e.responsavel), v = e.reserva && !gtAnalistaAtivo(e.reserva);
+      if (!r && !v) return e;
+      const o = { ...e }; if (r) { o._respOculto = e.responsavel; o.responsavel = ''; } if (v) { o._resOculto = e.reserva; o.reserva = ''; } return o;
+    });
+  }
+  const gtSemOculto = (item) => {
+    if (!item || typeof item !== 'object' || !('_respOculto' in item || '_resOculto' in item)) return item;
+    const o = { ...item };
+    if ('_respOculto' in o) { if (!o.responsavel) o.responsavel = o._respOculto; delete o._respOculto; }
+    if ('_resOculto' in o) { if (!o.reserva) o.reserva = o._resOculto; delete o._resOculto; }
+    return o;
+  };
+  { const s0 = dpDbStore.saveOne.bind(dpDbStore); dpDbStore.saveOne = (item) => s0(gtSemOculto(item)); }
+  state.dpTodas = null;
+  let gtAssin = '';
+  // Chamado quando o Gestta muda: refiltra o DP e avisa os módulos (só se o que está em atividade mudou).
+  function gtAtivoMudou() {
+    const a = gtAtivo();
+    const assin = (a.empresas ? a.empresas.n + ':' + a.empresas.em : '-') + '|' + (a.analistas ? a.analistas.lista.map(x => x.nome + '/' + x.mods.join(',')).join(';') : '-') + '|' + JSON.stringify(state.gtCfg.analistas) + '|' + JSON.stringify(state.gtCfg.setores);
+    if (assin === gtAssin) return;
+    gtAssin = assin; ovVer++;
+    if (state.dpTodas) { state.dpEmpresas = gtFiltrarDp(state.dpTodas); try { refreshAll(); } catch (e) {} }
+    cadOuvintes.forEach(cb => { try { cb(); } catch (e) {} });
+    try { ovAvisar(); } catch (e) {}
+  }
+  // CNPJ do cliente do Onvio pelo código, nos conjuntos crus (ovClientes já tira os que estão fora).
+  const ovCnpjCru = () => ovMemo('cnpjCru', () => { const m = new Map(); ['clientes-cnd', 'clientes-nfe'].forEach(t => ovLer(t).forEach(r => { const c = String(r['Código'] || '').trim(); if (c && !m.has(c) && r['CNPJ ou CPF']) m.set(c, r['CNPJ ou CPF']); })); return m; });
+  const ovGrupoFora = (g) => gtEmpresaFora(g.cod ? ovCnpjCru().get(String(g.cod)) || '' : '', g.cli);
+  // Para a Entrada de dados: o que o Gestta deixou de fora agora, em cada módulo.
+  function gtReferencia() {
+    const a = gtAtivo(), M = state.gtMods;
+    const out = { empresas: { ok: !!a.empresas, motivo: a.motivoEmp, n: a.empresas ? a.empresas.n : 0 }, analistas: { ok: !!a.analistas, motivo: a.motivoAna, lista: a.analistas ? a.analistas.lista.map(x => ({ nome: x.nome, setores: x.setores, mods: x.mods })) : [] }, fora: {}, analistasFora: [] };
+    const nomesHub = new Map(), poe = (n, mod) => { const s = String(n || '').trim(); if (!s) return; const k = norm(s); const x = nomesHub.get(k) || { nome: s, mods: new Set() }; x.mods.add(mod); nomesHub.set(k, x); };
+    const todasDp = state.dpTodas || state.dpEmpresas;
+    const comMotivo = (nome, cnpj) => { const m = gtMotivoFora(cnpj, nome); return m ? nome + ' · ' + (cnpj ? fmtCnpj(cnpj) + ' · ' : '') + m : ''; };
+    out.fora.dp = a.empresas ? todasDp.map(e => comMotivo(e.nome, e.cnpj)).filter(Boolean) : [];
+    todasDp.forEach(e => { poe(e._respOculto || e.responsavel, 'DP'); poe(e._resOculto || e.reserva, 'DP'); });
+    (state.dpEquipe || []).forEach(n => poe(n, 'DP'));
+    if (M) {
+      const mapa = (m) => [...m.values()];
+      out.fora.contabil = a.empresas ? mapa(M.ctb).map(e => comMotivo(e.nome, cadVinc('ctb', e.id) || e.cnpj)).filter(Boolean) : [];
+      out.fora.fiscal = a.empresas ? mapa(M.fis).map(e => comMotivo(e.nome, cadVinc('fis', e.id) || e.cnpj)).filter(Boolean) : [];
+      out.fora.portal = a.empresas ? M.portal.map(p => comMotivo(p.nome, cadVinc('portal', p.id) || p.cadId || p.cnpj)).filter(Boolean) : [];
+      mapa(M.ctb).forEach(e => { poe(e.analista, 'Contábil'); poe(e.apoio, 'Contábil'); });
+      mapa(M.fis).forEach(e => poe(e.analista, 'Fiscal'));
+      M.func.forEach(f => poe(f.nome, 'Portal'));
+    }
+    if (a.analistas) nomesHub.forEach(x => { if (!gtAnalistaDe(x.nome)) out.analistasFora.push({ nome: x.nome, mods: [...x.mods] }); });
+    out.analistasFora.sort((p, q) => ptCmp(p.nome, q.nome));
+    Object.keys(out.fora).forEach(k => out.fora[k].sort(ptCmp));
+    return out;
+  }
+  // === fim do bloco Gestta · cadastros ===
 
   function renderCartela() {
     const modo = state.dpCtModo, ro = state.readOnly;
@@ -8176,6 +9111,11 @@
     { path:'cardapio_dias', app:'Cardápio' },
     { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' },
     { path:'ing_dados', app:'Hub' }, { path:'ing_partes', app:'Hub' }, { path:'ing_lotes', app:'Hub' }, { path:'dp_ov_ignorar', app:'Hub' },
+    // Hub 320: as coleções que não eram medidas (o total ficava abaixo do real e o banco enchia sem aviso)
+    { path:'gt_hist', app:'Hub' }, { path:'gt_ignorar', app:'Hub' }, { path:'gt_config', app:'Hub' }, { path:'ing_reservas', app:'Hub' }, { path:'ing_auto', app:'Hub' }, { path:'ing_config', app:'Hub' },
+    { path:'cad_trocas', app:'Hub' }, { path:'cad_excluidas', app:'Hub' }, { path:'auth_usuarios', app:'Hub' }, { path:'auth_logins', app:'Hub' }, { path:'auth_log', app:'Hub' },
+    { path:'hub_log', app:'Hub' }, { path:'hub_erros', app:'Hub' }, { path:'hub_mural', app:'Hub' }, { path:'hub_rotinas', app:'Hub' }, { path:'hub_lidos', app:'Hub' }, { path:'hub_restauro', app:'Hub' },
+    { path:'ctb_lemb', app:'Contábil' }, { path:'tax_config', app:'Assistente' }, { path:'tax_deptos', app:'Assistente' }, { path:'tax_ajuda', app:'Assistente' },
   ];
   const USO_SEG = /^[A-Za-z0-9_\-.~:@+]{1,200}$/;
   const usoCaminhoOk = (p) => { const s = String(p).split('/'); return s.length % 2 === 1 && s.length <= 15 && s.every(x => USO_SEG.test(x) && x !== '.' && x !== '..'); };
@@ -8420,7 +9360,7 @@
     });
   }
   // ---------- registro de alterações: quem gravou o quê (um documento por dia em hub_log, 30 dias) ----------
-  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|ing_|dp_ov_ignorar\/|dp_config\/(uso_banco|importacoes)$)/;
+  const LOG_PULAR = /^(data\/users\/|hub_|tax_|auth_|ing_|gt_|dp_ov_ignorar\/|dp_config\/(uso_banco|importacoes)$)/;   // gt_: histórico e decisões do Gestta (Hub 321)
   const LOG_DP = { onvio: 'as listas e vínculos do Onvio', equipe: 'a equipe de analistas', prazos_gerais: 'os prazos gerais', cobertura: 'ausências e cobertura', sindicatos: 'os sindicatos', ccts: 'as convenções', tipos_processo: 'os tipos de processo' };
   const LOG_CAMPOS = { responsavel: 'responsável', historico: 'histórico', funcionarios: 'funcionários', lembretes: 'lembretes', prazos: 'prazos', estabelecimentos: 'estabelecimentos', situacao: 'situação', reserva: 'reserva' };
   let logFila = Promise.resolve(), logRecentes = {}, logPodou = false, logRaw = null;
@@ -8500,6 +9440,9 @@
     undoFab();
   }
   function undoGravar(path, k, ref, a, chamar) {
+    // Hub 321: a aplicação automática (Onvio e Gestta) não cria ponto de restauração: cada aplicação copiava o registro inteiro
+    // (uma carteira do Contábil ou do Fiscal tem até 60 KB) para hub_restauro, e milhares numa manhã encheram o banco.
+    if (state.autoAplicando > 0) return chamar();
     const agora = Date.now(), rec = undoJanela[path];
     if (agora < undoLoteAte) return chamar();
     let entrada = null;
@@ -8523,12 +9466,34 @@
     });
   }
   // Ponto de restauração compartilhado (hub_restauro): é o que permite ao administrador desfazer o que outra pessoa gravou.
+  // Hub 321: no máximo RESTAURO_MAX pontos e nenhum com mais de RESTAURO_DIAS dias (antes, 7 dias e só quando o administrador
+  // abria o Painel: 2.890 pontos e 78 MB encheram o banco). Roda 20 s depois de alguém da coordenação abrir o Hub, uma vez por sessão.
+  const RESTAURO_MAX = 150, RESTAURO_DIAS = 3;
+  let restauroPodando = false;
+  async function restauroPodar() {
+    if (restauroPodando || !logRaw || state.readOnly || state.semEscrita || !temCoord()) return { ok: false, apagados: 0 };
+    restauroPodando = true; let apagados = 0;
+    const pausa = (ms) => new Promise(r => setTimeout(r, ms));
+    try {
+      const snap = await logRaw.collection('hub_restauro').get();
+      const docs = (snap.docs || []).map(d => ({ id: d.id, em: Number((d.data() || {}).em) || 0 })).sort((x, y) => y.em - x.em);
+      const limite = Date.now() - RESTAURO_DIAS * 864e5, sai = docs.filter((d, i) => i >= RESTAURO_MAX || d.em < limite);
+      for (const d of sai) {
+        for (let t = 0; t < 3; t++) { try { await logRaw.doc('hub_restauro/' + d.id).delete(); apagados++; break; } catch (e) { await pausa(e && e.code === 'resource_exhausted' ? 3000 : 600); } }
+        if (apagados % 40 === 0) await pausa(400);
+      }
+    } catch (e) { return { ok: false, apagados, erro: (e && e.message) || 'erro' }; }
+    finally { restauroPodando = false; }
+    if (apagados) toast(`Pontos de restauração antigos apagados: ${apagados} documento(s) liberado(s) no banco.`);
+    return { ok: true, apagados };
+  }
+  { let n = 0; const tenta = () => { if (logRaw && AUTH() && AUTH().usuario && AUTH().usuario()) restauroPodar(); else if (n++ < 40) setTimeout(tenta, 3000); }; setTimeout(tenta, 20000); }
   function undoPublica(e) {
     try {
       if (!logRaw || !e || !e.id) return;
       const u = AUTH()?.usuario(), base = { path: e.path, em: e.em, u: u?.nome || 'Alguém', uid: u?.id || '', m: e.m, t: e.t, post: e.post, pronto: !!e.pronto, desfeito: false };
       const antes = e.antes == null ? null : JSON.stringify(e.antes);
-      if (antes && antes.length > 150000) { logRaw.doc('hub_restauro/' + e.id).set({ ...base, semAntes: true }).catch(() => {}); return; }
+      if (antes && antes.length > 60000) { logRaw.doc('hub_restauro/' + e.id).set({ ...base, semAntes: true }).catch(() => {}); return; }
       logRaw.doc('hub_restauro/' + e.id).set({ ...base, antes, criou: e.antes == null }).catch(() => {});
     } catch {}
   }
@@ -8627,14 +9592,14 @@
   // Só esta página tem o banco do Hub. A extensão (via um script no claude.ai) entrega aqui um lote por postMessage;
   // a página confere o código de pareamento, valida o formato e grava em ing_lotes/<fonte>~<tipo> (um documento por fonte,
   // sempre o mais recente). Cada módulo lê de lá. O Hub avisa "ola" a cada 5 s para a ponte saber que há quem receba.
-  const ING_FONTES = { onvio: ['solicitacoes'] };
+  const ING_FONTES = { onvio: ['solicitacoes'], gestta: [] };       // Hub 315 (Josué, 05/11/2026): o Gestta chega pela extensão, só em conjuntos completos (partes)
   const ING_MAX = 150000;
   // Dados completos em partes (protocolo 2, extensão 0.52+): um MANIFESTO em ing_dados/<fonte>~<tipo> (colunas, contagens,
   // categoria, de qual "slot" ler) e as PARTES em ing_partes/<fonte>~<tipo>~<slot><n> (tabela em texto, tab entre colunas,
   // \n entre linhas). Duas posições (a/b) alternam: a nova remessa é escrita na posição livre e só depois o manifesto passa
   // a apontar para ela, então quem lê nunca vê uma remessa pela metade. Categorias: listas (sem dados pessoais), pessoais
   // (CPF, salário, nomes, textos), clientes, escritorio, documentos, noticias.
-  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise'];
+  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas'];      // tarefas, cadastros e alertas: do Gestta (Hub 315)
   const ING_PARTES_MAX = 80;
   const ing = { cfg: null, criando: false, ciclos: {} };
   const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
@@ -8731,7 +9696,7 @@
   }
   // Só a extensão mais recente entrega dados (Josué, 04/11/2026): o Hub exige pelo menos ING_VERSAO_MIN e, acima disso, a maior versão que já
   // recebeu (ing_config/cfg.versaoExtMax). Quem atualiza primeiro sobe a régua para todos; versão antiga recebe 'versao-antiga' e nada é gravado.
-  const ING_VERSAO_MIN = '0.70.4';
+  const ING_VERSAO_MIN = '0.88.0';         // Hub 326: os contatos do cliente por setor chegam a partir da 0.88.0 (antes: 0.86.0, Hub 325; 0.79.0, Hub 315)
   const verNum = (v) => String(v || '').split('.').map(x => parseInt(x, 10) || 0);
   const verCmp = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length, 3); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; };
   const ingVersaoExigida = () => { const m = ing.cfg && ing.cfg.versaoExtMax; return m && /^\d+(\.\d+){0,3}$/.test(m) && verCmp(m, ING_VERSAO_MIN) > 0 ? m : ING_VERSAO_MIN; };
@@ -8804,6 +9769,7 @@
     if (state.dpNivel === 'analista' && !state.dpCarteira) state.dpCarteira = AUTH().analista('dp') || '';
     ingIniciar();
     ovIniciar();
+    gtIniciar();
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {
@@ -8817,7 +9783,8 @@
     db.doc(`${CAD_EXC}/_idx`).onSnapshot((snap) => { const d = snap && snap.exists !== false && snap.data ? (snap.data() || {}) : {}; state.cadExc = d.lista || {}; ovVer++; cadAchata(); ovAposCarga(); }, () => {});
     db.doc(`${CAD_BKP}/_meta`).onSnapshot((snap) => { state.cadBkp = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
     db.collection('dp_empresas').onSnapshot((snap) => {
-      state.dpEmpresas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i)).filter(e => !ehEscritorioProprio(e.nome));
+      state.dpTodas = snap.docs.map((d,i) => normalizeDpEmpresa({ ...d.data(), id:d.id }, i)).filter(e => !ehEscritorioProprio(e.nome));
+      state.dpEmpresas = gtFiltrarDp(state.dpTodas);          // Hub 317: sem as empresas fora do Gestta e sem analista inativo
       state.dpLoaded = true;
       refreshAll();
       refreshOpenDetail();
@@ -9267,7 +10234,7 @@
     abrirModulo: (k) => openModule(k),
     inicio: () => goHome(),
     quadros: () => $$('.portal-frame'),
-    api(k) { if (k === 'onvio') return ovApi; if (k === 'cadastro') return cadApi; if (!podeVerMod(k) && k !== 'pop') return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    api(k) { if (k === 'onvio') return ovApi; if (k === 'gestta') return gtApi; if (k === 'cadastro') return cadApi; if (!podeVerMod(k) && k !== 'pop') return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
     // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
     carregar(k) {
       if ((!podeVerMod(k) && k !== 'pop') || (k !== 'dp' && !FRAMES[k])) return Promise.resolve(null);   // POP Master é aberto a todos
