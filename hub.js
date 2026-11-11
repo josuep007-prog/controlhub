@@ -1672,7 +1672,7 @@
     if (todas.some(e => !e.responsavel)) grupos.push([SEM_RESP, 'Sem responsável']);
     const dadosC = grupos.map(([key, nome]) => {
       const es = todas.filter(e => respDe(e, key));
-      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
+      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + nAtivosEmp(e), 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
     }).sort((a, b) => b.n - a.n);
     const maxC = Math.max(1, ...dadosC.map(c => c.n));
     // Hub 344 (Josué, 11/11/2026: "deixe essa caixa horizontal"): caixa larga, uma coluna por analista
@@ -2948,7 +2948,7 @@
       const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [], qd = cnpjClean(q);
       const empHay = (e) => norm([e.nome, nomeCurto(e), e.cod, e.codigoDominio, e.cnpj].join(' ')) + ' ' + cnpjClean(e.cnpj);
       const empAch = emps.filter(e => palavras.every(w => empHay(e).includes(w)) || (qd.length >= 4 && /^\d+$/.test(qd) && cnpjClean(e.cnpj).includes(qd)))
-        .map(e => ({ e, at: e.funcionarios.filter(funcConta).length })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
+        .map(e => ({ e, at: nAtivosEmp(e) })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
       emps.forEach(e => { const ne = empHay(e); e.funcionarios.forEach(f => { const pes = funcNorm(f) + ' ' + norm(f.cargo || ''), hay = pes + ' ' + ne; if (palavras.every(w => hay.includes(w)) && palavras.some(w => pes.includes(w))) ach.push({ f, e }); }); });
       const lista = ach.map(x => ({ ...x, status: funcStatus(x.f) })).filter(x => passa(x.status, 0, state.dpFuncFiltro))
         .sort((a, b) => ptCmp(a.f.nome || '', b.f.nome || '') || byNome(a.e, b.e));
@@ -3020,7 +3020,7 @@
   // Planilhas das telas Empresas e Funcionários, com o mesmo visual dos relatórios (painel, gráficos, lista com filtro)
   // Planilhas das telas Empresas e Funcionários: Resumo (4 números + 2 gráficos) e Dados (só as colunas que se usam)
   function dpEmpresasSpec() {
-    const emps = visibleDpEmpresas(), at = (e) => e.funcionarios.filter(funcConta).length;
+    const emps = visibleDpEmpresas(), at = (e) => nAtivosEmp(e);
     const linhas = emps.map(e => [e.cod || '', nomeCurto(e), e.cnpj || '', e.tributacao || '', e.responsavel || '', e.situacao || 'Ativa', at(e)]);
     const totF = linhas.reduce((n, l) => n + l[6], 0), semResp = emps.filter(e => !e.responsavel).length, semTrib = emps.filter(e => !e.tributacao).length;
     const ls = emps.map(e => ({ e, r: e.responsavel || 'Sem responsável', n: at(e) }));
@@ -3766,7 +3766,26 @@
     const rascunho = s.cctId && state.dpCcts.find(x => x.id === s.cctId)?.status === 'rascunho';
     return { ...c, reg, total: emps.length, feitas: feitas.length, pend, rascunho, pendente: c.cobrando && !reg.semReajuste && !rascunho && pend.length > 0 };
   }
-  const nfEmp = (e) => e.funcionarios.filter(funcConta).length;
+  // Hub 346 (Josué, 11/11/2026: "a lista do Onvio não é confiável. vamos ter que usar a folha lida no portal de documentos como base"):
+  // o número de funcionários ativos de cada empresa sai da folha mensal mais recente lida do portal de documentos (Extrato Mensal com o
+  // quadro completo, dos últimos 2 meses): quem está nela, contando empregados, estagiários, pró-labore e RPA, cada pessoa uma vez. Sem essa
+  // folha, vale o cadastro do DP como antes. A folha aqui não passa pela trava da lista do Onvio (ovFolhaQuadro), justamente porque a lista
+  // do Onvio é a que não se confirma; a ligação cliente → empresa é a do código do cliente.
+  const folhaContagem = (e) => ovMemo('folhaN:' + e.id, () => {
+    let f = null; try { f = ovFolha().get(e.id); } catch (x) { return null; }
+    if (!f || !f.docs || !f.docs.size) return null;
+    const porMes = new Map();
+    f.docs.forEach(d => { if (!d.pessoas.length || !ovCalcMensal(d.calc)) return; porMes.set(d.comp, (porMes.get(d.comp) || []).concat(d.pessoas)); });
+    const meses = [...porMes.keys()].sort(), mes = meses[meses.length - 1]; if (!mes) return null;
+    const t = hoje(); if (mes < mesStr(new Date(t.getFullYear(), t.getMonth() - 2, 1))) return null;
+    const vistos = new Set(); let n = 0, contrib = 0;
+    porMes.get(mes).forEach(p => { const k = p.codigo ? 'c' + ovCodNum(p.codigo) : 'n' + ovChavePessoa(p.nome); if (k.length < 2 || vistos.has(k)) return; vistos.add(k); n++; if (p.contrib) contrib++; });
+    return { n, contrib, mes };
+  });
+  const folhaContagemSeg = (e) => { try { return folhaContagem(e); } catch (x) { return null; } };      // antes de a parte do Onvio carregar, sem folha
+  const nAtivosEmp = (e) => { const q = folhaContagemSeg(e); return q ? q.n : (e.funcionarios || []).filter(funcConta).length; };
+  const nAtivosFonte = (e) => { const q = folhaContagemSeg(e); return q ? `pela folha de ${ovMesCurto(q.mes)} (portal de documentos)${q.contrib ? `, ${q.contrib} de pró-labore/RPA` : ''}` : 'pelo cadastro do DP (sem folha mensal dos últimos 2 meses lida do portal de documentos)'; };
+  const nfEmp = (e) => nAtivosEmp(e);
 
   const SIND_FILTROS = [['', 'Todos'], ['pend', 'Reajuste pendente'], ['venc', 'CCT vencida ou vencendo'], ['semdb', 'Sem data-base'], ['semvig', 'Sem vigência'], ['vazio', 'Sem empresas']];
   function sindFiltra(s, emps) {
@@ -5645,7 +5664,7 @@
   function ctLinhas() {
     const q = state.dpCtQuery;
     const lista = ctBase().filter(ctNaCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, ctResp(e)], q));
-    const nf = (e) => e.funcionarios.filter(funcConta).length;
+    const nf = (e) => nAtivosEmp(e);
     const k = state.dpCtSort;
     const vazio = '￿';
     const cmp = k === 'resp' ? (a, b) => ptCmp(ctResp(a) || vazio, ctResp(b) || vazio) || byNome(a, b)
@@ -5654,7 +5673,7 @@
       : byNome;
     return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
   }
-  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0);
+  const nfAtivos = (es) => es.reduce((n, e) => n + nAtivosEmp(e), 0);
   const fmtYmdBR = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
   const fmtYmdDM = (s) => { const d = parseYmd(s); return d ? fmtDM(d) : s; };
 
@@ -9163,11 +9182,13 @@
     const mot = gtTarefasDpMotivo(), ps = mot ? null : gtAtivoSetor(true);
     const inat = (state.dpEmpresas || []).filter(e => e._sitMotivo), semTarefa = inat.filter(e => !/funcion/.test(e._sitMotivo)).length, semFunc = inat.length - semTarefa;
     box.hidden = false;
+    const porCad = ctBase().filter(e => !folhaContagemSeg(e)).length;
+    const legFunc = ' Funcionários: pela folha mensal mais recente lida do portal de documentos' + (porCad ? '; <b>' + porCad + '</b> empresa' + (porCad === 1 ? '' : 's') + ' sem essa folha conta' + (porCad === 1 ? '' : 'm') + ' pelo cadastro (marcadas com *).' : '.');
     if (mot === 'carregando') { box.className = 'ct-regra'; box.textContent = 'Conferindo as tarefas do Pessoal no Gestta…'; return; }
-    if (mot) { box.className = 'ct-regra aviso'; box.innerHTML = '<b>A regra das tarefas do Gestta não está valendo:</b> ' + escapeHtml(mot) + '. Até chegar uma lista nova (Entrada de dados › Atualizar o Hub), empresa sem tarefa do Pessoal continua contando como ativa' + (semFunc ? '; ' + semFunc + ' ficaram inativas por não ter funcionário ativo.' : '.'); return; }
+    if (mot) { box.className = 'ct-regra aviso'; box.innerHTML = '<b>A regra das tarefas do Gestta não está valendo:</b> ' + escapeHtml(mot) + '. Até chegar uma lista nova (Entrada de dados › Atualizar o Hub), empresa sem tarefa do Pessoal continua contando como ativa' + (semFunc ? '; ' + semFunc + ' ficaram inativas por não ter funcionário ativo.' : '.') + legFunc; return; }
     box.className = 'ct-regra';
     box.innerHTML = 'Contam como ativas só as empresas com tarefa do <b>Pessoal</b> no Gestta nas competências ' + escapeHtml((ps && ps._comps || []).join(' e ') || 'recentes') + ' e com funcionário ativo. ' +
-      (inat.length ? '<b>' + inat.length + '</b> empresa' + (inat.length === 1 ? '' : 's') + ' fora' + (semTarefa ? ' (' + semTarefa + ' sem tarefa do Pessoal' + (semFunc ? ', ' + semFunc + ' sem funcionário' : '') + ')' : ' (sem funcionário ativo)') + '; para ver, clique em <b>Incluir inativas</b>.' : 'Nenhuma empresa ficou de fora.');
+      (inat.length ? '<b>' + inat.length + '</b> empresa' + (inat.length === 1 ? '' : 's') + ' fora' + (semTarefa ? ' (' + semTarefa + ' sem tarefa do Pessoal' + (semFunc ? ', ' + semFunc + ' sem funcionário' : '') + ')' : ' (sem funcionário ativo)') + '; para ver, clique em <b>Incluir inativas</b>.' : 'Nenhuma empresa ficou de fora.') + legFunc;
   }
   function ctMudancas() {
     if (!state.dpCtSim) return [];
@@ -9248,7 +9269,7 @@
         <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${seloOv(e, ovMapa)}${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
         <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
-        <td class="num">${nf}</td>
+        <td class="num" title="${escapeHtml(nAtivosFonte(e))}">${nf}${folhaContagemSeg(e) ? '' : '<span class="ct-nf-cad" aria-label="pelo cadastro">*</span>'}</td>
         <td><select data-ct-resp class="${r ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(r)}</select>${mudou ? `<div class="ct-antes">antes: ${escapeHtml(e.responsavel || 'sem responsável')}</div>` : ''}</td>
         <td><select data-ct-reserva aria-label="Reserva de ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${optsRes(e.reserva, r)}</select></td>
         <td>${hoje_}</td>
@@ -9535,7 +9556,7 @@
   // ----- exportar e imprimir -----
   function ctDadosExport(todos) {
     const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => ptCmp(ctResp(a) || '￿', ctResp(b) || '￿') || byNome(a, b));
-    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(funcConta).length }; });
+    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: nAtivosEmp(e) }; });
   }
   function ctCsv(todos) {
     const rows = [['Analista','Reserva','Hoje com (cobertura)','Empresa','Código','CNPJ/CPF','Tributação','Situação','Funcionários ativos']];
