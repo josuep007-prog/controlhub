@@ -293,10 +293,16 @@ function fichaCadHTML(e){
   var t0 = null, C0 = cadC();
   if(C0 && C0.aoMudar) C0.aoMudar(function(){ clearTimeout(t0); t0 = setTimeout(function(){ try{ aplicarIdentidade(S.R.emp); renderTudo(); }catch(x){} }, 250); });
 })();
+// Cadastro de analistas: ao gravar, o código da pessoa vai ao lado do nome (analistaId, apoioId). Sem o cadastro à mão, fica o código que já estava.
+function anaCodigos(o){
+  var C = cadC(); if(!C || !C.analistaIdDe || !C.analistasCad || !C.analistasCad().length) return;
+  CAMPOS_ANALISTA.forEach(function(c){ o[c + "Id"] = o[c] ? (C.analistaIdDe(o[c]) || "") : ""; });
+}
 function semIdentidade(e, ant){
   var o = {}; Object.keys(e).forEach(function(k){ if(k !== "nomeBanco" && k !== "cadLigado" && k !== "cadRazao" && k !== "cadCnpj14" && k !== "foraGestta" && !/^_.+Oculto$/.test(k)) o[k] = e[k]; });
   CAMPOS_ANALISTA.forEach(function(c){ var oc = e["_" + c + "Oculto"] || (ant && ant["_" + c + "Oculto"]); if(oc && !o[c]) o[c] = oc; });     // Hub 317: o analista escondido (fora do Gestta) não é apagado ao salvar
   if(ant && ant.cadLigado){ o.nome = ant.nomeBanco; if(!cnpjDig(o.cnpj)) o.cnpj = ant.cnpj; e.nomeBanco = ant.nomeBanco; } else e.nomeBanco = e.nome;
+  anaCodigos(o);
   return o;
 }
 function salvarEmpresas(lista){
@@ -389,7 +395,7 @@ function normEmp(x, id){
     id: id || x.id, nome: t(x.nome, 160) || "Sem nome", cnpj: cnpjFmt(x.cnpj),
     regime: REG[x.regime] ? x.regime : "", ativ: ATIV[x.ativ] ? x.ativ : "",
     ie: t(x.ie, 30), im: t(x.im, 30), municipio: t(x.municipio, 60), uf: t(x.uf, 2).toUpperCase(),
-    analista: t(x.analista, 60), sit: x.sit === "inativa" ? "inativa" : "ativa", desde: comp(x.desde), ate: comp(x.ate),
+    analista: t(x.analista, 60), analistaId: t(x.analistaId, 60), sit: x.sit === "inativa" ? "inativa" : "ativa", desde: comp(x.desde), ate: comp(x.ate),
     naoAplica: Array.isArray(x.naoAplica) ? x.naoAplica.map(String).slice(0, 40) : [],
     obs: t(x.obs, 1500),
     hist: Array.isArray(x.hist) ? x.hist.slice(-40).filter(function(h){ return h && h.t; }).map(function(h){ return {d: t(h.d, 30), t: t(h.t, 200), u: t(h.u, 60)}; }) : [],

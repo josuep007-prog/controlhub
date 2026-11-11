@@ -312,6 +312,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     if(!(key in bruto)){ state[key] = lista; return; }
     bruto[key] = lista;
     aplicarGrupos();
+    agendarFiliais();
   }
   // Cadastro único do Hub: o nome e o CNPJ mostrados vêm de lá quando a empresa está ligada; o que está gravado aqui (nomeBanco) não é alterado.
   function cadC(){ try{ var P = window.parent; return P && P !== window && P.__cadastro && P.__cadastro.identidade ? P.__cadastro : null; }catch(x){ return null; } }
@@ -497,7 +498,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     // filiais: só o vínculo (as filiais de uma filial passam para a mesma matriz)
     var novas = fs.filter(function(f){ return f.matrizId !== m.id; });
     fs.forEach(function(f){
-      escritas.push(function(){ return col("empresas", f.id).update({matrizId:m.id, emFoco:false, vinculadaEm:f.vinculadaEm || new Date().toISOString()}); });
+      escritas.push(function(){ return col("empresas", f.id).update({matrizId:m.id, emFoco:false, vinculadaEm:f.vinculadaEm || new Date().toISOString(), desvinculadaEm:""}); });
       filiaisDe(f.id).forEach(function(x){ escritas.push(function(){ return col("empresas", x.id).update({matrizId:m.id}); }); });
     });
     // Primeiro grava tudo na matriz; só depois apaga o que era das filiais.
@@ -518,7 +519,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     var f = grupos.porId[filialId], m = f && grupos.porId[f.matrizId];
     if(!f || !dbRef) return;
     confirmar("Desvincular “" + f.nome + "” de “" + (m ? m.nome : "sua matriz") + "”? Ela volta a ser uma empresa separada, sem frentes nem contatos próprios (o que foi juntado continua na matriz).", function(){
-      dbRef.collection("empresas").doc(f.id).update({matrizId:""}).then(function(){
+      dbRef.collection("empresas").doc(f.id).update({matrizId:"", desvinculadaEm:new Date().toISOString()}).then(function(){
         registrarAtividade({tipo:"lote", texto:"Filial “" + f.nome + "” desvinculada de “" + (m ? m.nome : "") + "”"});
         mostrarToast("“" + f.nome + "” voltou a ser uma empresa separada.");
       });
@@ -529,6 +530,38 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     var ok = 0;
     return lista.reduce(function(p, g){ return p.then(function(){ return vincularGrupo(g.m.id, g.fs.map(function(f){ return f.id; }), true).then(function(n){ ok += n; }); }); }, Promise.resolve())
       .then(function(){ if(aoFim) aoFim(ok); });
+  }
+  // Hub 335 (Josué, 10/11/2026: "o módulo do Portal conta filiais e matriz como uma coisa só, com o nome da matriz"): as filiais soltas
+  // com a mesma raiz de CNPJ de uma matriz (0001) são juntadas a ela sozinhas, como no "Vincular todos" (contatos, frentes e etapas passam
+  // para a matriz). Só a coordenação, um navegador por vez (ing_auto/portalfil), nunca a filial que alguém desvinculou de propósito
+  // (desvinculadaEm) nem um grupo de matriz arquivada. O Hub (Gestta) já não cadastra filial à parte.
+  var autoFil = {feito:"", rodando:false, t:null};
+  function agendarFiliais(){ clearTimeout(autoFil.t); autoFil.t = setTimeout(ligarFiliaisSozinho, 3000); }
+  function vezFiliais(){
+    var A = authP(), eu = (A && A.usuario && A.usuario() && (A.usuario().id || A.usuario().nome)) || meuId || "x", agora = Date.now(), ref = dbRef.collection("ing_auto").doc("portalfil");
+    return ref.get().then(function(sn){
+      var v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      if(v && v.por !== eu && Number(v.ate) > agora) return false;
+      return ref.set({por:eu, ate:agora + 120000}).then(function(){ return ref.get(); }).then(function(sn2){ var w = sn2 && sn2.data ? sn2.data() : null; return !!w && w.por === eu; });
+    }).catch(function(){ return false; });
+  }
+  function ligarFiliaisSozinho(){
+    if(autoFil.rodando || !dbRef || !(chegouDoBanco.empresas && chegouDoBanco.setores && chegouDoBanco.contatos)) return;
+    var A = authP(); if(!A || !A.nivel || A.nivel("portal") !== "coord") return;
+    var gs = gruposSugeridos().map(function(g){ return {m:g.m, fs:g.fs.filter(function(f){ return !f.desvinculadaEm; })}; })
+      .filter(function(g){ return g.fs.length && !g.m.arquivada; });
+    if(!gs.length) return;
+    var chave = gs.map(function(g){ return g.m.id + ":" + g.fs.map(function(f){ return f.id; }).join(","); }).join("|");
+    if(chave === autoFil.feito) return;
+    autoFil.rodando = true;
+    vezFiliais().then(function(ok){
+      if(!ok){ autoFil.rodando = false; return; }
+      autoFil.feito = chave;
+      vincularVarios(gs, function(n){
+        autoFil.rodando = false;
+        if(n) mostrarToast(n === 1 ? "1 filial foi juntada à matriz (mesma raiz de CNPJ)." : n + " filiais foram juntadas às matrizes (mesma raiz de CNPJ).");
+      });
+    });
   }
   // Grupos que parecem matriz + filiais pela raiz do CNPJ (só sugestão: o vínculo é sempre confirmado).
   function gruposSugeridos(){

@@ -5195,6 +5195,184 @@
     const tot = Math.max(1, diffDays(fim, ini)), pos = Math.min(100, Math.max(0, diffDays(hoje(), ini) / tot * 100));
     return `<div class="cv-vig"><div class="cv-vig-bar"><i style="width:${pos}%"></i><b style="left:${pos}%"></b></div><div class="cv-vig-txt"><span>${fmtDM(ini)}/${String(ini.getFullYear()).slice(2)}</span><span>${fmtDM(fim)}/${String(fim.getFullYear()).slice(2)}</span></div></div>`;
   }
+  // ---------- Hub 347: Mediador do MTE em Convenções ----------
+  // A extensão 0.95.0 lê o Mediador (só dados públicos, numa aba do próprio site) e entrega em ing_dados/mediador~mediador-instrumentos (todos os
+  // instrumentos de cada sindicato) e ~mediador-clausulas (o texto da convenção vigente e dos aditivos dela). O resto abre na hora pela extensão.
+  const MED_TIPOS = ['mediador-instrumentos', 'mediador-clausulas'];
+  const MED_MOT = { 'sem-extensao': 'A extensão Control Onvio não respondeu neste Chrome (ela precisa estar instalada, conectada ao Hub e atualizada).', 'sem-resposta': 'A extensão não respondeu a tempo. Tente de novo.',
+    'sem-permissao-mediador': 'Falta permitir o Mediador na extensão: Configurações › Avançado › Control Hub › Mediador › Permitir o Mediador.', 'sem-sindicatos': 'Nenhum sindicato com CNPJ válido no cadastro.',
+    'sem-codigo': 'A extensão não está conectada ao Hub.', formato: 'A tela do Mediador mudou: a leitura parou para não trazer dado errado.', 'sem-aba-mediador': 'A extensão não conseguiu abrir o Mediador.',
+    recusado: 'Endereço fora do que a extensão pode ler.', solicitacao: 'Número de solicitação inválido.', grande: 'O PDF tem mais de 15 MB.', cancelado: 'A busca foi cancelada.', origem: 'Pedido recusado pela extensão.' };
+  const medMot = (m) => MED_MOT[m] || (m ? 'Não foi possível (' + m + ').' : 'Não foi possível.');
+  state.medMan = {}; state.medTab = {}; state.medIgn = []; state.medAberto = new Set(); state.medBusca = null;
+  let medCnpjsEnviados = '';
+  function medIniciar() {
+    MED_TIPOS.forEach(t => db.doc('ing_dados/mediador~' + t).onSnapshot((sn) => {
+      const v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      state.medMan[t] = v; if (v && (!state.medTab[t] || state.medTab[t].ciclo !== v.ciclo)) medCarregar(t);
+      medRender();
+    }, () => {}));
+    db.doc('med_config/cfg').onSnapshot((sn) => { const v = sn && sn.exists !== false && sn.data ? sn.data() : null; state.medIgn = Array.isArray(v && v.ignorar) ? v.ignorar.map(x => String(x).slice(0, 40)).slice(-500) : []; medRender(); }, () => {});
+    if (window.__hubEnvio) window.__hubEnvio.ouvir(() => { const m = ing.envio && ing.envio.mediador; const rod = !!(m && m.envio && m.envio.estado === 'buscando'); if (rod || state.medRodava) medRender(); state.medRodava = rod; });
+  }
+  async function medCarregar(tipo) {
+    const man = state.medMan[tipo]; if (!man || !db) return;
+    try {
+      const n = Math.min(Number(man.partes) || 0, ING_PARTES_MAX), textos = [];
+      for (let i = 0; i < n; i++) { const sn = await db.doc(`ing_partes/mediador~${tipo}~${man.slot}${i}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || d.ciclo !== man.ciclo) throw new Error('parte'); textos.push(d.tabela); }
+      state.medTab[tipo] = { ciclo: man.ciclo, linhas: gtParse(man.colunas, textos.join('\n')) };
+    } catch { state.medTab[tipo] = null; }
+    medRender();
+  }
+  const medLinhas = (t) => (state.medTab[t] && state.medTab[t].linhas) || [];
+  const medReg = (r) => String(r || '').toUpperCase().replace(/\s/g, '');
+  // os instrumentos, um por Nº da Solicitação (o mesmo pode aparecer pelo CNPJ dos dois sindicatos)
+  function medInstrumentos() {
+    const vistos = new Map();
+    medLinhas('mediador-instrumentos').forEach(l => {
+      const sol = l['Nº da Solicitação']; if (!sol) return;
+      const x = vistos.get(sol) || { sol, registro: l['Nº do Registro'], processo: l['Nº do Processo'], tipo: l['Tipo'], aditivo: /aditivo/i.test(l['Tipo'] || '') || l['Busca'] === 'termoAditivoConvecao',
+        vigIni: l['Vigência início'], vigFim: l['Vigência fim'], cnpjTrab: l['CNPJ Trabalhador'], trab: l['Trabalhador'], cnpjEmp: l['CNPJ Empregador'], emp: l['Empregador'], cnpjs: new Set() };
+      x.cnpjs.add(cnpjDig(l['CNPJ consultado'])); vistos.set(sol, x);
+    });
+    return [...vistos.values()];
+  }
+  function medTextos() {
+    const m = new Map();
+    medLinhas('mediador-clausulas').forEach(l => { const s = l['Nº da Solicitação']; if (!s) return; if (!m.has(s)) m.set(s, { clausulas: [], dataBase: '', anexos: [] }); const t = m.get(s);
+      t.clausulas.push({ grupo: l['Grupo'] || '', subgrupo: l['Subgrupo'] || '', titulo: l['Título'] || '', texto: String(l['Texto'] || '').replace(/ ¶ /g, '\n') });
+      if (l['Data-base']) t.dataBase = l['Data-base']; if (l['Anexos']) t.anexos = l['Anexos'].split(' ').filter(Boolean); });
+    return m;
+  }
+  const medSindDe = (cnpj) => state.dpSind.find(s => cnpjDig(s.cnpj) === cnpj);
+  // novo = registro que nenhuma convenção cadastrada tem, ainda em vigor ou começado nos últimos 18 meses, e não ignorado
+  function medNovos(ins) {
+    const regs = new Set(state.dpCcts.map(c => medReg(c.registro)).filter(Boolean)), ign = new Set(state.medIgn), dia = ymd(hoje());
+    const corte = ymd(new Date(hoje().getFullYear(), hoje().getMonth() - 18, 1));
+    return ins.filter(i => i.registro && !regs.has(medReg(i.registro)) && !ign.has(medReg(i.registro)) && ((i.vigFim && i.vigFim >= dia) || (i.vigIni && i.vigIni >= corte)))
+      .sort((a, b) => String(b.vigIni).localeCompare(String(a.vigIni)));
+  }
+  function medCnpjs() { return [...new Set(state.dpSind.map(s => cnpjDig(s.cnpj)).filter(d => d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8))))]; }
+  // a lista de CNPJs vai à extensão (para a busca semanal) quando ela se conecta e quando a lista muda
+  function medCnpjsAvisar(forca) {
+    const l = medCnpjs(), k = l.join(','); if (!l.length || (!forca && k === medCnpjsEnviados)) return;
+    medCnpjsEnviados = k; ingPedirMed('mediadorCnpjs', { cnpjs: l }).then(r => { if (!r || !r.ok) medCnpjsEnviados = ''; });
+  }
+  const medEstado = () => { try { return (ing.envio && ing.envio.mediador) || null; } catch { return null; } };
+  const medExt = () => { try { return !!(ing.ext && Date.now() - (ing.ext.em || 0) < 6 * 3600e3); } catch { return false; } };
+  const medVig = (i) => (i.vigIni || i.vigFim) ? `${i.vigIni ? fmtYmdBR(i.vigIni) : '?'} a ${i.vigFim ? fmtYmdBR(i.vigFim) : '?'}` : 'sem vigência';
+  function medItemHtml(i, novo, temTexto) {
+    const ro = state.readOnly, dia = ymd(hoje()), vale = i.vigIni && i.vigIni <= dia && (!i.vigFim || dia <= i.vigFim);
+    return `<li class="med-item${novo ? ' med-novo' : ''}"><span class="med-tp">${i.aditivo ? 'Aditivo' : 'Convenção'}</span><span class="med-info"><b>${escapeHtml(i.registro || i.sol)}</b><small>${escapeHtml(medVig(i))}${vale ? ' · em vigor' : ''} · ${escapeHtml(i.trab || '')}${i.emp ? ' × ' + escapeHtml(i.emp) : ''}</small></span>`
+      + `<span class="med-acoes"><button type="button" class="btn btn-sm" data-med-texto="${escapeHtml(i.sol)}">${temTexto ? 'Ver texto' : 'Buscar texto'}</button>`
+      + (novo && !ro ? `<button type="button" class="btn btn-sm btn-primary" data-med-cad="${escapeHtml(i.sol)}">Cadastrar</button><button type="button" class="btn btn-sm" data-med-ign="${escapeHtml(i.registro)}" title="Não mostrar mais como novo">Ignorar</button>` : '') + '</span></li>';
+  }
+  function medRender() {
+    const el = $('#cv-med'); if (!el || !state.dpSind || !state.medMan) return;
+    try { medCnpjsAvisar(false); } catch { /* o Hub ainda não terminou de montar a entrada de dados */ }
+    const cn = medCnpjs(), ins = medInstrumentos(), txt = medTextos(), m = medEstado(), env = m && m.envio, rodando = !!(env && env.estado === 'buscando'), ext = medExt();
+    const man = state.medMan['mediador-instrumentos'], novos = medNovos(ins);
+    let h = `<div class="med-top"><span class="med-tit">${ic('search')} Mediador do MTE</span><span class="med-st">`;
+    if (rodando) h += `Buscando: ${escapeHtml(env.etapa || '')} ${env.feito || 0}/${env.total || 0}`;
+    else if (man) h += `${ins.length} instrumento(s) de ${cn.length} sindicato(s) · lido em ${escapeHtml(fmtDMY(new Date(Number(man.recebidoEm) || Date.now())))}${man.cortado ? ' · <b class="med-aviso">incompleto</b>' : ''}`;
+    else h += cn.length ? `${cn.length} sindicato(s) com CNPJ. Ainda sem leitura do Mediador.` : 'Cadastre o CNPJ dos sindicatos para procurar as convenções no Mediador.';
+    h += '</span><span class="med-esp"></span>';
+    if (!state.readOnly && cn.length) h += `<button type="button" class="btn btn-sm${man ? '' : ' btn-primary'}" data-med-buscar${rodando ? ' disabled' : ''}${ext ? '' : ' title="Precisa da extensão Control Onvio neste Chrome"'}>${rodando ? 'Buscando…' : 'Buscar no Mediador'}</button>`;
+    h += '</div>';
+    if (env && !rodando && ['erro', 'parcial'].includes(env.estado) && env.terminouEm && (!man || Date.parse(env.terminouEm) > (Number(man.recebidoEm) || 0) - 60000))
+      h += `<p class="med-msg med-erro">${env.estado === 'parcial' ? `A última busca leu ${env.instrumentos} instrumento(s), mas ${env.erros} leitura(s) falharam.` : escapeHtml(medMot(env.motivo))}</p>`;
+    if (state.medBusca) h += `<p class="med-msg${state.medBusca.erro ? ' med-erro' : ''}">${escapeHtml(state.medBusca.txt)}</p>`;
+    if (novos.length) h += `<div class="med-sec"><h4>Novas no Mediador <span class="med-n">${novos.length}</span></h4><p class="med-dica">Registradas no Mediador e ainda sem convenção cadastrada aqui. Cadastrar abre o formulário já preenchido para você conferir.</p><ul class="med-lista">${novos.slice(0, 30).map(i => medItemHtml(i, true, txt.has(i.sol))).join('')}</ul>${novos.length > 30 ? `<p class="med-dica">e mais ${novos.length - 30}.</p>` : ''}</div>`;
+    if (ins.length) {
+      const porS = new Map(); ins.forEach(i => i.cnpjs.forEach(c => { if (!porS.has(c)) porS.set(c, []); porS.get(c).push(i); }));
+      const grupos = [...porS.entries()].map(([c, l]) => ({ c, s: medSindDe(c), l: l.sort((a, b) => String(b.vigIni).localeCompare(String(a.vigIni))) })).sort((a, b) => (a.s ? rotuloSind(a.s) : a.c).localeCompare(b.s ? rotuloSind(b.s) : b.c, 'pt-BR'));
+      h += `<details class="med-sec med-todos"${state.medAberto.size ? ' open' : ''}><summary><h4>Todos os instrumentos por sindicato <span class="med-n">${ins.length}</span></h4></summary>` + grupos.map(g => {
+        const ab = state.medAberto.has(g.c);
+        return `<div class="med-sind"><button type="button" class="med-sind-h" data-med-sind="${g.c}" aria-expanded="${ab}"><b>${escapeHtml(g.s ? rotuloSind(g.s) : fmtCnpj(g.c))}</b><small>${g.l.filter(i => !i.aditivo).length} convenção(ões) · ${g.l.filter(i => i.aditivo).length} aditivo(s)</small>${ic(ab ? 'left' : 'right', 'ic-sm')}</button>${ab ? `<ul class="med-lista">${g.l.map(i => medItemHtml(i, false, txt.has(i.sol))).join('')}</ul>` : ''}</div>`;
+      }).join('') + '</details>';
+    }
+    el.innerHTML = h;
+  }
+  async function medBuscar() {
+    const cn = medCnpjs(); if (!cn.length) return;
+    state.medBusca = { txt: 'Pedindo à extensão…' }; medRender();
+    const r = await ingPedirMed('mediador', { cnpjs: cn });
+    state.medBusca = r && r.ok ? { txt: r.jaRodando ? 'A extensão já está ocupada com uma busca ou um envio. Tente daqui a pouco.' : 'A extensão abriu o Mediador numa aba em segundo plano. Leva alguns minutos; pode continuar trabalhando.' } : { txt: medMot(r && r.motivo), erro: true };
+    medRender(); setTimeout(() => { state.medBusca = null; medRender(); }, 20000);
+  }
+  // o texto: o guardado no Hub ou, para os outros, pedido à extensão (lido na hora, não fica guardado)
+  let medDlg = null;
+  function medDialogo() {
+    if (medDlg) return medDlg;
+    medDlg = document.createElement('dialog'); medDlg.className = 'dlg dlg-lg med-dlg'; medDlg.id = 'dlg-med-texto';
+    medDlg.innerHTML = `<div class="dlg-head"><h2 id="med-dlg-tit">Texto</h2><button type="button" class="icon-btn dlg-close" data-med-fechar aria-label="Fechar">${ic('x')}</button></div><div class="dlg-body"><div class="med-dlg-bar"><input type="search" id="med-dlg-q" placeholder="Procurar no texto (piso, reajuste, vale…)" autocomplete="off"><span class="med-dlg-n" id="med-dlg-n"></span></div><div id="med-dlg-corpo" class="med-dlg-corpo"></div></div>`;
+    document.body.appendChild(medDlg);
+    $('#med-dlg-q', medDlg).addEventListener('input', medFiltrar);
+    medDlg.addEventListener('close', () => { const f = $('.med-pdf', medDlg); if (f && f.dataset.url) URL.revokeObjectURL(f.dataset.url); });
+    return medDlg;
+  }
+  function medFiltrar() {
+    const q = norm($('#med-dlg-q', medDlg).value.trim()); let n = 0;
+    $$('.med-cl', medDlg).forEach(c => { const v = !q || norm(c.textContent).includes(q); c.hidden = !v; if (v) n++; });
+    $$('.med-gr', medDlg).forEach(g => { g.hidden = !!q && !$$('.med-cl:not([hidden])', g).length; });
+    $('#med-dlg-n', medDlg).textContent = q ? `${n} cláusula(s)` : '';
+  }
+  function medTextoHtml(t) {
+    const grupos = []; t.clausulas.forEach(c => { let g = grupos[grupos.length - 1]; if (!g || g.nome !== c.grupo) { g = { nome: c.grupo, itens: [] }; grupos.push(g); } g.itens.push(c); });
+    return (t.dataBase ? `<p class="med-db">Data-base: <b>${escapeHtml(t.dataBase)}</b></p>` : '') + ((t.anexos || []).length ? `<p class="med-anx">${t.anexos.map((u, k) => `<button type="button" class="btn btn-sm" data-med-anexo="${escapeHtml(u)}">${ic('download')} Anexo (PDF)${t.anexos.length > 1 ? ' ' + (k + 1) : ''}</button>`).join(' ')}</p><div id="med-pdf-box"></div>` : '')
+      + grupos.map(g => `<section class="med-gr">${g.nome ? `<h3>${escapeHtml(g.nome)}</h3>` : ''}${g.itens.map(c => `<article class="med-cl">${c.subgrupo ? `<small>${escapeHtml(c.subgrupo)}</small>` : ''}${c.titulo ? `<h4>${escapeHtml(c.titulo)}</h4>` : ''}<p>${escapeHtml(c.texto)}</p></article>`).join('')}</section>`).join('');
+  }
+  async function medAbrirTexto(sol) {
+    const i = medInstrumentos().find(x => x.sol === sol), d = medDialogo(), corpo = $('#med-dlg-corpo', d);
+    $('#med-dlg-tit', d).textContent = `${i && i.aditivo ? 'Termo aditivo' : 'Convenção coletiva'} ${i ? i.registro || sol : sol}${i ? ' · ' + medVig(i) : ''}`;
+    $('#med-dlg-q', d).value = ''; $('#med-dlg-n', d).textContent = '';
+    if (!d.open) d.showModal();
+    const g = medTextos().get(sol);
+    if (g) { corpo.innerHTML = medTextoHtml(g); return; }
+    corpo.innerHTML = '<p class="med-msg">Buscando o texto no Mediador pela extensão… (ele não fica guardado no Hub)</p>';
+    const r = await ingPedirMed('mediadorTexto', { solicitacao: sol }, 120000), t = r && r.resp;
+    if (!d.open) return;
+    if (!r || !r.ok || !t || !Array.isArray(t.clausulas)) { corpo.innerHTML = `<p class="med-msg med-erro">${escapeHtml(medMot(r && r.motivo))}</p>`; return; }
+    corpo.innerHTML = medTextoHtml({ clausulas: t.clausulas.slice(0, 400).map(c => ({ grupo: String(c.grupo || ''), subgrupo: String(c.subgrupo || ''), titulo: String(c.titulo || ''), texto: String(c.texto || '') })), dataBase: String(t.dataBase || ''), anexos: Array.isArray(t.anexos) ? t.anexos.map(String).slice(0, 5) : [] });
+  }
+  async function medAbrirAnexo(url) {
+    const box = $('#med-pdf-box', medDlg); if (!box) return;
+    box.innerHTML = '<p class="med-msg">Buscando o PDF pela extensão…</p>';
+    const r = await ingPedirMed('mediadorAnexo', { url }, 120000), t = r && r.resp;
+    if (!r || !r.ok || !t || typeof t.base64 !== 'string') { box.innerHTML = `<p class="med-msg med-erro">${escapeHtml(medMot(r && r.motivo))}</p>`; return; }
+    const bin = atob(t.base64), u8 = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+    const url2 = URL.createObjectURL(new Blob([u8], { type: 'application/pdf' }));
+    box.innerHTML = `<div class="med-pdf-acoes"><button type="button" class="btn btn-sm" data-med-baixar>${ic('download')} Baixar o PDF</button></div><iframe class="med-pdf" title="Anexo em PDF" src="${url2}" data-url="${url2}"></iframe>`;
+    box.__pdf = { u8, nome: (url.split('/').pop() || 'anexo.pdf').replace(/[^\w.-]/g, '_') };
+  }
+  // Cadastrar: o formulário de convenção aberto já preenchido (a pessoa confere e salva)
+  function medCadastrar(sol) {
+    const i = medInstrumentos().find(x => x.sol === sol); if (!i) return;
+    const t = medTextos().get(sol), s = [...i.cnpjs].map(medSindDe).find(Boolean), ano = (i.vigIni || '').slice(0, 4);
+    const partes = [[i.cnpjTrab, i.trab, 'laboral'], [i.cnpjEmp, i.emp, 'patronal']].filter(([c]) => cnpjDig(c).length >= 8).map(([c, n, p]) => ({ cnpj: fmtCnpj(c), nome: n || '', papel: p }));
+    let mae = '';
+    if (i.aditivo) { const ccts = [...i.cnpjs].map(medSindDe).filter(Boolean).flatMap(cctsDoSind).filter(c => c.tipo === 'cct' && c.vigIni && (!c.vigFim || !i.vigIni || i.vigIni <= c.vigFim) && (!i.vigIni || c.vigIni <= i.vigIni)); ccts.sort((a, b) => b.vigIni.localeCompare(a.vigIni)); mae = ccts[0] ? ccts[0].id : ''; }
+    abrirCct(null, { titulo: `${i.aditivo ? 'Aditivo' : 'CCT'} ${s ? rotuloSind(s) : (i.trab || '').slice(0, 80)} ${ano}${i.vigFim ? '/' + i.vigFim.slice(0, 4) : ''}`.trim(), tipo: i.aditivo ? 'aditivo' : 'cct', status: 'registrada',
+      registro: i.registro, vigIni: i.vigIni, vigFim: i.vigFim, dataBase: (t && t.dataBase) || '', partes, mae,
+      obs: `Do Mediador do MTE em ${fmtDMY(hoje())}: registro ${i.registro}, solicitação ${i.sol}, processo ${i.processo || '—'}. Confira reajuste, pisos e contribuições no texto (Convenções › Mediador › Ver texto).` });
+  }
+  async function medIgnorar(reg) {
+    const l = [...new Set([...state.medIgn, medReg(reg)])].slice(-500);
+    state.medIgn = l; medRender();
+    try { await db.doc('med_config/cfg').set({ ignorar: l }); toast('Não aparece mais como novo.'); } catch { toast('Não foi possível gravar.'); }
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('[data-med-buscar]')) { if (!state.readOnly) medBuscar(); return; }
+    const sd = t.closest('[data-med-sind]'); if (sd) { const c = sd.dataset.medSind; state.medAberto.has(c) ? state.medAberto.delete(c) : state.medAberto.add(c); medRender(); return; }
+    const tx = t.closest('[data-med-texto]'); if (tx) { medAbrirTexto(tx.dataset.medTexto); return; }
+    const cd = t.closest('[data-med-cad]'); if (cd) { if (!state.readOnly) medCadastrar(cd.dataset.medCad); return; }
+    const ig = t.closest('[data-med-ign]'); if (ig) { if (!state.readOnly) medIgnorar(ig.dataset.medIgn); return; }
+    const ax = t.closest('[data-med-anexo]'); if (ax) { medAbrirAnexo(ax.dataset.medAnexo); return; }
+    if (t.closest('[data-med-baixar]')) { const b = $('#med-pdf-box', medDlg); if (b && b.__pdf) offerFile(b.__pdf.nome, b.__pdf.u8, 'application/pdf'); return; }
+    if (t.closest('[data-med-fechar]') && medDlg) medDlg.close();
+  });
+
   function renderConvencoes() {
     const ro = state.readOnly, q = state.dpConvQuery;
     // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
@@ -5227,6 +5405,7 @@
     if (modo === 'tempo') renderConvTempo(vis);
     else if (!f && !q && linhas.length + sem.length) $('#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
     else renderConvCards(vis, semVis);
+    medRender();       // Hub 347
     if (anim) cvAnimar(main);
     cvTkIniciar();
     const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
@@ -10345,14 +10524,14 @@
   // Só esta página tem o banco do Hub. A extensão (via um script no claude.ai) entrega aqui um lote por postMessage;
   // a página confere o código de pareamento, valida o formato e grava em ing_lotes/<fonte>~<tipo> (um documento por fonte,
   // sempre o mais recente). Cada módulo lê de lá. O Hub avisa "ola" a cada 5 s para a ponte saber que há quem receba.
-  const ING_FONTES = { onvio: ['solicitacoes'], gestta: [] };       // Hub 315 (Josué, 05/11/2026): o Gestta chega pela extensão, só em conjuntos completos (partes)
+  const ING_FONTES = { onvio: ['solicitacoes'], gestta: [], mediador: [] };       // Hub 347: o Mediador do MTE (convenções), só em partes       // Hub 315 (Josué, 05/11/2026): o Gestta chega pela extensão, só em conjuntos completos (partes)
   const ING_MAX = 150000;
   // Dados completos em partes (protocolo 2, extensão 0.52+): um MANIFESTO em ing_dados/<fonte>~<tipo> (colunas, contagens,
   // categoria, de qual "slot" ler) e as PARTES em ing_partes/<fonte>~<tipo>~<slot><n> (tabela em texto, tab entre colunas,
   // \n entre linhas). Duas posições (a/b) alternam: a nova remessa é escrita na posição livre e só depois o manifesto passa
   // a apontar para ela, então quem lê nunca vê uma remessa pela metade. Categorias: listas (sem dados pessoais), pessoais
   // (CPF, salário, nomes, textos), clientes, escritorio, documentos, noticias.
-  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas'];      // tarefas, cadastros e alertas: do Gestta (Hub 315)
+  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas', 'convencoes'];      // tarefas, cadastros e alertas: do Gestta (Hub 315); convencoes: do Mediador (Hub 347)
   const ING_PARTES_MAX = 1000;   // Hub 332 (Josué, 10/11/2026: "pode deixar sem limite, bote pra ler tudo que tiver"): era 80; 1.000 partes (~140 MB) só protege de um envio sem fim
   const ing = { cfg: null, criando: false, ciclos: {} };
   const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
@@ -10528,11 +10707,11 @@
     const d = e.data;
     if (!d || d.ctlhub !== 1 || d.de !== 'ext' || !['progresso', 'conectado', 'pedidoAck'].includes(d.tipo)) return;
     if (e.source !== window.top && e.source !== window.parent) return;
-    if (d.tipo === 'conectado') { ing.ext = { versao: ingStr(d.versao, 20), em: Date.now() }; ingEnvioAvisar(); return; }
+    if (d.tipo === 'conectado') { ing.ext = { versao: ingStr(d.versao, 20), em: Date.now() }; ingEnvioAvisar(); medCnpjsAvisar(true); return; }
     if (d.tipo === 'pedidoAck') {
       ing.ext = { ...(ing.ext || {}), em: Date.now(), versao: ingStr((d.envio && d.envio.versao) || (ing.ext && ing.ext.versao), 20) };
       if (d.envio) { const l = ingEnvioLimpo(d.envio); if (l) ing.envio = l; }
-      const p = ingPedidos[d.id]; if (p) { clearTimeout(p.t); delete ingPedidos[d.id]; p.ok({ ok: !!d.ok, motivo: ingStr(d.motivo, 60), jaRodando: !!d.jaRodando, iniciado: !!d.iniciado }); }
+      const p = ingPedidos[d.id]; if (p) { clearTimeout(p.t); delete ingPedidos[d.id]; p.ok({ ok: !!d.ok, motivo: ingStr(d.motivo, 60), jaRodando: !!d.jaRodando, iniciado: !!d.iniciado, resp: p.cru ? d : undefined }); }
       ingEnvioAvisar(); return;
     }
     if (!ing.cfg || !d.token || d.token !== ing.cfg.token) return;
@@ -10555,6 +10734,16 @@
       if (acao === 'atualizar') ing.pedidoPor = { id: state.meId || '', em: Date.now() };
       const msg = { ctlhub: 1, de: 'hub', tipo: 'pedido', id, acao };
       if (acao === 'atualizar' && alvo && typeof alvo === 'object') msg.alvo = { onvio: (alvo.onvio || []).slice(0, 200).map(String), gestta: (alvo.gestta || []).slice(0, 200).map(String) };
+      try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
+    });
+  }
+  // Hub 347: pedidos do Mediador (buscar, a lista de CNPJs para a busca semanal, o texto e o anexo). Texto e anexo demoram (a extensão
+  // abre o Mediador numa aba em segundo plano), então esperam até 2 minutos; a resposta vem inteira em resp.
+  function ingPedirMed(acao, extra, ms) {
+    return new Promise((ok) => {
+      const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      ingPedidos[id] = { ok, cru: true, t: setTimeout(() => { delete ingPedidos[id]; ok({ ok: false, motivo: ms > 5000 ? 'sem-resposta' : 'sem-extensao' }); }, ms || 4000) };
+      const msg = Object.assign({ ctlhub: 1, de: 'hub', tipo: 'pedido', id, acao }, extra || {});
       try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
     });
   }
@@ -10586,6 +10775,7 @@
     ingIniciar();
     ovIniciar();
     gtIniciar();
+    medIniciar();
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {

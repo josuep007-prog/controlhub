@@ -1172,6 +1172,9 @@
     var H = window.__hubApi; if (!H || !H.carregar) return;
     COM_ANALISTA.forEach(function (m) {
       if (admin.analistas[m]) return; admin.analistas[m] = [];
+      // cadastro único de analistas: quando existe, as sugestões vêm dele (o mesmo nome em todos os módulos)
+      var C = window.__cadastro, cad = C && C.analistasCad ? C.analistasCad(m) : [];
+      if (cad.length) { admin.analistas[m] = cad.map(function (x) { return x.nome; }); desenharDls(); return; }
       H.carregar(m).then(function (a) { admin.analistas[m] = (a && a.analistas ? a.analistas() : []).filter(Boolean); desenharDls(); }).catch(function () {});
     });
   }
