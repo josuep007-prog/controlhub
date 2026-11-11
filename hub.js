@@ -8404,7 +8404,7 @@
         // Hub 330 (Josué, 10/11/2026: "tem gente que está como analista do DP mas na prática não é; deve aparecer só quem tem tarefas
         // ativas do DP em seu nome"): com a lista de tarefas válida (inteira e recente), o módulo de cada pessoa vem só das tarefas dela
         // no mês atual e no anterior (setor → módulo). Setor no cadastro do Gestta ou na cartela não basta. Sem tarefas válidas, o de antes.
-        const tarefasOk = !gtManMotivo('gestta-tarefas', 'A lista de tarefas'), porTarefa = new Map();
+        const tarefasOk = !gtManMotivo('gestta-tarefas', 'A lista de tarefas'), porTarefa = new Map(), infoTarefa = new Map();
         if (tarefasOk) gtLer('gestta-tarefas');
         const usaTarefas = tarefasOk && gtCarregado('gestta-tarefas');
         // Hub 332 (Josué, 10/11/2026: "ele precisa ter tarefas de empresas ativas na responsabilidade dele nas duas últimas competências,
@@ -8415,8 +8415,8 @@
         const clientesOk = usaTarefas && !gtManMotivo('gestta-clientes', 'Os clientes'), ativosCnpj = new Set(), ativosNome = new Set();
         if (clientesOk) gtLer('gestta-clientes').forEach(c => { if (c['Ativo'] === 'não') return; const k = cad14(c['CNPJ']); if (k) ativosCnpj.add(k); [c['Nome'], c['Nome fantasia']].forEach(n => { const nk = cadNomeKey(String(n || '')); if (nk) ativosNome.add(nk); }); });
         const empAtiva = (t) => { if (ehEscritorioProprio(t['Cliente'])) return false; if (!clientesOk || (!ativosCnpj.size && !ativosNome.size)) return true; const k = cad14(t['CNPJ']), nk = cadNomeKey(String(t['Cliente'] || '')); return (k && ativosCnpj.has(k)) || (!!nk && ativosNome.has(nk)); };
-        if (usaTarefas) ctRows.forEach(t => { const k = norm(String(t['Responsável'] || '').trim()), m = gtSetorMod(t['Setor']); if (!k || !m) return; if (comps.length && !comps.includes(String(t['Competência'] || '').slice(0, 7))) return; if (!empAtiva(t)) return; if (!porTarefa.has(k)) porTarefa.set(k, new Set()); porTarefa.get(k).add(m); });
-        r.modsPorTarefa = usaTarefas;
+        if (usaTarefas) ctRows.forEach(t => { const k = norm(String(t['Responsável'] || '').trim()), m = gtSetorMod(t['Setor']); if (!k || !m) return; if (comps.length && !comps.includes(String(t['Competência'] || '').slice(0, 7))) return; if (!empAtiva(t)) return; if (!porTarefa.has(k)) porTarefa.set(k, new Set()); porTarefa.get(k).add(m); const pi = infoTarefa.get(k) || {}; const im = pi[m] || (pi[m] = { n: 0, cnpjs: new Set(), nomes: new Set() }); im.n++; const ck = cnpjClean(t['CNPJ']); if (ck) im.cnpjs.add(ck); else { const nk = cadNomeKey(String(t['Cliente'] || '')); if (nk) im.nomes.add(nk); } infoTarefa.set(k, pi); });
+        r.modsPorTarefa = usaTarefas; r.infoTarefa = infoTarefa; r.compsAnalistas = comps; r.motivoTarefas = tarefasOk ? '' : gtManMotivo('gestta-tarefas', 'A lista de tarefas');      // Hub 339: o porquê de cada analista
         gtLer('gestta-equipe').forEach(x => { if (x['Ativo'] !== 'sim') return; const nome = String(x['Nome'] || '').trim(); if (!nome || porNome.has(norm(nome))) return; const extra = [...(daCartela.get(norm(nome)) || [])]; const setores = [...new Set([...String(x['Setores'] || '').split('|').map(s => s.trim()).filter(Boolean), ...extra])]; const mods = usaTarefas ? [...(porTarefa.get(norm(nome)) || [])] : [...new Set([...gtModsDeSetores(x['Setores']), ...extra.map(s => gtSetorMod(s)).filter(Boolean)])]; const it = { nome, papel: String(x['Papel'] || ''), setores, mods }; lista.push(it); porNome.set(norm(nome), it); });
         lista.sort((a, b) => ptCmp(a.nome, b.nome));
         r.analistas = lista.length ? { lista, porNome } : null;
@@ -8482,7 +8482,32 @@
     return gtCasarNome(s, a.lista.map(x => x.nome), state.gtMods ? state.gtMods.func.map(f => f.nome) : null);
   }
   const gtAnalistaAtivo = (nome) => !gtAtivo().analistas || !!gtAnalistaDe(nome);
-  const gtAnalistasMod = (mod) => { const a = gtAtivo().analistas; return a ? a.lista.filter(x => !mod || x.mods.includes(mod)).map(x => x.nome) : null; };
+  // Hub 339 (Josué, 11/11/2026: "pq a Hingryd ainda aparece aqui"; decidido: "só com empresa ativa no DP"): com a regra das tarefas valendo, a
+  // pessoa só fica na lista do DP se ao menos uma das empresas das tarefas do Pessoal dela está Ativa no DP (Hub 337: tarefa do Pessoal e
+  // funcionário ativo). Sem o DP carregado, ou se ninguém sobrar, vale a lista de antes (nada some por falta de dado).
+  const dpAtivasIdx = () => gtMemo('dpAtivas', () => { const c = new Set(), n = new Set(); (state.dpEmpresas || []).forEach(e => { if (e.situacao === 'Inativa') return; const k = cnpjClean(e.cnpj); if (k) c.add(k); const nk = cadNomeKey(String(e.nome || '').replace(/\s*\|\s*[\d-]+\s*$/, '')); if (nk) n.add(nk); }); return { c, n }; });
+  function gtInfoAnalista(nome, mod) {
+    const a = gtAtivo(); if (!a.infoTarefa) return null;
+    const i = (a.infoTarefa.get(norm(String(nome || '').trim())) || {})[mod]; if (!i) return { n: 0, emps: 0, ativas: 0 };
+    let ativas = 0;
+    if (mod === 'dp') { const x = dpAtivasIdx(); i.cnpjs.forEach(k => { if (x.c.has(k)) ativas++; }); i.nomes.forEach(k => { if (x.n.has(k)) ativas++; }); }
+    return { n: i.n, emps: i.cnpjs.size + i.nomes.size, ativas };
+  }
+  const gtAnalistasMod = (mod) => {
+    const a = gtAtivo().analistas; if (!a) return null;
+    const lista = a.lista.filter(x => !mod || x.mods.includes(mod)).map(x => x.nome);
+    if (mod !== 'dp' || !gtAtivo().modsPorTarefa || !state.dpEmpresas || !state.dpEmpresas.length) return lista;
+    const ficam = lista.filter(n => { const i = gtInfoAnalista(n, 'dp'); return !i || i.ativas > 0; });
+    return ficam.length ? ficam : lista;
+  };
+  // O porquê de a pessoa estar na lista do módulo (Cartela e Entrada de dados)
+  function gtPorqueAnalista(nome, mod) {
+    const a = gtAtivo(); if (!a.analistas) return '';
+    const setor = { dp: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' }[mod] || mod;
+    if (!a.modsPorTarefa) return 'Na lista pelo cadastro de equipe do Gestta (setor ' + setor + '): ' + String(a.motivoTarefas || 'a lista de tarefas não chegou').toLowerCase() + ', então a regra das tarefas não vale agora.';
+    const i = gtInfoAnalista(nome, mod); if (!i || !i.n) return 'Sem tarefa do ' + setor + ' no Gestta nas competências ' + (a.compsAnalistas || []).join(' e ') + '.';
+    return i.n + ' tarefa' + (i.n === 1 ? '' : 's') + ' do ' + setor + ' no Gestta (competências ' + (a.compsAnalistas || []).join(' e ') + ') em ' + i.emps + ' empresa' + (i.emps === 1 ? '' : 's') + (mod === 'dp' ? ', ' + i.ativas + ' ativa' + (i.ativas === 1 ? '' : 's') + ' no DP' : '') + '.';
+  }
   // DP: a lista inteira fica em state.dpTodas; state.dpEmpresas é a que as telas usam (sem as empresas fora do Gestta e sem analista inativo).
   // O nome escondido volta ao gravar (dpDbStore.saveOne), para nada ser apagado sem decisão.
   function gtFiltrarDp(lista) {
@@ -8537,7 +8562,7 @@
   // Para a Entrada de dados: o que o Gestta deixou de fora agora, em cada módulo.
   function gtReferencia() {
     const a = gtAtivo(), M = state.gtMods;
-    const out = { empresas: { ok: !!a.empresas, motivo: a.motivoEmp, n: a.empresas ? a.empresas.n : 0 }, analistas: { ok: !!a.analistas, motivo: a.motivoAna, lista: a.analistas ? a.analistas.lista.map(x => ({ nome: x.nome, setores: x.setores, mods: x.mods })) : [] }, fora: {}, analistasFora: [] };
+    const out = { empresas: { ok: !!a.empresas, motivo: a.motivoEmp, n: a.empresas ? a.empresas.n : 0 }, analistas: { ok: !!a.analistas, motivo: a.motivoAna, porTarefa: !!a.modsPorTarefa, comps: a.compsAnalistas || [], motivoTarefas: a.motivoTarefas || '', dp: (gtAnalistasMod('dp') || []).map(n => ({ nome: n, porque: gtPorqueAnalista(n, 'dp') })), lista: a.analistas ? a.analistas.lista.map(x => ({ nome: x.nome, setores: x.setores, mods: x.mods })) : [] }, fora: {}, analistasFora: [] };      // Hub 339: a base da lista e o porquê
     const nomesHub = new Map(), poe = (n, mod) => { const s = String(n || '').trim(); if (!s) return; const k = norm(s); const x = nomesHub.get(k) || { nome: s, mods: new Set() }; x.mods.add(mod); nomesHub.set(k, x); };
     const todasDp = state.dpTodas || state.dpEmpresas;
     const comMotivo = (nome, cnpj, mod) => { const m = gtMotivoFora(cnpj, nome, mod); return m ? nome + ' · ' + (cnpj ? fmtCnpj(cnpj) + ' · ' : '') + m : ''; };
@@ -8861,7 +8886,8 @@
       const av = g.sem ? '<span class="avatar" style="--av:var(--dp-late)">?</span>' : `<span class="avatar" style="--av:${corDe(g.nome)}">${escapeHtml(iniciais(g.nome))}</span>`;
       const delta = sim ? g.es.length - g.orig.length : 0;
       const tags = [aus ? `<span class="ct-tag late">${escapeHtml(aus.motivo)} até ${fmtYmdDM(aus.fim)}</span>` : '', proxAus ? `<span class="ct-tag soon">${escapeHtml(proxAus.motivo)} em ${fmtYmdDM(proxAus.inicio)}</span>` : '', cobrindo ? `<span class="ct-tag">cobrindo ${cobrindo}</span>` : ''].join('');
-      return `<div class="ct-an${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-ct-an="${escapeHtml(g.key)}" ${ro ? '' : 'data-ct-drop'}>
+      const pq = g.sem ? '' : gtPorqueAnalista(g.nome, 'dp');      // Hub 339
+      return `<div class="ct-an${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}" data-ct-an="${escapeHtml(g.key)}"${pq ? ` title="${escapeHtml('Por que está aqui: ' + pq)}"` : ''} ${ro ? '' : 'data-ct-drop'}>
         ${av}<div style="min-width:0"><div class="ct-an-nome">${escapeHtml(g.nome)}</div><div class="ct-an-sub">${g.es.length} empresa(s) · ${nfAtivos(g.es)} func.</div></div>
         <span class="ct-an-n">${g.es.length}${delta ? `<small class="ct-delta ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
         ${tags ? `<div class="ct-an-tags">${tags}</div>` : ''}
