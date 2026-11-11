@@ -572,6 +572,7 @@
     { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
     { id:'pop-master', name:'POP Master', url:'', icon:'', category:'Atalhos', color:'#7A5BB5', description:'POPs da Controltax com governança BPM CBOK: catálogo, arquitetura de processos, revisões e conformidade.', tags:['pop','procedimento','processos','cbok','bpm','governança'], moduleKey:'pop', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
     { id:'empresas-cadastro', name:'Empresas', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Cadastro único de todas as empresas do Hub: consultar, corrigir e excluir de todos os módulos.', tags:['empresa','cadastro','cnpj','excluir','cadastro único'], moduleKey:'empresas', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
+    { id:'analistas-cadastro', name:'Analistas', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Cadastro único de analistas: a equipe do Gestta e quem tem carteira no DP, Contábil, Fiscal e Portal, com código, cargo, contato, login e carteira.', tags:['analista','equipe','cadastro','pessoas','responsável','carteira'], moduleKey:'analistas', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
     { id:'entrada-dados', name:'Entrada de dados', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'O que chega das extensões do navegador (Onvio e outras), para revisar antes de usar.', tags:['extensão','onvio','dados','importar'], moduleKey:'fontes', virtual:true, favorite:false, newTab:false, order:9995, uses:0 },
   ];
   // "Onvio" é fixo do Hub: abre o Onvio numa nova aba e fica ao lado esquerdo do Zappy.
@@ -673,6 +674,7 @@
     if (t.virtual && t.moduleKey === 'coord') return ic('grid');
     if (t.virtual && t.moduleKey === 'fontes') return ic('download');
     if (t.virtual && t.moduleKey === 'empresas') return ic('building');
+    if (t.virtual && t.moduleKey === 'analistas') return ic('team');
     if (t.virtual && t.moduleKey === 'pop') return ic('t-pop');
     if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
     const m = TOOL_SVG[t.id];
@@ -976,7 +978,7 @@
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, empresas: { src:'empresas.html', title:'Empresas', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, empresas: { src:'empresas.html', title:'Empresas', rail:true }, analistas: { src:'analistas.html', title:'Analistas', rail:true } };
   // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
   function preloadFrame(key) {
     let f = $(`#${key}-frame`);
@@ -8556,6 +8558,260 @@
     Object.keys(out.fora).forEach(k => out.fora[k].sort(ptCmp));
     return out;
   }
+  // ===== Cadastro único de analistas (Josué, 11/11/2026: "preciso de um cadastro unificado de analistas igual já tem pra empresas") =====
+  // Uma pessoa por documento em cadastro_analistas, com código próprio (an-…) que não muda quando o nome muda. A base é a equipe do Gestta
+  // (referência absoluta, Hub 317); quem tem carteira num módulo e não está no Gestta entra como "fora do Gestta"; a coordenação inclui
+  // pessoas à mão. Cada pessoa guarda as grafias já vistas nos módulos (apelidos), por onde os nomes digitados são casados com ela.
+  // Etapa 1: o cadastro só LÊ os módulos (nada neles muda). Os códigos nas carteiras, renomear e unir vêm na etapa 2.
+  const ANA_COL = 'cadastro_analistas', ANA_MODS = { dp: 'DP', contabil: 'Contábil', fiscal: 'Fiscal', portal: 'Portal do Cliente' };
+  const ANA_SETOR_PORTAL = { pessoal: 'dp', contabil: 'contabil', fiscal: 'fiscal' };
+  const ANA_CARGOS = ['Estagiário(a)', 'Auxiliar', 'Assistente', 'Analista', 'Analista Júnior', 'Analista Pleno', 'Analista Sênior', 'Supervisor(a)', 'Coordenador(a)', 'Gerente', 'Diretor(a)'];
+  const ANA_EDITAVEIS = ['nome', 'apelidos', 'situacao', 'mods', 'cargo', 'email', 'telefone', 'loginId', 'obs'];
+  state.anaRaw = new Map(); state.analistas = new Map(); state.anaIdx = new Map(); state.anaRel = null; state.anaEstado = { gerando: false }; state.anaLogins = null;
+  const anaOuvintes = [];
+  const anaSemHora = (p) => { if (!p) return ''; const { atualizadoEm, ...r } = p; return JSON.stringify(r); };
+  const anaNovoId = (nome, usados) => { const s = norm(String(nome || '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'pessoa'; let id; do { id = 'an-' + s + '-' + Math.random().toString(36).slice(2, 6); } while (state.anaRaw.has(id) || (usados && usados.has(id))); return id; };
+  function anaAchata() {
+    const m = new Map(), ix = new Map();
+    state.anaRaw.forEach((p, id) => { if (!p || p.excluido) return; m.set(id, p); });
+    // nome e apelidos → código (o nome principal ganha de um apelido igual de outra pessoa)
+    m.forEach((p, id) => { const k = norm(String(p.nome || '').trim()); if (k) ix.set(k, id); });
+    m.forEach((p, id) => (p.apelidos || []).forEach(a => { const k = norm(String(a || '').trim()); if (k && !ix.has(k)) ix.set(k, id); }));
+    state.analistas = m; state.anaIdx = ix; anaMemo = null;
+    anaOuvintes.forEach(cb => { try { cb(); } catch (e) {} });
+  }
+  let anaMemo = null;
+  // Código da pessoa de um nome digitado num módulo: grafia conhecida; senão o mesmo casamento do Gestta (primeiro e último nome, nome único).
+  function anaIdDe(nome) {
+    const s = String(nome || '').trim(); if (!s || !state.analistas.size) return '';
+    const k = norm(s); if (state.anaIdx.has(k)) return state.anaIdx.get(k);
+    if (!anaMemo) anaMemo = { casa: new Map(), nomes: [...state.analistas.values()].filter(p => p.situacao !== 'inativo').map(p => p.nome) };
+    if (anaMemo.casa.has(k)) return anaMemo.casa.get(k);
+    const c = gtCasarNome(s, anaMemo.nomes), id = c ? state.anaIdx.get(norm(c)) || '' : '';
+    anaMemo.casa.set(k, id); return id;
+  }
+  const anaGet = (id) => state.analistas.get(id) || state.anaRaw.get(id) || null;
+  const anaPodeEditar = () => !!db && !state.semEscrita && !state.readOnly && temCoord();
+
+  // Lê o que os módulos têm hoje (só leitura): nomes de analista em cada carteira, a equipe do DP, a equipe do Portal e os logins.
+  async function anaLerFontes() {
+    const ler = (c) => cadLerCol(c).catch(() => null);
+    const [dp, eqDp, ctb, fis, func, sets, logins] = await Promise.all([ler('dp_empresas'), db.doc('dp_config/equipe').get().then(s => s && s.exists !== false && s.data ? s.data() : null).catch(() => null), ler('ctb_emp'), ler('fis_emp'), ler('funcionarios'), ler('empresaSetores'), ler('auth_usuarios')]);
+    const mapas = (docs) => docs ? docs.flatMap(d => Object.keys(d.data).filter(k => d.data[k] && typeof d.data[k] === 'object' && !Array.isArray(d.data[k]) && !d.data[k].excluida).map(k => ({ id: k, ...d.data[k] }))) : null;
+    return { dp: dp ? dp.map(d => ({ id: d.id, ...d.data })) : null, eqDp: eqDp && Array.isArray(eqDp.nomes) ? eqDp.nomes : [], ctb: mapas(ctb), fis: mapas(fis),
+      func: func ? func.map(d => ({ id: d.id, ...d.data })) : null, sets: sets ? sets.map(d => ({ id: d.id, ...d.data })) : null, logins: logins ? logins.map(d => ({ id: d.id, ...d.data })) : null };
+  }
+  // Ocorrências de analista nos módulos: { mod, nome, papel, emp, empNome } (carteira) — a equipe do DP e o time do Portal só confirmam a pessoa.
+  function anaOcorrencias(f) {
+    const out = [], poe = (mod, nome, papel, emp, empNome) => { const s = String(nome || '').trim(); if (s) out.push({ mod, nome: s, papel, emp: emp || '', empNome: empNome || '' }); };
+    (f.dp || []).forEach(e => { if (e.excluida) return; poe('dp', e.responsavel, 'responsavel', e.id, e.nome); poe('dp', e.reserva, 'reserva', e.id, e.nome); });
+    (f.ctb || []).forEach(e => { poe('contabil', e.analista, 'analista', e.id, e.nome); poe('contabil', e.apoio, 'apoio', e.id, e.nome); });
+    (f.fis || []).forEach(e => poe('fiscal', e.analista, 'analista', e.id, e.nome));
+    (f.sets || []).forEach(s => { if (s.analistaNome) poe('portal', s.analistaNome, 'frente', s.empresaId || s.id, s.empresaNome || ''); });
+    return out;
+  }
+
+  // Monta o cadastro e o relatório. Função pura (não grava nada). Os códigos já dados são mantidos: quem já está no cadastro é achado pelo nome ou apelido.
+  function anaMontar(f) {
+    const rel = { contagem: { gestta: 0, gesttaInativos: 0, pessoas: 0, novos: 0, foraGestta: 0, ocorrencias: 0 }, casados: [], foraGestta: [], duplicados: [], logins: [], indisponiveis: [] };
+    if (!f.dp) rel.indisponiveis.push('DP'); if (!f.ctb) rel.indisponiveis.push('Contábil'); if (!f.fis) rel.indisponiveis.push('Fiscal'); if (!f.sets || !f.func) rel.indisponiveis.push('Portal'); if (!f.logins) rel.indisponiveis.push('Logins');
+    const pessoas = new Map(), ix = new Map(), agora = Date.now();
+    const indexa = (nome, id, forte) => { const k = norm(String(nome || '').trim()); if (k && (forte || !ix.has(k))) ix.set(k, id); };
+    state.anaRaw.forEach((p0, id) => { const p = JSON.parse(JSON.stringify(p0)); p.carteira = { dp: 0, contabil: 0, fiscal: 0, portal: 0 }; p._visto = false; pessoas.set(id, p); });
+    pessoas.forEach((p, id) => { if (!p.excluido) indexa(p.nome, id, true); });
+    pessoas.forEach((p, id) => { if (!p.excluido) (p.apelidos || []).forEach(a => indexa(a, id)); });
+    const vivos = () => [...pessoas.values()].filter(p => !p.excluido);
+    const apelido = (p, nome) => { const s = String(nome || '').trim(); if (!s || norm(s) === norm(p.nome)) return; p.apelidos = p.apelidos || []; if (!p.apelidos.some(a => norm(a) === norm(s))) p.apelidos.push(s); indexa(s, p.id); };
+    const novo = (nome, extra) => { const id = anaNovoId(nome, pessoas); const p = { id, nome: String(nome).trim(), apelidos: [], situacao: 'ativo', origem: 'gestta', gestta: null, mods: [], cargo: '', email: '', telefone: '', loginId: '', portalFuncId: '', obs: '', carteira: { dp: 0, contabil: 0, fiscal: 0, portal: 0 }, criadoEm: agora, ...extra, _novo: true }; pessoas.set(id, p); indexa(p.nome, id, true); rel.contagem.novos++; return p; };
+    const acha = (nome) => {
+      const k = norm(String(nome || '').trim()); if (!k) return null;
+      if (ix.has(k)) { const p = pessoas.get(ix.get(k)); if (p && !p.excluido) return p; }
+      const lista = vivos().map(p => p.nome), c = gtCasarNome(nome, lista); if (!c) return null;
+      const p = pessoas.get(ix.get(norm(c))); return p && !p.excluido ? p : null;
+    };
+    // 1) equipe do Gestta (ativos entram; inativos ficam de reserva, só entram se tiverem carteira num módulo)
+    const ga = gtAtivo().analistas, reservas = new Map();
+    const linhas = state.gtMan['gestta-equipe'] ? gtLer('gestta-equipe') : [];
+    linhas.forEach(x => {
+      const nome = String(x['Nome'] || '').trim(); if (!nome) return;
+      const ativo = x['Ativo'] === 'sim', info = ga && ga.porNome.get(norm(nome));
+      const g = { nome, papel: String(x['Papel'] || '').trim(), setores: String(x['Setores'] || '').split('|').map(s => s.trim()).filter(Boolean), ativo };
+      const doHub = state.gtCfg.analistas[norm(nome)];                  // ligado à mão em "Analistas do Gestta"
+      let p = acha(nome) || (doHub ? acha(doHub) : null);
+      if (!p && !ativo) { reservas.set(norm(nome), { g, doHub }); rel.contagem.gesttaInativos++; return; }
+      if (!p) p = novo(nome, { origem: 'gestta' });
+      p._visto = true; p.origem = 'gestta'; p.gestta = g; apelido(p, nome); if (doHub) apelido(p, doHub);
+      if (!(p.editado && p.editado.situacao)) p.situacao = ativo ? 'ativo' : 'inativo';
+      if (ativo) { rel.contagem.gestta++; if (!(p.editado && p.editado.mods)) p.mods = info ? info.mods.slice() : p.mods || []; }
+    });
+    // quem veio do Gestta e saiu de lá fica inativo (nada é apagado)
+    if (linhas.length) pessoas.forEach(p => { if (!p.excluido && p.origem === 'gestta' && !p._visto && !(p.editado && p.editado.situacao)) p.situacao = 'inativo'; });
+    // 2) nomes nas carteiras dos módulos
+    const occ = anaOcorrencias(f); rel.contagem.ocorrencias = occ.length;
+    const visto = new Set();
+    occ.forEach(o => {
+      let p = acha(o.nome);
+      if (!p) {
+        const r = reservas.get(norm(o.nome)) || [...reservas.values()].find(v => gtCasarNome(o.nome, [v.g.nome]));
+        if (r) { p = novo(r.g.nome, { origem: 'gestta', situacao: 'inativo', gestta: r.g }); p._visto = true; reservas.delete(norm(r.g.nome)); if (r.doHub) apelido(p, r.doHub); }
+      }
+      if (!p) { p = novo(o.nome, { origem: 'hub', situacao: 'fora-do-gestta', mods: [] }); }
+      if (norm(o.nome) !== norm(p.nome) && !(p.apelidos || []).some(a => norm(a) === norm(o.nome))) { const k = o.mod + '|' + norm(o.nome); if (!visto.has(k)) { visto.add(k); rel.casados.push({ nome: o.nome, com: p.nome, id: p.id, mod: ANA_MODS[o.mod] }); } }
+      apelido(p, o.nome);
+      p.carteira[o.mod] = (p.carteira[o.mod] || 0) + 1;
+      if (p.origem === 'hub' && !(p.editado && p.editado.mods) && !p.mods.includes(o.mod)) p.mods.push(o.mod);
+    });
+    (f.eqDp || []).forEach(n => { const p = acha(n); if (p) { apelido(p, n); if (p.origem === 'hub' && !(p.editado && p.editado.mods) && !p.mods.includes('dp')) p.mods.push('dp'); } });
+    // 3) equipe do Portal (código do funcionário e cargo) e logins do Hub (conta, e-mail, telefone)
+    (f.func || []).forEach(x => {
+      const nome = String(x.nome || '').trim(); if (!nome || x.exemplo) return;
+      const p = acha(nome); if (!p) return;
+      apelido(p, nome);
+      if (!p.portalFuncId) p.portalFuncId = x.id;
+      if (!p.cargo && x.cargo && !(p.editado && p.editado.cargo)) p.cargo = String(x.cargo).trim();
+      const m = ANA_SETOR_PORTAL[x.setor]; if (m && p.origem === 'hub' && !(p.editado && p.editado.mods) && !p.mods.includes(m)) p.mods.push(m);
+    });
+    const loginsUsados = new Map();
+    vivos().forEach(p => { if (p.loginId) loginsUsados.set(p.loginId, p.id); });
+    (f.logins || []).forEach(u => {
+      if (u.status === 'bloqueado') return;
+      const nomes = [u.nome, ...Object.values(u.analista || {})].map(s => String(s || '').trim()).filter(Boolean);
+      let p = null; for (const n of nomes) { p = acha(n); if (p) break; }
+      if (!p) return;
+      if (!p.loginId && !loginsUsados.has(u.id)) { p.loginId = u.id; loginsUsados.set(u.id, p.id); rel.logins.push({ pessoa: p.nome, login: u.nome || u.login || u.id }); }
+      if (p.loginId === u.id) { if (!p.email && u.email && !(p.editado && p.editado.email)) p.email = String(u.email).trim(); if (!p.telefone && u.telefone && !(p.editado && p.editado.telefone)) p.telefone = String(u.telefone).trim(); }
+    });
+    // 4) relatório: fora do Gestta e possíveis duplicados (dois cadastros que parecem a mesma pessoa)
+    const vs = vivos();
+    vs.forEach(p => { if (p.situacao === 'fora-do-gestta') rel.foraGestta.push({ id: p.id, nome: p.nome, carteira: { ...p.carteira } }); });
+    const tk = (s) => gtTokens(s);
+    for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) {
+      const a = tk(vs[i].nome), b = tk(vs[j].nome); if (!a.length || !b.length || a[0] !== b[0]) continue;
+      const [c, d] = a.length <= b.length ? [a, b] : [b, a];
+      if (c.length === 1 ? d.length > 1 : c.every(w => d.includes(w)) || (c[c.length - 1] === d[d.length - 1])) rel.duplicados.push({ a: { id: vs[i].id, nome: vs[i].nome, situacao: vs[i].situacao }, b: { id: vs[j].id, nome: vs[j].nome, situacao: vs[j].situacao } });
+    }
+    pessoas.forEach(p => { p.apelidos = (p.apelidos || []).filter(a => norm(a) !== norm(p.nome)).sort(ptCmp); p.mods = [...new Set(p.mods || [])].filter(m => ANA_MODS[m]); });
+    rel.contagem.pessoas = vs.length; rel.contagem.foraGestta = rel.foraGestta.length;
+    rel.casados.sort((x, y) => ptCmp(x.com, y.com)); rel.foraGestta.sort((x, y) => ptCmp(x.nome, y.nome)); rel.duplicados = rel.duplicados.slice(0, 200);
+    return { pessoas, rel };
+  }
+  // Grava só quem mudou (um documento por pessoa; nunca apaga). O que a coordenação corrigiu à mão (editado) não é refeito.
+  async function anaGravar(pessoas) {
+    let mudou = 0, falhou = 0; const agora = Date.now();
+    for (const [id, p0] of pessoas) {
+      const { _visto, _novo, ...p } = p0, ant = state.anaRaw.get(id);
+      if (ant && ant.editado) Object.keys(ant.editado).forEach(k => { if (ant.editado[k] && k in ant && k !== 'apelidos') p[k] = ant[k]; });
+      p.cartEm = agora;
+      const comp = (x) => { if (!x) return ''; const { cartEm, ...r } = x; return anaSemHora(r); };
+      if (ant && comp(ant) === comp(p)) continue;
+      const novo = { ...p, atualizadoEm: agora };
+      const ok = await persist(() => db.doc(`${ANA_COL}/${id}`).set(novo));
+      if (ok) { mudou++; state.anaRaw.set(id, novo); } else falhou++;
+    }
+    anaAchata();
+    return { mudou, falhou };
+  }
+  // Correção à mão pela coordenação (fica marcada como editada e a regeneração não desfaz).
+  async function anaSalvar(id, campos) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação altera o cadastro de analistas.' };
+    const ant = state.anaRaw.get(id); if (!ant) return { ok: false, erro: 'Pessoa não encontrada.' };
+    const c = {}, ed = { ...(ant.editado || {}) };
+    Object.keys(campos || {}).forEach(k => {
+      if (!ANA_EDITAVEIS.includes(k)) return;
+      let v = campos[k];
+      if (k === 'apelidos') v = [...new Set((Array.isArray(v) ? v : []).map(s => String(s || '').trim().slice(0, 80)).filter(Boolean))];
+      else if (k === 'mods') v = (Array.isArray(v) ? v : []).filter(m => ANA_MODS[m]);
+      else if (k === 'situacao') v = ['ativo', 'inativo', 'fora-do-gestta'].includes(v) ? v : 'ativo';
+      else v = String(v == null ? '' : v).trim().slice(0, k === 'obs' ? 600 : 120);
+      if (JSON.stringify(v) === JSON.stringify(ant[k] == null ? (k === 'apelidos' || k === 'mods' ? [] : '') : ant[k])) return;
+      c[k] = v; ed[k] = true;
+    });
+    if (!Object.keys(c).length) return { ok: true, igual: true };
+    if ('nome' in c) {
+      if (!c.nome) return { ok: false, erro: 'O nome não pode ficar vazio.' };
+      const outro = state.anaIdx.get(norm(c.nome)); if (outro && outro !== id) return { ok: false, erro: 'Já existe alguém com esse nome no cadastro (' + anaGet(outro).nome + '). Use "Unir" quando for a mesma pessoa.' };
+      const tot = Object.values(ant.carteira || {}).reduce((a, b) => a + b, 0);
+      if (tot) return { ok: false, erro: 'Essa pessoa tem carteira nos módulos: trocar o nome em todos eles chega na próxima etapa do cadastro (renomear com desfazer).' };
+      c.apelidos = [...new Set([...(c.apelidos || ant.apelidos || []), ant.nome])].filter(a => norm(a) !== norm(c.nome));
+    }
+    if ('loginId' in c && c.loginId) { const dono = [...state.analistas.values()].find(p => p.loginId === c.loginId && p.id !== id); if (dono) return { ok: false, erro: 'Esse login já está ligado a ' + dono.nome + '.' }; }
+    const novo = { ...ant, ...c, editado: ed, editadoPor: autorId(), editadoEm: Date.now(), atualizadoEm: Date.now() };
+    const ok = await persist(() => db.doc(`${ANA_COL}/${id}`).set(novo));
+    if (ok) { state.anaRaw.set(id, novo); anaAchata(); }
+    return ok ? { ok: true } : { ok: false, erro: 'Não foi possível gravar.' };
+  }
+  async function anaCriar(d) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação inclui analistas.' };
+    const nome = String(d && d.nome || '').trim().slice(0, 120); if (!nome) return { ok: false, erro: 'Informe o nome.' };
+    const ja = anaIdDe(nome); if (ja && norm(anaGet(ja).nome) === norm(nome)) return { ok: false, erro: nome + ' já está no cadastro.' };
+    const id = anaNovoId(nome), agora = Date.now();
+    const p = { id, nome, apelidos: [], situacao: 'ativo', origem: 'hub', gestta: null, mods: (d.mods || []).filter(m => ANA_MODS[m]), cargo: String(d.cargo || '').trim(), email: String(d.email || '').trim(), telefone: String(d.telefone || '').trim(), loginId: '', portalFuncId: '', obs: '', carteira: { dp: 0, contabil: 0, fiscal: 0, portal: 0 },
+      criadoEm: agora, criadoPor: autorId(), editado: { situacao: true, mods: true }, atualizadoEm: agora };
+    const ok = await persist(() => db.doc(`${ANA_COL}/${id}`).set(p));
+    if (ok) { state.anaRaw.set(id, p); anaAchata(); }
+    return ok ? { ok: true, id } : { ok: false, erro: 'Não foi possível gravar.' };
+  }
+  async function anaExcluir(id, restaurar) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação exclui analistas.' };
+    const ant = state.anaRaw.get(id); if (!ant) return { ok: false, erro: 'Pessoa não encontrada.' };
+    if (!restaurar) { const c = await anaCarteira(id); const tot = Object.values(c).reduce((a, l) => a + l.length, 0); if (tot) return { ok: false, erro: ant.nome + ' ainda tem ' + tot + ' empresa(s) na carteira. Transfira antes de excluir.' }; }
+    const novo = { ...ant, excluido: !restaurar, excluidoEm: restaurar ? null : Date.now(), excluidoPor: restaurar ? '' : autorId(), atualizadoEm: Date.now() };
+    const ok = await persist(() => db.doc(`${ANA_COL}/${id}`).set(novo));
+    if (ok) { state.anaRaw.set(id, novo); anaAchata(); }
+    return ok ? { ok: true } : { ok: false, erro: 'Não foi possível gravar.' };
+  }
+  // Carteira da pessoa agora (DP da memória do Hub; Contábil, Fiscal e Portal lidos do banco, no máximo a cada minuto).
+  async function anaCarteira(id) {
+    const out = { dp: [], contabil: [], fiscal: [], portal: [] }, p = anaGet(id); if (!p) return out;
+    const meu = (nome) => !!nome && anaIdDe(nome) === id;
+    (state.dpTodas || state.dpEmpresas || []).forEach(e => { const r = e._respOculto || e.responsavel, v = e._resOculto || e.reserva; if (meu(r)) out.dp.push({ id: e.id, nome: e.nome, papel: 'Responsável' }); else if (meu(v)) out.dp.push({ id: e.id, nome: e.nome, papel: 'Reserva' }); });
+    const M = await gtModulos().catch(() => null);
+    if (M) {
+      M.ctb.forEach((e, k) => { if (meu(e.analista)) out.contabil.push({ id: k, nome: e.nome, papel: 'Analista' }); else if (meu(e.apoio)) out.contabil.push({ id: k, nome: e.nome, papel: 'Apoio' }); });
+      M.fis.forEach((e, k) => { if (meu(e.analista)) out.fiscal.push({ id: k, nome: e.nome, papel: 'Analista' }); });
+      const nomeEmp = new Map(M.portal.map(x => [x.id, x.nome]));
+      M.sets.forEach((s, k) => { if (meu(s.analistaNome)) out.portal.push({ id: s.empresaId || k, nome: nomeEmp.get(s.empresaId) || s.empresaNome || s.empresaId || k, papel: ({ pessoal: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' })[s.setor] || s.setor || 'Frente' }); });
+    }
+    Object.keys(out).forEach(k => out[k].sort((a, b) => ptCmp(String(a.nome || ''), String(b.nome || ''))));
+    return out;
+  }
+  const ANA_MOD_CAD = { dp: 'dp', contabil: 'ctb', fiscal: 'fis', portal: 'portal' };
+  const anaApi = {
+    pronto: () => !!db, podeEditar: anaPodeEditar, mods: ANA_MODS, cargos: ANA_CARGOS,
+    todos: () => [...state.analistas.values()].map(p => JSON.parse(JSON.stringify(p))),
+    excluidos: () => [...state.anaRaw.values()].filter(p => p.excluido).map(p => JSON.parse(JSON.stringify(p))),
+    get: (id) => { const p = anaGet(id); return p ? JSON.parse(JSON.stringify(p)) : null; },
+    idDe: anaIdDe,
+    estado: () => ({ pessoas: state.analistas.size, relatorio: state.anaRel, ocupado: state.anaEstado.gerando, gestta: gtAtivo().motivoAna || '' }),
+    aoMudar: (cb) => { if (typeof cb === 'function') anaOuvintes.push(cb); },
+    async relatorio() {
+      if (!db) return { ok: false, erro: 'Sem conexão com o banco.' };
+      state.anaEstado.gerando = true; try { const r = anaMontar(await anaLerFontes()); state.anaRel = { ...r.rel, em: Date.now(), gravado: false }; return { ok: true, relatorio: state.anaRel }; } finally { state.anaEstado.gerando = false; }
+    },
+    async gerar() {
+      if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação gera o cadastro de analistas.' };
+      if (gtAtivo().motivoAna && !state.analistas.size) return { ok: false, erro: 'A equipe do Gestta não está disponível (' + gtAtivo().motivoAna + '). Gere quando ela chegar pela extensão.' };
+      state.anaEstado.gerando = true;
+      try { const r = anaMontar(await anaLerFontes()); const g = await anaGravar(r.pessoas); state.anaRel = { ...r.rel, em: Date.now(), gravado: true }; return { ok: g.falhou === 0, ...g, relatorio: state.anaRel }; }
+      finally { state.anaEstado.gerando = false; }
+    },
+    salvar: anaSalvar, criar: anaCriar, excluir: (id) => anaExcluir(id, false), restaurar: (id) => anaExcluir(id, true),
+    carteira: anaCarteira,
+    abrirEmpresa: (mod, id) => cadAbrir(ANA_MOD_CAD[mod] || mod, id),
+    async logins() {
+      if (!db) return [];
+      try { const l = await cadLerCol('auth_usuarios'); state.anaLogins = l.map(d => ({ id: d.id, nome: String(d.data.nome || ''), login: String(d.data.login || ''), email: String(d.data.email || ''), status: String(d.data.status || '') })).sort((a, b) => ptCmp(a.nome || a.login, b.nome || b.login)); } catch (e) {}
+      return state.anaLogins || [];
+    },
+    nivel: (m) => nivelMod(m), meNome: () => (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '',
+  };
+  // Para os módulos: o cadastro de analistas (código e nome). A troca dos campos dos módulos para código vem na etapa 2.
+  Object.assign(window.__cadastro, {
+    analistasCad: (mod) => [...state.analistas.values()].filter(p => p.situacao !== 'inativo' && (!mod || (p.mods || []).includes(mod === 'ctb' ? 'contabil' : mod === 'fis' ? 'fiscal' : mod))).map(p => ({ id: p.id, nome: p.nome })).sort((a, b) => ptCmp(a.nome, b.nome)),
+    analista: (id) => { const p = anaGet(id); return p ? { id: p.id, nome: p.nome, situacao: p.situacao, mods: (p.mods || []).slice(), cargo: p.cargo || '', email: p.email || '', loginId: p.loginId || '' } : null; },
+    analistaIdDe: (nome) => anaIdDe(nome),
+    abrirAnalista: (id) => { try { try { sessionStorage.setItem('controlhub-ana-abrir', id); } catch (e) {} openModule('analistas'); const f = $('#analistas-frame'); if (f && f.contentWindow && f.contentWindow.__abrirAnalista) { try { sessionStorage.removeItem('controlhub-ana-abrir'); } catch (e) {} f.contentWindow.__abrirAnalista(id); } return true; } catch (e) { return false; } },
+  });
   // === fim do bloco Gestta · cadastros ===
 
   function renderCartela() {
@@ -9244,7 +9500,7 @@
     { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
     { path:'fis_emp', app:'Fiscal' }, { path:'fis_comp', app:'Fiscal' }, { path:'fis_config', app:'Fiscal' },
     { path:'cardapio_dias', app:'Cardápio' },
-    { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' },
+    { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' }, { path:'cadastro_analistas', app:'Hub' },
     { path:'ing_dados', app:'Hub' }, { path:'ing_partes', app:'Hub' }, { path:'ing_lotes', app:'Hub' }, { path:'dp_ov_ignorar', app:'Hub' },
     // Hub 320: as coleções que não eram medidas (o total ficava abaixo do real e o banco enchia sem aviso)
     { path:'gt_hist', app:'Hub' }, { path:'gt_ignorar', app:'Hub' }, { path:'gt_config', app:'Hub' }, { path:'ing_reservas', app:'Hub' }, { path:'ing_envio', app:'Hub' }, { path:'ing_auto', app:'Hub' }, { path:'ing_config', app:'Hub' },
@@ -9968,6 +10224,7 @@
       render();
     }, caiu);
 
+    db.collection(ANA_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, { ...(d.data() || {}), id: d.id })); state.anaRaw = m; anaAchata(); }, () => {});
     db.collection(CAD_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, d.data() || {})); state.cadRaw = m; cadAchata(); ovAposCarga(); }, () => {});
     db.doc(`${CAD_TROCAS}/_idx`).onSnapshot((snap) => { state.cadTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
     db.doc(`${CAD_EXC}/_idx`).onSnapshot((snap) => { const d = snap && snap.exists !== false && snap.data ? (snap.data() || {}) : {}; state.cadExc = d.lista || {}; ovVer++; cadAchata(); ovAposCarga(); }, () => {});
@@ -10424,7 +10681,7 @@
     abrirModulo: (k) => openModule(k),
     inicio: () => goHome(),
     quadros: () => $$('.portal-frame'),
-    api(k) { if (k === 'onvio') return ovApi; if (k === 'gestta') return gtApi; if (k === 'cadastro') return cadApi; if (!podeVerMod(k) && k !== 'pop') return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
+    api(k) { if (k === 'onvio') return ovApi; if (k === 'gestta') return gtApi; if (k === 'cadastro') return cadApi; if (k === 'analistas') return anaApi; if (!podeVerMod(k) && k !== 'pop') return null; if (k === 'dp') return dpAssist; try { const f = $(`#${k}-frame`); return (f && f.contentWindow && f.contentWindow.__assistente) || null; } catch { return null; } },
     // Devolve a API do módulo já com os dados carregados (cria o quadro oculto se ainda não foi aberto).
     carregar(k) {
       if ((!podeVerMod(k) && k !== 'pop') || (k !== 'dp' && !FRAMES[k])) return Promise.resolve(null);   // POP Master é aberto a todos
