@@ -1072,8 +1072,8 @@ function contaPops(o){ return Array.isArray(o) ? o.length : Object.keys(o).reduc
 function renderMapa(){
   $$("#mpModo button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-mp") === S.mpModo); });
   if($("#mpFiltro").value !== S.mpFiltro) $("#mpFiltro").value = S.mpFiltro;
-  var arv = S.mpModo === "arvore";
-  $("#mpColunas").hidden = arv; $("#mpTrilho").hidden = arv; $("#mpArvore").hidden = !arv;
+  var arv = S.mpModo === "arvore", pla = S.mpModo === "planeta";
+  $("#mpColunas").hidden = arv || pla; $("#mpTrilho").hidden = arv; $("#mpArvore").hidden = !arv; $("#mpPlaneta").hidden = !pla;
   if(arv){ renderArquitetura(); return; }
   var t = arvoreMapa(), m = S.mapa, ord = function(o){ return Object.keys(o).sort(function(x, y){ return x.localeCompare(y, "pt-BR"); }); };
   var depsOrd = DEPS.map(function(d){ return d.n; }).filter(function(d){ return t[d]; }).concat(Object.keys(t).filter(function(d){ return !DEP[d]; }));
@@ -1103,6 +1103,26 @@ function renderMapa(){
   $("#mpTrilho").innerHTML = (partes.length > 1 ? '<button type="button" class="tr-volta" data-tr="' + (partes.length - 2) + '" aria-label="Voltar um nível">‹</button>' : '') + partes.map(function(pt, i){ return (i ? '<span class="tr-sep">›</span>' : '') + (i === partes.length - 1 ? '<b>' + esc(pt[0]) + '</b>' : '<button type="button" data-tr="' + i + '">' + esc(pt[0]) + '</button>'); }).join("");
   $("#mpTrilho")._partes = partes;
   var on = c.querySelector(".mcol.ativa"); c.scrollLeft = on ? Math.max(0, on.offsetLeft + on.offsetWidth - c.clientWidth) : 0;
+  if(pla) renderPlaneta();
+}
+/* ============ MAPA DE PROCESSOS (planeta: pop-planeta.js, carregado só quando usado) ============ */
+var planetaCarregando = false;
+var PLANETA_API = {
+  arvore: function(){ return arvoreMapa(); }, DEPS: DEPS, DEP: DEP, depCor: depCor, vencida: vencida, lidoInfo: lidoInfo, meuDep: meuDep,
+  podeEditar: function(){ return podeEditar(); }, buscar: function(q){ return buscar(q); }, esc: esc, S: function(){ return S; },
+  pop: function(id){ return S.pops[id] || null; }, abrir: function(id){ abrirPop(id); },
+  // o planeta muda o lugar: trilho e colunas acompanham, sem o planeta voar de novo
+  navegar: function(m){ S.mapa = {dep: m.dep || "", set: m.set || "", at: m.at || "", ta: m.ta || ""}; renderMapa(); }
+};
+function renderPlaneta(){
+  var el = $("#mpPlaneta");
+  if(window.PopPlaneta){ try{ window.PopPlaneta.render(PLANETA_API, el); }catch(e){ console.error(e); } return; }
+  if(planetaCarregando) return;
+  planetaCarregando = true; el.innerHTML = '<div class="pl-carregando">Preparando o planeta…</div>';
+  var sc = document.createElement("script"); sc.src = "pop-planeta.js?v=2";
+  sc.onload = function(){ planetaCarregando = false; if(S.mpModo === "planeta") renderPlaneta(); };
+  sc.onerror = function(){ planetaCarregando = false; el.innerHTML = '<div class="pl-carregando">Não foi possível abrir o planeta agora. Use o modo Navegar.</div>'; };
+  document.head.appendChild(sc);
 }
 $("#mpColunas").addEventListener("click", function(e){
   var b = e.target.closest("[data-mi]"); if(!b) return;
