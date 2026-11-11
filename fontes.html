@@ -437,6 +437,31 @@
   .lote-lista .li-st{font-size:11.5px; font-weight:700; white-space:nowrap; color:var(--ink-3);}
   .lote-lista li.rodando{background:var(--surface-2);} .lote-lista li.ok .li-st{color:var(--verde);} .lote-lista li.erro .li-st{color:var(--brand-red); white-space:normal; text-align:right; max-width:50%;}
   @media (max-width:700px){ .mudanca{white-space:normal;} .acs{white-space:normal;} .cad-ac{justify-content:flex-start;} }
+  /* Hub 336: Atualizar o Hub (envio único da extensão) */
+  .env{margin:0 0 16px; padding:14px 16px;}
+  .env-top{display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px;}
+  .env-top h3{margin:0; font-size:15px;}
+  .env-st{font-size:12.5px; color:var(--ink-2);}
+  .env-esp{flex:1;}
+  .env-acoes{display:flex; gap:8px; align-items:center;}
+  .env-cab{margin:10px 0 0; font-size:13px; color:var(--ink);} .env-cab b{font-weight:700;}
+  .env-cab.erro{color:var(--late, #B3261E);}
+  .env-abas{margin:4px 0 0; font-size:12px; color:var(--ink-2);}
+  .env-aviso{margin:6px 0 0; font-size:12.5px; color:var(--late, #B3261E);}
+  .env-fontes{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:10px; margin-top:12px;}
+  .env-f{border:1px solid var(--rule); border-radius:4px; padding:10px 12px; min-width:0;}
+  .env-f h4{margin:0; display:flex; align-items:center; gap:8px; font-size:13px;}
+  .env-chip{font-size:11.5px; font-weight:600; padding:1px 8px; border-radius:3px; background:var(--chip, color-mix(in srgb, var(--ink) 8%, transparent)); color:var(--ink);}
+  .env-chip.ok{background:color-mix(in srgb, #1E8E5A 16%, transparent);} .env-chip.erro{background:color-mix(in srgb, #C62828 16%, transparent);} .env-chip.vai{background:color-mix(in srgb, #3C659B 18%, transparent);}
+  .env-etapa{margin:6px 0 0; font-size:12.5px; color:var(--ink-2); overflow-wrap:anywhere;}
+  .env-barra{height:6px; margin-top:6px; border-radius:3px; background:color-mix(in srgb, var(--ink) 10%, transparent); overflow:hidden;}
+  .env-barra i{display:block; height:100%; background:#3C659B; transition:width .3s;}
+  .env-l{list-style:none; margin:8px 0 0; padding:0; font-size:12.5px;}
+  .env-l li{display:grid; grid-template-columns:16px minmax(0, 1fr) auto; gap:6px; padding:3px 0; border-top:1px solid var(--rule); color:var(--ink-2);}
+  .env-l li b{font-weight:600; color:var(--ink); overflow-wrap:anywhere;}
+  .env-l li.erro, .env-l li.erro b{color:var(--late, #B3261E);}
+  .env-l details summary{cursor:pointer; font-size:12px; color:var(--ink-2); padding:4px 0;}
+  @media (prefers-reduced-motion: reduce){ .env-barra i{transition:none;} }
   @media (prefers-reduced-motion: reduce){ .kt, .seta-d, .lote-prog i b{transition:none;} }
 </style>
 </head>
@@ -454,6 +479,7 @@
 <div class="wrap"><main>
   <div class="aviso erro" id="semBanco" hidden><div><b>Sem conexão com o banco do Hub.</b> Abra esta tela pelo Control Hub.</div></div>
   <div class="resumo-topo" id="resumoTopo"></div>
+  <div class="panel env" id="envioBox" aria-live="polite"></div>
   <div class="aba" data-aba="decidir">
   <div class="dec-sub" role="tablist" aria-label="De onde vêm as diferenças"><button type="button" role="tab" data-dec="onvio">Onvio <em id="decN-onvio"></em></button><button type="button" role="tab" data-dec="gestta">Gestta <em id="decN-gestta"></em></button></div>
   <section id="secCadastro">
@@ -508,7 +534,7 @@
       <ol class="passos">
         <li>Abra o <b>Control Onvio</b> (a extensão) → Configurações → seção <b>Control Hub</b>.</li>
         <li>Cole o código acima e clique em <b>Conectar ao Control Hub</b> (o Chrome pede permissão para o claude.ai).</li>
-        <li>Deixe o Hub aberto numa aba. A extensão envia um resumo a cada leitura em que algo mudou, ou ao clicar em <b>Enviar agora</b>.</li>
+        <li>Abra o Hub uma vez com a extensão conectada: ela aprende o endereço. Daí em diante o envio abre sozinho o que faltar (o Hub, o Onvio e o Gestta) em segundo plano e fecha no fim. Atualize pelo botão <b>Atualizar o Hub</b> (aqui, no topo) ou pela extensão.</li>
       </ol>
       <p class="note" style="margin-top:10px">O que chega é só um resumo (lista, situação, cliente, responsável, datas, dias parado e gravidade). Assunto, nome de empregado e trâmites não saem da extensão.</p>
     </div>
@@ -1714,6 +1740,80 @@ function renderTopo(){
     '<button type="button" class="kt" data-ir-aba="conexao"><b>' + (cfg && cfg.token ? "Pareado" : "—") + '</b><span>ponte com a extensão</span><small>' + (cfg && cfg.token ? "código ativo · aceita só a extensão " + (cfg.versaoExtMax && verMaior(cfg.versaoExtMax, "0.79.0") ? cfg.versaoExtMax : "0.79.0") + " ou mais nova" : "gere o código em Conexão") + '</small></button>';
 }
 
+/* ---- Hub 336: Atualizar o Hub (envio único da extensão: resumo, Onvio e Gestta juntos) ---- */
+// O andamento vem da extensão deste Chrome (window.parent.__hubEnvio) ou, para quem não tem a extensão, de ing_envio/atual.
+// Só a coordenação inicia ou cancela; quem não tem a extensão neste Chrome vê o andamento e o resultado.
+var ENV = { ocupado:false, msg:"", consultaEm:0, ouvindo:false, nomes:{} };
+function envApi(){ try{ return window.parent !== window && window.parent.__hubEnvio ? window.parent.__hubEnvio : null; }catch(e){ return null; } }
+var ENV_EST = { nunca:"nenhum envio ainda", preparando:"preparando", enviando:"enviando", ok:"tudo aceito", parcial:"parte aceita", erro:"não concluído", cancelado:"cancelado", interrompido:"interrompido" };
+var ENV_F = { aguardando:"aguardando", enviando:"enviando", ok:"enviado", parcial:"parte enviada", erro:"erro", cancelado:"cancelado", interrompido:"interrompido", fora:"não enviado" };
+var ENV_FASE = { abas:"abrindo o que faltava", resumo:"resumo das pendentes", onvio:"Onvio", gestta:"Gestta" };
+var ENV_ABA = { abriu:"abriu em segundo plano", aberta:"já estava aberto", falhou:"não abriu", "sem-sessao":"sem sessão" };
+var ENV_MOT = { "sem-hub":"o Hub não respondeu", "sem-endereco-hub":"a extensão não sabe o endereço do Hub", "sem-sessao-onvio":"o Onvio estava sem sessão", "sem-sessao-gestta":"o Gestta estava sem sessão", "sem-gestta":"o Gestta não estava aberto", "acesso-parcial":"o Gestta está com login de analista (precisa da coordenação)", "token":"o código de pareamento não confere", "versao-antiga":"a extensão está desatualizada", "visao-cliente":"o Onvio está com acesso de cliente", "sem-mudanca":"sem mudança", "cancelado":"cancelado", "interrompido":"interrompido no meio", "sem-extensao":"a extensão não respondeu neste Chrome", "nada-rodando":"não há envio em andamento" };
+function envMot(m){ return ENV_MOT[m] || m || ""; }
+function envAtual(){
+  var a = envApi(), st = a ? a.estado() : null, loc = st && st.envio, dbv = st && st.envioDb;
+  var t = function(e){ return e ? (e.recebidoEm || e.atualizadoEm || 0) : 0; };
+  return { ext: st && st.ext && Date.now() - (st.ext.em || 0) < 90000 ? st.ext : null, envio: t(loc) >= t(dbv) ? (loc || dbv) : dbv };
+}
+function envRodando(e){ return !!e && (e.estado === "preparando" || e.estado === "enviando") && Date.now() - (e.recebidoEm || e.atualizadoEm || 0) < 300000; }
+function envNome(id){ if(!id) return ""; if(ENV.nomes[id] != null) return ENV.nomes[id]; ENV.nomes[id] = ""; if(userNs && userNs.profiles) Promise.resolve(userNs.profiles([id])).then(function(ps){ ENV.nomes[id] = (ps && ps[id] && ps[id].name) || ""; renderEnvio(); }).catch(function(){}); return ""; }
+function envFonte(f){
+  var est = f.estado || "aguardando", cls = est === "ok" ? "ok" : (est === "erro" || est === "interrompido") ? "erro" : est === "enviando" ? "vai" : "";
+  var cj = f.conjuntos || [], mal = cj.filter(function(c){ return !c.ok; }), ok = cj.filter(function(c){ return c.ok; });
+  var h = '<div class="env-f"><h4>' + esc(f.nome) + ' <span class="env-chip ' + cls + '">' + esc(ENV_F[est] || est) + '</span></h4>';
+  if(est === "enviando") h += '<p class="env-etapa">' + esc(f.etapa || "lendo") + (f.detalhe ? " · " + esc(f.detalhe) : "") + (f.total ? " (etapa " + Math.min(f.total, f.feito + 1) + " de " + f.total + ")" : "") + '</p>' + (f.total ? '<div class="env-barra" role="progressbar" aria-valuemin="0" aria-valuemax="' + f.total + '" aria-valuenow="' + f.feito + '"><i style="width:' + Math.round(f.feito / f.total * 100) + '%"></i></div>' : "");
+  else if(f.motivo) h += '<p class="env-etapa">' + esc(envMot(f.motivo)) + '</p>';
+  var li = function(c){ return '<li class="' + (c.ok ? "" : "erro") + '"><span aria-hidden="true">' + (c.ok ? (c.igual ? "=" : c.cortado ? "⚠" : "✓") : "✕") + '</span><b>' + esc(c.rotulo || c.id) + '</b><span>' + esc(c.ok ? (c.igual ? "sem mudança" : (c.linhas || 0).toLocaleString("pt-BR") + " linhas" + (c.cortado ? " · incompleto" : "")) : envMot(c.motivo)) + '</span></li>'; };
+  if(mal.length) h += '<ul class="env-l">' + mal.map(li).join("") + '</ul>';
+  if(ok.length) h += '<details class="env-l"><summary>' + plural(ok.length, "conjunto enviado", "conjuntos enviados") + " · " + ok.reduce(function(n, c){ return n + (c.linhas || 0); }, 0).toLocaleString("pt-BR") + ' linhas</summary><ul class="env-l">' + ok.map(li).join("") + '</ul></details>';
+  return h + '</div>';
+}
+function renderEnvio(){
+  var el = $("#envioBox"); if(!el) return;
+  var a = envApi(), at = envAtual(), e = at.envio, roda = envRodando(e), ext = at.ext;
+  var stExt = ext ? "Control Onvio conectado neste Chrome" + (ext.versao ? " (" + esc(ext.versao) + ")" : "") : "Sem o Control Onvio neste Chrome: aqui só dá para acompanhar";
+  var bt = "";
+  if(coord && ext) bt = roda ? '<button type="button" class="fbtn" id="envCancelar"' + (ENV.ocupado ? " disabled" : "") + '>Cancelar</button>' : '<button type="button" class="btn verde" id="envAtualizar"' + (ENV.ocupado ? " disabled" : "") + '>Atualizar agora</button>';
+  var h = '<div class="env-top"><h3>Atualizar o Hub</h3><span class="env-st">' + stExt + '</span><span class="env-esp"></span><div class="env-acoes">' + bt + '</div></div>';
+  if(!coord) h += '<p class="env-abas">Só a coordenação inicia o envio; você acompanha aqui.</p>';
+  else if(!ext) h += '<p class="env-abas">Para iniciar daqui, abra o Hub no Chrome em que o Control Onvio está conectado. O envio automático continua.</p>';
+  if(ENV.msg) h += '<p class="env-aviso">' + esc(ENV.msg) + '</p>';
+  if(e && e.estado && e.estado !== "nunca"){
+    var quem = e.origem === "hub" ? "pedido pelo Hub" + (e.pedidoPor && envNome(e.pedidoPor) ? " (" + esc(envNome(e.pedidoPor)) + ")" : "") : e.origem === "auto" ? "automático" : "pedido pela extensão";
+    var est = roda ? e.estado : (e.estado === "preparando" || e.estado === "enviando") ? "interrompido" : e.estado;
+    h += '<p class="env-cab' + (est === "erro" || est === "interrompido" ? " erro" : "") + '">' + (roda ? "<b>Atualizando</b> · " + esc(ENV_FASE[e.fase] || "") + " · " + quem + " · começou " + esc(quando(Date.parse(e.iniciouEm))) : "<b>Último envio:</b> " + esc(ENV_EST[est] || est) + " · " + quem + " · " + esc(quando(Date.parse(e.terminouEm || e.iniciouEm)))) + (e.motivo ? " · " + esc(envMot(e.motivo)) : "") + '</p>';
+    var ab = ["hub", "onvio", "gestta"].filter(function(k){ return e.abas && e.abas[k]; }).map(function(k){ return { hub:"Hub", onvio:"Onvio", gestta:"Gestta" }[k] + ": " + (ENV_ABA[e.abas[k]] || e.abas[k]); });
+    if(ab.length) h += '<p class="env-abas">' + esc(ab.join(" · ")) + '</p>';
+    (e.avisos || []).forEach(function(x){ h += '<p class="env-aviso">' + esc(x) + '</p>'; });
+    h += '<div class="env-fontes">' + (e.fontes || []).map(envFonte).join("") + '</div>';
+  } else h += '<p class="env-abas">Nenhum envio ainda.</p>';
+  if(el.__h === h){ if(a && !ENV.ouvindo){ ENV.ouvindo = true; a.ouvir(function(){ renderEnvio(); }); } return; }      // só redesenha se mudou (o botão não some no meio do clique)
+  el.__h = h; el.innerHTML = h;
+  var b1 = $("#envAtualizar"), b2 = $("#envCancelar");
+  if(b1) b1.onclick = function(){ envPedir("atualizar"); };
+  if(b2) b2.onclick = function(){ envPedir("cancelar"); };
+  if(a && !ENV.ouvindo){ ENV.ouvindo = true; a.ouvir(function(){ renderEnvio(); }); }
+}
+function envPedir(acao){
+  var a = envApi(); if(!a) return;
+  ENV.ocupado = true; ENV.msg = ""; renderEnvio();
+  a.pedir(acao).then(function(r){
+    ENV.ocupado = false;
+    if(r && r.ok) toast(acao === "cancelar" ? "Cancelando: o envio para no próximo conjunto." : r.jaRodando ? "Já há um envio em andamento." : "Envio iniciado: acompanhe aqui.");
+    else ENV.msg = "Não consegui: " + envMot(r && r.motivo);
+    renderEnvio();
+  });
+}
+// Confere se há extensão neste Chrome (a cada 20 s, ou a cada 5 s durante um envio)
+setInterval(function(){
+  var a = envApi(); if(!a) return;
+  var at = envAtual(), int = envRodando(at.envio) ? 5000 : 20000;
+  if(Date.now() - ENV.consultaEm >= int){ ENV.consultaEm = Date.now(); a.pedir("estado").then(function(){ renderEnvio(); }); }
+  else renderEnvio();
+}, 5000);
+setTimeout(function(){ var a = envApi(); if(a){ ENV.consultaEm = Date.now(); a.pedir("estado").then(function(){ renderEnvio(); }); } }, 1200);
+
 /* ---- início ---- */
 usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   if(!dbNs){ $("#semBanco").hidden = false; render(); return null; }
@@ -1724,13 +1824,14 @@ usarCap("db").catch(function(){ return null; }).then(function(dbNs){
   return usarCap("user").catch(function(){ return null; });
 }).then(function(u){
   if(!u) return; userNs = u;
-  Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ coord = !!ok; render(); });
+  Promise.resolve(u.canEdit ? u.canEdit() : false).catch(function(){ return false; }).then(function(ok){ coord = !!ok; render(); renderEnvio(); });
   buscarNomes();
 });
 (function(){ var tries = 0, t = setInterval(function(){ tries++; var a = cxApi(), c = ""; try{ c = sessionStorage.getItem("controlhub-cad-editar") || ""; }catch(e){} if(!c || tries > 30){ clearInterval(t); return; } if(a && a.estado().mestre){ clearInterval(t); try{ sessionStorage.removeItem("controlhub-cad-editar"); }catch(e){} window.__abrirEdicaoCad(c); } }, 500); })();
 var abaGuardada = ""; try{ abaGuardada = localStorage.getItem(ABA_CHAVE) || ""; }catch(e){}
 abrirAba(["decidir", "empresas", "recebido", "conexao"].indexOf(abaGuardada) !== -1 ? abaGuardada : "decidir", false);
 render();
+renderEnvio();
 renderCadastro();
 renderGestta();
 setInterval(function(){ render(); renderCadastro(); renderGestta(); if(abaAtual === "empresas" && !CU.ocupado) renderCU(); }, 60000);

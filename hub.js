@@ -1356,11 +1356,27 @@
     box.addEventListener('mousedown', (e) => { e.preventDefault(); const op = e.target.closest('.cb-op'); if (op) escolher(+op.dataset.i); });
     inp.addEventListener('blur', () => setTimeout(fechar, 120));
   })();
+  // Hub 338 (Josué, 11/11/2026: "eu filtrei pela Lizziane sem querer, e pra ser sincero já fiz isso várias vezes e me confundi"): a carteira
+  // vale só nesta visita (o Hub abre sempre em "Equipe toda"; quem é analista continua abrindo na própria), aparece numa faixa em todas as
+  // abas do DP com "Ver a equipe toda", e clicar num analista na Cartela filtra só a Cartela.
   function setCarteira(v) {
     state.dpCarteira = v || '';
-    state.prefs.dpCarteira = state.dpCarteira; savePrefs();
+    state.dpCtAn = null;                                   // a escolha só da Cartela volta a seguir a do módulo
+    if (state.prefs.dpCarteira) { state.prefs.dpCarteira = ''; savePrefs(); }
     renderDpActiveView();
   }
+  function renderCartFaixa() {
+    const tabs = document.querySelector('#view-dp .dp-tabs'); if (!tabs) return;
+    let fx = document.getElementById('dp-cart-faixa');
+    if (!fx) { fx = document.createElement('div'); fx.id = 'dp-cart-faixa'; fx.className = 'dp-cart-faixa'; fx.setAttribute('role', 'status'); tabs.insertAdjacentElement('afterend', fx); }
+    const c = state.dpCarteira, sel = document.getElementById('dp-carteira');
+    if (sel) sel.classList.toggle('filtro-on', !!c);
+    if (!c) { fx.hidden = true; fx.innerHTML = ''; return; }
+    const n = empresasCarteira().filter(ativa).length;
+    fx.hidden = false;
+    fx.innerHTML = `<span>${c === SEM_RESP ? 'Mostrando só as empresas <b>sem responsável</b>' : `Mostrando só a carteira de <b>${escapeHtml(c)}</b>`} · ${n} empresa${n === 1 ? '' : 's'} ativa${n === 1 ? '' : 's'}, em todas as abas do DP</span><button type="button" class="btn btn-sm" data-cart-limpar>Ver a equipe toda</button>`;
+  }
+  document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('[data-cart-limpar]')) setCarteira(''); });
   $('#dp-carteira').addEventListener('change', (e) => setCarteira(e.target.value));
 
   function openDpModule(view) {
@@ -1453,6 +1469,7 @@
     setTimeout(migrarCodDominio, 600);
     if (state.dpView !== 'agenda') document.body.classList.remove('ag-fit');
     refreshCarteiraOptions();
+    renderCartFaixa();
     refreshSindDatalist();
     $('#dp-sync').textContent = db ? 'Sincronizado com a equipe' : 'Salvo só neste navegador';
     renderBadges();
@@ -2929,7 +2946,7 @@
       marcarAnim(container, anim);
       const empHtml = empAch.length ? `<div class="fn-sec-h">Empresas <span>${empAch.length}</span></div>` + empMostra.map(({ e, at }) => `
       <div class="dp-row fn-emp-row" style="--cols:${FUNC_COLS}" role="button" tabindex="0" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">
-        <div><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${escapeHtml(e.cnpj || 'sem CNPJ')}${e.situacao === 'Inativa' ? ' · inativa' : ''}</div></div>
+        <div><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${escapeHtml(e.cnpj || 'sem CNPJ')}${e.situacao === 'Inativa' ? ' · inativa' + (e._sitMotivo ? ' (' + escapeHtml(e._sitMotivo) + ')' : '') : ''}</div></div>
         <div class="dp-hide-sm dp-cell-sub">${escapeHtml(respEf(e) || 'sem responsável')}</div>
         <div class="dp-mono"><b>${at}</b> <span class="dp-cell-sub">ativo${at === 1 ? '' : 's'}</span></div>
         <div><span class="fn-abrir">Abrir ›</span></div>
@@ -5151,11 +5168,7 @@
     // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
     if (!AUTH() && !state.prefs.convAuto && userNs && state.meId) {
       state.prefs.convAuto = true; savePrefs();
-      if (!state.dpCarteira) userNs.profiles([state.meId]).then(ps => {
-        const n = norm(ps?.[state.meId]?.name || ''); if (!n) return;
-        const r = dpResponsaveis().find(x => norm(x) === n) || dpResponsaveis().find(x => norm(x).split(' ')[0] === n.split(' ')[0]);
-        if (r) setCarteira(r);
-      }).catch(() => {});
+      // Hub 338: não escolhe mais a carteira sozinha (era uma das formas de o DP ficar filtrado sem a pessoa perceber)
     }
     const main = $('#cv-main'), anim = state.dpConvAnim;
     state.dpConvAnim = false;
@@ -5608,8 +5621,9 @@
 
   const ctResp = (e) => state.dpCtSim && Object.prototype.hasOwnProperty.call(state.dpCtSim, e.id) ? state.dpCtSim[e.id] : e.responsavel;
   const ctBase = () => state.dpEmpresas.filter(e => state.dpCtTodas || ativa(e));
+  const ctCart = () => state.dpCtAn != null ? state.dpCtAn : state.dpCarteira;      // Hub 338: a escolha só da Cartela, ou a do módulo
   function ctNaCarteira(e) {
-    const c = state.dpCarteira;
+    const c = ctCart();
     if (!c) return true;
     const r = ctResp(e);
     if (c === SEM_RESP) return !r;
@@ -5895,7 +5909,7 @@
   function ovAposCarga() {
     clearTimeout(ovT);
     ovT = setTimeout(() => {
-      if (state.dpTodas && typeof gtFiltrarDp === 'function') { const novo = gtFiltrarDp(state.dpTodas); if (novo.length !== state.dpEmpresas.length) state.dpEmpresas = novo; }     // Hub 323: a folha chegou e pode trazer empresas de volta
+      if (state.dpTodas && typeof gtFiltrarDp === 'function') { const novo = gtFiltrarDp(state.dpTodas), assin = (l) => l.map(e => e.id + ':' + e.situacao + ':' + (e._sitMotivo || '') + ':' + (e.responsavel || '')).join('|'); if (novo.length !== state.dpEmpresas.length || assin(novo) !== assin(state.dpEmpresas)) state.dpEmpresas = novo; }      // Hub 337: também a situação     // Hub 323: a folha chegou e pode trazer empresas de volta
       evCacheClear();
       if (state.activeModule === 'dp') renderDpActiveView();
       if (dlgDetail.open && dpAtual && !dpDraft) { renderOvFicha(); renderOvDifFicha(); renderDetailProx(); updateDetailHeader(); }
@@ -7137,7 +7151,7 @@
     excluida: (cnpj) => cadExcluida(cnpj),       // Hub 314: empresa excluída de todos os módulos (os módulos não devem recriá-la)
     // Hub 317: o Gestta é a referência absoluta. Empresa sem tarefa no mês atual nem no anterior e analista fora da equipe ativa somem dos módulos
     // (escondidos: nada é apagado e voltam sozinhos). Sem a lista do Gestta (ou velha, ou incompleta) tudo continua à vista.
-    ativa: (mod, id, cnpj, nome) => !gtEmpresaFora((id && cadVinc(mod, id)) || cnpj, nome),
+    ativa: (mod, id, cnpj, nome) => !gtEmpresaFora((id && cadVinc(mod, id)) || cnpj, nome, mod),
     analistaAtivo: (nome) => gtAnalistaAtivo(nome),
     analistaGestta: (nome) => gtAnalistaDe(nome),
     analistas: (mod) => { const l = gtAnalistasMod(mod === 'ctb' ? 'contabil' : mod === 'fis' ? 'fiscal' : mod === 'portal' ? '' : mod); return l ? l.slice() : null; },
@@ -7798,7 +7812,7 @@
         if (!e) {
           const parecida = nomesDp.get(cadNomeKey(c.nome));
           add('dp', 'empresa', 'novo', 'Empresa nova no DP', '—', c.nome, { nome: c.nome, uf: c.uf, tributacao: trib, responsavel: r.nome }, null, parecida ? { confirmar: true, nota: `talvez seja “${parecida.nome}” (sem CNPJ no DP): ligue no Cadastro único em vez de cadastrar` } : confNome(r));
-        } else if (ativa(e)) {
+        } else if ('_sitOrig' in e ? e._sitOrig !== 'Inativa' : ativa(e)) {       // Hub 337: a situação gravada, não a Inativa só da tela
           if (r.nome && norm(r.nome) !== norm(e.responsavel)) add('dp', 'responsavel', e.responsavel ? 'corrigir' : 'complementar', 'Analista do Pessoal', e.responsavel, r.nome, r.nome, { id: e.id, nome: nomeCurto(e) }, confNome(r));
           if (trib && norm(trib) !== norm(e.tributacao)) add('dp', 'tributacao', e.tributacao ? 'corrigir' : 'complementar', 'Tributação', e.tributacao, trib, trib, { id: e.id, nome: nomeCurto(e) });
         }
@@ -8413,24 +8427,50 @@
   // Hub 323 (Josué, 06/11/2026: "várias empresas sumiram do módulo Departamento Pessoal"): só esconde quando dá para afirmar que não há tarefa.
   // Fica: CNPJ igual; mesma raiz de CNPJ (matriz no Gestta, filial no Hub, ou o contrário); ou nome igual ou contido (≥ 2 palavras), que
   // cobre empresa sem CNPJ no Hub, CNPJ diferente nos dois cadastros e cliente do Gestta sem CNPJ (CPF, empregador doméstico).
-  function gtMotivoSemFolha(cnpj, nome) {
-    const a = gtAtivo().empresas; if (!a) return '';
+  // Hub 337 (Josué, 11/11/2026: "tem alguma coisa que impede que empresas sem tarefas ativas apareçam aqui? acho que tem empresas inativas aqui no
+  // meio"; decidido: cada módulo olha só as tarefas do próprio setor, e a filial só fica com tarefa no CNPJ dela): com a lista de tarefas válida
+  // (inteira e recente), as empresas em atividade de cada módulo saem das tarefas do setor do módulo (CNPJ e cliente de cada tarefa). Sem ela, a
+  // lista de empresas em atividade de todos os setores, como antes.
+  const GT_MOD_DE = { dp: 'dp', ctb: 'contabil', contabil: 'contabil', fis: 'fiscal', fiscal: 'fiscal' };
+  const GT_MOD_NOME = { dp: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' };
+  const gtAtivoSetor = () => gtMemo('ativoSetor', () => {
+    if (gtManMotivo('gestta-tarefas', 'A lista de tarefas') || !gtCarregado('gestta-tarefas')) return null;
+    const out = {}, novo = () => ({ cnpjs: new Set(), nomes: new Set(), raizes: new Set(), nomesL: [], memo: new Map() });
+    gtLer('gestta-tarefas').forEach(t => {
+      const m = gtSetorMod(t['Setor']); if (!m) return;
+      const x = out[m] || (out[m] = novo());
+      const c = cnpjClean(t['CNPJ']); if (c) { x.cnpjs.add(c); if (c.length === 14) x.raizes.add(c.slice(0, 8)); }
+      const n = cadNomeKey(t['Cliente']); if (n) x.nomes.add(n);
+    });
+    Object.values(out).forEach(x => { x.nomesL = [...x.nomes].map(n => ' ' + n + ' '); });
+    return out;
+  });
+  // Empresa fora: sem tarefa no mês atual nem no anterior (no módulo pedido: do setor dele). Empresas do escritório não são julgadas.
+  // Fica: CNPJ igual. Hub 337: a raiz do CNPJ não segura mais a filial; o nome (igual ou contido, ≥ 2 palavras) só vale quando o Gestta não
+  // tem essa raiz em setor nenhum (empresa sem CNPJ no Hub, CNPJ diferente nos dois cadastros, cliente do Gestta sem CNPJ).
+  function gtMotivoSemFolha(cnpj, nome, mod) {
+    const g = gtAtivo().empresas; if (!g) return '';
     if (ehEscritorioProprio(nome)) return '';
+    const m = GT_MOD_DE[mod] || '', ps = m ? gtAtivoSetor() : null;
+    const a = ps ? (ps[m] || null) : g; if (!a) return ps && Object.keys(ps).length ? 'sem tarefa do ' + GT_MOD_NOME[m] + ' no Gestta' : '';
     const k = cnpjClean(cnpj);
     if ((k.length === 14 || k.length === 11) && a.cnpjs.has(k)) return '';
-    if (k.length === 14 && a.raizes.has(k.slice(0, 8))) return '';
+    const raizNoGestta = k.length === 14 && (g.raizes.has(k.slice(0, 8)) || !!(ps && Object.values(ps).some(x => x.raizes.has(k.slice(0, 8)))));
     const n = cadNomeKey(String(nome || '').replace(/\s*\|\s*[\d-]+\s*$/, ''));
-    if (n) {
+    if (n && !raizNoGestta) {
       let ok = a.memo.get(n);
       if (ok === undefined) { const nn = ' ' + n + ' ', duas = n.split(' ').length >= 2; ok = a.nomes.has(n) || (duas && a.nomesL.some(x => x.includes(nn) || (x.trim().split(' ').length >= 2 && nn.includes(x)))); a.memo.set(n, ok); }
       if (ok) return '';
     }
-    return k.length === 14 ? 'CNPJ sem tarefa no Gestta' : k.length === 11 ? 'CPF sem tarefa no Gestta' : n ? 'sem CNPJ e o nome não está no Gestta' : 'sem CNPJ nem nome';
+    const qual = ps ? ' do ' + GT_MOD_NOME[m] : '';
+    if (ps && (k.length === 14 || k.length === 11) && (g.cnpjs.has(k) || Object.values(ps).some(x => x.cnpjs.has(k)))) return 'só tem tarefa de outro setor no Gestta';
+    if (raizNoGestta) return 'filial sem tarefa' + qual + ' no CNPJ dela';
+    return k.length === 14 ? 'CNPJ sem tarefa' + qual + ' no Gestta' : k.length === 11 ? 'CPF sem tarefa' + qual + ' no Gestta' : n ? 'sem CNPJ e o nome não está no Gestta' : 'sem CNPJ nem nome';
   }
   // Hub 329 (Josué, 10/11/2026: "retire as empresas sem tarefa mesmo que tenha empregado ativo", "isso deve valer para o módulo pessoal também"):
-  // a folha ativa não segura mais a empresa (era a exceção do Hub 323); ficam só os casamentos por CNPJ, raiz e nome.
-  const gtMotivoFora = (cnpj, nome) => gtMotivoSemFolha(cnpj, nome);
-  const gtEmpresaFora = (cnpj, nome) => !!gtMotivoFora(cnpj, nome);
+  // a folha ativa não segura mais a empresa (era a exceção do Hub 323); ficam só os casamentos por CNPJ e nome.
+  const gtMotivoFora = (cnpj, nome, mod) => gtMotivoSemFolha(cnpj, nome, mod);
+  const gtEmpresaFora = (cnpj, nome, mod) => !!gtMotivoFora(cnpj, nome, mod);
   // Nome do Gestta da pessoa (o cadastro único de analistas), ou '' se ela não está ativa no Gestta. Sem a equipe do Gestta, não decide.
   function gtAnalistaDe(nome) {
     const s = String(nome || '').trim(); if (!s) return '';
@@ -8445,8 +8485,23 @@
   // O nome escondido volta ao gravar (dpDbStore.saveOne), para nada ser apagado sem decisão.
   function gtFiltrarDp(lista) {
     const a = gtAtivo();
-    if (!a.empresas && !a.analistas) return lista;
-    return lista.filter(e => !gtEmpresaFora(e.cnpj, e.nome)).map(e => {
+    // Hub 337 (Josué, 11/11/2026: "empresas sem funcionário/tarefa ativa deve contar como inativa"; decidido: basta faltar um dos dois, e
+    // ficam à vista como Inativa em vez de sumir): a situação muda só na tela (o que estava gravado volta ao salvar, gtSemOculto); Inativa
+    // sai do Painel, da Agenda, dos alertas e das Ativas da Cartela, como qualquer empresa inativa. Sem a lista do Gestta, só o funcionário conta.
+    // (o Onvio chegando depois também refiltra: ovAvisar chama gtAtivoMudou)
+    const dpInativa = (e) => {
+      if (e.situacao === 'Inativa') return '';
+      const mt = a.empresas ? gtMotivoFora(e.cnpj, e.nome, 'dp') : '';
+      if (mt) return mt;
+      // funcionário ativo: no cadastro do DP, na lista de empregados do Onvio ou entre os sócios com folha (pró-labore conta, Hub 310), para a empresa
+      // não ficar Inativa só porque a Entrada de dados ainda não levou as pessoas ao cadastro
+      if ((e.funcionarios || []).some(funcConta)) return '';
+      try { const ro = ovRoster(); if ((ro.porEmp.get(e.id) || []).some(x => x.ativo) || ((ro.socios || new Map()).get(e.id) || []).some(x => x.ativo)) return ''; } catch (x) { /* Onvio ainda não chegou */ }
+      return 'sem funcionário ativo';
+    };
+    return lista.map(e => {
+      const mi = dpInativa(e);
+      if (mi) e = { ...e, _sitOrig: e.situacao, situacao: 'Inativa', _sitMotivo: mi };
       if (!a.analistas) return e;
       const r = e.responsavel && !gtAnalistaAtivo(e.responsavel), v = e.reserva && !gtAnalistaAtivo(e.reserva);
       if (!r && !v) return e;
@@ -8454,8 +8509,9 @@
     });
   }
   const gtSemOculto = (item) => {
-    if (!item || typeof item !== 'object' || !('_respOculto' in item || '_resOculto' in item)) return item;
+    if (!item || typeof item !== 'object' || !('_respOculto' in item || '_resOculto' in item || '_sitOrig' in item)) return item;
     const o = { ...item };
+    if ('_sitOrig' in o) { if (o.situacao === 'Inativa') o.situacao = o._sitOrig; delete o._sitOrig; delete o._sitMotivo; }      // Hub 337: só a pessoa muda a situação gravada
     if ('_respOculto' in o) { if (!o.responsavel) o.responsavel = o._respOculto; delete o._respOculto; }
     if ('_resOculto' in o) { if (!o.reserva) o.reserva = o._resOculto; delete o._resOculto; }
     return o;
@@ -8482,14 +8538,14 @@
     const out = { empresas: { ok: !!a.empresas, motivo: a.motivoEmp, n: a.empresas ? a.empresas.n : 0 }, analistas: { ok: !!a.analistas, motivo: a.motivoAna, lista: a.analistas ? a.analistas.lista.map(x => ({ nome: x.nome, setores: x.setores, mods: x.mods })) : [] }, fora: {}, analistasFora: [] };
     const nomesHub = new Map(), poe = (n, mod) => { const s = String(n || '').trim(); if (!s) return; const k = norm(s); const x = nomesHub.get(k) || { nome: s, mods: new Set() }; x.mods.add(mod); nomesHub.set(k, x); };
     const todasDp = state.dpTodas || state.dpEmpresas;
-    const comMotivo = (nome, cnpj) => { const m = gtMotivoFora(cnpj, nome); return m ? nome + ' · ' + (cnpj ? fmtCnpj(cnpj) + ' · ' : '') + m : ''; };
-    out.fora.dp = a.empresas ? todasDp.map(e => comMotivo(e.nome, e.cnpj)).filter(Boolean) : [];
+    const comMotivo = (nome, cnpj, mod) => { const m = gtMotivoFora(cnpj, nome, mod); return m ? nome + ' · ' + (cnpj ? fmtCnpj(cnpj) + ' · ' : '') + m : ''; };
+    out.fora.dp = state.dpEmpresas.filter(e => e._sitMotivo).map(e => e.nome + ' · ' + (e.cnpj ? fmtCnpj(e.cnpj) + ' · ' : '') + 'inativa: ' + e._sitMotivo);      // Hub 337: no DP ficam à vista como Inativa
     todasDp.forEach(e => { poe(e._respOculto || e.responsavel, 'DP'); poe(e._resOculto || e.reserva, 'DP'); });
     (state.dpEquipe || []).forEach(n => poe(n, 'DP'));
     if (M) {
       const mapa = (m) => [...m.values()];
-      out.fora.contabil = a.empresas ? mapa(M.ctb).map(e => comMotivo(e.nome, cadVinc('ctb', e.id) || e.cnpj)).filter(Boolean) : [];
-      out.fora.fiscal = a.empresas ? mapa(M.fis).map(e => comMotivo(e.nome, cadVinc('fis', e.id) || e.cnpj)).filter(Boolean) : [];
+      out.fora.contabil = a.empresas ? mapa(M.ctb).map(e => comMotivo(e.nome, cadVinc('ctb', e.id) || e.cnpj, 'ctb')).filter(Boolean) : [];
+      out.fora.fiscal = a.empresas ? mapa(M.fis).map(e => comMotivo(e.nome, cadVinc('fis', e.id) || e.cnpj, 'fis')).filter(Boolean) : [];
       out.fora.portal = a.empresas ? M.portal.map(p => comMotivo(p.nome, cadVinc('portal', p.id) || p.cadId || p.cnpj)).filter(Boolean) : [];
       mapa(M.ctb).forEach(e => { poe(e.analista, 'Contábil'); poe(e.apoio, 'Contábil'); });
       mapa(M.fis).forEach(e => poe(e.analista, 'Fiscal'));
@@ -8537,7 +8593,7 @@
     const semResp = base.filter(e => !ctResp(e));
     if (semResp.length) grupos.push({ key: SEM_RESP, nome: 'Sem responsável', es: semResp, orig: base.filter(e => !e.responsavel), sem: true });
     const maxN = Math.max(1, ...grupos.map(g => g.es.length));
-    const sel = norm(state.dpCarteira);
+    const sel = norm(ctCart());
     const item = (g) => {
       const on = sel === norm(g.key);
       const aus = g.sem ? null : state.dpCob.ausencias.find(a => norm(a.analista) === norm(g.nome) && ausAtiva(a, t));
@@ -8558,7 +8614,7 @@
         ${rem ? `<button type="button" class="icon-btn ct-an-x" data-ct-rem="${escapeHtml(g.nome)}" aria-label="Excluir ${escapeHtml(g.nome)}" title="Excluir analista">${ic('trash', 'ic-sm')}</button>` : ''}
       </div>`;
     };
-    const tot = `<div class="ct-an ct-an-tot${!state.dpCarteira ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!state.dpCarteira}" data-ct-an="">
+    const tot = `<div class="ct-an ct-an-tot${!ctCart() ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${!ctCart()}" data-ct-an="">
         <span class="avatar" style="--av:var(--ink-3)">${ic('building', 'ic-sm')}</span><div style="min-width:0"><div class="ct-an-nome">Todas as empresas</div><div class="ct-an-sub">${grupos.filter(g => !g.sem).length} analista(s) · ${nfAtivos(base)} func.</div></div>
         <span class="ct-an-n">${base.length}</span></div>`;
     // Guarda o tamanho das barras e os contadores para animar a mudança (ao mover empresas).
@@ -8578,7 +8634,7 @@
     const ovMapa = ovPorEmpresa();
     const vis = new Set(linhas.map(l => l.e.id));
     state.dpCtSel.forEach(id => { if (!vis.has(id)) state.dpCtSel.delete(id); });
-    $('#ct-count').textContent = `${linhas.length} empresa(s)${state.dpCarteira ? ' · ' + carteiraNome() : ''}`;
+    $('#ct-count').textContent = `${linhas.length} empresa(s)${ctCart() ? ' · ' + (ctCart() === SEM_RESP ? 'sem responsável' : ctCart()) : ''}`;
     const nomes = dpResponsaveis();
     const opts = (atual, excluir) => `<option value="">— sem responsável —</option>` + nomes.filter(n => !excluir || norm(n) !== norm(excluir)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
     const optsRes = (atual, titular) => `<option value="">—</option>` + nomes.filter(n => norm(n) !== norm(titular)).map(n => `<option value="${escapeHtml(n)}"${norm(n) === norm(atual) ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
@@ -8911,7 +8967,7 @@
   $('#ct-search').addEventListener('input', (e) => { state.dpCtQuery = e.target.value.trim(); renderCartela(); });
   $('#ct-sit').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-sit]'); if (b) { state.dpCtTodas = b.dataset.ctSit === 'todas'; renderCartela(); } });
   $('#ct-modo').addEventListener('click', (e) => { const b = e.target.closest('[data-ct-modo]'); if (b) { state.dpCtModo = b.dataset.ctModo; state.dpCtSel.clear(); renderCartela(); } });
-  $('#ct-aus-novo').addEventListener('click', () => abrirAus({ analista: state.dpCarteira && state.dpCarteira !== SEM_RESP ? state.dpCarteira : '' }));
+  $('#ct-aus-novo').addEventListener('click', () => abrirAus({ analista: ctCart() && ctCart() !== SEM_RESP ? ctCart() : '' }));
   $('#ct-sim-btn').addEventListener('click', async () => {
     if (!state.dpCtSim) { state.dpCtSim = {}; toast('Simulação ligada: as trocas só valem depois de aplicar.'); renderCartela(); return; }
     if (ctMudancas().length && !(await ask('Descartar as mudanças simuladas?', [{ label:'Continuar simulando', value:false }, { label:'Descartar', kind:'btn-danger', value:true }]))) return;
@@ -8927,7 +8983,7 @@
     const tr = t.closest('[data-ct-transf]');
     if (tr) { e.stopPropagation(); abrirTransf(tr.dataset.ctTransf); return; }
     const an = t.closest('[data-ct-an]');
-    if (an) { state.dpCtSel.clear(); setCarteira(an.dataset.ctAn); return; }
+    if (an) { state.dpCtSel.clear(); state.dpCtAn = an.dataset.ctAn || ''; renderCartela(); return; }      // Hub 338: filtra só a Cartela
     const ovs = t.closest('[data-ct-ov]');
     if (ovs) { state.dpOvEmp = ovs.dataset.ctOv; state.dpOvVez = ''; state.dpCtModo = 'onvio'; renderCartela(); return; }
     const ovz = t.closest('[data-ov-vez]');
@@ -9191,7 +9247,7 @@
     { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' },
     { path:'ing_dados', app:'Hub' }, { path:'ing_partes', app:'Hub' }, { path:'ing_lotes', app:'Hub' }, { path:'dp_ov_ignorar', app:'Hub' },
     // Hub 320: as coleções que não eram medidas (o total ficava abaixo do real e o banco enchia sem aviso)
-    { path:'gt_hist', app:'Hub' }, { path:'gt_ignorar', app:'Hub' }, { path:'gt_config', app:'Hub' }, { path:'ing_reservas', app:'Hub' }, { path:'ing_auto', app:'Hub' }, { path:'ing_config', app:'Hub' },
+    { path:'gt_hist', app:'Hub' }, { path:'gt_ignorar', app:'Hub' }, { path:'gt_config', app:'Hub' }, { path:'ing_reservas', app:'Hub' }, { path:'ing_envio', app:'Hub' }, { path:'ing_auto', app:'Hub' }, { path:'ing_config', app:'Hub' },
     { path:'cad_trocas', app:'Hub' }, { path:'cad_excluidas', app:'Hub' }, { path:'auth_usuarios', app:'Hub' }, { path:'auth_logins', app:'Hub' }, { path:'auth_log', app:'Hub' },
     { path:'hub_log', app:'Hub' }, { path:'hub_erros', app:'Hub' }, { path:'hub_mural', app:'Hub' }, { path:'hub_rotinas', app:'Hub' }, { path:'hub_lidos', app:'Hub' }, { path:'hub_restauro', app:'Hub' },
     { path:'ctb_lemb', app:'Contábil' }, { path:'tax_config', app:'Assistente' }, { path:'tax_deptos', app:'Assistente' }, { path:'tax_ajuda', app:'Assistente' },
@@ -9825,7 +9881,62 @@
     // periódico continua só com a aba visível; mensagens não são limitadas pelo navegador, então o Hub escondido recebe e grava.
     window.addEventListener('message', (e) => { const d = e.data; if (d && d.ctlhub === 1 && d.de === 'ponte' && d.tipo === 'busca') anunciar(typeof d.nonce === 'string' ? d.nonce : ''); });
     window.addEventListener('message', ingReceber);
+    window.addEventListener('message', ingEnvioMsg);
+    try { db.doc('ing_envio/atual').onSnapshot((s) => { ing.envioDb = s.exists ? s.data() : null; ingEnvioAvisar(); }, () => {}); } catch {}
   }
+  // Hub 336 (extensão 0.92.0, Josué 11/11/2026: acompanhar o envio, Onvio e Gestta juntos, iniciar pelo Hub): a extensão manda o andamento
+  // do envio único (só estados, nomes de conjuntos e contagens) e responde aos pedidos (atualizar, cancelar, estado) desta janela. O
+  // andamento fica em ing_envio/atual (gravado por quem recebe, no máximo a cada 3 s) para todos verem, inclusive sem a extensão.
+  const ingEnvioOuvintes = new Set(), ingPedidos = {};
+  function ingEnvioAvisar() { ingEnvioOuvintes.forEach((f) => { try { f(); } catch {} }); }
+  function ingEnvioLimpo(e) {
+    if (!e || typeof e !== 'object') return null;
+    let j = ''; try { j = JSON.stringify(e); } catch { return null; }
+    if (j.length > 60000) return null;
+    const x = JSON.parse(j);
+    return { ...x, recebidoEm: Date.now() };
+  }
+  function ingEnvioGravar(forca) {
+    if (state.readOnly || !ing.envio) return;
+    const agora = Date.now();
+    if (!forca && agora - (ing.envioGravadoEm || 0) < 3000) { if (!ing.envioTimer) ing.envioTimer = setTimeout(() => { ing.envioTimer = null; ingEnvioGravar(true); }, 3000); return; }
+    ing.envioGravadoEm = agora;
+    const doc = { ...ing.envio, atualizadoEm: agora };
+    if (ing.pedidoPor && doc.origem === 'hub' && Date.parse(doc.iniciouEm || '') >= ing.pedidoPor.em - 60000) doc.pedidoPor = ing.pedidoPor.id;
+    db.doc('ing_envio/atual').set(doc).catch(() => {});
+  }
+  function ingEnvioMsg(e) {
+    const d = e.data;
+    if (!d || d.ctlhub !== 1 || d.de !== 'ext' || !['progresso', 'conectado', 'pedidoAck'].includes(d.tipo)) return;
+    if (e.source !== window.top && e.source !== window.parent) return;
+    if (d.tipo === 'conectado') { ing.ext = { versao: ingStr(d.versao, 20), em: Date.now() }; ingEnvioAvisar(); return; }
+    if (d.tipo === 'pedidoAck') {
+      ing.ext = { ...(ing.ext || {}), em: Date.now(), versao: ingStr((d.envio && d.envio.versao) || (ing.ext && ing.ext.versao), 20) };
+      if (d.envio) { const l = ingEnvioLimpo(d.envio); if (l) ing.envio = l; }
+      const p = ingPedidos[d.id]; if (p) { clearTimeout(p.t); delete ingPedidos[d.id]; p.ok({ ok: !!d.ok, motivo: ingStr(d.motivo, 60), jaRodando: !!d.jaRodando, iniciado: !!d.iniciado }); }
+      ingEnvioAvisar(); return;
+    }
+    if (!ing.cfg || !d.token || d.token !== ing.cfg.token) return;
+    const l = ingEnvioLimpo(d.envio); if (!l) return;
+    const fim = ing.envio && ing.envio.estado !== l.estado && !['preparando', 'enviando'].includes(l.estado);
+    ing.envio = l; ing.ext = { ...(ing.ext || {}), em: Date.now(), versao: ingStr(l.versao, 20) };
+    ingEnvioGravar(fim); ingEnvioAvisar();
+  }
+  // Pedido à extensão deste Chrome (pela ponte, que só aceita a janela que provou o código). Sem resposta em 4 s: não há extensão aqui.
+  function ingPedir(acao) {
+    return new Promise((ok) => {
+      const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      ingPedidos[id] = { ok, t: setTimeout(() => { delete ingPedidos[id]; ok({ ok: false, motivo: 'sem-extensao' }); }, 4000) };
+      if (acao === 'atualizar') ing.pedidoPor = { id: state.meId || '', em: Date.now() };
+      const msg = { ctlhub: 1, de: 'hub', tipo: 'pedido', id, acao };
+      try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
+    });
+  }
+  window.__hubEnvio = {
+    estado: () => ({ ext: ing.ext || null, envio: ing.envio || null, envioDb: ing.envioDb || null, podeIniciar: !state.readOnly }),
+    pedir: (acao) => ingPedir(['atualizar', 'cancelar', 'estado'].includes(acao) ? acao : 'estado'),
+    ouvir: (f) => { ingEnvioOuvintes.add(f); return () => ingEnvioOuvintes.delete(f); }
+  };
 
   async function startShared() {
     render();
@@ -10205,7 +10316,7 @@
       }
       return null;
     },
-    listar: () => state.dpEmpresas.map(e => ({ id: e.id, nome: e.nome, cnpj: cnpjClean(e.cnpj), analista: e.responsavel || '', analistaEfetivo: respEf(e) || '', tributacao: e.tributacao || '', situacao: e.situacao || '', uf: e.uf || '', funcionarios: nfEmp(e), dataBase: e.dataBase || '' })),
+    listar: () => state.dpEmpresas.map(e => ({ id: e.id, nome: e.nome, cnpj: cnpjClean(e.cnpj), analista: e.responsavel || '', analistaEfetivo: respEf(e) || '', tributacao: e.tributacao || '', situacao: e.situacao || '', motivoInativa: e._sitMotivo || '', uf: e.uf || '', funcionarios: nfEmp(e), dataBase: e.dataBase || '' })),
     coord: () => !state.readOnly,
     vocab: () => ({ etapas: [], obrigacoes: [] }),
     // Ações do DP: lembrete pessoal (só o próprio usuário vê). Nada grava até executar().
@@ -10376,7 +10487,8 @@
   loadPrefs();
   applyTheme();
   syncHeaderHeight();
-  state.dpCarteira = typeof state.prefs.dpCarteira === 'string' ? state.prefs.dpCarteira : '';
+  state.dpCarteira = '';      // Hub 338: o DP abre sempre em "Equipe toda" (a carteira não é lembrada entre visitas)
+  state.dpCtAn = null;
   state.dpAgAnalista = typeof state.prefs.dpAgAnalista === 'string' ? state.prefs.dpAgAnalista : '';
   state.dpEmpModo = state.prefs.dpEmpModo === 'lista' ? 'lista' : 'cards';
   state.dpFuncModo = state.prefs.dpFuncModo === 'tempo' ? 'tempo' : 'empresas';
