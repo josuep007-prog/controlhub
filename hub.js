@@ -571,7 +571,6 @@
   const EXTRA_TOOLS = [
     { id:'painel-coordenacao', name:'Painel da coordenação', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Carga por analista, atrasos, prazos, ausências e o registro de quem alterou o quê.', tags:['painel','coordenação','carga','registro','auditoria'], moduleKey:'coord', virtual:true, favorite:false, newTab:false, order:9996, uses:0 },
     { id:'pop-master', name:'POP Master', url:'', icon:'', category:'Atalhos', color:'#7A5BB5', description:'POPs da Controltax com governança BPM CBOK: catálogo, arquitetura de processos, revisões e conformidade.', tags:['pop','procedimento','processos','cbok','bpm','governança'], moduleKey:'pop', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
-    { id:'chat-equipe', name:'Chat da equipe', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Conversas de trabalho entre os analistas (em construção).', tags:['chat','conversa','mensagem','equipe'], moduleKey:'chat', virtual:true, favorite:false, newTab:false, order:9993, uses:0 },
     { id:'empresas-cadastro', name:'Empresas', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'Cadastro único de todas as empresas do Hub: consultar, corrigir e excluir de todos os módulos.', tags:['empresa','cadastro','cnpj','excluir','cadastro único'], moduleKey:'empresas', virtual:true, favorite:false, newTab:false, order:9994, uses:0 },
     { id:'entrada-dados', name:'Entrada de dados', url:'', icon:'', category:'Atalhos', color:'#3C659B', description:'O que chega das extensões do navegador (Onvio e outras), para revisar antes de usar.', tags:['extensão','onvio','dados','importar'], moduleKey:'fontes', virtual:true, favorite:false, newTab:false, order:9995, uses:0 },
   ];
@@ -675,7 +674,6 @@
     if (t.virtual && t.moduleKey === 'fontes') return ic('download');
     if (t.virtual && t.moduleKey === 'empresas') return ic('building');
     if (t.virtual && t.moduleKey === 'pop') return ic('t-pop');
-    if (t.virtual && t.moduleKey === 'chat') return ic('t-chat');
     if (t.id === 'onvio' && t.virtual) return `<img class="brand-img" src="${ONVIO_LOGO}" alt="" width="28" height="28">`;
     const m = TOOL_SVG[t.id];
     if (m && t.icon === m[0]) return ic('t-' + m[1]);
@@ -978,7 +976,7 @@
   }
   // Módulos em página própria (portal.html, contabil.html) abertos por cima do Hub, na mesma origem,
   // para usar a conexão com o banco desta página.
-  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, empresas: { src:'empresas.html', title:'Empresas', rail:true }, chat: { src:'chat.html', title:'Chat da equipe', rail:true } };
+  const FRAMES = { portal: { src:'portal.html', title:'Portal do Cliente' }, contabil: { src:'contabil.html', title:'Planilha Contábil', rail:true }, fiscal: { src:'fiscal.html', title:'Fiscal', rail:true }, cardapio: { src:'cardapio.html', title:'Cardápio do Mês', rail:true }, pop: { src:'pop.html', title:'POP Master Controltax', rail:true }, fontes: { src:'fontes.html', title:'Entrada de dados' }, empresas: { src:'empresas.html', title:'Empresas', rail:true } };
   // Cria o quadro do módulo (oculto) sem abrir: o assistente usa para consultar módulos ainda não visitados.
   function preloadFrame(key) {
     let f = $(`#${key}-frame`);
@@ -7325,6 +7323,8 @@
     if (!nome) return { ok: false, erro: 'O cliente do Onvio não tem nome.' };
     const cnpj = cl && cl.cnpj ? fmtCnpj(cl.cnpj) : '', dup = cnpj && state.dpEmpresas.find(x => cnpjClean(x.cnpj) === cnpjClean(cnpj));
     if (dup) return { ok: false, erro: `Já existe a empresa “${dup.nome}” com este CNPJ: ligue o cliente a ela.` };
+    const dupBanco = await dpCnpjJaNoBanco(cnpj);
+    if (dupBanco) return { ok: false, erro: `Já existe a empresa “${dupBanco}” com este CNPJ (cadastrada há pouco): ligue o cliente a ela.` };
     const notas = ['Cadastrada a partir do Onvio em ' + fmtDMY(hoje()) + ' (Entrada de dados).', g.cod ? 'Código do cliente no Onvio: ' + g.cod + '.' : '', cl && cl.apelido ? 'Apelido no Onvio: ' + cl.apelido + '.' : '', cl && cl.im ? 'Inscrição municipal: ' + cl.im + '.' : '', cl && cl.ie ? 'Inscrição estadual: ' + cl.ie + '.' : ''].filter(Boolean).join('\n');
     const e = normalizeDpEmpresa({ id: cnpjClean(cnpj).length === 14 ? 'onv-' + cnpjClean(cnpj) : uid(), nome, cnpj, uf: cl && /^[A-Za-z]{2}$/.test(cl.uf || '') ? cl.uf.toUpperCase() : '', situacao: 'Ativa', observacoes: notas, order: Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1 });
     e.historico.unshift({ id: uid(), data: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), alteracao: 'Empresa cadastrada a partir do Onvio (Entrada de dados)', autor: autorId() });
@@ -7371,6 +7371,15 @@
   }
   // Relê a empresa no banco antes de gravar: quem mexeu depois do último desenho (outro navegador, o automático de outra pessoa, a ficha aberta)
   // não perde a alteração. Se a leitura falhar, usa a cópia local.
+  // Hub 334: antes de cadastrar uma empresa no DP, olha no banco (não só na lista da tela) se o mesmo CNPJ já entrou pelo Onvio
+  // (onv-<CNPJ>) ou pelo Gestta (gt-<CNPJ>), inclusive por outro navegador há pouco. Devolve o nome da que já existe, ou ''.
+  async function dpCnpjJaNoBanco(cnpj) {
+    const k = cnpjClean(cnpj); if (k.length !== 14 || !db) return '';
+    for (const id of ['onv-' + k, 'gt-' + k]) {
+      try { const sn = await db.doc('dp_empresas/' + id).get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null; if (v && !v.excluida) return String(v.nome || id); } catch (e) {}
+    }
+    return '';
+  }
   async function ovEmpresaFresca(e) {
     try { const sn = await db.doc('dp_empresas/' + e.id).get(); if (sn && sn.exists !== false && sn.data) return normalizeDpEmpresa({ ...sn.data(), id: e.id }); } catch {}
     return normalizeDpEmpresa(JSON.parse(JSON.stringify(e)));
@@ -7649,6 +7658,9 @@
     gtLer('gestta-tarefas').forEach(r => { const c = porCnpj.get(cad14(r['CNPJ'])); if (!c) return; const mod = gtSetorMod(r['Setor']); if (!mod) return; const s = setorDe(c, mod); s.tarefas++; if (!s.setor) s.setor = String(r['Setor'] || '').trim(); });
     return [...porCnpj.values()];
   });
+  const gtClientesPorK = () => gtMemo('cliK', () => { const m = new Map(); gtClientes().forEach(c => m.set(c.k, c)); return m; });
+  // Hub 335: clientes do Gestta (em atividade) pela raiz do CNPJ, para o grupo matriz + filiais do Portal
+  const gtRaizGrupo = () => gtMemo('raizG', () => { const m = new Map(); gtClientes().forEach(c => { if (!/^\d{14}$/.test(c.k) || gtEmpresaFora(c.k, c.nome)) return; const r = c.k.slice(0, 8); if (!m.has(r)) m.set(r, []); m.get(r).push(c); }); return m; });
   const gtM = {};
   function gtMemo(nome, fn) {
     const m = gtM[nome];
@@ -7681,35 +7693,60 @@
   });
   // Ligar ou desligar a demanda de um setor pede a cartela e as tarefas inteiras e recentes (senão um setor "some" por falta de leitura)
   // Hub 328 (Josué, 09/11/2026): desde o Hub 327 a demanda vem só das tarefas; a cartela (só o nome do analista) incompleta ou velha não trava mais a demanda.
-  const gtDemandaSegura = () => !gtManMotivo('gestta-tarefas', 'A lista de tarefas');
+  // Hub 331: e com os dois meses na lista (o mês atual e o anterior pela meta): se o relatório de um mês falhar no envio, a lista chega
+  // sem ele e um setor com tarefa só naquele mês "perderia" a demanda. Sem os dois meses, nada liga, desliga nem é cadastrado.
+  const gtMesesTarefas = () => gtMemo('mesesTar', () => { const s = new Set(); gtLer('gestta-tarefas').forEach(r => { const m = String(r['Mês'] || '').slice(0, 7); if (/^\d{4}-\d{2}$/.test(m)) s.add(m); }); return s; });
+  const gtMesFaltando = () => { const d = new Date(), atual = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), a = new Date(d.getFullYear(), d.getMonth() - 1, 1), ant = a.getFullYear() + '-' + String(a.getMonth() + 1).padStart(2, '0'), ms = gtMesesTarefas(); return ms.size ? [ant, atual].filter(m => !ms.has(m)) : []; };
+  const gtDemandaSegura = () => !gtManMotivo('gestta-tarefas', 'A lista de tarefas') && !gtMesFaltando().length;
   // O que impede o Portal de seguir o Gestta agora (para a Entrada de dados dizer, em vez de não acontecer nada em silêncio).
   function gtPortalTravas() {
     const t = [], m = (x) => x && x !== 'carregando' ? x : '';
     const mt = m(gtManMotivo('gestta-tarefas', 'A lista de tarefas')); if (mt) t.push('A demanda dos setores não muda: ' + mt.charAt(0).toLowerCase() + mt.slice(1) + '. Envie de novo o Gestta (Tarefas).');
+    if (!mt) { const mf = gtMesFaltando(); if (mf.length) t.push('A demanda dos setores não muda: a lista de tarefas chegou sem ' + mf.map(x => x.slice(5) + '/' + x.slice(0, 4)).join(' e ') + '. Envie de novo o Gestta (Tarefas).'); }
     const me = m(gtAtivo().motivoEmp); if (me) t.push('Nenhuma empresa sai do Portal: ' + me.charAt(0).toLowerCase() + me.slice(1) + '. Envie de novo o Gestta (Tarefas).');
     const mc = m(gtManMotivo('gestta-cartela', 'A cartela')); if (mc) t.push('O analista das frentes pode não estar atualizado: ' + mc.charAt(0).toLowerCase() + mc.slice(1) + ' (ela vai no máximo 1 vez a cada 20 h).');
     return t;
   }
   function gtDifsPortal(c, p, temDemanda, add) {
     const M = state.gtMods; if (!M) return;
-    const mods = ['dp', 'contabil', 'fiscal'], comDem = mods.filter(temDemanda);
+    const mods = ['dp', 'contabil', 'fiscal'];
     const respPortal = (mod) => { const s = c.setores[mod]; return s && s.resp ? gtNomeNoHub(s.resp, 'portal') : { nome: '', casou: false }; };
     const pessoa = (nome, setor) => { const f = nome ? M.func.find(x => norm(x.nome) === norm(nome)) : null; return f ? { id: f.id, nome: f.nome, setor } : nome ? { id: '', nome, setor, novo: true } : null; };
+    // Hub 335 (Josué, 10/11/2026: "o módulo do Portal conta filiais e matriz como uma coisa só, com o nome da matriz"): no Portal o grupo
+    // é a raiz do CNPJ (8 primeiros dígitos). Só a cabeça do grupo vira empresa (a matriz 0001; sem matriz, o menor CNPJ) e a demanda e o
+    // analista dela contam as tarefas de todas as filiais, ligadas no Portal ou só no Gestta. A filial nunca é cadastrada à parte; a que
+    // já entrou solta no Portal fica sem diferenças até o Portal juntá-la à matriz (ele junta sozinho, portal.js).
+    const rz = /^\d{14}$/.test(c.k) ? c.k.slice(0, 8) : '', ehM = (k) => String(k).slice(8, 12) === '0001';
+    const cabeca = (lista, kDe) => lista.slice().sort((a, b) => (ehM(kDe(b)) ? 1 : 0) - (ehM(kDe(a)) ? 1 : 0) || String(kDe(a)).localeCompare(String(kDe(b))))[0] || null;
+    const ptCab = rz ? cabeca(M.portal.filter(x => !x.matrizId && cad14(x.cnpj).slice(0, 8) === rz), x => cad14(x.cnpj)) : null;
+    const gtGrupo = rz ? (gtRaizGrupo().get(rz) || []) : [];
+    const gtCab = cabeca(gtGrupo, x => x.k);
+    // a matriz está no Portal mas não é cliente no Gestta (as tarefas ficam nas filiais): a cabeça do grupo no Gestta responde por ela
+    if (ptCab && ptCab !== p && gtCab === c && !gtClientesPorK().has(cad14(ptCab.cnpj))) p = ptCab;
+    const filiais = [...new Set([
+      ...(p ? M.portal.filter(x => x.matrizId === p.id).map(x => gtClientesPorK().get(cad14(x.cnpj) || x.cadId)) : []),
+      ...gtGrupo])].filter(x => x && x !== c);
+    const temGrupo = (mod) => temDemanda(mod) || filiais.some(f => { const s = f.setores[mod]; return !!(s && s.tarefas); });
+    const respGrupo = (mod) => { const r = respPortal(mod); if (r.nome) return r; for (const f of filiais) { const s = f.setores[mod]; if (s && s.resp) return gtNomeNoHub(s.resp, 'portal'); } return r; };
     if (!p) {
-      if (!comDem.length || !gtDemandaSegura()) return;
-      const frentes = comDem.map(mod => ({ setor: GT_SETOR_PORTAL[mod], analista: pessoa(respPortal(mod).nome, GT_SETOR_PORTAL[mod]) }));
-      const nomeK = cadNomeKey(c.nome), rz = c.k.slice(0, 8);
+      if (ptCab && (ehM(cad14(ptCab.cnpj)) || !ehM(c.k))) return;        // o grupo já está no Portal: a demanda desta conta lá
+      if (!ptCab && gtCab && gtCab !== c) return;                         // a matriz (ou o menor CNPJ) do grupo é que entra
+      const comGrupo = mods.filter(temGrupo);
+      if (!comGrupo.length || !gtDemandaSegura()) return;
+      const frentes = comGrupo.map(mod => ({ setor: GT_SETOR_PORTAL[mod], analista: pessoa(respGrupo(mod).nome, GT_SETOR_PORTAL[mod]) }));
+      const nomeK = cadNomeKey(c.nome);
       const parecida = M.portal.find(x => !x.matrizId && !cad14(x.cnpj) && nomeK && cadNomeKey(x.nome) === nomeK);
-      const matriz = !parecida && c.k.slice(8, 12) !== '0001' && M.portal.find(x => !x.matrizId && cad14(x.cnpj).slice(0, 8) === rz);
-      add('portal', 'empresa', 'novo', 'Empresa nova no Portal (' + frentes.map(f => SETOR_ROT_PORTAL[f.setor]).join(', ') + ')', '—', c.nome, { nome: c.nome, frentes }, null,
-        parecida ? { confirmar: true, nota: `talvez seja “${parecida.nome}” (sem CNPJ no Portal): ligue no Cadastro único em vez de cadastrar` }
-          : matriz ? { confirmar: true, nota: `parece filial de “${matriz.nome}” (mesma raiz de CNPJ): no Portal, cadastre como filial dela` } : {});
+      const nFil = filiais.filter(f => rz && f.k.slice(0, 8) === rz).length;
+      add('portal', 'empresa', 'novo', 'Empresa nova no Portal (' + frentes.map(f => SETOR_ROT_PORTAL[f.setor]).join(', ') + ')' + (nFil ? ' · com ' + nFil + (nFil === 1 ? ' filial' : ' filiais') : ''), '—', c.nome, { nome: c.nome, frentes }, null,
+        parecida ? { confirmar: true, nota: `talvez seja “${parecida.nome}” (sem CNPJ no Portal): ligue no Cadastro único em vez de cadastrar` } : {});
       return;
     }
     if (p.matrizId || p.arquivada) return;             // filial ligada à matriz e empresa arquivada: o Portal decide
+    if (ptCab && ptCab !== p) return;                   // filial ainda solta no Portal: o Portal junta à matriz, e o grupo é decidido lá
     const dem = p.setoresDemanda || {}, gtDem = p.gtDem || {}, emp = { id: p.id, nome: p.nome }, seguro = gtDemandaSegura();
+    // Hub 331: a demanda (e, na falta, o analista) conta as tarefas da matriz e das filiais (Hub 335: também as que só estão no Gestta).
     mods.forEach(mod => {
-      const sk = GT_SETOR_PORTAL[mod], rot = GT_SETOR_ROT[mod], tem = temDemanda(mod), r = respPortal(mod);
+      const sk = GT_SETOR_PORTAL[mod], rot = GT_SETOR_ROT[mod], tem = temGrupo(mod), r = respGrupo(mod);
       // demanda: muda quando o Gestta diz diferente do Portal, salvo se a diferença foi feita à mão depois do último valor que o Gestta aplicou
       const manual = sk in gtDem && !!dem[sk] !== !!gtDem[sk] && !!gtDem[sk] === tem;
       if (seguro && !manual && tem !== !!dem[sk]) {
@@ -7866,12 +7903,41 @@
   const gtComp = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   // Pessoa do Gestta na equipe do Portal: acha pelo nome ou cadastra uma vez só (num lote, várias diferenças da mesma pessoa esperam o mesmo cadastro)
   const gtFuncNovos = new Map();
+  const gtFuncId = (nome) => 'gtp-' + norm(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+  // Hub 333: junta as pessoas da equipe do Portal cadastradas mais de uma vez pelo Gestta (mesmo nome). Fica a que já tem treinamento
+  // andando, depois a que tem mais frentes, depois a mais antiga; as frentes das outras passam para ela, e só as cadastradas pelo Gestta
+  // são apagadas (quem foi cadastrado à mão nunca sai). Roda dentro do aplicar automático do Portal, com a vez de um navegador só.
+  async function gtFuncDedup() {
+    let docs, sets; try { [docs, sets] = await Promise.all([cadLerCol('funcionarios'), cadLerCol('empresaSetores')]); } catch (e) { return 0; }
+    const doGestta = (d) => /^Cadastrad[oa]\(a\) a partir do Gestta/.test(String(d.data.observacoes || ''));
+    const grupos = new Map(); docs.forEach(d => { const k = norm(String(d.data.nome || '').trim()); if (!k) return; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(d); });
+    let n = 0;
+    for (const [, l] of grupos) {
+      if (l.length < 2 || !l.some(doGestta)) continue;
+      const nFr = (d) => sets.filter(s => s.data.analistaId === d.id).length;
+      const ordem = (d) => [doGestta(d) ? 1 : 0, (d.data.statusTreinamento || 'pendente') === 'pendente' ? 1 : 0, -nFr(d), String(d.data.criadoEm || '')];
+      const fica = l.slice().sort((a, b) => { const x = ordem(a), y = ordem(b); for (let i = 0; i < x.length; i++) { if (x[i] < y[i]) return -1; if (x[i] > y[i]) return 1; } return 0; })[0];
+      const nomeFica = String(fica.data.nome || '').trim();
+      for (const d of l) {
+        if (d === fica || !doGestta(d)) continue;
+        let ok = true;
+        for (const s of sets.filter(s => s.data.analistaId === d.id)) { const r = await persist(() => db.doc('empresaSetores/' + s.id).update({ analistaId: fica.id, analistaNome: nomeFica })); if (!r) { ok = false; break; } }
+        if (!ok) continue;
+        if (await persist(() => db.doc('funcionarios/' + d.id).delete())) { n++; gtHist({ mod: 'portal', k: '', empNome: 'Equipe do Portal', campo: 'equipe', acao: 'corrigir', rot: 'Pessoa repetida', antes: nomeFica + ' (repetida)', depois: nomeFica }, true); }
+      }
+    }
+    return n;
+  }
   function gtFuncPortal(nome, setor) {
     const nm = String(nome || '').trim(), k = norm(nm); if (!nm) return Promise.resolve(null);
     const ja = state.gtMods && state.gtMods.func.find(x => norm(x.nome) === k); if (ja) return Promise.resolve(ja);
     if (gtFuncNovos.has(k)) return gtFuncNovos.get(k);
     const p = (async () => {
-      const id = 'gt' + uid(), dado = { nome: nm.slice(0, 80), setor: setor || 'pessoal', cargo: 'Analista', statusTreinamento: 'pendente', impedimento: { ativo: false, descricao: '' }, observacoes: 'Cadastrado(a) a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).', exemplo: false, criadoEm: new Date().toISOString() };
+      // Hub 333 (Josué, 10/11/2026: "veio analista triplicado para o módulo do Portal"): o id sai do nome (dois navegadores cadastrando
+      // a mesma pessoa caem no mesmo documento) e a equipe é relida no banco antes de cadastrar
+      const id = gtFuncId(nm);
+      try { const ex = (await cadLerCol('funcionarios')).find(d => norm(String(d.data.nome || '').trim()) === k); if (ex) { const f = { id: ex.id, nome: String(ex.data.nome || '').trim() }; if (state.gtMods && !state.gtMods.func.some(x => x.id === f.id)) state.gtMods = { ...state.gtMods, func: [...state.gtMods.func, f] }; return f; } } catch (e) { return null; }
+      const dado = { nome: nm.slice(0, 80), setor: setor || 'pessoal', cargo: 'Analista', statusTreinamento: 'pendente', impedimento: { ativo: false, descricao: '' }, observacoes: 'Cadastrado(a) a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).', exemplo: false, criadoEm: new Date().toISOString() };
       const ok = await persist(() => db.doc('funcionarios/' + id).set(dado));
       if (!ok) return null;
       const novo = { id, nome: dado.nome };
@@ -7948,6 +8014,7 @@
     if (d.mod === 'dp') {
       if (d.acao === 'novo') {
         if (state.dpEmpresas.some(e => cad14(e.cnpj) === d.k)) return { ok: false, erro: 'Já existe uma empresa com este CNPJ no DP.' };
+        if (await dpCnpjJaNoBanco(d.k)) return { ok: false, erro: 'Já existe uma empresa com este CNPJ no DP (cadastrada há pouco).' };
         const v = d.valor || {}, cnpj = fmtCnpj(d.k);
         const e = normalizeDpEmpresa({ id: 'gt-' + d.k, nome: v.nome, cnpj, uf: v.uf || '', tributacao: v.tributacao || '', responsavel: v.responsavel || '', situacao: 'Ativa', observacoes: 'Cadastrada a partir do Gestta em ' + fmtDMY(hoje()) + ' (Entrada de dados).', order: Math.max(-1, ...state.dpEmpresas.map(x => x.order)) + 1 });
         e.historico.unshift({ id: uid(), data: gtAgora(), alteracao: 'Empresa cadastrada a partir do Gestta' + marca + ' (Entrada de dados)', autor: autorId() });
@@ -8075,14 +8142,18 @@
     const ciclo = gtPortalCiclo();
     if (!forcar && gtPortal.feito === ciclo) return { ok: true, n: 0, motivo: 'já aplicado' };
     if (!GT_PORTAL_TIPOS.every(gtCarregado)) return { ok: false, motivo: 'carregando' };
-    await gtModulos(true);                     // o Portal como está agora (uma leitura por remessa do Gestta): nada de decidir sobre uma cópia velha
-    if (!gtProntos() || !state.gtMods) return { ok: false, motivo: 'carregando' };
-    const lista = gtDifs().filter(d => d.mod === 'portal' && d.pode && !d.confirmar && !gtPortal.feitas.has(d.k + '|' + d.chave));
-    if (!lista.length) { gtPortal.feito = ciclo; return { ok: true, n: 0 }; }
+    // Hub 333: primeiro a vez de aplicar, depois a leitura do Portal e a lista (antes, a lista era montada e só então a vez pedida:
+    // um segundo navegador aplicava uma lista velha, de antes do primeiro terminar, e cadastrava de novo quem já tinha entrado)
     if (!(await gtPortalLiderar())) return { ok: false, motivo: 'outro navegador está aplicando' };
     gtPortal.rodando = true; state.autoAplicando = (state.autoAplicando || 0) + 1;
     let n = 0, falhas = 0; const por = { empresa: 0, demanda: 0, analista: 0, email: 0 };
     try {
+      const juntadas = await gtFuncDedup();
+      await gtModulos(true);                     // o Portal como está agora (uma leitura por remessa do Gestta): nada de decidir sobre uma cópia velha
+      if (!gtProntos() || !state.gtMods) return { ok: false, motivo: 'carregando' };
+      const lista = gtDifs().filter(d => d.mod === 'portal' && d.pode && !d.confirmar && !gtPortal.feitas.has(d.k + '|' + d.chave));
+      if (juntadas) toast('Equipe do Portal: ' + juntadas + ' pessoa(s) repetida(s) juntada(s).');
+      if (!lista.length) { gtPortal.feito = ciclo; return { ok: true, n: 0 }; }
       // empresas novas primeiro (as frentes e o analista vêm junto), depois a demanda, o analista e o e-mail
       const ordem = (d) => d.campo === 'empresa' ? 0 : /^demanda/.test(d.campo) ? 1 : /^analista/.test(d.campo) ? 2 : 3;
       for (const d of lista.sort((a, b) => ordem(a) - ordem(b))) {
@@ -8320,7 +8391,15 @@
         const tarefasOk = !gtManMotivo('gestta-tarefas', 'A lista de tarefas'), porTarefa = new Map();
         if (tarefasOk) gtLer('gestta-tarefas');
         const usaTarefas = tarefasOk && gtCarregado('gestta-tarefas');
-        if (usaTarefas) gtLer('gestta-tarefas').forEach(t => { const k = norm(String(t['Responsável'] || '').trim()), m = gtSetorMod(t['Setor']); if (!k || !m) return; if (!porTarefa.has(k)) porTarefa.set(k, new Set()); porTarefa.get(k).add(m); });
+        // Hub 332 (Josué, 10/11/2026: "ele precisa ter tarefas de empresas ativas na responsabilidade dele nas duas últimas competências,
+        // exclusivamente do setor Pessoal"): conta só a tarefa do setor do módulo, de empresa ativa no Gestta (cliente ativo, fora as do
+        // escritório) e das duas competências mais recentes da lista. Sem a coluna Competência ou sem os clientes válidos, esse corte não vale.
+        const ctRows = usaTarefas ? gtLer('gestta-tarefas') : [];
+        const comps = [...new Set(ctRows.map(t => String(t['Competência'] || '').slice(0, 7)).filter(c => /^\d{4}-\d{2}$/.test(c)))].sort().reverse().slice(0, 2);
+        const clientesOk = usaTarefas && !gtManMotivo('gestta-clientes', 'Os clientes'), ativosCnpj = new Set(), ativosNome = new Set();
+        if (clientesOk) gtLer('gestta-clientes').forEach(c => { if (c['Ativo'] === 'não') return; const k = cad14(c['CNPJ']); if (k) ativosCnpj.add(k); [c['Nome'], c['Nome fantasia']].forEach(n => { const nk = cadNomeKey(String(n || '')); if (nk) ativosNome.add(nk); }); });
+        const empAtiva = (t) => { if (ehEscritorioProprio(t['Cliente'])) return false; if (!clientesOk || (!ativosCnpj.size && !ativosNome.size)) return true; const k = cad14(t['CNPJ']), nk = cadNomeKey(String(t['Cliente'] || '')); return (k && ativosCnpj.has(k)) || (!!nk && ativosNome.has(nk)); };
+        if (usaTarefas) ctRows.forEach(t => { const k = norm(String(t['Responsável'] || '').trim()), m = gtSetorMod(t['Setor']); if (!k || !m) return; if (comps.length && !comps.includes(String(t['Competência'] || '').slice(0, 7))) return; if (!empAtiva(t)) return; if (!porTarefa.has(k)) porTarefa.set(k, new Set()); porTarefa.get(k).add(m); });
         r.modsPorTarefa = usaTarefas;
         gtLer('gestta-equipe').forEach(x => { if (x['Ativo'] !== 'sim') return; const nome = String(x['Nome'] || '').trim(); if (!nome || porNome.has(norm(nome))) return; const extra = [...(daCartela.get(norm(nome)) || [])]; const setores = [...new Set([...String(x['Setores'] || '').split('|').map(s => s.trim()).filter(Boolean), ...extra])]; const mods = usaTarefas ? [...(porTarefa.get(norm(nome)) || [])] : [...new Set([...gtModsDeSetores(x['Setores']), ...extra.map(s => gtSetorMod(s)).filter(Boolean)])]; const it = { nome, papel: String(x['Papel'] || ''), setores, mods }; lista.push(it); porNome.set(norm(nome), it); });
         lista.sort((a, b) => ptCmp(a.nome, b.nome));
@@ -9600,7 +9679,7 @@
   // a apontar para ela, então quem lê nunca vê uma remessa pela metade. Categorias: listas (sem dados pessoais), pessoais
   // (CPF, salário, nomes, textos), clientes, escritorio, documentos, noticias.
   const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas'];      // tarefas, cadastros e alertas: do Gestta (Hub 315)
-  const ING_PARTES_MAX = 80;
+  const ING_PARTES_MAX = 1000;   // Hub 332 (Josué, 10/11/2026: "pode deixar sem limite, bote pra ler tudo que tiver"): era 80; 1.000 partes (~140 MB) só protege de um envio sem fim
   const ing = { cfg: null, criando: false, ciclos: {} };
   const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
   function ingToken() { const a = new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a, b => b.toString(36).padStart(2, '0')).join('').slice(0, 24).toUpperCase(); }

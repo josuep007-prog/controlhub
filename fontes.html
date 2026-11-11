@@ -609,7 +609,7 @@ function carregarConjunto(k, prog){
   var ciclo = String(m.ciclo || m.recebidoEm || ""), c = CACHE[k];
   if(c && c.ciclo === ciclo){ return c.pronto || Promise.resolve(c); }
   if(m.resumo){ var t = montarLinhas(lotes[k.slice(7)].tabela || "", m.colunas || []); CACHE[k] = { ciclo:ciclo, cols:t.cols, linhas:t.linhas }; return Promise.resolve(CACHE[k]); }
-  var n = Math.min(Number(m.partes) || 0, 400), slot = m.slot || "a", textos = new Array(n), feitas = 0;
+  var n = Math.min(Number(m.partes) || 0, 1000), slot = m.slot || "a", textos = new Array(n), feitas = 0;
   var lerParte = function(i){ return db.doc("ing_partes/" + k + "~" + slot + i).get().then(function(s){ var d = s && s.exists !== false && s.data ? s.data() : null; if(!d || (m.ciclo && d.ciclo && d.ciclo !== m.ciclo) || typeof d.tabela !== "string") throw new Error("parte " + (i + 1) + " ausente ou de outro envio"); textos[i] = d.tabela; feitas++; if(prog) prog(feitas, n); }); };
   var lote = function(i){ if(i >= n) return Promise.resolve(); var ps = []; for(var j = i; j < Math.min(n, i + 6); j++) ps.push(lerParte(j)); return Promise.all(ps).then(function(){ return lote(i + 6); }); };
   var ent = { ciclo:ciclo };
