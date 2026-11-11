@@ -596,6 +596,9 @@
     if (n === 'coord') return true;
     if (n !== 'analista' || !e) return false;
     const a = norm(AUTH().analista('dp'));
+    // cadastro de analistas: a pessoa ligada a este login é dona da empresa pelo código, mesmo que o nome tenha sido escrito de outro jeito
+    const eu = state.analistas && state.analistas.size ? [...state.analistas.values()].find(p => p.loginId && p.loginId === autorId()) : null;
+    if (eu && (e.responsavelId === eu.id || (e.responsavel && anaIdDe(e.responsavel) === eu.id) || (respEf(e) && anaIdDe(respEf(e)) === eu.id))) return true;
     return !!a && (norm(e.responsavel) === a || norm(respEf(e)) === a);
   };
   const toolsComUso = () => {
@@ -9039,6 +9042,54 @@
   });
   // DP: ao gravar uma empresa, o código do responsável e da reserva vem do cadastro (o nome continua).
   { const s1 = dpDbStore.saveOne.bind(dpDbStore); dpDbStore.saveOne = (item) => { if (item && state.analistas.size) { const o = { ...item }; [['responsavel', 'responsavelId'], ['reserva', 'reservaId']].forEach(([n, i]) => { o[i] = o[n] ? anaIdDe(o[n]) || '' : ''; }); return s1(o); } return s1(item); }; }
+  // ----- Etapa 3: ausências num lugar só -----
+  // As ausências continuam morando onde cada módulo lê (DP: dp_config/cobertura; Contábil: ctb_config/aus), para a cobertura de cada um
+  // seguir funcionando; o cadastro mostra todas juntas, por pessoa (pelo código), e registra/exclui nos módulos de uma vez.
+  state.anaCtbAus = null;
+  const ANA_AUS_MODS = { dp: 'DP', contabil: 'Contábil' };
+  function anaAusencias() {
+    const out = [], poe = (mod, a) => { const id = anaIdDe(a.analista); out.push({ mod, id: a.id, analista: a.analista, analistaId: id, inicio: a.inicio, fim: a.fim, motivo: a.motivo || 'Outro', padrao: a.padrao || '', padraoId: a.padrao ? anaIdDe(a.padrao) : '', porEmpresa: Object.keys(a.porEmpresa || {}).length, obs: a.obs || '' }); };
+    ((state.dpCob && state.dpCob.ausencias) || []).forEach(a => poe('dp', a));
+    ((state.anaCtbAus && state.anaCtbAus.lista) || []).forEach(a => { if (a && a.analista && a.inicio && a.fim) poe('contabil', a); });
+    return out.sort((x, y) => String(x.inicio).localeCompare(String(y.inicio)) || ptCmp(x.analista, y.analista));
+  }
+  async function anaRegistrarAus(d) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação registra ausências.' };
+    const p = anaGet(d.analistaId), cob = d.padraoId ? anaGet(d.padraoId) : null;
+    if (!p) return { ok: false, erro: 'Escolha quem vai se ausentar.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.inicio || '') || !/^\d{4}-\d{2}-\d{2}$/.test(d.fim || '') || d.fim < d.inicio) return { ok: false, erro: 'Confira o primeiro e o último dia.' };
+    if (cob && cob.id === p.id) return { ok: false, erro: 'Quem cobre precisa ser outra pessoa.' };
+    const mods = (d.mods || []).filter(m => ANA_AUS_MODS[m]); if (!mods.length) return { ok: false, erro: 'Marque ao menos um módulo.' };
+    const motivo = MOTIVOS_AUS.includes(d.motivo) ? d.motivo : 'Outro', obs = String(d.obs || '').slice(0, 200);
+    // o nome gravado é o que o módulo usa para essa pessoa (a grafia da carteira), para a cobertura achar as empresas dela
+    const nomeNo = (pessoa, mod) => { if (!pessoa) return ''; const c = mod === 'dp' ? (state.dpTodas || state.dpEmpresas || []).map(e => e._respOculto || e.responsavel) : Object.values((state.gtMods && state.gtMods.ctb && Object.fromEntries(state.gtMods.ctb)) || {}).map(e => e.analista); const n = c.find(x => x && anaIdDe(x) === pessoa.id); return n || pessoa.nome; };
+    const feitos = [];
+    if (mods.includes('dp')) {
+      const a = normalizeAus({ id: uid(), analista: nomeNo(p, 'dp'), motivo, inicio: d.inicio, fim: d.fim, padrao: nomeNo(cob, 'dp'), porEmpresa: {}, obs, criadoEm: Date.now(), autor: autorId() });
+      const ok = await salvarCob((c) => { c.ausencias.push(a); }, `Ausência de ${a.analista} (${motivo}) de ${d.inicio} a ${d.fim}, registrada pelo cadastro de analistas`);
+      if (!ok) return { ok: false, erro: 'Não foi possível gravar a ausência no DP.' };
+      feitos.push('DP');
+    }
+    if (mods.includes('contabil')) {
+      await gtModulos().catch(() => null);
+      let lista = []; try { const s = await db.doc('ctb_config/aus').get(); const v = s && s.exists !== false && s.data ? s.data() : null; lista = v && Array.isArray(v.lista) ? v.lista : []; } catch (e) { return { ok: false, erro: 'Não consegui ler as ausências do Contábil.' + (feitos.length ? ' A do DP foi gravada.' : '') }; }
+      const a = { id: uid(), analista: nomeNo(p, 'contabil').slice(0, 60), inicio: d.inicio, fim: d.fim, motivo, padrao: nomeNo(cob, 'contabil').slice(0, 60), porEmpresa: {}, obs, criado: new Date().toISOString(), autor: autorId() };
+      const ok = await persist(() => db.doc('ctb_config/aus').set({ lista: [...lista, a] }));
+      if (!ok) return { ok: false, erro: 'Não foi possível gravar no Contábil.' + (feitos.length ? ' A do DP foi gravada.' : '') };
+      feitos.push('Contábil');
+    }
+    return { ok: true, feitos };
+  }
+  async function anaExcluirAus(mod, id) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação exclui ausências.' };
+    if (mod === 'dp') { const ok = await salvarCob((c) => { c.ausencias = c.ausencias.filter(a => a.id !== id); }, 'Ausência excluída pelo cadastro de analistas'); return ok ? { ok: true } : { ok: false, erro: 'Não foi possível excluir no DP.' }; }
+    if (mod === 'contabil') {
+      try { const s = await db.doc('ctb_config/aus').get(); const v = s && s.exists !== false && s.data ? s.data() : null; const lista = v && Array.isArray(v.lista) ? v.lista : []; const ok = await persist(() => db.doc('ctb_config/aus').set({ lista: lista.filter(a => a.id !== id) })); return ok ? { ok: true } : { ok: false, erro: 'Não foi possível excluir no Contábil.' }; } catch (e) { return { ok: false, erro: 'Não consegui ler as ausências do Contábil.' }; }
+    }
+    return { ok: false, erro: 'Módulo desconhecido.' };
+  }
+  Object.assign(anaApi, { ausencias: anaAusencias, registrarAus: anaRegistrarAus, excluirAus: anaExcluirAus, ausMods: ANA_AUS_MODS, motivos: MOTIVOS_AUS });
+  Object.assign(window.__cadastro, { ausencias: (mod) => anaAusencias().filter(a => !mod || a.mod === mod) });
   // === fim do bloco Gestta · cadastros ===
 
   function renderCartela() {
@@ -10452,6 +10503,7 @@
       render();
     }, caiu);
 
+    db.doc('ctb_config/aus').onSnapshot((snap) => { state.anaCtbAus = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; anaOuvintes.forEach(cb => { try { cb(); } catch (e) {} }); }, () => {});
     db.doc(`${ANA_TROCAS}/_idx`).onSnapshot((snap) => { state.anaTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; anaOuvintes.forEach(cb => { try { cb(); } catch (e) {} }); }, () => {});
     db.collection(ANA_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, { ...(d.data() || {}), id: d.id })); state.anaRaw = m; anaAchata(); }, () => {});
     db.collection(CAD_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, d.data() || {})); state.cadRaw = m; cadAchata(); ovAposCarga(); }, () => {});
@@ -10502,6 +10554,7 @@
     db.doc('dp_config/cobertura').onSnapshot((s) => {
       state.dpCob = normalizeCob(s.exists ? s.data() : null);
       renderDpActiveView();
+      if (typeof anaOuvintes !== 'undefined') anaOuvintes.forEach(cb => { try { cb(); } catch (e) {} });
     }, caiu);
     db.doc('ing_lotes/onvio~solicitacoes').onSnapshot((s) => { state.dpOv = s.exists ? s.data() : null; renderDpActiveView(); }, () => {});
     db.doc('dp_config/onvio').onSnapshot((s) => {
