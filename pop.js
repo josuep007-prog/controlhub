@@ -1119,7 +1119,7 @@ function renderPlaneta(){
   if(window.PopPlaneta){ try{ window.PopPlaneta.render(PLANETA_API, el); }catch(e){ console.error(e); } return; }
   if(planetaCarregando) return;
   planetaCarregando = true; el.innerHTML = '<div class="pl-carregando">Preparando o planeta…</div>';
-  var sc = document.createElement("script"); sc.src = "pop-planeta.js?v=1";
+  var sc = document.createElement("script"); sc.src = "pop-planeta.js?v=2";
   sc.onload = function(){ planetaCarregando = false; if(S.mpModo === "planeta") renderPlaneta(); };
   sc.onerror = function(){ planetaCarregando = false; el.innerHTML = '<div class="pl-carregando">Não foi possível abrir o planeta agora. Use o modo Navegar.</div>'; };
   document.head.appendChild(sc);
