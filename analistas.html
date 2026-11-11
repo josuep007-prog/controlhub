@@ -342,6 +342,11 @@
   .manut{display:flex; flex-direction:column; gap:12px;}
   .acoes{display:flex; flex-wrap:wrap; gap:8px;}
   .linkish{all:unset; cursor:pointer; color:var(--blue-deep); font-weight:600; text-decoration:underline; text-underline-offset:2px;}
+  .prev{display:flex; flex-direction:column; gap:8px;}
+  .prev table{width:100%; border-collapse:collapse; font-size:12px;} .prev td,.prev th{padding:5px 8px; border-bottom:1px solid var(--rule); text-align:left; vertical-align:top;} .prev th{font-size:11px; color:var(--ink-2);}
+  .prev .de{color:var(--ink-3); text-decoration:line-through;} .prev .para{color:var(--verde); font-weight:600;}
+  .lotes{display:flex; flex-direction:column; gap:6px;} .lote{display:flex; gap:10px; align-items:center; flex-wrap:wrap; border:1px solid var(--rule); border-radius:var(--r); padding:8px 12px; font-size:12.5px;}
+  .lote b{flex:1 1 260px;} .lote small{color:var(--ink-3);} .lote.desf{opacity:.6;}
   @media (max-width:700px){ .an-tbl .col-cargo,.an-tbl .col-mods{display:none;} .pessoa small{max-width:180px;} }
 </style>
 </head>
@@ -390,6 +395,7 @@
 </main></div>
 <div id="toasts" aria-live="polite"></div>
 <dialog class="dlg" id="dlgAn" aria-labelledby="anTit"><div class="dlg-head"><h2 id="anTit">Analista</h2><button type="button" class="x" id="anX" aria-label="Fechar">✕</button></div><div class="dlg-body" id="anCorpo"></div><div class="dlg-acoes" id="anAcoes"></div></dialog>
+<dialog class="dlg" id="dlgOp" aria-labelledby="opTit" style="width:min(720px, calc(100vw - 24px))"><div class="dlg-head"><h2 id="opTit">Alterar</h2><button type="button" class="x" id="opX" aria-label="Fechar">✕</button></div><div class="dlg-body" id="opCorpo"></div><div class="dlg-acoes" id="opAcoes"></div></dialog>
 <dialog class="dlg" id="dlgConf" style="width:min(460px, calc(100vw - 24px))"><div class="confirm-txt" id="confTxt"></div><div class="dlg-acoes"><button type="button" class="fbtn" id="confNao">Cancelar</button><button type="button" class="btn" id="confSim">Confirmar</button></div></dialog>
 <script>
 (function(){
@@ -501,7 +507,7 @@ function renderFicha(){
     var logins = '<option value="">Sem login ligado</option>' + (LOGINS || []).map(function(l){ return '<option value="' + esc(l.id) + '"' + (l.id === p.loginId ? " selected" : "") + '>' + esc((l.nome || l.login) + (l.login ? " · " + l.login : "") + (l.status && l.status !== "ativo" ? " (" + l.status + ")" : "")) + '</option>'; }).join("");
     if(p.loginId && !(LOGINS || []).some(function(l){ return l.id === p.loginId; })) logins += '<option value="' + esc(p.loginId) + '" selected>conta ligada</option>';
     $("#anCorpo").innerHTML = '<div class="campos">' +
-      '<label class="campo largo">Nome<input id="edNome" maxlength="120" value="' + esc(p.nome) + '"><span class="note">' + (totCart(p) ? "Com carteira nos módulos, o nome só muda pelo Renomear (próxima etapa), para trocar em todos os módulos juntos." : "Sem carteira: pode corrigir aqui.") + '</span></label>' +
+      '<label class="campo largo">Nome<input id="edNome" maxlength="120" value="' + esc(p.nome) + '"><span class="note">' + (totCart(p) ? "Com carteira nos módulos, o nome muda pelo botão Renomear da ficha, que troca em todos os módulos juntos." : "Sem carteira: pode corrigir aqui.") + '</span></label>' +
       '<label class="campo">Cargo<select id="edCargo">' + cargos + '</select></label>' +
       '<label class="campo">Situação<select id="edSit"><option value="ativo"' + (p.situacao === "ativo" ? " selected" : "") + '>Ativo</option><option value="fora-do-gestta"' + (p.situacao === "fora-do-gestta" ? " selected" : "") + '>Fora do Gestta (ativo no Hub)</option><option value="inativo"' + (p.situacao === "inativo" ? " selected" : "") + '>Inativo</option></select></label>' +
       '<label class="campo">E-mail<input id="edEmail" type="email" maxlength="120" value="' + esc(p.email || "") + '"></label>' +
@@ -531,11 +537,14 @@ function renderFicha(){
     '<div><p class="sec-t">Carteira</p>' + renderCarteira() + '</div>' +
     (p.obs ? '<div><p class="sec-t">Observações</p><p style="margin:0; font-size:13px; white-space:pre-wrap">' + esc(p.obs) + '</p></div>' : '') +
     '<p class="note">' + (p.editadoEm ? "Corrigido à mão em " + quando(p.editadoEm) + ". " : "") + (p.atualizadoEm ? "Atualizado em " + quando(p.atualizadoEm) + "." : "") + '</p>';
-  $("#anAcoes").innerHTML = pode ? '<button type="button" class="fbtn verm esq" id="fExc">Excluir do cadastro</button><button type="button" class="fbtn" id="fFechar">Fechar</button><button type="button" class="btn" id="fEditar">Corrigir</button>' : '<span class="esq note">Só a coordenação corrige o cadastro.</span><button type="button" class="fbtn" id="fFechar">Fechar</button>';
+  $("#anAcoes").innerHTML = pode ? '<button type="button" class="fbtn verm esq" id="fExc">Excluir do cadastro</button><button type="button" class="fbtn" id="fRen">Renomear</button><button type="button" class="fbtn" id="fUnir">Unir com…</button><button type="button" class="fbtn" id="fTransf"' + (totCart(p) ? '' : ' hidden') + '>Transferir carteira</button><button type="button" class="fbtn" id="fFechar">Fechar</button><button type="button" class="btn" id="fEditar">Corrigir</button>' : '<span class="esq note">Só a coordenação corrige o cadastro.</span><button type="button" class="fbtn" id="fFechar">Fechar</button>';
   $("#fFechar").onclick = function(){ $("#dlgAn").close(); };
   if(pode){
     $("#fEditar").onclick = function(){ FICHA.editando = true; renderFicha(); if(!LOGINS) a.logins().then(function(l){ LOGINS = l; if(FICHA && FICHA.editando) renderFicha(); }); };
     $("#fExc").onclick = function(){ excluir(p); };
+    $("#fRen").onclick = function(){ opRenomear(p); };
+    $("#fUnir").onclick = function(){ opUnir(p); };
+    $("#fTransf").onclick = function(){ opTransferir(p); };
   }
 }
 $("#anCorpo").addEventListener("click", function(e){ var b = e.target.closest("[data-abrir]"); if(!b) return; var a = api(); if(!a) return; $("#dlgAn").close(); a.abrirEmpresa(b.dataset.abrir, b.dataset.id); });
@@ -582,6 +591,43 @@ function abrirNovo(){
   setTimeout(function(){ var i = $("#nvNome"); if(i) i.focus(); }, 30);
 }
 
+/* ---- renomear, unir e transferir (prévia antes de gravar; tudo pode ser desfeito na Manutenção) ---- */
+var ROT_MOD = { dp:"DP", contabil:"Contábil", fiscal:"Fiscal", portal:"Portal", login:"Login", cadastro:"Cadastro" };
+function resumoTxt(r){ return Object.keys(ROT_MOD).filter(function(k){ return r[k]; }).map(function(k){ return ROT_MOD[k] + ": " + r[k]; }).join(" · ") || "nenhum registro"; }
+function valorTxt(o){ return Object.keys(o).map(function(k){ var v = o[k]; if(v && typeof v === "object") v = Array.isArray(v) ? v.length + " item(ns)" : Object.keys(v).map(function(x){ return x + ": " + v[x]; }).join(", "); return /Id$|^cadId$/.test(k) ? (v ? "código " + v : "sem código") : v || "—"; }).join(" · "); }
+function prevHtml(r){
+  if(!r.resumo.total) return '<p class="note">Nenhum registro dos módulos muda.</p>';
+  return '<div class="prev"><p style="margin:0"><b>' + plural(r.resumo.total, "registro muda", "registros mudam") + '</b>: ' + esc(resumoTxt(r.resumo)) + '.</p>' + ((r.falta || []).length ? '<p class="res-erro" style="margin:0">Não consegui ler: ' + esc(r.falta.join(", ")) + '.</p>' : '') +
+    '<table><thead><tr><th>Onde</th><th>Antes</th><th>Depois</th></tr></thead><tbody>' + r.exemplos.map(function(e){ return '<tr><td>' + esc(ROT_MOD[e.mod] || e.mod) + ' · ' + esc(e.rot) + '</td><td class="de">' + esc(valorTxt(e.antes)) + '</td><td class="para">' + esc(valorTxt(e.depois)) + '</td></tr>'; }).join("") + (r.resumo.total > r.exemplos.length ? '<tr><td colspan="3" class="note">… e mais ' + (r.resumo.total - r.exemplos.length) + '</td></tr>' : '') + '</tbody></table></div>';
+}
+function abrirOp(tit, corpo, rotulo, prever, gravar){
+  var d = $("#dlgOp"); $("#opTit").textContent = tit; $("#opCorpo").innerHTML = corpo + '<div id="opPrev"></div>';
+  $("#opAcoes").innerHTML = '<span class="esq note">Antes de gravar, o valor de antes de cada registro é guardado para desfazer.</span><button type="button" class="fbtn" id="opCanc">Cancelar</button><button type="button" class="fbtn" id="opVer">Ver prévia</button><button type="button" class="btn" id="opOk" disabled>' + esc(rotulo) + '</button>';
+  $("#opCanc").onclick = function(){ d.close(); };
+  var ultima = null;
+  $("#opVer").onclick = async function(){ var b = this; b.disabled = true; $("#opPrev").innerHTML = '<p class="note">Lendo os módulos…</p>'; var r = await prever(); b.disabled = false; if(!r || !r.ok){ $("#opPrev").innerHTML = '<p class="res-erro">' + esc((r && r.erro) || "Não foi possível.") + '</p>'; $("#opOk").disabled = true; return; } ultima = r; $("#opPrev").innerHTML = prevHtml(r); $("#opOk").disabled = false; };
+  $("#opOk").onclick = async function(){ var b = this; b.disabled = true; $("#opVer").disabled = true; $("#opPrev").innerHTML = '<p class="note">Gravando…</p>'; var r = await gravar(); if(!r || !r.ok){ $("#opPrev").innerHTML = '<p class="res-erro">' + esc((r && r.erro) || "Não foi possível.") + '</p>'; $("#opVer").disabled = false; return; } d.close(); toast("Feito: " + plural(r.feitos || 0, "registro alterado", "registros alterados") + (r.pulados ? ", " + r.pulados + " pulado(s) porque mudaram depois da prévia" : "") + (r.falhas ? ", " + r.falhas + " falha(s)" : "") + "."); render(); if(FICHA && FICHA.id){ var a = api(); if(a && a.get(FICHA.id) && !a.get(FICHA.id).excluido) abrirFicha(FICHA.id); else $("#dlgAn").close(); } };
+  if(!d.open) d.showModal();
+}
+$("#opX").onclick = function(){ $("#dlgOp").close(); };
+function opRenomear(p){
+  var a = api();
+  abrirOp("Renomear " + p.nome, '<p class="note">Troca o nome em todas as carteiras (DP, Contábil, Fiscal), na equipe e nas frentes do Portal, nas ausências e nos logins. O nome antigo fica como outra grafia, para o que ainda estiver escrito assim continuar ligado.</p><label class="campo largo">Novo nome<input id="opNome" maxlength="120" value="' + esc(p.nome) + '"></label>', "Renomear em tudo",
+    function(){ return a.renomear(p.id, $("#opNome").value, true); }, function(){ return a.renomear(p.id, $("#opNome").value, false); });
+}
+function opcoesPessoas(exceto){ var a = api(); return a.todos().filter(function(x){ return x.id !== exceto; }).sort(function(x, y){ return x.nome.localeCompare(y.nome, "pt-BR"); }).map(function(x){ return '<option value="' + esc(x.id) + '">' + esc(x.nome + (x.situacao === "inativo" ? " (inativo)" : x.situacao === "fora-do-gestta" ? " (fora do Gestta)" : "")) + '</option>'; }).join(""); }
+function opUnir(p){
+  var a = api();
+  abrirOp("Unir " + p.nome + " com outra pessoa", '<p class="note">Use quando dois cadastros são a mesma pessoa. A carteira, os nomes e o código de quem sai passam para quem fica; quem sai vira outra grafia de quem fica.</p><div class="campos"><label class="campo">Quem fica<select id="opFica"><option value="' + esc(p.id) + '">' + esc(p.nome) + ' (esta)</option>' + opcoesPessoas(p.id) + '</select></label><label class="campo">Quem sai<select id="opSai"><option value="">Escolha…</option>' + opcoesPessoas(p.id) + '<option value="' + esc(p.id) + '">' + esc(p.nome) + ' (esta)</option></select></label></div>', "Unir",
+    function(){ return a.unir($("#opFica").value, $("#opSai").value, true); }, function(){ return a.unir($("#opFica").value, $("#opSai").value, false); });
+}
+function opTransferir(p){
+  var a = api();
+  abrirOp("Transferir a carteira de " + p.nome, '<p class="note">Troca o responsável das empresas, de uma vez. Para ausência com data de volta, use a ausência do módulo.</p><div class="campos"><label class="campo">Para<select id="opPara"><option value="">Escolha…</option>' + opcoesPessoas(p.id) + '</select></label><div class="campo">Módulos<div class="chk">' + ["dp","contabil","fiscal"].map(function(m){ return '<label><input type="checkbox" name="opMod" value="' + m + '"' + ((p.carteira || {})[m] ? " checked" : "") + '> ' + esc(MODS[m]) + '</label>'; }).join("") + '</div></div></div>', "Transferir",
+    function(){ return a.transferir(p.id, $("#opPara").value, $$('[name=opMod]').filter(function(x){ return x.checked; }).map(function(x){ return x.value; }), true); },
+    function(){ return a.transferir(p.id, $("#opPara").value, $$('[name=opMod]').filter(function(x){ return x.checked; }).map(function(x){ return x.value; }), false); });
+}
+
 /* ---- excluídos ---- */
 function renderExcluidos(){
   var a = api(); if(!a) return;
@@ -615,8 +661,25 @@ function renderManut(){
     '<p style="margin:0">' + (st.pessoas ? 'O cadastro tem <b>' + plural(st.pessoas, "pessoa", "pessoas") + '</b>.' : 'O cadastro ainda não foi gerado.') + (st.gestta ? ' <span class="res-erro">Equipe do Gestta: ' + esc(st.gestta) + '.</span>' : ' A equipe do Gestta está em dia.') + '</p>' +
     '<div class="acoes"><button type="button" class="fbtn" id="mPrev"' + (M.ocupado ? " disabled" : "") + '>Ver prévia (não grava)</button>' + (pode ? '<button type="button" class="btn" id="mGerar"' + (M.ocupado ? " disabled" : "") + '>' + (st.pessoas ? "Atualizar o cadastro" : "Gerar o cadastro") + '</button>' : '<span class="note">Só a coordenação grava o cadastro.</span>') + '</div>' +
     (M.msg ? '<p class="' + (M.erro ? "res-erro" : "res-ok") + '" style="margin:0">' + esc(M.msg) + '</p>' : '') +
-    (r ? '<p class="note">' + (r.gravado ? "Último cadastro gravado" : "Prévia") + ' em ' + esc(quando(r.em)) + '.</p>' + relHtml(r) : '');
+    (r ? '<p class="note">' + (r.gravado ? "Último cadastro gravado" : "Prévia") + ' em ' + esc(quando(r.em)) + '.</p>' + relHtml(r) : '') +
+    '<hr style="border:0; border-top:1px solid var(--rule); margin:6px 0">' +
+    '<h3 style="margin:0; font-size:14px">Códigos nas carteiras</h3><p class="note" style="margin:0">Grava o código de cada pessoa ao lado do nome do analista em cada empresa (DP, Contábil, Fiscal), na equipe do Portal e nos logins. Nenhum nome muda. Depois disso, os módulos passam a gravar o código sozinhos.</p>' +
+    '<div class="acoes">' + (pode ? '<button type="button" class="btn" id="mVinc"' + (M.ocupado || !st.pessoas ? " disabled" : "") + '>Gravar códigos nas carteiras…</button>' : '') + '</div>' +
+    lotesHtml(a, pode);
 }
+function lotesHtml(a, pode){
+  var l = a.lotes ? a.lotes() : []; if(!l.length) return '';
+  return '<h3 style="margin:8px 0 0; font-size:14px">Alterações feitas pelo cadastro</h3><div class="lotes">' + l.slice(0, 30).map(function(x){
+    return '<div class="lote' + (x.desfeito ? ' desf' : '') + '"><b>' + esc(x.desc) + '</b><small>' + esc(quando(x.em)) + (x.porNome ? " · " + esc(x.porNome) : "") + ' · ' + esc(resumoTxt(x.resumo || {})) + (x.pulados ? " · " + x.pulados + " pulado(s)" : "") + (x.desfeito ? " · desfeito em " + esc(quando(x.desfeito)) : "") + '</small>' + (pode && !x.desfeito ? '<button type="button" class="fbtn" data-desf="' + esc(x.id) + '">Desfazer</button>' : '') + '</div>';
+  }).join("") + '</div>';
+}
+$("#manut").addEventListener("click", async function(e){
+  var a = api(), b = e.target.closest("#mVinc,[data-desf]"); if(!b || !a) return;
+  if(b.id === "mVinc"){ abrirOp("Gravar códigos nas carteiras", '<p class="note">Cada empresa recebe o código de quem é o analista (pelo nome que já está lá). Quem não está no cadastro fica sem código até a grafia ser ligada a alguém na ficha.</p>', "Gravar códigos", function(){ return a.vincular(true); }, function(){ return a.vincular(false); }); return; }
+  if(!(await confirmar("Desfazer esta alteração? Cada registro volta ao valor de antes, se ninguém o mudou depois.", "Desfazer"))) return;
+  b.disabled = true; var r = await a.desfazer(b.dataset.desf);
+  toast(r.ok ? "Desfeito: " + plural(r.feitos || 0, "registro voltou", "registros voltaram") + (r.pulados ? ", " + r.pulados + " mudaram depois e ficaram como estão" : "") + "." : (r.erro || "Não foi possível desfazer.")); render();
+});
 $("#manut").addEventListener("click", async function(e){
   var b = e.target.closest("#mPrev,#mGerar"); if(!b || M.ocupado) return;
   var a = api(); M.ocupado = true; M.msg = b.id === "mPrev" ? "Lendo os módulos…" : "Gravando o cadastro…"; M.erro = false; renderManut();

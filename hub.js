@@ -436,6 +436,7 @@
       tributacao: String(e.tributacao || ''),
       responsavel: String(e.responsavel || '').trim(),
       reserva: String(e.reserva || '').trim(),
+      responsavelId: String(e.responsavelId || ''), reservaId: String(e.reservaId || ''),      // cadastro de analistas: o código da pessoa (o nome continua)
       situacao: ['Ativa','Sem movimento','Inativa'].includes(e.situacao) ? e.situacao : 'Ativa',
       uf: String(e.uf || ''),
       dataBase: mesDeTexto(e.dataBase || ''),
@@ -8756,7 +8757,7 @@
       if (!c.nome) return { ok: false, erro: 'O nome não pode ficar vazio.' };
       const outro = state.anaIdx.get(norm(c.nome)); if (outro && outro !== id) return { ok: false, erro: 'Já existe alguém com esse nome no cadastro (' + anaGet(outro).nome + '). Use "Unir" quando for a mesma pessoa.' };
       const tot = Object.values(ant.carteira || {}).reduce((a, b) => a + b, 0);
-      if (tot) return { ok: false, erro: 'Essa pessoa tem carteira nos módulos: trocar o nome em todos eles chega na próxima etapa do cadastro (renomear com desfazer).' };
+      if (tot) return { ok: false, erro: 'Essa pessoa tem carteira nos módulos: use Renomear, que troca o nome em todos eles (com desfazer).' };
       c.apelidos = [...new Set([...(c.apelidos || ant.apelidos || []), ant.nome])].filter(a => norm(a) !== norm(c.nome));
     }
     if ('loginId' in c && c.loginId) { const dono = [...state.analistas.values()].find(p => p.loginId === c.loginId && p.id !== id); if (dono) return { ok: false, erro: 'Esse login já está ligado a ' + dono.nome + '.' }; }
@@ -8837,6 +8838,207 @@
     analistaIdDe: (nome) => anaIdDe(nome),
     abrirAnalista: (id) => { try { try { sessionStorage.setItem('controlhub-ana-abrir', id); } catch (e) {} openModule('analistas'); const f = $('#analistas-frame'); if (f && f.contentWindow && f.contentWindow.__abrirAnalista) { try { sessionStorage.removeItem('controlhub-ana-abrir'); } catch (e) {} f.contentWindow.__abrirAnalista(id); } return true; } catch (e) { return false; } },
   });
+  // ----- Etapa 2: o código da pessoa nas carteiras; renomear e unir em todos os módulos, com desfazer -----
+  // Cada campo de analista ganha o código ao lado (responsavelId, analistaId, apoioId…); o nome continua gravado, como cópia mantida pelo
+  // cadastro, para nada que lê o nome quebrar. Toda gravação em lote guarda o valor de antes e o de depois em ana_trocas e pode ser desfeita.
+  // Ao gravar, cada registro é conferido: se alguém mudou o campo depois da prévia, aquele registro é pulado (nada é sobrescrito às cegas).
+  const ANA_TROCAS = 'ana_trocas', ANA_PEDACO = 180000;
+  state.anaTrocasIdx = null; state.anaEstado.gravando = false;
+  const ANA_CAMPOS = [
+    { col: 'dp_empresas', mod: 'dp', nome: 'responsavel', id: 'responsavelId' }, { col: 'dp_empresas', mod: 'dp', nome: 'reserva', id: 'reservaId' },
+    { col: 'ctb_emp', mod: 'contabil', nome: 'analista', id: 'analistaId', balde: true }, { col: 'ctb_emp', mod: 'contabil', nome: 'apoio', id: 'apoioId', balde: true },
+    { col: 'fis_emp', mod: 'fiscal', nome: 'analista', id: 'analistaId', balde: true }
+  ];
+  const anaVazio = (v) => v == null || v === '' || v === false || (Array.isArray(v) ? !v.length : typeof v === 'object' && !Object.keys(v).length);
+  const anaIgual = (a, b) => (anaVazio(a) && anaVazio(b)) || JSON.stringify(a) === JSON.stringify(b);
+  // Lê o que os lotes precisam, com o documento de origem de cada registro (baldes do Contábil e do Fiscal: documento + chave).
+  async function anaLerAlvos() {
+    const ler = (c) => cadLerCol(c).catch(() => null);
+    const [dp, ctb, fis, func, sets, logins, eq, cob, aus] = await Promise.all([ler('dp_empresas'), ler('ctb_emp'), ler('fis_emp'), ler('funcionarios'), ler('empresaSetores'), ler('auth_usuarios'),
+      db.doc('dp_config/equipe').get().catch(() => null), db.doc('dp_config/cobertura').get().catch(() => null), db.doc('ctb_config/aus').get().catch(() => null)]);
+    const dado = (s) => s && s.exists !== false && s.data ? s.data() || null : null;
+    const reg = { dp_empresas: (dp || []).map(d => ({ doc: d.id, v: d.data })), ctb_emp: [], fis_emp: [], funcionarios: (func || []).map(d => ({ doc: d.id, v: d.data })), empresaSetores: (sets || []).map(d => ({ doc: d.id, v: d.data })), auth_usuarios: (logins || []).map(d => ({ doc: d.id, v: d.data })) };
+    [['ctb_emp', ctb], ['fis_emp', fis]].forEach(([c, docs]) => (docs || []).forEach(d => Object.keys(d.data).forEach(k => { const v = d.data[k]; if (v && typeof v === 'object' && !Array.isArray(v)) reg[c].push({ doc: d.id, key: k, v }); })));
+    const falta = [!dp && 'DP', !ctb && 'Contábil', !fis && 'Fiscal', !func && 'Portal (equipe)', !sets && 'Portal (frentes)', !logins && 'Logins'].filter(Boolean);
+    return { reg, falta, equipe: dado(eq), cob: dado(cob), aus: dado(aus) };
+  }
+  // Monta as entradas de um lote. quem(nome, idGravado) → { id, nome } para trocar, ou null para deixar como está.
+  function anaEntradas(A, quem, comNome) {
+    const out = [];
+    ANA_CAMPOS.forEach(c => A.reg[c.col].forEach(r => {
+      if (r.v.excluida) return;
+      const nome = String(r.v[c.nome] || '').trim(), idG = String(r.v[c.id] || ''); if (!nome && !idG) return;
+      const q = quem(nome, idG); if (!q) return;
+      const antes = { [c.nome]: r.v[c.nome] == null ? '' : r.v[c.nome], [c.id]: idG }, depois = { [c.nome]: comNome && q.nome ? q.nome : antes[c.nome], [c.id]: q.id };
+      if (anaIgual(antes, depois)) return;
+      const ja = out.find(e => e.col === c.col && e.doc === r.doc && (e.key || '') === (r.key || ''));
+      if (ja) { Object.assign(ja.antes, antes); Object.assign(ja.depois, depois); } else out.push({ col: c.col, doc: r.doc, key: r.key || '', mod: c.mod, rot: String(r.v.nome || r.doc), antes, depois });
+    }));
+    // Portal: a pessoa da equipe guarda o código; a frente (que já aponta para a pessoa da equipe) guarda o nome
+    A.reg.funcionarios.forEach(r => {
+      const nome = String(r.v.nome || '').trim(), idG = String(r.v.cadId || ''); if (!nome || r.v.exemplo) return;
+      const q = quem(nome, idG); if (!q) return;
+      const antes = { nome: r.v.nome || '', cadId: idG }, depois = { nome: comNome && q.nome ? q.nome : antes.nome, cadId: q.id };
+      if (!anaIgual(antes, depois)) out.push({ col: 'funcionarios', doc: r.doc, key: '', mod: 'portal', rot: 'Equipe do Portal', antes, depois });
+    });
+    if (comNome) A.reg.empresaSetores.forEach(r => {
+      const nome = String(r.v.analistaNome || '').trim(); if (!nome) return;
+      const q = quem(nome, ''); if (!q || !q.nome || q.nome === nome) return;
+      out.push({ col: 'empresaSetores', doc: r.doc, key: '', mod: 'portal', rot: String(r.v.empresaNome || r.v.empresaId || r.doc), antes: { analistaNome: r.v.analistaNome }, depois: { analistaNome: q.nome } });
+    });
+    // logins: o código da pessoa ligada (o nome por módulo continua, para quem ainda lê __auth.analista)
+    A.reg.auth_usuarios.forEach(r => {
+      const v = r.v, an = v.analista && typeof v.analista === 'object' ? v.analista : {};
+      const ligado = [...state.analistas.values()].find(p => p.loginId === r.doc);
+      let q = null; const nAn = {};
+      Object.keys(an).forEach(m => { const s = String(an[m] || '').trim(); if (!s) return; const x = quem(s, ''); if (x) { q = q || x; nAn[m] = comNome && x.nome ? x.nome : s; } else nAn[m] = an[m]; });
+      const antes = { analistaId: v.analistaId || '', analista: an };
+      let idAlvo = antes.analistaId;
+      if (comNome) { const qL = ligado ? quem(ligado.nome, ligado.id) : antes.analistaId ? quem('', antes.analistaId) : null; if (qL) idAlvo = qL.id; }
+      else idAlvo = ligado ? ligado.id : q ? q.id : antes.analistaId;
+      const depois = { analistaId: idAlvo, analista: comNome ? nAn : an };
+      if (!anaIgual(antes, depois)) out.push({ col: 'auth_usuarios', doc: r.doc, key: '', mod: 'login', rot: String(v.nome || v.login || r.doc), antes, depois });
+    });
+    if (comNome) {
+      // equipe do DP e as ausências do DP e do Contábil (nomes dentro de listas: o campo inteiro vai no lote)
+      const troca = (s) => { const t = String(s || '').trim(); if (!t) return s; const q = quem(t, ''); return q && q.nome ? q.nome : s; };
+      if (A.equipe && Array.isArray(A.equipe.nomes)) { const d = [...new Set(A.equipe.nomes.map(troca))]; if (!anaIgual(d, A.equipe.nomes)) out.push({ col: 'dp_config', doc: 'equipe', key: '', mod: 'dp', rot: 'Equipe do DP', antes: { nomes: A.equipe.nomes }, depois: { nomes: d } }); }
+      const ausT = (a) => ({ ...a, analista: troca(a.analista), padrao: troca(a.padrao), porEmpresa: Object.fromEntries(Object.entries(a.porEmpresa || {}).map(([k, v]) => [k, troca(v)])) });
+      if (A.cob && Array.isArray(A.cob.ausencias)) { const d = A.cob.ausencias.map(ausT); if (!anaIgual(d, A.cob.ausencias)) out.push({ col: 'dp_config', doc: 'cobertura', key: '', mod: 'dp', rot: 'Ausências do DP', antes: { ausencias: A.cob.ausencias }, depois: { ausencias: d } }); }
+      if (A.aus && Array.isArray(A.aus.lista)) { const d = A.aus.lista.map(ausT); if (!anaIgual(d, A.aus.lista)) out.push({ col: 'ctb_config', doc: 'aus', key: '', mod: 'contabil', rot: 'Ausências do Contábil', antes: { lista: A.aus.lista }, depois: { lista: d } }); }
+    }
+    return out;
+  }
+  const anaResumo = (ents) => { const r = { dp: 0, contabil: 0, fiscal: 0, portal: 0, login: 0, total: ents.length }; ents.forEach(e => { r[e.mod] = (r[e.mod] || 0) + 1; }); return r; };
+  // Grava (sentido 'ir') ou desfaz ('volta') as entradas, conferindo cada registro antes.
+  async function anaGravarEntradas(ents, sentido) {
+    const raw = cadEscrita(); let feitos = 0, pulados = 0, falhas = 0;
+    const de = (e) => sentido === 'ir' ? e.antes : e.depois, para = (e) => sentido === 'ir' ? e.depois : e.antes;
+    const confere = (cur, e) => Object.keys(de(e)).every(k => anaIgual(cur[k], de(e)[k]));
+    const simples = ents.filter(e => !e.key), baldes = {};
+    ents.filter(e => e.key).forEach(e => { (baldes[e.col + '/' + e.doc] = baldes[e.col + '/' + e.doc] || []).push(e); });
+    for (let n = 0; n < simples.length; n += 12) {
+      await Promise.all(simples.slice(n, n + 12).map(async e => {
+        try {
+          const sn = await raw.doc(`${e.col}/${e.doc}`).get(), cur = sn && sn.exists !== false && sn.data ? sn.data() : null;
+          if (!cur || !confere(cur, e)) { pulados++; return; }
+          await raw.doc(`${e.col}/${e.doc}`).update(para(e)); feitos++;
+        } catch (x) { falhas++; }
+      }));
+    }
+    for (const path of Object.keys(baldes)) {
+      const lista = baldes[path];
+      try {
+        const sn = await raw.doc(path).get(), mapa = sn && sn.exists !== false && sn.data ? sn.data() : null;
+        if (!mapa) { pulados += lista.length; continue; }
+        const upd = {};
+        lista.forEach(e => { const cur = upd[e.key] || mapa[e.key]; if (!cur || !confere(cur, e)) pulados++; else upd[e.key] = { ...cur, ...para(e) }; });
+        const ks = Object.keys(upd); if (ks.length) { await raw.doc(path).update(upd); feitos += ks.length; }
+      } catch (x) { falhas += lista.length; }
+    }
+    return { feitos, pulados, falhas };
+  }
+  // Guarda o lote (antes e depois de cada registro) ANTES de gravar: sem isso, nada é alterado.
+  async function anaGuardarLote(tipo, desc, ents, extra) {
+    const id = 'L' + Date.now().toString(36), txt = JSON.stringify(ents), partes = Math.max(1, Math.ceil(txt.length / ANA_PEDACO));
+    for (let i = 0; i < partes; i++) { const ok = await persist(() => db.doc(`${ANA_TROCAS}/${id}_${i}`).set({ lote: id, i, txt: txt.slice(i * ANA_PEDACO, (i + 1) * ANA_PEDACO) })); if (!ok) return null; }
+    const lote = { id, tipo, desc, em: Date.now(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', partes, n: ents.length, resumo: anaResumo(ents), ...extra };
+    const lotes = [lote, ...((state.anaTrocasIdx && state.anaTrocasIdx.lotes) || [])].slice(0, 60);
+    if (!(await persist(() => db.doc(`${ANA_TROCAS}/_idx`).set({ lotes })))) return null;
+    state.anaTrocasIdx = { lotes };
+    return lote;
+  }
+  async function anaLerLote(lote) {
+    let txt = ''; for (let i = 0; i < lote.partes; i++) { const s = await db.doc(`${ANA_TROCAS}/${lote.id}_${i}`).get(); const d = s && s.exists !== false && s.data ? s.data() : null; if (!d) return null; txt += d.txt; }
+    try { return JSON.parse(txt); } catch (e) { return null; }
+  }
+  async function anaMarcarLote(id, patch) {
+    const lotes = ((state.anaTrocasIdx && state.anaTrocasIdx.lotes) || []).map(l => l.id === id ? { ...l, ...patch } : l);
+    if (await persist(() => db.doc(`${ANA_TROCAS}/_idx`).set({ lotes }))) state.anaTrocasIdx = { lotes };
+  }
+  // Prévia ou gravação de um lote: plano(A) → { entradas, cad: [{ id, antes, depois }] } (as mudanças no próprio cadastro também vão no lote).
+  async function anaLote(tipo, desc, plano, simular) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação altera as carteiras pelo cadastro de analistas.' };
+    if (state.anaEstado.gravando) return { ok: false, erro: 'Outra gravação do cadastro está em andamento.' };
+    state.anaEstado.gravando = true;
+    try {
+      const A = await anaLerAlvos();
+      if (A.falta.length && !simular) return { ok: false, erro: 'Não consegui ler: ' + A.falta.join(', ') + '. Nada foi alterado.' };
+      const p = plano(A); if (p.erro) return { ok: false, erro: p.erro };
+      const cadEnts = (p.cad || []).map(c => ({ col: ANA_COL, doc: c.id, key: '', mod: 'cadastro', rot: 'Cadastro de analistas', antes: c.antes, depois: c.depois }));
+      const ents = [...p.entradas, ...cadEnts], resumo = anaResumo(p.entradas);
+      const previa = { ok: true, resumo, exemplos: p.entradas.slice(0, 40).map(e => ({ mod: e.mod, rot: e.rot, antes: e.antes, depois: e.depois })), falta: A.falta };
+      if (simular) return previa;
+      if (!ents.length) return { ...previa, feito: true, feitos: 0, pulados: 0, falhas: 0 };
+      const lote = await anaGuardarLote(tipo, desc, ents, p.extra || {});
+      if (!lote) return { ok: false, erro: 'Não foi possível guardar o lote para desfazer: nada foi alterado.' };
+      const r1 = await anaGravarEntradas(p.entradas, 'ir'), r2 = await anaGravarEntradas(cadEnts, 'ir');
+      await anaMarcarLote(lote.id, { feitos: r1.feitos + r2.feitos, pulados: r1.pulados + r2.pulados, falhas: r1.falhas + r2.falhas });
+      try { gtModulos(true); } catch (e) {}
+      return { ...previa, feito: true, lote: lote.id, feitos: r1.feitos, pulados: r1.pulados, falhas: r1.falhas + r2.falhas };
+    } finally { state.anaEstado.gravando = false; }
+  }
+  // Grava os códigos nas carteiras (nenhum nome muda).
+  const anaVincular = (simular) => anaLote('vincular', 'Códigos do cadastro gravados nas carteiras', (A) => ({ entradas: anaEntradas(A, (nome, idG) => { const id = nome ? anaIdDe(nome) : ''; return id === idG ? null : { id }; }, false) }), simular);
+  // Renomeia a pessoa em todos os módulos (o nome antigo fica como apelido, para o que ainda estiver escrito assim continuar ligado).
+  function anaRenomear(id, novo, simular) {
+    const p = state.analistas.get(id), nn = String(novo || '').trim().slice(0, 120);
+    if (!p) return Promise.resolve({ ok: false, erro: 'Pessoa não encontrada.' });
+    if (!nn) return Promise.resolve({ ok: false, erro: 'Informe o novo nome.' });
+    if (nn === p.nome) return Promise.resolve({ ok: false, erro: 'O nome é o mesmo.' });
+    const outro = state.anaIdx.get(norm(nn)); if (outro && outro !== id) return Promise.resolve({ ok: false, erro: 'Esse nome já é de ' + anaGet(outro).nome + '. Use "Unir" se for a mesma pessoa.' });
+    return anaLote('renomear', p.nome + ' → ' + nn, (A) => ({
+      entradas: anaEntradas(A, (nome, idG) => (idG === id || (nome && anaIdDe(nome) === id)) ? { id, nome: nn } : null, true),
+      cad: [{ id, antes: { nome: p.nome, apelidos: p.apelidos || [], editado: p.editado || {} }, depois: { nome: nn, apelidos: [...new Set([...(p.apelidos || []).filter(a => norm(a) !== norm(nn)), p.nome])], editado: { ...(p.editado || {}), nome: true } } }],
+      extra: { pessoa: id }
+    }), simular);
+  }
+  // Une duas pessoas: tudo de "sai" passa para "fica" (nome e código); "sai" vira apelido de "fica" e sai do cadastro (dá para desfazer).
+  function anaUnir(ficaId, saiId, simular) {
+    const f = state.analistas.get(ficaId), s = state.analistas.get(saiId);
+    if (!f || !s || ficaId === saiId) return Promise.resolve({ ok: false, erro: 'Escolha duas pessoas diferentes do cadastro.' });
+    const nomesSai = new Set([s.nome, ...(s.apelidos || [])].map(norm));
+    return anaLote('unir', s.nome + ' unido(a) a ' + f.nome, (A) => ({
+      entradas: anaEntradas(A, (nome, idG) => (idG === saiId || (nome && (anaIdDe(nome) === saiId || nomesSai.has(norm(nome))))) ? { id: ficaId, nome: f.nome } : null, true),
+      cad: [
+        { id: ficaId, antes: { apelidos: f.apelidos || [], mods: f.mods || [], loginId: f.loginId || '', email: f.email || '', telefone: f.telefone || '', cargo: f.cargo || '' },
+          depois: { apelidos: [...new Set([...(f.apelidos || []), s.nome, ...(s.apelidos || [])])].filter(a => norm(a) !== norm(f.nome)), mods: [...new Set([...(f.mods || []), ...(s.mods || [])])], loginId: f.loginId || s.loginId || '', email: f.email || s.email || '', telefone: f.telefone || s.telefone || '', cargo: f.cargo || s.cargo || '' } },
+        { id: saiId, antes: { excluido: !!s.excluido, unidoCom: s.unidoCom || '', apelidos: s.apelidos || [], loginId: s.loginId || '' }, depois: { excluido: true, unidoCom: ficaId, apelidos: [], loginId: '' } }
+      ],
+      extra: { pessoa: ficaId, saiu: saiId }
+    }), simular);
+  }
+  // Transfere a carteira de um módulo (ou de todos) para outra pessoa: troca nome e código nos registros, com desfazer.
+  function anaTransferir(deId, paraId, mods, simular) {
+    const a = state.analistas.get(deId), b = state.analistas.get(paraId);
+    if (!a || !b || deId === paraId) return Promise.resolve({ ok: false, erro: 'Escolha para quem transferir.' });
+    const quais = new Set((mods && mods.length ? mods : ['dp', 'contabil', 'fiscal']).filter(m => ANA_MODS[m]));
+    return anaLote('transferir', 'Carteira de ' + a.nome + ' → ' + b.nome + ' (' + [...quais].map(m => ANA_MODS[m]).join(', ') + ')', (A) => {
+      const ents = anaEntradas(A, (nome, idG) => (idG === deId || (nome && anaIdDe(nome) === deId)) ? { id: paraId, nome: b.nome } : null, true);
+      return { entradas: ents.filter(e => quais.has(e.mod) && ANA_CAMPOS.some(c => c.col === e.col)), extra: { pessoa: deId, para: paraId } };
+    }, simular);
+  }
+  async function anaDesfazer(loteId) {
+    if (!anaPodeEditar()) return { ok: false, erro: 'Só a coordenação desfaz.' };
+    const lote = ((state.anaTrocasIdx && state.anaTrocasIdx.lotes) || []).find(l => l.id === loteId);
+    if (!lote) return { ok: false, erro: 'Lote não encontrado.' };
+    if (lote.desfeito) return { ok: false, erro: 'Esse lote já foi desfeito.' };
+    state.anaEstado.gravando = true;
+    try {
+      const ents = await anaLerLote(lote); if (!ents) return { ok: false, erro: 'Não consegui ler o lote guardado.' };
+      const r = await anaGravarEntradas(ents.slice().reverse(), 'volta');
+      await anaMarcarLote(loteId, { desfeito: Date.now(), desfeitoPor: autorId(), desfeitos: r.feitos });
+      try { gtModulos(true); } catch (e) {}
+      return { ok: r.falhas === 0, ...r };
+    } finally { state.anaEstado.gravando = false; }
+  }
+  Object.assign(anaApi, {
+    vincular: (simular) => anaVincular(!!simular), renomear: (id, novo, simular) => anaRenomear(id, novo, !!simular), unir: (a, b, simular) => anaUnir(a, b, !!simular),
+    transferir: (de, para, mods, simular) => anaTransferir(de, para, mods, !!simular), desfazer: anaDesfazer,
+    lotes: () => ((state.anaTrocasIdx && state.anaTrocasIdx.lotes) || []).map(l => ({ ...l })), gravando: () => state.anaEstado.gravando,
+  });
+  // DP: ao gravar uma empresa, o código do responsável e da reserva vem do cadastro (o nome continua).
+  { const s1 = dpDbStore.saveOne.bind(dpDbStore); dpDbStore.saveOne = (item) => { if (item && state.analistas.size) { const o = { ...item }; [['responsavel', 'responsavelId'], ['reserva', 'reservaId']].forEach(([n, i]) => { o[i] = o[n] ? anaIdDe(o[n]) || '' : ''; }); return s1(o); } return s1(item); }; }
   // === fim do bloco Gestta · cadastros ===
 
   function renderCartela() {
@@ -9526,7 +9728,7 @@
     { path:'setorAlinhamento', app:'Portal' }, { path:'auditoriaDominio', app:'Portal' }, { path:'historico', app:'Portal' },
     { path:'fis_emp', app:'Fiscal' }, { path:'fis_comp', app:'Fiscal' }, { path:'fis_config', app:'Fiscal' },
     { path:'cardapio_dias', app:'Cardápio' },
-    { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' }, { path:'cadastro_analistas', app:'Hub' },
+    { path:'pop_docs', app:'POP Master' }, { path:'pop_usuarios', app:'POP Master' }, { path:'cadastro_empresas', app:'Hub' }, { path:'cad_backup', app:'Hub' }, { path:'cadastro_analistas', app:'Hub' }, { path:'ana_trocas', app:'Hub' },
     { path:'ing_dados', app:'Hub' }, { path:'ing_partes', app:'Hub' }, { path:'ing_lotes', app:'Hub' }, { path:'dp_ov_ignorar', app:'Hub' },
     // Hub 320: as coleções que não eram medidas (o total ficava abaixo do real e o banco enchia sem aviso)
     { path:'gt_hist', app:'Hub' }, { path:'gt_ignorar', app:'Hub' }, { path:'gt_config', app:'Hub' }, { path:'ing_reservas', app:'Hub' }, { path:'ing_envio', app:'Hub' }, { path:'ing_auto', app:'Hub' }, { path:'ing_config', app:'Hub' },
@@ -10250,6 +10452,7 @@
       render();
     }, caiu);
 
+    db.doc(`${ANA_TROCAS}/_idx`).onSnapshot((snap) => { state.anaTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; anaOuvintes.forEach(cb => { try { cb(); } catch (e) {} }); }, () => {});
     db.collection(ANA_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, { ...(d.data() || {}), id: d.id })); state.anaRaw = m; anaAchata(); }, () => {});
     db.collection(CAD_COL).onSnapshot((snap) => { const m = new Map(); snap.docs.forEach(d => m.set(d.id, d.data() || {})); state.cadRaw = m; cadAchata(); ovAposCarga(); }, () => {});
     db.doc(`${CAD_TROCAS}/_idx`).onSnapshot((snap) => { state.cadTrocasIdx = snap && snap.exists !== false && snap.data ? (snap.data() || null) : null; }, () => {});
