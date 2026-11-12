@@ -462,6 +462,18 @@
   .env-l li.erro, .env-l li.erro b{color:var(--late, #B3261E);}
   .env-l details summary{cursor:pointer; font-size:12px; color:var(--ink-2); padding:4px 0;}
   @media (prefers-reduced-motion: reduce){ .env-barra i{transition:none;} }
+  /* Hub 340: o que pode estar desatualizado e o diagnóstico */
+  .env-l small.ali{grid-column:2 / -1; display:block; font-size:12px; color:var(--ink-2); font-weight:400;}
+  .env-diag{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px;}
+  .env-diag textarea{width:100%; min-height:120px; font:12px/1.4 ui-monospace, Menlo, Consolas, monospace; color:var(--ink); background:var(--surface, transparent); border:1px solid var(--rule); border-radius:4px; padding:8px;}
+  .desat{margin-top:14px; padding-top:12px; border-top:1px solid var(--rule);}
+  .desat-top{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;}
+  .desat-top h4{margin:0; font-size:13.5px;}
+  .desat-l{list-style:none; margin:8px 0 0; padding:0; font-size:12.5px;}
+  .desat-l li{display:grid; grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr); gap:2px 12px; padding:6px 0; border-top:1px solid var(--rule); color:var(--ink-2);}
+  .desat-l li b{color:var(--ink); font-weight:600; overflow-wrap:anywhere;}
+  .desat-l li .ali{grid-column:1 / -1; font-size:12px;}
+  @media (max-width:700px){ .desat-l li{grid-template-columns:1fr;} }
   @media (prefers-reduced-motion: reduce){ .kt, .seta-d, .lote-prog i b{transition:none;} }
 </style>
 </head>
@@ -608,9 +620,9 @@ function linhasDe(l){
   return l.tabela ? l.tabela.split("\n").map(function(t){ var c = t.split("\t"); return { lista:c[ix["Lista"]] || "", num:c[ix["Nº"]] || "", sit:c[ix["Situação"]] || "", vez:c[ix["Vez"]] || "", cli:c[ix["Cliente"]] || "", resp:c[ix["Responsável"]] || "", aberta:c[ix["Aberta em"]] || "", ult:c[ix["Última movimentação"]] || "", parado:c[ix["Dias parado"]] || "", grav:c[ix["Gravidade"]] || "", bruto:c }; }) : [];
 }
 var dados = {};
-var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise", tarefas:"Gestta · Tarefas", cadastros:"Gestta · Cadastros", alertas:"Gestta · Alertas" };
+var CAT_ROT = { listas:"Listas", pessoais:"Pessoais", clientes:"Clientes", escritorio:"Escritório", documentos:"Documentos", noticias:"Notícias", analise:"Análise", tarefas:"Gestta · Tarefas", cadastros:"Gestta · Cadastros", alertas:"Gestta · Alertas", convencoes:"Mediador · Convenções" };
 var CAT_ORDEM = ["listas", "pessoais", "clientes", "escritorio", "documentos", "noticias", "analise", "tarefas", "cadastros", "alertas"];
-var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão", tarefas:"Gestta: as tarefas do mês atual e do anterior de todos os setores", cadastros:"Gestta: clientes, equipe, setores e a cartela (quem atende cada setor)", alertas:"Gestta: envios ao Onvio com erro e templates sem pasta no portal" };
+var CAT_DESC = { listas:"as 10 listas de solicitações, em todas as situações", pessoais:"CPF, salário, a folha de cada empresa, nomes de empregados, textos e trâmites", clientes:"clientes de CND e de NF-e (CNPJ, inscrições, certificado)", escritorio:"departamentos, acesso, tabelas de apoio, conta e permissões", documentos:"pastas do Onvio Drive", noticias:"notícias compartilhadas com os clientes", analise:"gravidade, prazo legal e carga por analista, calculados pela extensão", tarefas:"Gestta: as tarefas do mês atual e do anterior de todos os setores", cadastros:"Gestta: clientes, equipe, setores e a cartela (quem atende cada setor)", alertas:"Gestta: envios ao Onvio com erro e templates sem pasta no portal", convencoes:"Mediador do MTE: os instrumentos coletivos dos sindicatos e o texto da convenção vigente (uma vez por semana ou pelo botão em Convenções)" };
 /* ---- ver os dados completos que chegaram (todas as linhas e colunas de cada conjunto) ---- */
 // As partes ficam em ing_partes/<conjunto>~<slot><n> (tabela em texto: tab entre colunas, quebra de linha entre linhas), do mesmo ciclo do manifesto.
 // Conjuntos "pessoais" (CPF, salário, dados de empregados): só para quem trabalha o DP (coordenação ou analista), como no resto do Hub.
@@ -1301,7 +1313,7 @@ function renderGtRef(api){
     '<div class="gt-ref-st"><span class="gt-st ' + (r.empresas.ok ? 'ok' : 'off') + '">' + (r.empresas.ok ? '✓ ' + r.empresas.n.toLocaleString("pt-BR") + ' empresas em atividade no Gestta' : '! Empresas: ' + esc(r.empresas.motivo) + ' · nada escondido') + '</span>' +
     '<span class="gt-st ' + (r.analistas.ok ? 'ok' : 'off') + '">' + (r.analistas.ok ? '✓ ' + r.analistas.lista.length + ' analistas ativos no Gestta' : '! Analistas: ' + esc(r.analistas.motivo) + ' · ninguém sai') + '</span></div>' +
     // Hub 339: de onde vem a lista de analistas do DP e o porquê de cada um (ao passar o mouse)
-    (r.analistas.ok ? '<p class="note" style="margin:6px 0 0">' + (r.analistas.porTarefa ? 'Analistas do DP pelas tarefas do Pessoal no Gestta (competências ' + esc((r.analistas.comps || []).join(' e ')) + '), só com empresa ativa no DP' : 'Analistas pelo cadastro de equipe do Gestta: ' + esc(String(r.analistas.motivoTarefas || 'a lista de tarefas não chegou').toLowerCase()) + ', então a regra das tarefas não vale agora') + ': ' + (r.analistas.dp || []).map(function(x){ return '<span title="' + esc(x.porque) + '" style="text-decoration:underline dotted; cursor:help">' + esc(x.nome) + '</span>'; }).join(', ') + '.</p>' : '');
+    (r.analistas.ok ? '<p class="note" style="margin:6px 0 0">' + (r.analistas.porTarefa ? 'Analistas do DP pelas tarefas do Pessoal no Gestta (competências ' + esc((r.analistas.comps || []).join(' e ')) + '), só com empresa ativa no DP e só quem é responsável por ao menos uma empresa ativa (Hub 341)' : 'Analistas pelo cadastro de equipe do Gestta: ' + esc(String(r.analistas.motivoTarefas || 'a lista de tarefas não chegou').toLowerCase()) + ', então a regra das tarefas não vale agora') + ': ' + (r.analistas.dp || []).map(function(x){ return '<span title="' + esc(x.porque) + '" style="text-decoration:underline dotted; cursor:help">' + esc(x.nome) + '</span>'; }).join(', ') + '.</p>' : '');
   if(r.empresas.ok) h += '<details class="gt-det" data-gt-det="fora"' + (abertos.fora ? " open" : "") + '><summary><b>Empresas escondidas</b> <span class="note">' + plural(nFora, "cadastro", "cadastros") + ' sem tarefa no Gestta</span></summary>' +
     Object.keys(MODR).filter(function(k){ return r.fora[k]; }).map(function(k){ return '<div class="gt-ref-mod"><b>' + MODR[k] + ' · ' + r.fora[k].length + '</b>' + lista(r.fora[k]) + '</div>'; }).join("") + '</details>';
   if(r.analistas.ok){
@@ -1767,7 +1779,7 @@ function envFonte(f){
   var h = '<div class="env-f"><h4>' + esc(f.nome) + ' <span class="env-chip ' + cls + '">' + esc(ENV_F[est] || est) + '</span></h4>';
   if(est === "enviando") h += '<p class="env-etapa">' + esc(f.etapa || "lendo") + (f.detalhe ? " · " + esc(f.detalhe) : "") + (f.total ? " (etapa " + Math.min(f.total, f.feito + 1) + " de " + f.total + ")" : "") + '</p>' + (f.total ? '<div class="env-barra" role="progressbar" aria-valuemin="0" aria-valuemax="' + f.total + '" aria-valuenow="' + f.feito + '"><i style="width:' + Math.round(f.feito / f.total * 100) + '%"></i></div>' : "");
   else if(f.motivo) h += '<p class="env-etapa">' + esc(envMot(f.motivo)) + '</p>';
-  var li = function(c){ return '<li class="' + (c.ok ? "" : "erro") + '"><span aria-hidden="true">' + (c.ok ? (c.igual ? "=" : c.cortado ? "⚠" : "✓") : "✕") + '</span><b>' + esc(c.rotulo || c.id) + '</b><span>' + esc(c.ok ? (c.igual ? "sem mudança" : (c.linhas || 0).toLocaleString("pt-BR") + " linhas" + (c.cortado ? " · incompleto" : "")) : envMot(c.motivo)) + '</span></li>'; };
+  var li = function(c){ return '<li class="' + (c.ok ? "" : "erro") + '"><span aria-hidden="true">' + (c.ok ? (c.igual ? "=" : c.cortado ? "⚠" : "✓") : "✕") + '</span><b>' + esc(c.rotulo || c.id) + '</b><span>' + esc(c.ok ? (c.igual ? "sem mudança" : (c.linhas || 0).toLocaleString("pt-BR") + " linhas" + (c.cortado ? " · incompleto" : "")) : envMot(c.motivo)) + '</span>' + (!c.ok && (c.alimenta || desAlimenta(c.id)) ? '<small class="ali">Deixa sem atualizar no Hub: ' + esc(c.alimenta || desAlimenta(c.id)) + '</small>' : '') + '</li>'; };
   if(mal.length) h += '<ul class="env-l">' + mal.map(li).join("") + '</ul>';
   if(ok.length) h += '<details class="env-l"><summary>' + plural(ok.length, "conjunto enviado", "conjuntos enviados") + " · " + ok.reduce(function(n, c){ return n + (c.linhas || 0); }, 0).toLocaleString("pt-BR") + ' linhas</summary><ul class="env-l">' + ok.map(li).join("") + '</ul></details>';
   return h + '</div>';
@@ -1790,18 +1802,22 @@ function renderEnvio(){
     if(ab.length) h += '<p class="env-abas">' + esc(ab.join(" · ")) + '</p>';
     (e.avisos || []).forEach(function(x){ h += '<p class="env-aviso">' + esc(x) + '</p>'; });
     h += '<div class="env-fontes">' + (e.fontes || []).map(envFonte).join("") + '</div>';
+    if (!roda && e.diagnostico) h += '<div class="env-diag"><span class="env-aviso" style="margin:0">Ainda com erro depois de ' + (e.tentativas || 0) + ' reenvio' + ((e.tentativas || 0) === 1 ? '' : 's') + ' automático' + ((e.tentativas || 0) === 1 ? '' : 's') + '.</span><button type="button" class="fbtn" id="envDiag">Copiar diagnóstico</button>' + (ENV.diagAberto ? '<textarea readonly id="envDiagTxt">' + esc(e.diagnostico) + '</textarea>' : '') + '</div>';
   } else h += '<p class="env-abas">Nenhum envio ainda.</p>';
+  h += desatHtml(ext, roda);
   if(el.__h === h){ if(a && !ENV.ouvindo){ ENV.ouvindo = true; a.ouvir(function(){ renderEnvio(); }); } return; }      // só redesenha se mudou (o botão não some no meio do clique)
   el.__h = h; el.innerHTML = h;
-  var b1 = $("#envAtualizar"), b2 = $("#envCancelar");
+  var b1 = $("#envAtualizar"), b2 = $("#envCancelar"), b3 = $("#envDiag"), b4 = $("#desatAtualizar");
+  if(b3) b3.onclick = function(){ envCopiar(e && e.diagnostico); };
+  if(b4) b4.onclick = function(){ var al = desatAlvo(); if(al) envPedir("atualizar", al); };
   if(b1) b1.onclick = function(){ envPedir("atualizar"); };
   if(b2) b2.onclick = function(){ envPedir("cancelar"); };
   if(a && !ENV.ouvindo){ ENV.ouvindo = true; a.ouvir(function(){ renderEnvio(); }); }
 }
-function envPedir(acao){
+function envPedir(acao, alvo){
   var a = envApi(); if(!a) return;
   ENV.ocupado = true; ENV.msg = ""; renderEnvio();
-  a.pedir(acao).then(function(r){
+  a.pedir(acao, alvo).then(function(r){
     ENV.ocupado = false;
     if(r && r.ok) toast(acao === "cancelar" ? "Cancelando: o envio para no próximo conjunto." : r.jaRodando ? "Já há um envio em andamento." : "Envio iniciado: acompanhe aqui.");
     else ENV.msg = "Não consegui: " + envMot(r && r.motivo);
@@ -1816,6 +1832,84 @@ setInterval(function(){
   else renderEnvio();
 }, 5000);
 setTimeout(function(){ var a = envApi(); if(a){ ENV.consultaEm = Date.now(); a.pedir("estado").then(function(){ renderEnvio(); }); } }, 1200);
+
+/* ---- Hub 340: o que pode estar desatualizado, o que cada conjunto alimenta e o diagnóstico ---- */
+// Mesmo texto do OC.hubAlimenta da extensão (0.93.0); o id pode vir do conjunto ('lista-geral') ou da tarefa ('lista:geral').
+var DES_ALIMENTA = [
+  [/^solicitacoes$/, 'o resumo das pendentes (Cartela › Onvio do DP e o cartão Onvio do Painel)'],
+  [/^lista[-:]/, 'as solicitações de cada empresa (ficha › Onvio) e os prazos do Onvio na Agenda do DP'],
+  [/^clientes[-:]cnd$/, 'a ficha da empresa (CNPJ e inscrições) e o cadastro único de empresas'],
+  [/^clientes[-:]nfe$/, 'o certificado digital e o apelido do Onvio de cada empresa (ficha, Fiscal e cadastro único)'],
+  [/^escritorio[-:]funcionarios$/, 'a equipe ativa do escritório (as empresas do próprio escritório no DP)'],
+  [/^escritorio[-:]/, 'a conferência do escritório e do acesso (departamentos, licenças, permissões)'],
+  [/^documentos[-:]/, 'as pastas do portal de documentos'],
+  [/^noticias[-:]/, 'as notícias do Onvio'],
+  [/^analise[-:]/, 'a análise do escritório (solicitações e equipe) nos Relatórios'],
+  [/^pessoais[-:]empregados$/, 'quem é funcionário ativo em cada empresa (Funcionários do DP e as diferenças da Entrada de dados)'],
+  [/^pessoais[-:]folha/, 'a folha de cada empresa: quem está ativo em cada mês, pró-labore e RPA'],
+  [/^pessoais[-:]pendentes/, 'os dados completos e os trâmites das pendentes (ficha da empresa)'],
+  [/^pessoais[-:]comunicacoes$/, 'as comunicações do Onvio'],
+  [/^pessoais[-:]/, 'os dados pessoais das solicitações (assunto e empregado) na ficha da empresa'],
+  [/^gestta-tarefas$|^tarefas$/, 'as empresas e os analistas ativos de cada módulo, a demanda do Portal e as marcações do Fiscal e do Contábil'],
+  [/^gestta-empresas-ativas$/, 'quais empresas estão em atividade no Gestta (a referência dos módulos)'],
+  [/^gestta-clientes$|^clientes$/, 'os cadastros pelo Gestta (tributação, inscrições, UF) e quais clientes estão ativos'],
+  [/^gestta-equipe$|^equipe$/, 'o cadastro de analistas dos módulos'],
+  [/^gestta-setores$/, 'de qual setor vem cada analista e cada tarefa'],
+  [/^gestta-cartela$|^cartela$/, 'o analista de cada setor de cada empresa'],
+  [/^gestta-contatos$/, 'os e-mails de quem recebe cada setor no Portal do Cliente'],
+  [/^gestta-envios-onvio-erro$|^alertas$/, 'o aviso de envio com erro nas fichas do Fiscal e do Contábil'],
+  [/^gestta-templates-sem-pasta$/, 'o alerta de templates do Gestta sem pasta']
+];
+function desAlimenta(id){ var s = String(id || ""); for(var i = 0; i < DES_ALIMENTA.length; i++) if(DES_ALIMENTA[i][0].test(s)) return DES_ALIMENTA[i][1]; return ""; }
+// Atualizado = chegou ou foi conferido (enviado ou "sem mudança" no fim de um envio) há menos de 26 h; a folha, 8 dias (os extratos são mensais).
+var DES_LIMITE_H = 26, DES_LIMITE_FOLHA_H = 8 * 24;
+function desatLista(){
+  var a = envApi(), st = a ? a.estado() : null, conf = (st && st.conferidos) || {}, at = envAtual(), e = at.envio, agora = Date.now(), out = [], visto = {};
+  var chave = function(fonte, id){ return (String(fonte) + "~" + String(id)).replace(/[^A-Za-z0-9_-]/g, "_"); };
+  Object.keys(dados).forEach(function(k){
+    var d = dados[k]; if(!d) return;
+    var fonte = d.fonte || k.split("~")[0], tipo = d.tipoDado || k.split("~").slice(1).join("~");
+    if(fonte === "mediador") return;      // Hub 347: semanal, com o bloco próprio em Convenções
+    var quando = Math.max(Number(d.recebidoEm) || 0, Number(conf[chave(fonte, tipo)]) || 0);
+    var lim = /folha/.test(tipo) ? DES_LIMITE_FOLHA_H : DES_LIMITE_H, horas = quando ? Math.round((agora - quando) / 36e5) : null;
+    var porque = [];
+    if(horas == null) porque.push("nunca chegou"); else if(horas > lim) porque.push("sem atualizar há " + (horas >= 48 ? Math.round(horas / 24) + " dias" : horas + " h"));
+    if(d.cortado) porque.push("veio incompleto no último envio");
+    if(porque.length){ out.push({ fonte: fonte, id: tipo, nome: d.titulo || tipo, porque: porque.join(" · "), alimenta: desAlimenta(tipo) }); visto[fonte + "~" + tipo] = 1; }
+  });
+  // o que deu erro no último envio (e não foi refeito com sucesso) também falta
+  if(e && !envRodando(e)) (e.fontes || []).forEach(function(f){ (f.conjuntos || []).forEach(function(c){
+    if(c.ok || visto[f.id + "~" + c.id] || /^escritorio[-:]/.test(c.id)) return;
+    visto[f.id + "~" + c.id] = 1;
+    out.push({ fonte: f.id, id: c.id, nome: c.rotulo || c.id, porque: "deu erro no último envio: " + envMot(c.motivo), alimenta: c.alimenta || desAlimenta(c.id) });
+  }); });
+  out.sort(function(x, y){ return (x.fonte + x.nome).localeCompare(y.fonte + y.nome, "pt-BR"); });
+  return out;
+}
+function desatAlvo(){
+  var l = desatLista(); if(!l.length) return null;
+  var al = { onvio: [], gestta: [] };
+  l.forEach(function(x){ if(x.fonte === "gestta") al.gestta.push(x.id); else if(x.fonte === "onvio") al.onvio.push(x.id); });
+  return al;
+}
+function desatHtml(ext, roda){
+  var l = desatLista();
+  var h = '<div class="desat" id="desatBox"><div class="desat-top"><h4>Pode estar desatualizado</h4>';
+  if(!l.length) return h + '<span class="env-st">Tudo em dia: cada conjunto chegou ou foi conferido nas últimas ' + DES_LIMITE_H + ' horas (a folha, em 8 dias).</span></div></div>';
+  h += '<span class="env-st">' + plural(l.length, "conjunto", "conjuntos") + '</span><span class="env-esp"></span>';
+  if(coord && ext) h += '<button type="button" class="btn" id="desatAtualizar"' + (roda || ENV.ocupado ? " disabled" : "") + '>Atualizar só o que falta</button>';
+  h += '</div>';
+  if(!coord) h += '<p class="env-abas">Só a coordenação pede o envio; você vê o que falta.</p>';
+  else if(!ext) h += '<p class="env-abas">Para pedir daqui, abra o Hub no Chrome em que o Control Onvio está conectado.</p>';
+  h += '<ul class="desat-l">' + l.map(function(x){ return '<li><b>' + esc((x.fonte === "gestta" ? "Gestta · " : "Onvio · ") + x.nome) + '</b><span>' + esc(x.porque) + '</span>' + (x.alimenta ? '<span class="ali">Alimenta: ' + esc(x.alimenta) + '</span>' : '') + '</li>'; }).join("") + '</ul></div>';
+  return h;
+}
+// Copia o diagnóstico; se o navegador não deixar (quadro do artefato), mostra o texto selecionado para copiar à mão
+function envCopiar(txt){
+  if(!txt) return;
+  var mostrar = function(){ ENV.diagAberto = true; renderEnvio(); var t = $("#envDiagTxt"); if(t){ t.focus(); t.select(); } toast("Selecione e copie o diagnóstico (Ctrl+C)."); };
+  try{ if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast("Diagnóstico copiado: cole numa mensagem para quem cuida da extensão."); }, mostrar); else mostrar(); }catch(x){ mostrar(); }
+}
 
 /* ---- início ---- */
 usarCap("db").catch(function(){ return null; }).then(function(dbNs){

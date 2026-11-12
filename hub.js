@@ -71,7 +71,8 @@
     prefs: { theme: null, dpCarteira: '' },
     dpEmpresas: [], dpLoaded: false, dpGerais: [],
     dpCarteira: '', dpView: 'painel', dpCalMes: '', dpFerr: '', dpImports: [], dpTiposProc: null,
-    dpQuery: '', dpTrib: '', dpSit: '', dpGap: '', dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
+    dpQuery: '', dpTrib: '', dpSit: 'Ativa', dpGap: '',      // Hub 343: a aba Empresas abre só com as ativas
+    dpSort: 'nome', dpEmpFaixa: '', dpEquipe: [],
     dpCtQuery: '', dpCtTodas: false, dpCtSort: 'nome', dpCtSel: new Set(),
     dpCob: { ausencias: [], log: [] }, dpOv: null, dpOvCfg: { listas: null, vinc: {}, auto: null }, dpOvVez: '', dpOvEmp: '', dpOvLim: 60, dpSind: [], dpSindQuery: '', dpSindMes: '', dpSindAberto: new Set(), dpSindFiltro: '', dpSindOrdem: 'data', dpSindFoco: '', dpSindVisao: 'uso', dpCcts: [], dpCctAbrir: '', dpConvQuery: '', dpSindSel: new Set(), dpSemSel: new Set(), dpSemIds: [], dpSemSind: '', dpConvSit: '', dpConvModo: 'cards', dpConvAnim: true, dpConvCad: false, dpConvAbrir: '', dpConvPainel: '', dpConvPainelAba: 'resumo', dpCtModo: 'cartela', dpCtMes: '', dpCtSim: null,
     dpAgMes: '', dpAgDia: '', dpAgTipo: '', dpAgQuery: '', dpAgAnalista: '',
@@ -1532,9 +1533,9 @@
       const [view, a, b] = go.dataset.go.split(':');
       if (view === 'agenda') { irAgenda({ dia: a === 'hoje' ? ymd(hoje()) : '', tipo: a === 'tipo' ? b : '' }); return; }
       if (view === 'funcionarios') state.dpFuncFiltro = FUNC_FORA.has(a) ? a : '';
-      if (view === 'cartela' && a === 'onvio') state.dpCtModo = 'onvio';
+      if (view === 'cartela') state.dpCtModo = 'cartela';      // Hub 342: a aba Onvio saiu da Cartela
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
-      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
+      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }   // Hub 350: abre o painel em qualquer aba
       else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
       openDpModule(view);
       return;
@@ -1595,6 +1596,7 @@
   // ---------- painel ----------
   function renderDpPainel() {
     const kp = $('#dp-painel-kpis'), grid = $('#dp-painel-grid');
+    kp.hidden = true;      // Hub 344 (Josué, 11/11/2026: "tira esses cards"): o Painel do DP fica sem os cartões do topo
     if (!state.dpLoaded) { kp.innerHTML = ''; grid.innerHTML = '<div class="dp-empty" style="grid-column:1/-1">Carregando empresas…</div>'; return; }
     const semEmpresas = !state.dpEmpresas.length;
     const t = hoje();
@@ -1670,13 +1672,14 @@
     if (todas.some(e => !e.responsavel)) grupos.push([SEM_RESP, 'Sem responsável']);
     const dadosC = grupos.map(([key, nome]) => {
       const es = todas.filter(e => respDe(e, key));
-      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
+      return { key, nome, n: es.length, nFunc: es.reduce((n, e) => n + nAtivosEmp(e), 0), n7: eventos(t, addDays(t, 7), es).filter(ev => ev.tipo !== 'geral').length };
     }).sort((a, b) => b.n - a.n);
     const maxC = Math.max(1, ...dadosC.map(c => c.n));
+    // Hub 344 (Josué, 11/11/2026: "deixe essa caixa horizontal"): caixa larga, uma coluna por analista
     const cBody = dadosC.length
-      ? `<div class="hbars${state.dpCarteira ? ' has-sel' : ''}">${dadosC.map(c => `<button type="button" class="hbar${norm(state.dpCarteira) === norm(c.key) ? ' on' : ''}" data-carteira="${escapeHtml(c.key)}" ${tipAttr(`${c.nome}\n${c.n} empresa(s) ativa(s) · ${c.nFunc} funcionário(s)\n${c.n7} data(s) própria(s) nos próximos 7 dias\n${norm(state.dpCarteira) === norm(c.key) ? 'Clique para ver a equipe toda' : 'Clique para filtrar por esta carteira'}`)}><span class="hbar-name">${escapeHtml(c.nome)}<small>${c.nFunc} func. · ${c.n7} na semana</small></span><span class="hbar-track"><span class="hbar-fill" style="width:${(c.n / maxC * 100).toFixed(1)}%"></span><span class="hbar-v">${c.n}</span></span></button>`).join('')}</div>`
+      ? `<div class="vbars${state.dpCarteira ? ' has-sel' : ''}">${dadosC.map(c => `<button type="button" class="vbar${norm(state.dpCarteira) === norm(c.key) ? ' on' : ''}" data-carteira="${escapeHtml(c.key)}" ${tipAttr(`${c.nome}\n${c.n} empresa(s) ativa(s) · ${c.nFunc} funcionário(s)\n${c.n7} data(s) própria(s) nos próximos 7 dias\n${norm(state.dpCarteira) === norm(c.key) ? 'Clique para ver a equipe toda' : 'Clique para filtrar por esta carteira'}`)}><span class="vbar-v">${c.n}</span><span class="vbar-track"><span class="vbar-fill" style="height:${(c.n / maxC * 100).toFixed(1)}%"></span></span><span class="vbar-name">${escapeHtml(c.nome)}<small>${c.nFunc} func. · ${c.n7} na semana</small></span></button>`).join('')}</div>`
       : '<div class="empty-mini">Defina responsáveis nas empresas para separar as carteiras.</div>';
-    const cCard = card('Carteiras', 'empresas ativas por responsável', cBody);
+    const cCard = card('Carteiras', 'empresas ativas por responsável', cBody, '', 'pn-wide');
 
     // Cadastro: um medidor por item essencial (% das empresas com o dado preenchido).
     const meters = GAPS.map(g => {
@@ -2015,11 +2018,13 @@
     { k:'incompleto', l:'Cadastro incompleto', cls:'warn', test: e => GAPS.some(g => g.test(e)) },
     { k:'prox7', l:'Com data em 7 dias', cls:'info', test: e => { const p = proxEmpresa(e); return !!p && diffDays(p.d, hoje()) <= 7; } },
   ];
+  // Hub 343 (Josué, 11/11/2026: "ao ir pra essa tela por padrão deve aparecer apenas as empresas ativas"): o chip "Ativas" é o filtro
+  // Situação = Ativa (ligado de fábrica); os outros chips contam e filtram dentro da situação escolhida.
   function renderEmpFaixa() {
-    const base = empresasCarteira();
-    $('#dp-emp-faixa').innerHTML = state.dpLoaded && base.length ? EMP_FAIXAS.map(f => { const n = base.filter(f.test).length; return `<button type="button" class="emp-fx ${f.cls}${state.dpEmpFaixa === f.k ? ' on' : ''}${!n ? ' zero' : ''}" data-emp-faixa="${f.k}" aria-pressed="${state.dpEmpFaixa === f.k}"><i></i><span>${f.l}</span><b>${n}</b></button>`; }).join('') : '';
+    const tudo = empresasCarteira(), base = tudo.filter(e => !state.dpSit || e.situacao === state.dpSit);
+    $('#dp-emp-faixa').innerHTML = state.dpLoaded && tudo.length ? EMP_FAIXAS.map(f => { const at = f.k === 'ativas', on = at ? state.dpSit === 'Ativa' : state.dpEmpFaixa === f.k, n = (at ? tudo : base).filter(f.test).length; return `<button type="button" class="emp-fx ${f.cls}${on ? ' on' : ''}${!n ? ' zero' : ''}" data-emp-faixa="${f.k}" aria-pressed="${on}"${at ? ` title="${on ? 'Mostrando só as ativas: clique para ver também as inativas e sem movimento' : 'Clique para ver só as ativas'}"` : ''}><i></i><span>${f.l}</span><b>${n}</b></button>`; }).join('') : '';
   }
-  $('#dp-emp-faixa').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-faixa]'); if (b) { state.dpEmpFaixa = state.dpEmpFaixa === b.dataset.empFaixa ? '' : b.dataset.empFaixa; renderDp(); } });
+  $('#dp-emp-faixa').addEventListener('click', (e) => { const b = e.target.closest('[data-emp-faixa]'); if (b && b.dataset.empFaixa === 'ativas') { state.dpSit = state.dpSit === 'Ativa' ? '' : 'Ativa'; if (state.dpEmpFaixa === 'ativas') state.dpEmpFaixa = ''; renderDp(); return; } if (b) { state.dpEmpFaixa = state.dpEmpFaixa === b.dataset.empFaixa ? '' : b.dataset.empFaixa; renderDp(); } });
   $('#dp-emp-sort').addEventListener('change', (e) => { state.dpSort = e.target.value; renderDp(); });
   $('#dp-filtros-limpar').addEventListener('click', () => { state.dpTrib = ''; state.dpSit = ''; state.dpGap = ''; renderDp(); });
   function renderEmpHead() {
@@ -2062,6 +2067,7 @@
     const sind = ss.length ? rotuloSind(ss[0]) + (ss.length > 1 ? ` +${ss.length - 1}` : '') : cct ? tituloCurto(cct.cct) : '';
     return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
       <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
+      ${(() => { const cb = coberturaDe(e); return `<div class="emp-resp${cb.titular ? '' : ' sem'}">${ic('user', 'ic-sm')}<span>${cb.titular ? escapeHtml(cb.titular) + (cb.coberta ? ` <small>· hoje com ${escapeHtml(cb.efetivo)}</small>` : '') : 'Sem responsável'}</span></div>`; })()}
       <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem sindicato')}</span></div>
       ${e.tributacao ? `<div class="emp-tags"><span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span></div>` : ''}
       <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
@@ -2073,7 +2079,8 @@
     renderEmpHead();
     renderEmpFaixa();
     $('#dp-emp-sort').value = state.dpSort;
-    { const nf = [state.dpTrib, state.dpSit, state.dpGap].filter(Boolean).length; const bn = $('#dp-filtros-n'); bn.hidden = !nf; bn.textContent = nf; $('#dp-filtros-btn').classList.toggle('filtro-on', !!nf); $('#dp-filtros-limpar').hidden = !nf; }
+    { const nf = [state.dpTrib, state.dpSit === 'Ativa' ? '' : state.dpSit, state.dpGap].filter(Boolean).length;      // Hub 343: as ativas (de fábrica) aparecem no chip, não contam como filtro
+      const bn = $('#dp-filtros-n'); bn.hidden = !nf; bn.textContent = nf; $('#dp-filtros-btn').classList.toggle('filtro-on', !!nf); $('#dp-filtros-limpar').hidden = !nf; }
     const cards = state.dpEmpModo === 'cards' && state.dpLoaded && state.dpEmpresas.length > 0;
     $$('[data-emp-modo]').forEach(b => { const on = b.dataset.empModo === state.dpEmpModo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     $('#dp-emp-listcard').hidden = cards;
@@ -2941,7 +2948,7 @@
       const palavras = norm(q).split(/\s+/).filter(Boolean), ach = [], qd = cnpjClean(q);
       const empHay = (e) => norm([e.nome, nomeCurto(e), e.cod, e.codigoDominio, e.cnpj].join(' ')) + ' ' + cnpjClean(e.cnpj);
       const empAch = emps.filter(e => palavras.every(w => empHay(e).includes(w)) || (qd.length >= 4 && /^\d+$/.test(qd) && cnpjClean(e.cnpj).includes(qd)))
-        .map(e => ({ e, at: e.funcionarios.filter(funcConta).length })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
+        .map(e => ({ e, at: nAtivosEmp(e) })).sort((a, b) => (b.at - a.at) || byNome(a.e, b.e));
       emps.forEach(e => { const ne = empHay(e); e.funcionarios.forEach(f => { const pes = funcNorm(f) + ' ' + norm(f.cargo || ''), hay = pes + ' ' + ne; if (palavras.every(w => hay.includes(w)) && palavras.some(w => pes.includes(w))) ach.push({ f, e }); }); });
       const lista = ach.map(x => ({ ...x, status: funcStatus(x.f) })).filter(x => passa(x.status, 0, state.dpFuncFiltro))
         .sort((a, b) => ptCmp(a.f.nome || '', b.f.nome || '') || byNome(a.e, b.e));
@@ -3013,7 +3020,7 @@
   // Planilhas das telas Empresas e Funcionários, com o mesmo visual dos relatórios (painel, gráficos, lista com filtro)
   // Planilhas das telas Empresas e Funcionários: Resumo (4 números + 2 gráficos) e Dados (só as colunas que se usam)
   function dpEmpresasSpec() {
-    const emps = visibleDpEmpresas(), at = (e) => e.funcionarios.filter(funcConta).length;
+    const emps = visibleDpEmpresas(), at = (e) => nAtivosEmp(e);
     const linhas = emps.map(e => [e.cod || '', nomeCurto(e), e.cnpj || '', e.tributacao || '', e.responsavel || '', e.situacao || 'Ativa', at(e)]);
     const totF = linhas.reduce((n, l) => n + l[6], 0), semResp = emps.filter(e => !e.responsavel).length, semTrib = emps.filter(e => !e.tributacao).length;
     const ls = emps.map(e => ({ e, r: e.responsavel || 'Sem responsável', n: at(e) }));
@@ -3759,7 +3766,26 @@
     const rascunho = s.cctId && state.dpCcts.find(x => x.id === s.cctId)?.status === 'rascunho';
     return { ...c, reg, total: emps.length, feitas: feitas.length, pend, rascunho, pendente: c.cobrando && !reg.semReajuste && !rascunho && pend.length > 0 };
   }
-  const nfEmp = (e) => e.funcionarios.filter(funcConta).length;
+  // Hub 346 (Josué, 11/11/2026: "a lista do Onvio não é confiável. vamos ter que usar a folha lida no portal de documentos como base"):
+  // o número de funcionários ativos de cada empresa sai da folha mensal mais recente lida do portal de documentos (Extrato Mensal com o
+  // quadro completo, dos últimos 2 meses): quem está nela, contando empregados, estagiários, pró-labore e RPA, cada pessoa uma vez. Sem essa
+  // folha, vale o cadastro do DP como antes. A folha aqui não passa pela trava da lista do Onvio (ovFolhaQuadro), justamente porque a lista
+  // do Onvio é a que não se confirma; a ligação cliente → empresa é a do código do cliente.
+  const folhaContagem = (e) => ovMemo('folhaN:' + e.id, () => {
+    let f = null; try { f = ovFolha().get(e.id); } catch (x) { return null; }
+    if (!f || !f.docs || !f.docs.size) return null;
+    const porMes = new Map();
+    f.docs.forEach(d => { if (!d.pessoas.length || !ovCalcMensal(d.calc)) return; porMes.set(d.comp, (porMes.get(d.comp) || []).concat(d.pessoas)); });
+    const meses = [...porMes.keys()].sort(), mes = meses[meses.length - 1]; if (!mes) return null;
+    const t = hoje(); if (mes < mesStr(new Date(t.getFullYear(), t.getMonth() - 2, 1))) return null;
+    const vistos = new Set(); let n = 0, contrib = 0;
+    porMes.get(mes).forEach(p => { const k = p.codigo ? 'c' + ovCodNum(p.codigo) : 'n' + ovChavePessoa(p.nome); if (k.length < 2 || vistos.has(k)) return; vistos.add(k); n++; if (p.contrib) contrib++; });
+    return { n, contrib, mes };
+  });
+  const folhaContagemSeg = (e) => { try { return folhaContagem(e); } catch (x) { return null; } };      // antes de a parte do Onvio carregar, sem folha
+  const nAtivosEmp = (e) => { const q = folhaContagemSeg(e); return q ? q.n : (e.funcionarios || []).filter(funcConta).length; };
+  const nAtivosFonte = (e) => { const q = folhaContagemSeg(e); return q ? `pela folha de ${ovMesCurto(q.mes)} (portal de documentos)${q.contrib ? `, ${q.contrib} de pró-labore/RPA` : ''}` : 'pelo cadastro do DP (sem folha mensal dos últimos 2 meses lida do portal de documentos)'; };
+  const nfEmp = (e) => nAtivosEmp(e);
 
   const SIND_FILTROS = [['', 'Todos'], ['pend', 'Reajuste pendente'], ['venc', 'CCT vencida ou vencendo'], ['semdb', 'Sem data-base'], ['semvig', 'Sem vigência'], ['vazio', 'Sem empresas']];
   function sindFiltra(s, emps) {
@@ -4658,6 +4684,8 @@
         calc: { tipo: CALC_TIPOS[c.calc?.tipo] !== undefined ? c.calc.tipo : '', valor: txt(c.calc?.valor, 30), valorAssociada: txt(c.calc?.valorAssociada, 30), tabela: txt(c.calc?.tabela, 2000), adicional: txt(c.calc?.adicional, 30), teto: txt(c.calc?.teto, 30) } } : null),
       prazos: lista(x.prazos, p => p && toYmd(p.data) && txt(p.desc, 300) ? { data: toYmd(p.data), desc: txt(p.desc, 300) } : null),
       obs: txt(x.obs, 1500), atualizadoEm: Number(x.atualizadoEm) || 0,
+      origem: x.origem === 'mediador' ? 'mediador' : '', medSol: txt(x.medSol, 40), criadoEm: Number(x.criadoEm) || 0,   // Hub 350
+      sugIgn: lista(x.sugIgn, v => ['reajuste', 'pisos'].includes(v) ? v : null),
     };
   }
   const normalizeCcts = (v) => (Array.isArray(v) ? v : []).map(normalizeCct).filter(Boolean);
@@ -5085,7 +5113,10 @@
     const ok = await ask(`Excluir “${c.titulo}”?\nOs sindicatos continuam com a data-base e a vigência atuais; lembretes e estimativas desta convenção saem da agenda.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
     if (!ok) return;
     dlgCct.close();
-    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
+    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) {
+      toast(c.origem === 'mediador' ? 'Convenção excluída. O Hub não vai cadastrá-la de novo pelo Mediador.' : 'Convenção excluída.');
+      if (c.registro && (c.origem === 'mediador' || medInstrumentos().some(i => medReg(i.registro) === medReg(c.registro)))) { const l = [...new Set([...state.medIgn, medReg(c.registro)])].slice(-500); state.medIgn = l; try { await db.doc('med_config/cfg').set({ ignorar: l }); } catch { /* sem banco */ } }
+    }
   });
   $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); linMontarTodos($('#cct-contribs .cct-contrib:last-child')); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
   $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
@@ -5120,8 +5151,8 @@
     if (c.tipo === 'cct' && c.vigFim && !temSucessora(c)) {
       const n = diffDays(parseYmd(c.vigFim), hoje());
       const prox = c.vigFim ? `${+c.vigFim.slice(0, 4)}/${+c.vigFim.slice(0, 4) + 1}` : '';
-      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`Cadastrar a CCT ${prox}: venceu em ${fmtYmdBR(c.vigFim)}` });
-      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`Cadastrar a CCT ${prox}: vence ${quandoTxt(c.vigFim)}` });
+      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`${medAtivo() ? `A CCT ${prox} ainda não está no Mediador` : `Cadastrar a CCT ${prox}`}: venceu em ${fmtYmdBR(c.vigFim)}` });
+      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`${medAtivo() ? `A CCT ${prox} ainda não está no Mediador` : `Cadastrar a CCT ${prox}`}: vence ${quandoTxt(c.vigFim)}` });
     }
     aditivos.filter(a => a.status === 'acordada' || a.status === 'rascunho').forEach(a => out.push({ nivel:'warn', sit:'pendente', txt:`Aguardar termo aditivo registrado (${CCT_TIPOS[a.tipo].toLowerCase()} de ${a.vigIni ? fmtYmdBR(a.vigIni) : '—'})` }));
     const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
@@ -5169,6 +5200,469 @@
     const tot = Math.max(1, diffDays(fim, ini)), pos = Math.min(100, Math.max(0, diffDays(hoje(), ini) / tot * 100));
     return `<div class="cv-vig"><div class="cv-vig-bar"><i style="width:${pos}%"></i><b style="left:${pos}%"></b></div><div class="cv-vig-txt"><span>${fmtDM(ini)}/${String(ini.getFullYear()).slice(2)}</span><span>${fmtDM(fim)}/${String(fim.getFullYear()).slice(2)}</span></div></div>`;
   }
+  // ---------- Hub 347: Mediador do MTE em Convenções ----------
+  // A extensão 0.95.0 lê o Mediador (só dados públicos, numa aba do próprio site) e entrega em ing_dados/mediador~mediador-instrumentos (todos os
+  // instrumentos de cada sindicato) e ~mediador-clausulas (o texto da convenção vigente e dos aditivos dela). O resto abre na hora pela extensão.
+  const MED_TIPOS = ['mediador-instrumentos', 'mediador-clausulas'];
+  const MED_MOT = { 'sem-extensao': 'A extensão Control Onvio não respondeu neste Chrome (ela precisa estar instalada, conectada ao Hub e atualizada).', 'sem-resposta': 'A extensão não respondeu a tempo. Tente de novo.',
+    'sem-permissao-mediador': 'Falta permitir o Mediador na extensão: Configurações › Avançado › Control Hub › Mediador › Permitir o Mediador.', 'sem-sindicatos': 'Nenhum sindicato com CNPJ válido no cadastro.',
+    'sem-codigo': 'A extensão não está conectada ao Hub.', formato: 'A tela do Mediador mudou: a leitura parou para não trazer dado errado.', 'sem-aba-mediador': 'A extensão não conseguiu abrir o Mediador.',
+    recusado: 'Endereço fora do que a extensão pode ler.', solicitacao: 'Número de solicitação inválido.', grande: 'O PDF tem mais de 15 MB.', cancelado: 'A busca foi cancelada.', origem: 'Pedido recusado pela extensão.' };
+  const medMot = (m) => MED_MOT[m] || (m ? 'Não foi possível (' + m + ').' : 'Não foi possível.');
+  state.medMan = {}; state.medTab = {}; state.medIgn = []; state.medAberto = new Set(); state.medBusca = null;
+  let medCnpjsEnviados = '';
+  function medIniciar() {
+    MED_TIPOS.forEach(t => db.doc('ing_dados/mediador~' + t).onSnapshot((sn) => {
+      const v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      state.medMan[t] = v; if (v && (!state.medTab[t] || state.medTab[t].ciclo !== v.ciclo)) medCarregar(t);
+      medRender();
+    }, () => {}));
+    db.doc('med_config/cfg').onSnapshot((sn) => { const v = sn && sn.exists !== false && sn.data ? sn.data() : null; state.medIgn = Array.isArray(v && v.ignorar) ? v.ignorar.map(x => String(x).slice(0, 40)).slice(-500) : []; medRender(); }, () => {});
+    if (window.__hubEnvio) window.__hubEnvio.ouvir(() => { const m = ing.envio && ing.envio.mediador; const rod = !!(m && m.envio && m.envio.estado === 'buscando'); if (rod || state.medRodava) medRender(); state.medRodava = rod; });
+  }
+  async function medCarregar(tipo) {
+    const man = state.medMan[tipo]; if (!man || !db) return;
+    try {
+      const n = Math.min(Number(man.partes) || 0, ING_PARTES_MAX), textos = [];
+      for (let i = 0; i < n; i++) { const sn = await db.doc(`ing_partes/mediador~${tipo}~${man.slot}${i}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || d.ciclo !== man.ciclo) throw new Error('parte'); textos.push(d.tabela); }
+      state.medTab[tipo] = { ciclo: man.ciclo, linhas: gtParse(man.colunas, textos.join('\n')) };
+      if (tipo === 'mediador-instrumentos') setTimeout(() => medAutoCadastrar(), 300);   // Hub 350
+    } catch { state.medTab[tipo] = null; }
+    medRender();
+  }
+  const medLinhas = (t) => (state.medTab[t] && state.medTab[t].linhas) || [];
+  const medReg = (r) => String(r || '').toUpperCase().replace(/\s/g, '');
+  // os instrumentos, um por Nº da Solicitação (o mesmo pode aparecer pelo CNPJ dos dois sindicatos)
+  function medInstrumentos() {
+    const vistos = new Map();
+    medLinhas('mediador-instrumentos').forEach(l => {
+      const sol = l['Nº da Solicitação']; if (!sol) return;
+      const x = vistos.get(sol) || { sol, registro: l['Nº do Registro'], processo: l['Nº do Processo'], tipo: l['Tipo'], aditivo: /aditivo/i.test(l['Tipo'] || '') || l['Busca'] === 'termoAditivoConvecao',
+        vigIni: l['Vigência início'], vigFim: l['Vigência fim'], cnpjTrab: l['CNPJ Trabalhador'], trab: l['Trabalhador'], cnpjEmp: l['CNPJ Empregador'], emp: l['Empregador'], cnpjs: new Set() };
+      x.cnpjs.add(cnpjDig(l['CNPJ consultado'])); vistos.set(sol, x);
+    });
+    return [...vistos.values()];
+  }
+  function medTextos() {
+    const m = new Map();
+    medLinhas('mediador-clausulas').forEach(l => { const s = l['Nº da Solicitação']; if (!s) return; if (!m.has(s)) m.set(s, { clausulas: [], dataBase: '', anexos: [] }); const t = m.get(s);
+      t.clausulas.push({ grupo: l['Grupo'] || '', subgrupo: l['Subgrupo'] || '', titulo: l['Título'] || '', texto: String(l['Texto'] || '').replace(/ ¶ /g, '\n') });
+      if (l['Data-base']) t.dataBase = l['Data-base']; if (l['Anexos']) t.anexos = l['Anexos'].split(' ').filter(Boolean); });
+    return m;
+  }
+  const medSindDe = (cnpj) => state.dpSind.find(s => cnpjDig(s.cnpj) === cnpj);
+  // novo = registro que nenhuma convenção cadastrada tem, ainda em vigor ou começado nos últimos 18 meses, e não ignorado
+  function medNovos(ins) {
+    const regs = new Set(state.dpCcts.map(c => medReg(c.registro)).filter(Boolean)), ign = new Set(state.medIgn), dia = ymd(hoje());
+    const corte = ymd(new Date(hoje().getFullYear(), hoje().getMonth() - 18, 1));
+    return ins.filter(i => i.registro && !regs.has(medReg(i.registro)) && !ign.has(medReg(i.registro)) && ((i.vigFim && i.vigFim >= dia) || (i.vigIni && i.vigIni >= corte)))
+      .sort((a, b) => String(b.vigIni).localeCompare(String(a.vigIni)));
+  }
+  function medCnpjs() { return [...new Set(state.dpSind.map(s => cnpjDig(s.cnpj)).filter(d => d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8))))]; }
+  // a lista de CNPJs vai à extensão (para a busca semanal) quando ela se conecta e quando a lista muda
+  function medCnpjsAvisar(forca) {
+    const l = medCnpjs(), k = l.join(','); if (!l.length || (!forca && k === medCnpjsEnviados)) return;
+    medCnpjsEnviados = k; ingPedirMed('mediadorCnpjs', { cnpjs: l }).then(r => { if (!r || !r.ok) medCnpjsEnviados = ''; });
+  }
+  const medEstado = () => { try { return (ing.envio && ing.envio.mediador) || null; } catch { return null; } };
+  const medExt = () => { try { return !!(ing.ext && Date.now() - (ing.ext.em || 0) < 6 * 3600e3); } catch { return false; } };
+  const medVig = (i) => (i.vigIni || i.vigFim) ? `${i.vigIni ? fmtYmdBR(i.vigIni) : '?'} a ${i.vigFim ? fmtYmdBR(i.vigFim) : '?'}` : 'sem vigência';
+  function medItemHtml(i, novo, temTexto) {
+    const ro = state.readOnly, dia = ymd(hoje()), vale = i.vigIni && i.vigIni <= dia && (!i.vigFim || dia <= i.vigFim);
+    return `<li class="med-item${novo ? ' med-novo' : ''}"><span class="med-tp">${i.aditivo ? 'Aditivo' : 'Convenção'}</span><span class="med-info"><b>${escapeHtml(i.registro || i.sol)}</b><small>${escapeHtml(medVig(i))}${vale ? ' · em vigor' : ''} · ${escapeHtml(i.trab || '')}${i.emp ? ' × ' + escapeHtml(i.emp) : ''}</small></span>`
+      + `<span class="med-acoes"><button type="button" class="btn btn-sm" data-med-texto="${escapeHtml(i.sol)}">${temTexto ? 'Ver texto' : 'Buscar texto'}</button>`
+      + (novo && !ro ? `<button type="button" class="btn btn-sm btn-primary" data-med-cad="${escapeHtml(i.sol)}">Cadastrar</button><button type="button" class="btn btn-sm" data-med-ign="${escapeHtml(i.registro)}" title="Não mostrar mais como novo">Ignorar</button>` : '') + '</span></li>';
+  }
+  function medRender() {
+    const el = $('#cv-med'); if (!el || !state.dpSind || !state.medMan) return;
+    try { medCnpjsAvisar(false); } catch { /* o Hub ainda não terminou de montar a entrada de dados */ }
+    const cn = medCnpjs(), ins = medInstrumentos(), txt = medTextos(), m = medEstado(), env = m && m.envio, rodando = !!(env && env.estado === 'buscando'), ext = medExt();
+    const man = state.medMan['mediador-instrumentos'], novos = medNovos(ins);
+    let h = `<div class="med-top"><span class="med-tit">${ic('search')} Mediador do MTE</span><span class="med-st">`;
+    if (rodando) h += `Buscando: ${escapeHtml(env.etapa || '')} ${env.feito || 0}/${env.total || 0}`;
+    else if (man) h += `${ins.length} instrumento(s) de ${cn.length} sindicato(s) · lido em ${escapeHtml(fmtDMY(new Date(Number(man.recebidoEm) || Date.now())))}${man.cortado ? ' · <b class="med-aviso">incompleto</b>' : ''}`;
+    else h += cn.length ? `${cn.length} sindicato(s) com CNPJ. Ainda sem leitura do Mediador.` : 'Cadastre o CNPJ dos sindicatos para procurar as convenções no Mediador.';
+    h += '</span><span class="med-esp"></span>';
+    if (!state.readOnly && cn.length) h += `<button type="button" class="btn btn-sm${man ? '' : ' btn-primary'}" data-med-buscar${rodando ? ' disabled' : ''}${ext ? '' : ' title="Precisa da extensão Control Onvio neste Chrome"'}>${rodando ? 'Buscando…' : 'Buscar no Mediador'}</button>`;
+    h += '</div>';
+    if (env && !rodando && ['erro', 'parcial'].includes(env.estado) && env.terminouEm && (!man || Date.parse(env.terminouEm) > (Number(man.recebidoEm) || 0) - 60000))
+      h += `<p class="med-msg med-erro">${env.estado === 'parcial' ? `A última busca leu ${env.instrumentos} instrumento(s), mas ${env.erros} leitura(s) falharam.` : escapeHtml(medMot(env.motivo))}</p>`;
+    if (state.medBusca) h += `<p class="med-msg${state.medBusca.erro ? ' med-erro' : ''}">${escapeHtml(state.medBusca.txt)}</p>`;
+    if (novos.length) h += `<div class="med-sec"><h4>Novas no Mediador <span class="med-n">${novos.length}</span></h4><p class="med-dica">Registradas no Mediador e ainda sem convenção cadastrada aqui. Cadastrar abre o formulário já preenchido para você conferir.</p><ul class="med-lista">${novos.slice(0, 30).map(i => medItemHtml(i, true, txt.has(i.sol))).join('')}</ul>${novos.length > 30 ? `<p class="med-dica">e mais ${novos.length - 30}.</p>` : ''}</div>`;
+    if (ins.length) {
+      const porS = new Map(); ins.forEach(i => i.cnpjs.forEach(c => { if (!porS.has(c)) porS.set(c, []); porS.get(c).push(i); }));
+      const grupos = [...porS.entries()].map(([c, l]) => ({ c, s: medSindDe(c), l: l.sort((a, b) => String(b.vigIni).localeCompare(String(a.vigIni))) })).sort((a, b) => (a.s ? rotuloSind(a.s) : a.c).localeCompare(b.s ? rotuloSind(b.s) : b.c, 'pt-BR'));
+      h += `<details class="med-sec med-todos"${state.medAberto.size ? ' open' : ''}><summary><h4>Todos os instrumentos por sindicato <span class="med-n">${ins.length}</span></h4></summary>` + grupos.map(g => {
+        const ab = state.medAberto.has(g.c);
+        return `<div class="med-sind"><button type="button" class="med-sind-h" data-med-sind="${g.c}" aria-expanded="${ab}"><b>${escapeHtml(g.s ? rotuloSind(g.s) : fmtCnpj(g.c))}</b><small>${g.l.filter(i => !i.aditivo).length} convenção(ões) · ${g.l.filter(i => i.aditivo).length} aditivo(s)</small>${ic(ab ? 'left' : 'right', 'ic-sm')}</button>${ab ? `<ul class="med-lista">${g.l.map(i => medItemHtml(i, false, txt.has(i.sol))).join('')}</ul>` : ''}</div>`;
+      }).join('') + '</details>';
+    }
+    el.innerHTML = h;
+  }
+  async function medBuscar() {
+    const cn = medCnpjs(); if (!cn.length) return;
+    state.medBusca = { txt: 'Pedindo à extensão…' }; medRender();
+    const r = await ingPedirMed('mediador', { cnpjs: cn });
+    state.medBusca = r && r.ok ? { txt: r.jaRodando ? 'A extensão já está ocupada com uma busca ou um envio. Tente daqui a pouco.' : 'A extensão abriu o Mediador numa aba em segundo plano. Leva alguns minutos; pode continuar trabalhando.' } : { txt: medMot(r && r.motivo), erro: true };
+    medRender(); setTimeout(() => { state.medBusca = null; medRender(); }, 20000);
+  }
+  // o texto: o guardado no Hub ou, para os outros, pedido à extensão (lido na hora, não fica guardado)
+  let medDlg = null;
+  function medDialogo() {
+    if (medDlg) return medDlg;
+    medDlg = document.createElement('dialog'); medDlg.className = 'dlg dlg-lg med-dlg'; medDlg.id = 'dlg-med-texto';
+    medDlg.innerHTML = `<div class="dlg-head"><h2 id="med-dlg-tit">Texto</h2><button type="button" class="icon-btn dlg-close" data-med-fechar aria-label="Fechar">${ic('x')}</button></div><div class="dlg-body"><div class="med-dlg-bar"><input type="search" id="med-dlg-q" placeholder="Procurar no texto (piso, reajuste, vale…)" autocomplete="off"><span class="med-dlg-n" id="med-dlg-n"></span></div><div id="med-dlg-corpo" class="med-dlg-corpo"></div></div>`;
+    document.body.appendChild(medDlg);
+    $('#med-dlg-q', medDlg).addEventListener('input', medFiltrar);
+    medDlg.addEventListener('close', () => { const f = $('.med-pdf', medDlg); if (f && f.dataset.url) URL.revokeObjectURL(f.dataset.url); });
+    return medDlg;
+  }
+  function medFiltrar() {
+    const q = norm($('#med-dlg-q', medDlg).value.trim()); let n = 0;
+    $$('.med-cl', medDlg).forEach(c => { const v = !q || norm(c.textContent).includes(q); c.hidden = !v; if (v) n++; });
+    $$('.med-gr', medDlg).forEach(g => { g.hidden = !!q && !$$('.med-cl:not([hidden])', g).length; });
+    $('#med-dlg-n', medDlg).textContent = q ? `${n} cláusula(s)` : '';
+  }
+  function medTextoHtml(t) {
+    const grupos = []; t.clausulas.forEach(c => { let g = grupos[grupos.length - 1]; if (!g || g.nome !== c.grupo) { g = { nome: c.grupo, itens: [] }; grupos.push(g); } g.itens.push(c); });
+    return (t.dataBase ? `<p class="med-db">Data-base: <b>${escapeHtml(t.dataBase)}</b></p>` : '') + ((t.anexos || []).length ? `<p class="med-anx">${t.anexos.map((u, k) => `<button type="button" class="btn btn-sm" data-med-anexo="${escapeHtml(u)}">${ic('download')} Anexo (PDF)${t.anexos.length > 1 ? ' ' + (k + 1) : ''}</button>`).join(' ')}</p><div id="med-pdf-box"></div>` : '')
+      + grupos.map(g => `<section class="med-gr">${g.nome ? `<h3>${escapeHtml(g.nome)}</h3>` : ''}${g.itens.map(c => `<article class="med-cl">${c.subgrupo ? `<small>${escapeHtml(c.subgrupo)}</small>` : ''}${c.titulo ? `<h4>${escapeHtml(c.titulo)}</h4>` : ''}<p>${escapeHtml(c.texto)}</p></article>`).join('')}</section>`).join('');
+  }
+  async function medAbrirTexto(sol) {
+    const i = medInstrumentos().find(x => x.sol === sol), d = medDialogo(), corpo = $('#med-dlg-corpo', d);
+    $('#med-dlg-tit', d).textContent = `${i && i.aditivo ? 'Termo aditivo' : 'Convenção coletiva'} ${i ? i.registro || sol : sol}${i ? ' · ' + medVig(i) : ''}`;
+    $('#med-dlg-q', d).value = ''; $('#med-dlg-n', d).textContent = '';
+    if (!d.open) d.showModal();
+    const g = medTextos().get(sol);
+    if (g) { corpo.innerHTML = medTextoHtml(g); return; }
+    corpo.innerHTML = '<p class="med-msg">Buscando o texto no Mediador pela extensão… (ele não fica guardado no Hub)</p>';
+    const r = await ingPedirMed('mediadorTexto', { solicitacao: sol }, 120000), t = r && r.resp;
+    if (!d.open) return;
+    if (!r || !r.ok || !t || !Array.isArray(t.clausulas)) { corpo.innerHTML = `<p class="med-msg med-erro">${escapeHtml(medMot(r && r.motivo))}</p>`; return; }
+    corpo.innerHTML = medTextoHtml({ clausulas: t.clausulas.slice(0, 400).map(c => ({ grupo: String(c.grupo || ''), subgrupo: String(c.subgrupo || ''), titulo: String(c.titulo || ''), texto: String(c.texto || '') })), dataBase: String(t.dataBase || ''), anexos: Array.isArray(t.anexos) ? t.anexos.map(String).slice(0, 5) : [] });
+  }
+  async function medAbrirAnexo(url) {
+    const box = $('#med-pdf-box', medDlg); if (!box) return;
+    box.innerHTML = '<p class="med-msg">Buscando o PDF pela extensão…</p>';
+    const r = await ingPedirMed('mediadorAnexo', { url }, 120000), t = r && r.resp;
+    if (!r || !r.ok || !t || typeof t.base64 !== 'string') { box.innerHTML = `<p class="med-msg med-erro">${escapeHtml(medMot(r && r.motivo))}</p>`; return; }
+    const bin = atob(t.base64), u8 = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+    const url2 = URL.createObjectURL(new Blob([u8], { type: 'application/pdf' }));
+    box.innerHTML = `<div class="med-pdf-acoes"><button type="button" class="btn btn-sm" data-med-baixar>${ic('download')} Baixar o PDF</button></div><iframe class="med-pdf" title="Anexo em PDF" src="${url2}" data-url="${url2}"></iframe>`;
+    box.__pdf = { u8, nome: (url.split('/').pop() || 'anexo.pdf').replace(/[^\w.-]/g, '_') };
+  }
+  // Cadastrar: o formulário de convenção aberto já preenchido (a pessoa confere e salva)
+  function medCadastrar(sol) {
+    const i = medInstrumentos().find(x => x.sol === sol); if (!i) return;
+    const t = medTextos().get(sol), s = [...i.cnpjs].map(medSindDe).find(Boolean), ano = (i.vigIni || '').slice(0, 4);
+    const partes = [[i.cnpjTrab, i.trab, 'laboral'], [i.cnpjEmp, i.emp, 'patronal']].filter(([c]) => cnpjDig(c).length >= 8).map(([c, n, p]) => ({ cnpj: fmtCnpj(c), nome: n || '', papel: p }));
+    let mae = '';
+    if (i.aditivo) { const ccts = [...i.cnpjs].map(medSindDe).filter(Boolean).flatMap(cctsDoSind).filter(c => c.tipo === 'cct' && c.vigIni && (!c.vigFim || !i.vigIni || i.vigIni <= c.vigFim) && (!i.vigIni || c.vigIni <= i.vigIni)); ccts.sort((a, b) => b.vigIni.localeCompare(a.vigIni)); mae = ccts[0] ? ccts[0].id : ''; }
+    abrirCct(null, { titulo: `${i.aditivo ? 'Aditivo' : 'CCT'} ${s ? rotuloSind(s) : (i.trab || '').slice(0, 80)} ${ano}${i.vigFim ? '/' + i.vigFim.slice(0, 4) : ''}`.trim(), tipo: i.aditivo ? 'aditivo' : 'cct', status: 'registrada',
+      registro: i.registro, vigIni: i.vigIni, vigFim: i.vigFim, dataBase: (t && t.dataBase) || '', partes, mae,
+      obs: `Do Mediador do MTE em ${fmtDMY(hoje())}: registro ${i.registro}, solicitação ${i.sol}, processo ${i.processo || '—'}. Confira reajuste, pisos e contribuições no texto (Convenções › Mediador › Ver texto).` });
+  }
+  async function medIgnorar(reg) {
+    const l = [...new Set([...state.medIgn, medReg(reg)])].slice(-500);
+    state.medIgn = l; medRender();
+    try { await db.doc('med_config/cfg').set({ ignorar: l }); toast('Não aparece mais como novo.'); } catch { toast('Não foi possível gravar.'); }
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target; if (!t || !t.closest) return;
+    if (t.closest('[data-med-buscar]')) { if (!state.readOnly) medBuscar(); return; }
+    const sd = t.closest('[data-med-sind]'); if (sd) { const c = sd.dataset.medSind; state.medAberto.has(c) ? state.medAberto.delete(c) : state.medAberto.add(c); medRender(); return; }
+    const tx = t.closest('[data-med-texto]'); if (tx) { medAbrirTexto(tx.dataset.medTexto); return; }
+    const cd = t.closest('[data-med-cad]'); if (cd) { if (!state.readOnly) medCadastrar(cd.dataset.medCad); return; }
+    const ig = t.closest('[data-med-ign]'); if (ig) { if (!state.readOnly) medIgnorar(ig.dataset.medIgn); return; }
+    const ax = t.closest('[data-med-anexo]'); if (ax) { medAbrirAnexo(ax.dataset.medAnexo); return; }
+    if (t.closest('[data-med-baixar]')) { const b = $('#med-pdf-box', medDlg); if (b && b.__pdf) offerFile(b.__pdf.nome, b.__pdf.u8, 'application/pdf'); return; }
+    if (t.closest('[data-med-fechar]') && medDlg) medDlg.close();
+  });
+
+  // ===================== Hub 350 (Josué, 12/11/2026: "baseado na automação criada para o módulo de convenções do DP, toda sua estrutura deveria ser repensada") =====================
+  // Decidido: a convenção (e o aditivo) que o Mediador encontrar ENTRA SOZINHA (origem "mediador", registrada nas Novidades); reajuste e piso são SUGERIDOS
+  // a partir do texto das cláusulas para a pessoa conferir; o módulo tem cinco abas: Empresas (de fábrica) · Convenções · Novidades · Textos · Sindicatos.
+  state.dpConvAba = 'empresas'; state.cvEmpSit = ''; state.cvEmpQ = ''; state.cvTxtQ = ''; state.cvTxtLim = 60;
+  const CV_ABAS = [['empresas', 'Empresas'], ['convencoes', 'Convenções'], ['novidades', 'Novidades'], ['textos', 'Textos'], ['sindicatos', 'Sindicatos']];
+  const cvAbaAtual = () => state.dpConvCad ? 'sindicatos' : (CV_ABAS.some(a => a[0] === state.dpConvAba) ? state.dpConvAba : 'empresas');
+  const medAtivo = () => !!(state.medMan && state.medMan['mediador-instrumentos']);
+  const sindTemCnpj = (s) => { const d = cnpjDig(s && s.cnpj); return d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8)); };
+  // ----- a convenção do Mediador entra sozinha -----
+  const medAuto = { feito: '', rodando: false };
+  const medIdDe = (reg) => ('med-' + medReg(reg).replace(/[^\w-]/g, '-')).slice(0, 80);
+  async function medAutoLiderar() {
+    const eu = state.meId || autorId() || 'x', ref = db.doc('ing_auto/medcct');
+    try {
+      const sn = await ref.get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      if (v && v.por && v.por !== eu && Number(v.ate) > Date.now()) return false;
+      await ref.set({ por: eu, ate: Date.now() + 120000 });
+      const sn2 = await ref.get(), w = sn2 && sn2.data ? sn2.data() : null;
+      return !!w && w.por === eu;
+    } catch { return false; }
+  }
+  // o objeto da convenção a partir do instrumento do Mediador (o mesmo que o antigo "Cadastrar" preenchia)
+  function medCctDe(i, lista) {
+    const t = medTextos().get(i.sol), s = [...i.cnpjs].map(medSindDe).find(Boolean), ano = (i.vigIni || '').slice(0, 4);
+    const partes = [[i.cnpjTrab, i.trab, 'laboral'], [i.cnpjEmp, i.emp, 'patronal']].filter(([c]) => cnpjDig(c).length >= 8).map(([c, n, p]) => ({ cnpj: fmtCnpj(c), nome: n || '', papel: p }));
+    let mae = '';
+    if (i.aditivo) {
+      const ds = new Set([...i.cnpjs]);
+      const cands = lista.filter(c => c.tipo === 'cct' && c.vigIni && c.partes.some(p => ds.has(cnpjDig(p.cnpj))) && (!c.vigFim || !i.vigIni || i.vigIni <= c.vigFim) && (!i.vigIni || c.vigIni <= i.vigIni)).sort((a, b) => b.vigIni.localeCompare(a.vigIni));
+      mae = cands[0] ? cands[0].id : '';
+    }
+    const agora = Date.now();
+    return normalizeCct({ id: medIdDe(i.registro), titulo: `${i.aditivo ? 'Aditivo' : 'CCT'} ${s ? rotuloSind(s) : (i.trab || '').slice(0, 80)} ${ano}${i.vigFim ? '/' + i.vigFim.slice(0, 4) : ''}`.trim(),
+      tipo: i.aditivo ? 'aditivo' : 'cct', status: 'registrada', registro: i.registro, vigIni: i.vigIni, vigFim: i.vigFim, dataBase: (t && t.dataBase) || '', partes, mae,
+      origem: 'mediador', medSol: i.sol, criadoEm: agora, atualizadoEm: agora,
+      obs: `Entrou sozinha pelo Mediador do MTE em ${fmtDMY(hoje())}: registro ${i.registro}, solicitação ${i.sol}, processo ${i.processo || '—'}. Reajuste, pisos e contribuições: confira no texto (aba Textos) e nas sugestões do painel.` });
+  }
+  async function medAutoCadastrar() {
+    if (!db || state.readOnly || state.semEscrita || medAuto.rodando || !state.dpCctsOk || !state.dpSind.length) return;
+    const man = state.medMan && state.medMan['mediador-instrumentos'], tab = state.medTab && state.medTab['mediador-instrumentos'];
+    if (!man || !tab || tab.ciclo !== man.ciclo) return;
+    const chave = man.ciclo + '|' + state.dpSind.length + '|' + state.medIgn.length;
+    if (medAuto.feito === chave || !medNovos(medInstrumentos()).length) { medAuto.feito = chave; return; }
+    medAuto.rodando = true;
+    try {
+      if (!(await medAutoLiderar())) return;
+      // relê as convenções no banco antes de gravar (outro navegador pode ter mexido) e decide sobre a lista nova
+      let atuais = state.dpCcts;
+      try { const sn = await db.doc('dp_config/ccts').get(); atuais = normalizeCcts(sn && sn.exists !== false && sn.data ? (sn.data().itens || []) : []); } catch { return; }
+      const regs = new Set(atuais.map(c => medReg(c.registro)).filter(Boolean)), ign = new Set(state.medIgn), dia = ymd(hoje());
+      const corte = ymd(new Date(hoje().getFullYear(), hoje().getMonth() - 18, 1));
+      const novos = medInstrumentos().filter(i => i.registro && !regs.has(medReg(i.registro)) && !ign.has(medReg(i.registro)) && ((i.vigFim && i.vigFim >= dia) || (i.vigIni && i.vigIni >= corte)));
+      if (!novos.length) { medAuto.feito = chave; return; }
+      // primeiro as convenções, depois os aditivos (que se ligam à convenção-mãe)
+      const lista = atuais.slice(), entrou = [];
+      for (const i of novos.filter(x => !x.aditivo).concat(novos.filter(x => x.aditivo))) {
+        const c = medCctDe(i, lista); if (!c || lista.some(x => x.id === c.id)) continue;
+        lista.push(c); entrou.push(c);
+      }
+      if (!entrou.length) { medAuto.feito = chave; return; }
+      if (await salvarCcts(lista, true)) {
+        medAuto.feito = chave;
+        // sem aviso na tela (pedido do Josué, 12/11/2026): as convenções que entram sozinhas aparecem em Novidades
+        if (state.dpView === 'sindicatos') renderSindTab();
+      }
+    } finally { medAuto.rodando = false; try { await db.doc('ing_auto/medcct').set({ por: '', ate: 0 }); } catch { /* sem banco */ } }
+  }
+  // ----- reajuste e piso sugeridos pelo texto (a pessoa confere) -----
+  const SUG_REAJ = /reajust|correcao salarial|aumento salarial|recomposicao salarial|reposicao salarial/;
+  const SUG_PISO = /piso|salario normativo|salario de ingresso|salario profissional|salario minimo profissional/;
+  const trechoDe = (txt, i, n = 160) => { const a = Math.max(0, i - 70), s = txt.slice(a, a + n).replace(/\s+/g, ' ').trim(); return (a ? '…' : '') + s + (a + n < txt.length ? '…' : ''); };
+  function medTextoDaCct(c) {
+    if (!c || !c.registro) return null;
+    const ins = medInstrumentos().find(i => medReg(i.registro) === medReg(c.registro));
+    const t = ins && medTextos().get(ins.sol);
+    return t ? { t, sol: ins.sol } : null;
+  }
+  function medSugestoes(c) {
+    const tx = medTextoDaCct(c); if (!tx) return null;
+    const ign = new Set(c.sugIgn || []), out = {};
+    if (!c.reajuste.itens.length && !c.reajuste.tabela.length && !ign.has('reajuste')) {
+      for (const cl of tx.t.clausulas) {
+        if (!SUG_REAJ.test(norm(cl.titulo + ' ' + cl.subgrupo))) continue;
+        const m = /(\d{1,2}(?:[.,]\d{1,2})?)\s?%/.exec(cl.texto);
+        if (m) { out.reajuste = { pct: m[1].replace('.', ',') + '%', trecho: trechoDe(cl.texto, m.index), titulo: cl.titulo }; break; }
+      }
+    }
+    if (!c.pisos.length && !ign.has('pisos')) {
+      for (const cl of tx.t.clausulas) {
+        if (!SUG_PISO.test(norm(cl.titulo + ' ' + cl.subgrupo))) continue;
+        const re = /R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/g, ps = []; let m, prim = -1;
+        while ((m = re.exec(cl.texto)) && ps.length < 8) {
+          if (prim < 0) prim = m.index;
+          let nome = (cl.texto.slice(Math.max(0, m.index - 90), m.index).split(/[.;\n]/).pop() || '').replace(/[:\-–—,(]\s*$/, '').trim();
+          nome = nome.replace(/\s+(de|no valor de|equivalente a|correspondente a|ser[aá] de|fixado em|igual a|e)$/i, '').replace(/^(e|o|a|para|aos?|as?)\s+/i, '').trim().slice(-60);
+          ps.push({ nome: nome && !/^piso( salarial)?$/i.test(nome) ? nome.charAt(0).toUpperCase() + nome.slice(1) : 'Piso', valor: m[1] });
+        }
+        if (ps.length) { out.pisos = { itens: ps, trecho: trechoDe(cl.texto, prim, 220), titulo: cl.titulo }; break; }
+      }
+    }
+    return out.reajuste || out.pisos ? Object.assign(out, { sol: tx.sol }) : null;
+  }
+  async function medSugUsar(id, qual) {
+    const c = cctPorId(id); if (!c || state.readOnly) return;
+    const sg = medSugestoes(c); if (!sg || !sg[qual]) return;
+    const lista = state.dpCcts.map(x => {
+      if (x.id !== id) return x;
+      const y = JSON.parse(JSON.stringify(x));
+      if (qual === 'reajuste') y.reajuste.itens = [{ rotulo: 'Geral', pct: sg.reajuste.pct }];
+      else y.pisos = sg.pisos.itens.map(p => ({ nome: p.nome, valor: p.valor }));
+      y.obs = (y.obs ? y.obs + '\n' : '') + `${qual === 'reajuste' ? 'Reajuste' : 'Pisos'} conferidos a partir do texto do Mediador (${sg[qual].titulo || 'cláusula'}) em ${fmtDMY(hoje())}.`;
+      y.atualizadoEm = Date.now(); return y;
+    });
+    if (await salvarCcts(lista)) toast(qual === 'reajuste' ? 'Reajuste gravado na convenção.' : 'Pisos gravados na convenção.');
+  }
+  async function medSugIgnorar(id, qual) {
+    const c = cctPorId(id); if (!c || state.readOnly) return;
+    const lista = state.dpCcts.map(x => x.id === id ? { ...x, sugIgn: [...new Set([...(x.sugIgn || []), qual])] } : x);
+    if (await salvarCcts(lista)) toast('Sugestão descartada. Preencha à mão em Editar, se precisar.');
+  }
+  function medSugHtml(c) {
+    const sg = medSugestoes(c); if (!sg) return '';
+    const ro = state.readOnly, bloco = (qual, rot, valor, s) => `<div class="cvs-sug"><div class="cvs-sug-h"><span class="cvs-tag">${ic('search', 'ic-sm')} Sugerido pelo texto</span><b>${escapeHtml(rot)}: ${valor}</b></div>
+      <blockquote>${s.titulo ? `<small>${escapeHtml(s.titulo)}</small>` : ''}${escapeHtml(s.trecho)}</blockquote>
+      <div class="cvs-sug-a">${ro ? '' : `<button type="button" class="btn btn-sm btn-primary" data-cvs-usar="${escapeHtml(c.id)}|${qual}">Usar</button><button type="button" class="btn btn-sm" data-cvs-ign="${escapeHtml(c.id)}|${qual}">Não é isso</button>`}<button type="button" class="linkish" data-med-texto="${escapeHtml(sg.sol)}">Ver o texto todo</button></div></div>`;
+    return `<div class="cvs-sugs">${sg.reajuste ? bloco('reajuste', 'Reajuste', escapeHtml(sg.reajuste.pct), sg.reajuste) : ''}${sg.pisos ? bloco('pisos', sg.pisos.itens.length > 1 ? 'Pisos' : 'Piso', sg.pisos.itens.map(p => `${p.nome === 'Piso' ? '' : escapeHtml(p.nome) + ' '}R$ ${escapeHtml(p.valor)}`).join(' · '), sg.pisos) : ''}</div>`;
+  }
+  // ----- abas -----
+  function cvAbasHtml(aba) {
+    const n = cvContagens();
+    const badge = { empresas: n.empAtencao, novidades: n.novidades, sindicatos: n.semCnpj };
+    return CV_ABAS.map(([k, l]) => `<button type="button" role="tab" data-cv-aba-mod="${k}" class="${aba === k ? 'on' : ''}" aria-selected="${aba === k}">${escapeHtml(l)}${badge[k] ? `<span class="cvs-n">${badge[k]}</span>` : ''}</button>`).join('');
+  }
+  function cvContagens() {
+    const emps = cvEmpresasLinhas();
+    const novidades = cvNovidades();
+    const semCnpj = cvSindsSemCnpj().length;
+    return { empAtencao: emps.filter(x => ['vencida', 'vencendo'].includes(x.sit)).length, novidades: novidades.entrou.filter(c => c.criadoEm > Date.now() - 7 * 864e5).length + novidades.conferir.length, semCnpj };
+  }
+  // ----- Empresas: o que vale para cada uma -----
+  function proxDataBase(mes) {
+    const mi = MESES.indexOf(mes); if (mi < 0) return null;
+    const t = hoje(); let d = new Date(t.getFullYear(), mi, 1); if (ymd(d) < ymd(new Date(t.getFullYear(), t.getMonth(), 1))) d = new Date(t.getFullYear() + 1, mi, 1);
+    return d;
+  }
+  function cvEmpresasLinhas() {
+    return empresasCarteira().filter(ativa).map(e => {
+      const todos = empresaSinds(e); if (todos.some(ehSemSind) && !todos.some(s => !ehSemSind(s))) return null;
+      const ss = todos.filter(s => !ehSemSind(s)), vs = empresaCcts(e);
+      if (vs.length) {
+        const v = vs[0], ef = cctEfetiva(v), acoes = acoesCct(v.cct, [e]), sit = situacaoCct(acoes);
+        return { e, ss, v, ef, sit, acao: acoes.find(a => a.sit) || null, sug: !!medSugestoes(v.cct) || v.aditivos.some(a => !!medSugestoes(a)) };
+      }
+      const motivo = !ss.length ? 'Sem sindicato no cadastro da empresa' : !ss.some(sindTemCnpj) ? 'Sindicato sem CNPJ: o Mediador não consegue procurar' : medAtivo() ? 'Nenhuma convenção deste sindicato no Mediador' : 'Ainda sem leitura do Mediador';
+      return { e, ss, v: null, ef: null, sit: 'sem', motivo, acao: null, sug: false };
+    }).filter(Boolean);
+  }
+  const CV_ORD = { vencida: 0, vencendo: 1, pendente: 2, sem: 3, emdia: 4 };
+  function renderCvEmpresas(el) {
+    const todas = cvEmpresasLinhas(), q = state.cvEmpQ, f = state.cvEmpSit;
+    const cont = {}; todas.forEach(x => { cont[x.sit] = (cont[x.sit] || 0) + 1; });
+    const vis = todas.filter(x => (!f || x.sit === f) && matchQ([x.e.nome, x.e.cnpj, x.e.cod, respEf(x.e) || '', ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`), x.v ? `${x.v.cct.titulo} ${x.v.cct.registro}` : ''], q))
+      .sort((a, b) => (CV_ORD[a.sit] - CV_ORD[b.sit]) || byNome(a.e, b.e));
+    const linha = (x) => {
+      const e = x.e, c = x.v && x.v.cct, sI = CV_SITS.find(s => s.k === x.sit);
+      const sind = x.ss.length ? x.ss.map(s => `<span>${escapeHtml(rotuloSind(s))}${sindTemCnpj(s) ? '' : ' <i class="cvs-alerta" title="Sem CNPJ: o Mediador não procura">sem CNPJ</i>'}</span>`).join('') : '<span class="dp-cell-sub">—</span>';
+      let conv, vig, db_ = '<span class="dp-cell-sub">—</span>', rj = '<span class="dp-cell-sub">—</span>', piso = '<span class="dp-cell-sub">—</span>';
+      if (c) {
+        conv = `<button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(tituloCurto(c))}</button><small>${c.registro ? escapeHtml(c.registro) : 'sem registro'}${c.origem === 'mediador' ? ' · <span class="cvs-med">Mediador</span>' : ''}</small>`;
+        const n = c.vigFim ? diffDays(parseYmd(c.vigFim), hoje()) : null;
+        vig = `${barraVig(c)}<small>${n == null ? 'sem vigência' : n < 0 ? `vencida há ${-n} dia(s)` : `termina em ${n} dia(s)`}</small>`;
+        const pd = proxDataBase(c.dataBase);
+        if (pd) { const nd = diffDays(pd, hoje()); db_ = `<b>${escapeHtml(c.dataBase)}</b><small>${nd <= 0 ? 'este mês' : nd <= 62 ? `em ${nd} dia(s)` : fmtDMY(pd).slice(3)}</small>`; }
+        const r = reajCurto(x.ef); rj = r.v === '—' ? (x.sug ? '<span class="cvs-conferir">conferir</span>' : '<span class="dp-cell-sub">—</span>') : `<b>${escapeHtml(r.v)}</b>`;
+        const p = x.ef.pisos.val[0]; piso = p ? `<b>${escapeHtml(moeda(p.valor))}</b>${x.ef.pisos.val.length > 1 ? `<small>+${x.ef.pisos.val.length - 1}</small>` : ''}` : (x.sug ? '<span class="cvs-conferir">conferir</span>' : '<span class="dp-cell-sub">—</span>');
+      } else {
+        conv = `<span class="cvs-motivo">${escapeHtml(x.motivo)}</span>`;
+        vig = x.ss.length && !x.ss.some(sindTemCnpj) ? `<button type="button" class="linkish" data-cvs-sind="${escapeHtml(x.ss[0].id)}">Completar o sindicato</button>` : !x.ss.length ? `<button type="button" class="linkish" data-open-emp="${escapeHtml(e.id)}">Abrir a empresa</button>` : '<span class="dp-cell-sub">—</span>';
+      }
+      return `<div class="cvs-row s-${x.sit}"${c ? ` data-cv-abrir="${escapeHtml(c.id)}"` : ''}>
+        <div class="cvs-emp"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><small>${escapeHtml(respEf(e) || 'sem responsável')}</small></div>
+        <div class="cvs-sind">${sind}</div><div class="cvs-c">${conv}</div><div class="cvs-vig">${vig}</div><div class="cvs-db">${db_}</div><div class="cvs-num">${rj}</div><div class="cvs-num">${piso}</div>
+        <div class="cvs-sit"><span class="cv-chip s-${x.sit}">${ic(sI.ic, 'ic-sm')} ${escapeHtml(sI.l1)}</span>${x.acao ? `<small>${escapeHtml(x.acao.txt)}</small>` : ''}</div></div>`;
+    };
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>O que vale para cada empresa</h2><p>A convenção em vigor de cada empresa ativa${state.dpCarteira ? ' da carteira' : ''}, pelo sindicato do cadastro. As convenções do Mediador entram sozinhas; reajuste e piso vêm do cadastro da convenção ou, quando faltam, aparecem como "conferir".</p></div></div>
+      <div class="cvs-bar"><div class="dp-chips" role="group" aria-label="Situação"><button type="button" class="dp-chip${!f ? ' on' : ''}" data-cvs-sit="">Todas <b>${todas.length}</b></button>${CV_SITS.map(s => `<button type="button" class="dp-chip s-${s.k}${f === s.k ? ' on' : ''}" data-cvs-sit="${s.k}"${cont[s.k] ? '' : ' disabled'}>${escapeHtml(s.l)} <b>${cont[s.k] || 0}</b></button>`).join('')}</div>
+        <input type="search" id="cvs-emp-q" placeholder="Buscar empresa, sindicato, convenção…" value="${escapeHtml(q)}" autocomplete="off"><span class="dp-count">${vis.length} empresa(s)</span></div>
+      ${vis.length ? `<div class="cvs-tab" role="table"><div class="cvs-row cvs-head" role="row"><div>Empresa</div><div>Sindicato</div><div>Convenção</div><div>Vigência</div><div>Data-base</div><div>Reajuste</div><div>Piso</div><div>Situação</div></div>${vis.map(linha).join('')}</div>`
+        : `<div class="cv-zen big">${ic('list')}<span>${todas.length ? 'Nenhuma empresa com estes filtros.' : 'Nenhuma empresa ativa nesta carteira.'}</span></div>`}`;
+  }
+  // ----- Novidades -----
+  function cvNovidades() {
+    const t = Date.now();
+    const entrou = state.dpCcts.filter(c => c.origem === 'mediador' && c.criadoEm && t - c.criadoEm < 120 * 864e5).sort((a, b) => b.criadoEm - a.criadoEm);
+    const usadas = new Set(empresasCarteira().filter(ativa).flatMap(e => empresaCcts(e)).flatMap(v => [v.cct, ...v.aditivos]));
+    const conferir = state.dpCcts.filter(c => c.status !== 'substituida' && (usadas.has(c) || (c.origem === 'mediador' && t - c.criadoEm < 120 * 864e5)) && medSugestoes(c));
+    return { entrou, conferir };
+  }
+  function renderCvNovidades(el) {
+    const { entrou, conferir } = cvNovidades(), { linhas } = convencoesDaCarteira();
+    const vencidas = linhas.filter(l => l.sit === 'vencida');
+    const prox = linhas.flatMap(l => eventosConv(l, 60).filter(ev => ev.tipo === 'base' || ev.tipo === 'fim').map(ev => ({ ...ev, l }))).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 40);
+    const visto = Number(state.prefs.cvVisto) || 0;
+    const cctItem = (c) => { const es = empsDaCct(c, empresasCarteira().filter(ativa)), novo = c.criadoEm > visto;
+      return `<li class="cvs-nv${novo ? ' novo' : ''}"><span class="cvs-nv-ic">${ic(c.tipo === 'cct' ? 'list' : 'plus', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button>${novo ? '<span class="cvs-novo">nova</span>' : ''}
+        <small>${escapeHtml(CCT_TIPOS[c.tipo])} · registro ${escapeHtml(c.registro || '—')} · ${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · ${es.length} empresa(s)</small></div><span class="cvs-quando">${escapeHtml(new Date(c.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}</span></li>`; };
+    const sec = (tit, n, dica, corpo) => `<section class="cvs-sec"><h3>${escapeHtml(tit)} <span class="cvs-n">${n}</span></h3>${dica ? `<p class="cvs-dica">${escapeHtml(dica)}</p>` : ''}${corpo}</section>`;
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Novidades das convenções</h2><p>O que o Mediador trouxe, o que falta conferir e o que vence nos próximos 60 dias. O Hub procura no Mediador uma vez por semana (pela extensão) e quando alguém pede.</p></div>
+        ${entrou.some(c => c.criadoEm > visto) ? '<button type="button" class="btn btn-sm" data-cvs-visto>Marcar como vistas</button>' : ''}</div>
+      <div id="cvs-med-slot"></div>
+      <div class="cvs-grade">
+        ${sec('Entraram sozinhas pelo Mediador', entrou.length, 'Convenções e aditivos registrados no MTE que o Hub cadastrou sozinho nos últimos 120 dias. Excluir uma delas faz o Hub não cadastrá-la de novo.', entrou.length ? `<ul class="cvs-lista">${entrou.map(cctItem).join('')}</ul>` : '<p class="cvs-vazio">Nada novo no Mediador.</p>')}
+        ${sec('Reajuste e piso para conferir', conferir.length, 'O Hub achou o número no texto da convenção. Abra, confira o trecho e clique em Usar.', conferir.length ? `<ul class="cvs-lista">${conferir.map(c => { const s = medSugestoes(c); return `<li class="cvs-nv"><span class="cvs-nv-ic">${ic('search', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button><small>${[s.reajuste && 'reajuste ' + s.reajuste.pct, s.pisos && (s.pisos.itens.length > 1 ? s.pisos.itens.length + ' pisos' : 'piso R$ ' + s.pisos.itens[0].valor)].filter(Boolean).map(escapeHtml).join(' · ')}</small></div><button type="button" class="btn btn-sm" data-cv-abrir="${escapeHtml(c.id)}">Conferir</button></li>`; }).join('')}</ul>` : '<p class="cvs-vazio">Nada para conferir.</p>')}
+        ${sec('Próximos 60 dias', prox.length, 'Data-base e fim de vigência das convenções das empresas desta carteira.', prox.length ? `<ul class="cvs-lista">${prox.map(ev => `<li class="cvs-nv"><span class="cvs-data"><b>${escapeHtml(fmtDMY(parseYmd(ev.d)).slice(0, 5))}</b><small>${diffDays(parseYmd(ev.d), hoje()) === 0 ? 'hoje' : 'em ' + diffDays(parseYmd(ev.d), hoje()) + ' d'}</small></span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(ev.id)}">${escapeHtml(ev.nome)}</button><small>${escapeHtml(ev.txt)} · ${ev.l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nada nos próximos 60 dias.</p>')}
+        ${sec('Vencidas sem a nova', vencidas.length, medAtivo() ? 'A vigência acabou e a nova ainda não apareceu no Mediador. Entra sozinha quando for registrada.' : 'A vigência acabou e não há convenção nova cadastrada.', vencidas.length ? `<ul class="cvs-lista">${vencidas.map(l => `<li class="cvs-nv"><span class="cvs-nv-ic s-vencida">${ic('alert', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(l.c.id)}">${escapeHtml(l.c.titulo)}</button><small>venceu em ${escapeHtml(fmtYmdBR(l.c.vigFim))} · ${l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nenhuma vencida.</p>')}
+      </div>`;
+    const slot = $('#cvs-med-slot', el), mb = $('#cv-med'); if (slot && mb) slot.appendChild(mb);
+  }
+  // ----- Textos: busca em todas as cláusulas -----
+  function renderCvTextos(el) {
+    const q = state.cvTxtQ, qn = norm(q), ins = medInstrumentos(), txts = medTextos();
+    const nomeDe = (sol) => { const i = ins.find(x => x.sol === sol), c = i && state.dpCcts.find(x => medReg(x.registro) === medReg(i.registro)); return { i, c, nome: c ? c.titulo : i ? `${i.aditivo ? 'Aditivo' : 'Convenção'} ${i.trab || ''}`.trim() : sol }; };
+    const docs = [...txts.entries()].map(([sol, t]) => ({ sol, t, ...nomeDe(sol) })).sort((a, b) => String(b.i && b.i.vigIni || '').localeCompare(String(a.i && a.i.vigIni || '')));
+    let corpo;
+    if (!docs.length) corpo = `<div class="cv-zen big">${ic('search')}<span>${medAtivo() ? 'O Mediador ainda não trouxe o texto de nenhuma convenção.' : 'Os textos chegam com a leitura do Mediador (aba Novidades › Buscar no Mediador).'}</span></div>`;
+    else if (qn.length < 3) corpo = `<p class="cvs-dica">${docs.length} convenção(ões) com o texto no Hub (a vigente e os aditivos de cada sindicato). Escreva ao menos 3 letras para procurar em todas, ou abra uma.</p><ul class="cvs-docs">${docs.map(d => `<li><button type="button" class="cvs-doc" data-med-texto="${escapeHtml(d.sol)}"><b>${escapeHtml(d.nome)}</b><small>${d.i ? escapeHtml(medVig(d.i)) + ' · ' : ''}${d.t.clausulas.length} cláusula(s)${d.c && d.c.origem === 'mediador' ? ' · entrou pelo Mediador' : ''}</small></button></li>`).join('')}</ul>`;
+    else {
+      const ws = qn.split(/\s+/).filter(Boolean), res = [];
+      docs.forEach(d => d.t.clausulas.forEach(cl => { const hay = norm(`${cl.grupo} ${cl.subgrupo} ${cl.titulo} ${cl.texto}`); if (ws.every(w => hay.includes(w))) res.push({ d, cl }); }));
+      const mostra = res.slice(0, state.cvTxtLim);
+      const marca = (s) => { let h = escapeHtml(s); ws.forEach(w => { if (w.length < 3) return; const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('').map(ch => { const b = { a: '[aáàâã]', e: '[eéê]', i: '[ií]', o: '[oóôõ]', u: '[uú]', c: '[cç]' }[ch]; return b || ch; }).join('') + ')', 'gi'); h = h.replace(re, '<mark>$1</mark>'); }); return h; };
+      const snippet = (cl) => { const tn = norm(cl.texto), p = Math.max(0, tn.indexOf(ws[0])); return trechoDe(cl.texto, p, 260); };
+      corpo = `<p class="cvs-dica">${res.length} cláusula(s) em ${new Set(res.map(r => r.d.sol)).size} convenção(ões).</p>` + (mostra.length ? `<ul class="cvs-res">${mostra.map(r => `<li><div class="cvs-res-h"><button type="button" class="cvs-conv" data-cvs-txt="${escapeHtml(r.d.sol)}">${escapeHtml(r.d.nome)}</button><small>${escapeHtml([r.cl.grupo, r.cl.subgrupo].filter(Boolean).join(' › '))}</small></div>${r.cl.titulo ? `<h4>${marca(r.cl.titulo)}</h4>` : ''}<p>${marca(snippet(r.cl))}</p></li>`).join('')}</ul>` : '')
+        + (res.length > mostra.length ? `<div class="cvs-mais"><button type="button" class="btn btn-sm" data-cvs-txt-mais>Mostrar mais ${Math.min(60, res.length - mostra.length)} de ${res.length - mostra.length}</button></div>` : '');
+    }
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Textos das convenções</h2><p>Procure em todas as cláusulas de uma vez: piso, adicional noturno, horas extras, contribuição, estabilidade… O texto vem do Mediador do MTE.</p></div></div>
+      <div class="cvs-bar"><input type="search" id="cvs-txt-q" class="cvs-txt-q" placeholder="Procurar nas cláusulas (ex.: adicional noturno)" value="${escapeHtml(q)}" autocomplete="off"></div>${corpo}`;
+  }
+  // ----- Sindicatos: os que o Mediador não consegue procurar -----
+  function cvSindsSemCnpj() {
+    const usados = new Map();
+    state.dpEmpresas.filter(ativa).forEach(e => empresaSinds(e).forEach(s => { if (!ehSemSind(s) && !sindTemCnpj(s)) usados.set(s, (usados.get(s) || 0) + 1); }));
+    return [...usados.entries()].map(([s, n]) => ({ s, n })).sort((a, b) => b.n - a.n);
+  }
+  function renderCvSemCnpj() {
+    const el = $('#cvs-semcnpj'); if (!el) return;
+    const l = cvSindsSemCnpj();
+    el.hidden = !l.length;
+    el.innerHTML = l.length ? `<div class="cvs-alerta-box"><h3>${ic('alert', 'ic-sm')} ${l.length} sindicato(s) em uso sem CNPJ <span class="cvs-dica">O Mediador só procura pelo CNPJ: sem ele, a convenção destas empresas não entra sozinha. Complete no Domínio e importe de novo, ou edite aqui.</span></h3>
+      <ul>${l.slice(0, 30).map(x => `<li><b>${escapeHtml(x.s.cod || '—')}</b> ${escapeHtml(rotuloSind(x.s))} <small>${x.n} empresa(s)</small>${state.readOnly ? '' : `<button type="button" class="btn btn-sm" data-cvs-sind="${escapeHtml(x.s.id)}">Editar</button>`}</li>`).join('')}</ul>${l.length > 30 ? `<p class="cvs-dica">e mais ${l.length - 30}.</p>` : ''}</div>` : '';
+  }
+  function renderCvAba() {
+    const aba = cvAbaAtual(), nova = $('#cv-nova');
+    $('#cv-abas').innerHTML = cvAbasHtml(aba);
+    $('#cv-main').hidden = aba !== 'convencoes'; $('#cv-cad').hidden = aba !== 'sindicatos'; nova.hidden = !['empresas', 'novidades', 'textos'].includes(aba);
+    // o bloco do Mediador mora nas Novidades; fora delas, volta ao lugar de antes (escondido)
+    // (guardado no lugar de sempre antes de redesenhar: o innerHTML das abas novas o apagaria)
+    const mb = $('#cv-med'); if (mb && mb.parentNode !== $('#cv-main')) $('#cv-main').insertBefore(mb, $('#cv-hero'));
+    if (mb) mb.hidden = aba !== 'novidades';
+    if (aba === 'empresas') renderCvEmpresas(nova);
+    else if (aba === 'novidades') { renderCvNovidades(nova); medRender(); }
+    else if (aba === 'textos') renderCvTextos(nova);
+    return aba;
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target; if (!t || !t.closest || !t.closest('#dp-view-sindicatos')) return;
+    const ab = t.closest('[data-cv-aba-mod]');
+    if (ab) { const k = ab.dataset.cvAbaMod; if (k === 'sindicatos') { state.dpConvCad = true; state.dpSindVisao = state.dpSindVisao || 'uso'; } else { state.dpConvCad = false; state.dpConvAba = k; } if (state.dpConvPainel) fecharPainelCct(); state.dpConvAnim = true; renderSindTab(); return; }
+    const st = t.closest('[data-cvs-sit]'); if (st) { state.cvEmpSit = state.cvEmpSit === st.dataset.cvsSit ? '' : st.dataset.cvsSit; renderCvAba(); return; }
+    const sd = t.closest('[data-cvs-sind]'); if (sd) { e.stopPropagation(); if (!state.readOnly) abrirSind(sd.dataset.cvsSind); return; }
+    const us = t.closest('[data-cvs-usar]'); if (us) { const [id, q] = us.dataset.cvsUsar.split('|'); medSugUsar(id, q); return; }
+    const ig = t.closest('[data-cvs-ign]'); if (ig) { const [id, q] = ig.dataset.cvsIgn.split('|'); medSugIgnorar(id, q); return; }
+    const tx = t.closest('[data-cvs-txt]'); if (tx) { medAbrirTexto(tx.dataset.cvsTxt).then(() => { const i = $('#med-dlg-q'); if (i && state.cvTxtQ) { i.value = state.cvTxtQ; medFiltrar(); } }); return; }
+    if (t.closest('[data-cvs-txt-mais]')) { state.cvTxtLim += 60; renderCvAba(); return; }
+    if (t.closest('[data-cvs-visto]')) { state.prefs.cvVisto = Date.now(); savePrefs(); renderCvAba(); return; }
+  });
+  let cvsBuscaT = 0;
+  document.addEventListener('input', (e) => {
+    const id = e.target && e.target.id; if (id !== 'cvs-emp-q' && id !== 'cvs-txt-q') return;
+    clearTimeout(cvsBuscaT); const v = e.target.value;
+    cvsBuscaT = setTimeout(() => { if (id === 'cvs-emp-q') state.cvEmpQ = v.trim(); else { state.cvTxtQ = v.trim(); state.cvTxtLim = 60; }
+      const pos = e.target.selectionStart; renderCvAba(); const n = $('#' + id); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch { /* campo de busca */ } } }, 220);
+  });
+
   function renderConvencoes() {
     const ro = state.readOnly, q = state.dpConvQuery;
     // Primeira visita: abre na carteira do usuário, se o nome dele for um dos responsáveis.
@@ -5201,6 +5695,7 @@
     if (modo === 'tempo') renderConvTempo(vis);
     else if (!f && !q && linhas.length + sem.length) $('#cv-cards').innerHTML = `<div class="cv-zen big">${ic('list')}<span>Escolha uma situação acima (Vencendo, Pendentes, Sem CCT…) para ver as convenções.</span></div>`;
     else renderConvCards(vis, semVis);
+    medRender();       // Hub 347
     if (anim) cvAnimar(main);
     cvTkIniciar();
     const abrir = state.dpConvAbrir; state.dpConvAbrir = '';
@@ -5433,7 +5928,7 @@
     let corpo = '';
     if (aba === 'resumo') {
       const partes = c.partes.map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b class="dp-mono">${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `${escapeHtml(p.nome)} <span class="dp-cell-sub">fora do Domínio</span>`}</li>`; }).join('');
-      corpo = `${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
+      corpo = `${medSugHtml(c)}${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
         <h4>Ciclo de vida</h4>${cicloHtml(c, v.aditivos)}
         <div class="cv-kv"><span>Vigência</span><div>${barraVig(c)}<div class="dp-cell-sub">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></div>
           <span>Situação</span><div><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status])}</span>${c.registro ? ` <span class="dp-mono">${escapeHtml(c.registro)}</span>` : ''}</div>
@@ -5468,7 +5963,7 @@
     const pr = partesRot(c), rj = reajCurto(ef), nDias = c.vigFim ? diffDays(parseYmd(c.vigFim), hoje()) : null;
     const sitI = CV_SITS.find(x => x.k === sit);
     pn.innerHTML = `<div class="cv-pn-hero s-${sit}">
-        <div class="cv-pn-top"><span class="cv-chip s-${sit}">${ic(sitI.ic, 'ic-sm')} ${sitI.l1}</span><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><span class="spacer"></span>
+        <div class="cv-pn-top"><span class="cv-chip s-${sit}">${ic(sitI.ic, 'ic-sm')} ${sitI.l1}</span><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.origem === 'mediador' ? '<span class="pill cvs-pill-med" title="Cadastrada sozinha pelo Mediador do MTE">Mediador</span>' : ''}<span class="spacer"></span>
           ${ro ? '' : `<button type="button" class="btn btn-sm" data-cv-editar="${escapeHtml(c.id)}">${ic('edit', 'ic-sm')} Editar</button>`}<button type="button" class="icon-btn" data-cv-fechar aria-label="Fechar">${ic('x')}</button></div>
         <div class="cv-pn-id">${cvAnel(pctVig(c), diasCentro(c), 's-' + sit, 78)}<div style="min-width:0"><h3>${escapeHtml(c.titulo)}</h3>
           <div class="cv-duo">${pr.lab.slice(0, 2).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}${pr.lab.length > 2 ? `<span class="dp-cell-sub">+${pr.lab.length - 2}</span>` : ''}${pr.pat.length ? `<em>×</em>${pr.pat.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}` : ''}</div></div></div>
@@ -5486,10 +5981,11 @@
     offerFile(`dp-convencoes-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   }
   function renderSindTab() {
-    const cad = !!state.dpConvCad;
-    $('#cv-main').hidden = cad; $('#cv-cad').hidden = !cad;
-    if (cad) { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); }
-    else renderConvencoes();
+    const aba = renderCvAba();   // Hub 350: Empresas · Convenções · Novidades · Textos · Sindicatos
+    if (aba === 'sindicatos') { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); renderCvSemCnpj(); }
+    else if (aba === 'convencoes') renderConvencoes();
+    else if (state.dpConvAbrir && cctPorId(state.dpConvAbrir)) { const a = state.dpConvAbrir; state.dpConvAbrir = ''; abrirPainelCct(a); }
+    else if (state.dpConvPainel) renderPainelCct();
   }
   function sindTabBadge() {
     const { linhas, sem } = convencoesDaCarteira();
@@ -5638,7 +6134,7 @@
   function ctLinhas() {
     const q = state.dpCtQuery;
     const lista = ctBase().filter(ctNaCarteira).filter(e => matchQ([e.nome, e.cod, e.cnpj, cnpjClean(e.cnpj), e.tributacao, ctResp(e)], q));
-    const nf = (e) => e.funcionarios.filter(funcConta).length;
+    const nf = (e) => nAtivosEmp(e);
     const k = state.dpCtSort;
     const vazio = '￿';
     const cmp = k === 'resp' ? (a, b) => ptCmp(ctResp(a) || vazio, ctResp(b) || vazio) || byNome(a, b)
@@ -5647,7 +6143,7 @@
       : byNome;
     return lista.map(e => ({ e, nf: nf(e) })).sort((a, b) => cmp(a.e, b.e));
   }
-  const nfAtivos = (es) => es.reduce((n, e) => n + e.funcionarios.filter(funcConta).length, 0);
+  const nfAtivos = (es) => es.reduce((n, e) => n + nAtivosEmp(e), 0);
   const fmtYmdBR = (s) => { const d = parseYmd(s); return d ? fmtDMY(d) : s; };
   const fmtYmdDM = (s) => { const d = parseYmd(s); return d ? fmtDM(d) : s; };
 
@@ -6239,7 +6735,8 @@
     if (s.fim || s.vez === 'cliente') return SEM_EVENTOS;
     const b = s._ev || (s._ev = ovEventosBrutos(s));
     if (!b.out.length) return SEM_EVENTOS;
-    if (b.skip && s.quem) { const f = ovFuncDe(e, s.quem, s.codEmp); if (f && b.skip(f)) return SEM_EVENTOS; }
+    // Hub 348: só deixa de repetir quando as datas do cadastro estão na Agenda (Datas e lembretes dos funcionários ligado); senão o prazo legal sumia
+    if (b.skip && s.quem && funcDatasOn()) { const f = ovFuncDe(e, s.quem, s.codEmp); if (f && b.skip(f)) return SEM_EVENTOS; }
     return b.out;
   }
   function ovEventos(from, to, ativas) {
@@ -7864,11 +8361,12 @@
   // do Gestta gravava um documento por aplicação (com a aplicação automática ligada, milhares numa manhã). Agora cada pessoa
   // escreve num documento por mês (gt_hist/h<AAAA-MM>~<pessoa>~<n>, até GT_HIST_POR_DOC itens), e gtHistCompactar junta os antigos.
   const GT_HIST_POR_DOC = 400, gtHistAtual = { chave: '', n: 0 };
+  const gtHistCache = { em: 0, p: null };   // Hub 349: a leitura do histórico para a aba Automático do Portal (30 s)
   let gtHistFila = Promise.resolve();
   function gtHist(d, auto) { const p = gtHistFila.then(() => gtHistGravar(d, auto)); gtHistFila = p.catch(() => {}); return p; }   // um de cada vez: os registros vão para o mesmo documento
   async function gtHistGravar(d, auto) {
     try {
-      const item = { em: new Date().toISOString(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', mod: d.mod, cnpj: d.k, empresa: String(d.empNome || '').slice(0, 160), campo: d.campo, acao: d.acao, antes: String(d.antes || '').slice(0, 160), depois: String(d.depois || '').slice(0, 160), auto: !!auto };
+      const item = { em: new Date().toISOString(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', mod: d.mod, cnpj: d.k, empresa: String(d.empNome || '').slice(0, 160), campo: d.campo, acao: d.acao, rot: String(d.rot || '').slice(0, 120), antes: String(d.antes || '').slice(0, 160), depois: String(d.depois || '').slice(0, 160), auto: !!auto };
       const mes = item.em.slice(0, 7), quem = String(autorId() || 'x').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12) || 'x', chave = mes + '~' + quem;
       if (gtHistAtual.chave !== chave) { gtHistAtual.chave = chave; gtHistAtual.n = 0; }
       for (let tent = 0; tent < 60; tent++) {
@@ -7876,6 +8374,7 @@
         let itens = []; try { const sn = await ref.get(); const v = sn && sn.exists !== false && sn.data ? sn.data() : null; itens = v && Array.isArray(v.itens) ? v.itens : []; } catch (e) {}
         if (itens.length >= GT_HIST_POR_DOC) { gtHistAtual.n++; continue; }
         await ref.set({ mes, por: item.por, itens: [...itens, item] });
+        gtHistCache.em = 0;
         return;
       }
     } catch (e) {}
@@ -7962,6 +8461,7 @@
       if (!ok) return null;
       const novo = { id, nome: dado.nome };
       if (state.gtMods) state.gtMods = { ...state.gtMods, func: [...state.gtMods.func, novo] };
+      gtHist({ mod: 'portal', k: '', empNome: 'Equipe do Portal', campo: 'equipe', acao: 'novo', rot: 'Incluída na equipe do Portal', antes: '', depois: dado.nome + ' · ' + (SETOR_ROT_PORTAL[setor] || setor || 'Pessoal') }, !!gtPortal.rodando);
       return novo;
     })().finally(() => setTimeout(() => gtFuncNovos.delete(k), 60000));
     gtFuncNovos.set(k, p);
@@ -8206,6 +8706,28 @@
     auto: () => ({ ...state.gtCfg.auto, ultima: gtAuto.local || state.gtCfg.auto.ultima, rodando: gtAuto.rodando }), autoPrevisao: gtAutoPrevisao, autoAgora: () => { gtAuto.feitas.clear(); return gtAutoRodar(true); },
     aoMudar: (cb) => { if (typeof cb === 'function') { gtOuvintes.push(cb); return () => { const i = gtOuvintes.indexOf(cb); if (i >= 0) gtOuvintes.splice(i, 1); }; } return () => {}; }
   };
+  // Hub 349 (Josué, 12/11/2026): a aba Automático do Portal lê o histórico do Gestta (gt_hist) e registra o que o próprio Portal
+  // faz sozinho (filiais juntadas à matriz). Só leitura do banco; o registro passa pela mesma fila do gtHist.
+  function gtHistLer(forcar) {
+    if (!db) return Promise.resolve(null);
+    if (!forcar && gtHistCache.p && Date.now() - gtHistCache.em < 30000) return gtHistCache.p;
+    gtHistCache.em = Date.now();
+    gtHistCache.p = (async () => {
+      const docs = await cadLerCol('gt_hist'), out = [];
+      docs.forEach(d => { const v = d.data || {}; if (Array.isArray(v.itens)) v.itens.forEach(x => { if (x && x.em) out.push(x); }); else if (v.acao && v.em) out.push(v); });
+      return out.sort((a, b) => String(b.em).localeCompare(String(a.em)));
+    })().catch(() => { gtHistCache.em = 0; return null; });
+    return gtHistCache.p;
+  }
+  Object.assign(window.__cadastro, {
+    mudancas: (mod, forcar) => gtHistLer(!!forcar).then(l => l ? l.filter(x => !mod || x.mod === mod).map(x => ({ ...x })) : null),
+    registrarMudanca: (d) => {
+      if (!d || d.mod !== 'portal' || !db || state.readOnly || state.semEscrita) return Promise.resolve(false);
+      return gtHist({ mod: 'portal', k: cad14(d.cnpj) || '', empNome: d.empresa || '', campo: String(d.campo || '').slice(0, 40), acao: d.acao || 'corrigir', rot: d.rot || '', antes: d.antes || '', depois: d.depois || '' }, d.auto !== false).then(() => true, () => false);
+    },
+    portalAuto: () => { try { const p = gtApi.portal(); return { ligada: p.ligada, ultima: p.ultima, rodando: p.rodando, travas: p.travas || [], pode: p.pode }; } catch (e) { return null; } },
+    abrirEntrada: () => { try { openModule('fontes'); return true; } catch (e) { return false; } }
+  });
   // ===== Fiscal e Contábil pelo Gestta (Hub 325, Rodada A, Josué 06/11/2026: "marcar sozinho, com origem") =====
   // As tarefas do Gestta (gestta-tarefas, com a Competência desde a extensão 0.86.0) viram o estado das obrigações do Fiscal e das etapas
   // do Contábil: tarefa concluída marca sozinha a obrigação/etapa vazia da competência (['c', data da conclusão, 'gestta']); marcação manual
@@ -8439,29 +8961,57 @@
   // lista de empresas em atividade de todos os setores, como antes.
   const GT_MOD_DE = { dp: 'dp', ctb: 'contabil', contabil: 'contabil', fis: 'fiscal', fiscal: 'fiscal' };
   const GT_MOD_NOME = { dp: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' };
-  const gtAtivoSetor = () => gtMemo('ativoSetor', () => {
-    if (gtManMotivo('gestta-tarefas', 'A lista de tarefas') || !gtCarregado('gestta-tarefas')) return null;
+  // Hub 345 (Josué, 11/11/2026: "acho que tem empresas constando nessa parte sem tarefa ativa no gestta. se não tem tarefa no departamento
+  // pessoal logo ela deve constar como inativa no setor não contando na cartela"): no DP (dp = true) a regra fica mais firme:
+  // - só contam as tarefas das duas competências mais recentes da lista (o mesmo corte dos analistas, Hub 332); antes valia qualquer tarefa
+  //   da lista, inclusive as de outros meses de meta (anuais) e a da competência de dois meses atrás;
+  // - tarefa de cliente inativo no Gestta não conta;
+  // - a lista vale com até 7 dias e mesmo com a busca da competência cortada (antes, com mais de 72 h ou cortada, o DP voltava à lista de
+  //   todos os setores, e empresa só com tarefa do Fiscal ou do Contábil ficava Ativa no DP). Inativa no DP é só da tela e volta sozinha.
+  const GT_DP_VALIDO_H = 7 * 24;
+  function gtTarefasDpMotivo() {
+    const m = state.gtMan['gestta-tarefas'];
+    if (!m) return 'a lista de tarefas ainda não chegou do Gestta';
+    if (!state.gtMan['gestta-empresas-ativas']) return 'a lista de empresas em atividade ainda não chegou do Gestta';      // as duas vêm juntas no envio do Gestta
+    if (Date.now() - (Number(m.recebidoEm) || 0) > GT_DP_VALIDO_H * 3600e3) return 'a lista de tarefas tem mais de 7 dias';
+    if (!gtCarregado('gestta-tarefas')) { gtLer('gestta-tarefas'); return 'carregando'; }
+    if (!gtLer('gestta-tarefas').length) return 'a lista de tarefas veio vazia';
+    return '';
+  }
+  const gtAtivoSetor = (dp) => gtMemo(dp ? 'ativoSetorDp' : 'ativoSetor', () => {
+    if (dp ? gtTarefasDpMotivo() : (gtManMotivo('gestta-tarefas', 'A lista de tarefas') || !gtCarregado('gestta-tarefas'))) return null;
     const out = {}, novo = () => ({ cnpjs: new Set(), nomes: new Set(), raizes: new Set(), nomesL: [], memo: new Map() });
-    gtLer('gestta-tarefas').forEach(t => {
+    const rows = gtLer('gestta-tarefas');
+    let compDe = null, comps = [];
+    if (dp) {
+      compDe = (t) => { const c = String(t['Competência'] || '').slice(0, 7); return /^\d{4}-\d{2}$/.test(c) ? c : String(t['Mês'] || '').slice(0, 7); };
+      comps = [...new Set(rows.map(compDe).filter(c => /^\d{4}-\d{2}$/.test(c)))].sort().reverse().slice(0, 2);
+    }
+    const todos = new Set();
+    rows.forEach(t => {
+      if (dp) { const ck = cnpjClean(t['CNPJ']); if (ck) todos.add(ck); }
       const m = gtSetorMod(t['Setor']); if (!m) return;
+      if (dp && (m !== 'dp' || (comps.length && !comps.includes(compDe(t))) || norm(t['Cliente ativo']) === 'nao')) return;
       const x = out[m] || (out[m] = novo());
       const c = cnpjClean(t['CNPJ']); if (c) { x.cnpjs.add(c); if (c.length === 14) x.raizes.add(c.slice(0, 8)); }
       const n = cadNomeKey(t['Cliente']); if (n) x.nomes.add(n);
     });
     Object.values(out).forEach(x => { x.nomesL = [...x.nomes].map(n => ' ' + n + ' '); });
+    if (dp) { if (!out.dp) out.dp = novo(); out._comps = comps; out._todos = todos; }
     return out;
   });
   // Empresa fora: sem tarefa no mês atual nem no anterior (no módulo pedido: do setor dele). Empresas do escritório não são julgadas.
   // Fica: CNPJ igual. Hub 337: a raiz do CNPJ não segura mais a filial; o nome (igual ou contido, ≥ 2 palavras) só vale quando o Gestta não
   // tem essa raiz em setor nenhum (empresa sem CNPJ no Hub, CNPJ diferente nos dois cadastros, cliente do Gestta sem CNPJ).
   function gtMotivoSemFolha(cnpj, nome, mod) {
-    const g = gtAtivo().empresas; if (!g) return '';
+    const m = GT_MOD_DE[mod] || '', psDp = m === 'dp' ? gtAtivoSetor(true) : null;
+    const g = gtAtivo().empresas || (psDp ? { cnpjs: new Set(), raizes: new Set() } : null); if (!g) return '';
     if (ehEscritorioProprio(nome)) return '';
-    const m = GT_MOD_DE[mod] || '', ps = m ? gtAtivoSetor() : null;
+    const ps = psDp || (m ? gtAtivoSetor() : null);
     const a = ps ? (ps[m] || null) : g; if (!a) return ps && Object.keys(ps).length ? 'sem tarefa do ' + GT_MOD_NOME[m] + ' no Gestta' : '';
     const k = cnpjClean(cnpj);
     if ((k.length === 14 || k.length === 11) && a.cnpjs.has(k)) return '';
-    const raizNoGestta = k.length === 14 && (g.raizes.has(k.slice(0, 8)) || !!(ps && Object.values(ps).some(x => x.raizes.has(k.slice(0, 8)))));
+    const raizNoGestta = k.length === 14 && (g.raizes.has(k.slice(0, 8)) || !!(ps && Object.values(ps).some(x => x && x.raizes && x.raizes.has(k.slice(0, 8)))));
     const n = cadNomeKey(String(nome || '').replace(/\s*\|\s*[\d-]+\s*$/, ''));
     if (n && !raizNoGestta) {
       let ok = a.memo.get(n);
@@ -8469,7 +9019,8 @@
       if (ok) return '';
     }
     const qual = ps ? ' do ' + GT_MOD_NOME[m] : '';
-    if (ps && (k.length === 14 || k.length === 11) && (g.cnpjs.has(k) || Object.values(ps).some(x => x.cnpjs.has(k)))) return 'só tem tarefa de outro setor no Gestta';
+    if (psDp && (k.length === 14 || k.length === 11) && (g.cnpjs.has(k) || psDp._todos.has(k))) return 'sem tarefa do Pessoal nas competências ' + (psDp._comps || []).join(' e ') + ' (só de outro setor ou de outro mês)';
+    if (ps && (k.length === 14 || k.length === 11) && (g.cnpjs.has(k) || Object.values(ps).some(x => x.cnpjs && x.cnpjs.has(k)))) return 'só tem tarefa de outro setor no Gestta';
     if (raizNoGestta) return 'filial sem tarefa' + qual + ' no CNPJ dela';
     return k.length === 14 ? 'CNPJ sem tarefa' + qual + ' no Gestta' : k.length === 11 ? 'CPF sem tarefa' + qual + ' no Gestta' : n ? 'sem CNPJ e o nome não está no Gestta' : 'sem CNPJ nem nome';
   }
@@ -8500,17 +9051,24 @@
   const gtAnalistasMod = (mod) => {
     const a = gtAtivo().analistas; if (!a) return null;
     const lista = a.lista.filter(x => !mod || x.mods.includes(mod)).map(x => x.nome);
-    if (mod !== 'dp' || !gtAtivo().modsPorTarefa || !state.dpEmpresas || !state.dpEmpresas.length) return lista;
-    const ficam = lista.filter(n => { const i = gtInfoAnalista(n, 'dp'); return !i || i.ativas > 0; });
-    return ficam.length ? ficam : lista;
+    if (mod !== 'dp' || !state.dpEmpresas || !state.dpEmpresas.length) return lista;
+    const ficam = !gtAtivo().modsPorTarefa ? lista : lista.filter(n => { const i = gtInfoAnalista(n, 'dp'); return !i || i.ativas > 0; });
+    // Hub 341 (Josué, 11/11/2026: "pq diabos a Hingryd está aparecendo aqui"; decidido: "sumir de tudo no DP"): no DP fica só quem é
+    // responsável por ao menos uma empresa ativa (a Cartela). Quem tem 0 sai da Cartela, do campo Responsável e dos filtros.
+    const resp = dpRespAtivos();
+    const comEmp = ficam.filter(n => resp.has(norm(n)));
+    return comEmp.length ? comEmp : (ficam.length ? ficam : lista);
   };
+  // Quantas empresas ativas no DP cada pessoa tem como responsável (o nome gravado, mesmo o escondido na tela)
+  const dpRespAtivos = () => { const m = new Map(); (state.dpEmpresas || []).forEach(e => { if (e.situacao === 'Inativa') return; const r = norm(String(e._respOculto || e.responsavel || '').trim()); if (r) m.set(r, (m.get(r) || 0) + 1); }); return m; };      // sem memória: muda a cada empresa que troca de responsável
   // O porquê de a pessoa estar na lista do módulo (Cartela e Entrada de dados)
   function gtPorqueAnalista(nome, mod) {
     const a = gtAtivo(); if (!a.analistas) return '';
     const setor = { dp: 'Pessoal', contabil: 'Contábil', fiscal: 'Fiscal' }[mod] || mod;
-    if (!a.modsPorTarefa) return 'Na lista pelo cadastro de equipe do Gestta (setor ' + setor + '): ' + String(a.motivoTarefas || 'a lista de tarefas não chegou').toLowerCase() + ', então a regra das tarefas não vale agora.';
+    const nResp = mod === 'dp' ? (dpRespAtivos().get(norm(String(nome || '').trim())) || 0) : 0, rr = mod === 'dp' ? ' Responsável por ' + nResp + ' empresa' + (nResp === 1 ? '' : 's') + ' ativa' + (nResp === 1 ? '' : 's') + ' no DP.' : '';      // Hub 341
+    if (!a.modsPorTarefa) return 'Na lista pelo cadastro de equipe do Gestta (setor ' + setor + '): ' + String(a.motivoTarefas || 'a lista de tarefas não chegou').toLowerCase() + ', então a regra das tarefas não vale agora.' + rr;
     const i = gtInfoAnalista(nome, mod); if (!i || !i.n) return 'Sem tarefa do ' + setor + ' no Gestta nas competências ' + (a.compsAnalistas || []).join(' e ') + '.';
-    return i.n + ' tarefa' + (i.n === 1 ? '' : 's') + ' do ' + setor + ' no Gestta (competências ' + (a.compsAnalistas || []).join(' e ') + ') em ' + i.emps + ' empresa' + (i.emps === 1 ? '' : 's') + (mod === 'dp' ? ', ' + i.ativas + ' ativa' + (i.ativas === 1 ? '' : 's') + ' no DP' : '') + '.';
+    return i.n + ' tarefa' + (i.n === 1 ? '' : 's') + ' do ' + setor + ' no Gestta (competências ' + (a.compsAnalistas || []).join(' e ') + ') em ' + i.emps + ' empresa' + (i.emps === 1 ? '' : 's') + (mod === 'dp' ? ', ' + i.ativas + ' ativa' + (i.ativas === 1 ? '' : 's') + ' no DP' : '') + '.' + rr;
   }
   // DP: a lista inteira fica em state.dpTodas; state.dpEmpresas é a que as telas usam (sem as empresas fora do Gestta e sem analista inativo).
   // O nome escondido volta ao gravar (dpDbStore.saveOne), para nada ser apagado sem decisão.
@@ -8522,12 +9080,14 @@
     // (o Onvio chegando depois também refiltra: ovAvisar chama gtAtivoMudou)
     const dpInativa = (e) => {
       if (e.situacao === 'Inativa') return '';
-      const mt = a.empresas ? gtMotivoFora(e.cnpj, e.nome, 'dp') : '';
+      const mt = (a.empresas || gtAtivoSetor(true)) ? gtMotivoFora(e.cnpj, e.nome, 'dp') : '';      // Hub 345
       if (mt) return mt;
       // funcionário ativo: no cadastro do DP, na lista de empregados do Onvio ou entre os sócios com folha (pró-labore conta, Hub 310), para a empresa
       // não ficar Inativa só porque a Entrada de dados ainda não levou as pessoas ao cadastro
       if ((e.funcionarios || []).some(funcConta)) return '';
       try { const ro = ovRoster(); if ((ro.porEmp.get(e.id) || []).some(x => x.ativo) || ((ro.socios || new Map()).get(e.id) || []).some(x => x.ativo)) return ''; } catch (x) { /* Onvio ainda não chegou */ }
+      // Hub 348 (2): quem está na folha mensal recente do portal de documentos também conta (senão a empresa só com pró-labore nunca recebia o cadastro novo)
+      try { const q = folhaContagemSeg(e); if (q && q.n) return ''; } catch (x) { /* folha ainda não chegou */ }
       return 'sem funcionário ativo';
     };
     return lista.map(e => {
@@ -9093,6 +9653,9 @@
   // === fim do bloco Gestta · cadastros ===
 
   function renderCartela() {
+    // Hub 342 (Josué, 11/11/2026: "retire essa sessão Onvio daqui, está sem utilidade"): sem a aba Onvio na Cartela
+    const bOv = document.querySelector('#ct-modo [data-ct-modo="onvio"]'); if (bOv) bOv.remove();
+    if (state.dpCtModo === 'onvio') state.dpCtModo = 'cartela';
     const modo = state.dpCtModo, ro = state.readOnly;
     $$('#ct-modo [data-ct-modo]').forEach(b => { const on = b.dataset.ctModo === modo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     ['cartela', 'aus', 'mov', 'onvio'].forEach(m => { $('#ct-pane-' + m).hidden = m !== modo; });
@@ -9103,9 +9666,27 @@
     $('#ct-sim-btn').setAttribute('aria-pressed', String(!!state.dpCtSim));
     $('#ct-search').classList.toggle('filtro-on', !!state.dpCtQuery);
     renderCtAlertas();
+    renderCtRegraGestta();
     renderCtSim();
     renderOvBadge();
     if (modo === 'aus') renderCtAus(); else if (modo === 'mov') renderCtMov(); else if (modo === 'onvio') renderCtOnvio(); else renderCtCartela();
+  }
+  // Hub 345: a Cartela diz se a regra "sem tarefa do Pessoal no Gestta = Inativa" está valendo, e quantas empresas ela tirou das Ativas
+  function renderCtRegraGestta() {
+    let box = $('#ct-regra');
+    const pane = $('#ct-pane-cartela'); if (!pane) return;
+    if (!box) { box = document.createElement('div'); box.id = 'ct-regra'; box.className = 'ct-regra'; pane.parentNode.insertBefore(box, pane); }
+    if (state.dpCtModo !== 'cartela' || typeof gtTarefasDpMotivo !== 'function') { box.hidden = true; return; }
+    const mot = gtTarefasDpMotivo(), ps = mot ? null : gtAtivoSetor(true);
+    const inat = (state.dpEmpresas || []).filter(e => e._sitMotivo), semTarefa = inat.filter(e => !/funcion/.test(e._sitMotivo)).length, semFunc = inat.length - semTarefa;
+    box.hidden = false;
+    const porCad = ctBase().filter(e => !folhaContagemSeg(e)).length;
+    const legFunc = ' Funcionários: pela folha mensal mais recente lida do portal de documentos' + (porCad ? '; <b>' + porCad + '</b> empresa' + (porCad === 1 ? '' : 's') + ' sem essa folha conta' + (porCad === 1 ? '' : 'm') + ' pelo cadastro (marcadas com *).' : '.');
+    if (mot === 'carregando') { box.className = 'ct-regra'; box.textContent = 'Conferindo as tarefas do Pessoal no Gestta…'; return; }
+    if (mot) { box.className = 'ct-regra aviso'; box.innerHTML = '<b>A regra das tarefas do Gestta não está valendo:</b> ' + escapeHtml(mot) + '. Até chegar uma lista nova (Entrada de dados › Atualizar o Hub), empresa sem tarefa do Pessoal continua contando como ativa' + (semFunc ? '; ' + semFunc + ' ficaram inativas por não ter funcionário ativo.' : '.') + legFunc; return; }
+    box.className = 'ct-regra';
+    box.innerHTML = 'Contam como ativas só as empresas com tarefa do <b>Pessoal</b> no Gestta nas competências ' + escapeHtml((ps && ps._comps || []).join(' e ') || 'recentes') + ' e com funcionário ativo. ' +
+      (inat.length ? '<b>' + inat.length + '</b> empresa' + (inat.length === 1 ? '' : 's') + ' fora' + (semTarefa ? ' (' + semTarefa + ' sem tarefa do Pessoal' + (semFunc ? ', ' + semFunc + ' sem funcionário' : '') + ')' : ' (sem funcionário ativo)') + '; para ver, clique em <b>Incluir inativas</b>.' : 'Nenhuma empresa ficou de fora.') + legFunc;
   }
   function ctMudancas() {
     if (!state.dpCtSim) return [];
@@ -9186,7 +9767,7 @@
         <td><button type="button" class="ct-emp" data-open-emp="${escapeHtml(e.id)}"><div class="dp-cell-main">${nomeEmpHtml(e)}</div>${e.cod ? `<div class="dp-cell-sub">cód. ${escapeHtml(e.cod)}</div>` : ''}</button>${seloOv(e, ovMapa)}${e.situacao !== 'Ativa' ? `<div class="ct-emp-pills"><span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span></div>` : ''}</td>
         <td class="dp-mono" style="font-size:12px">${escapeHtml(e.cnpj || '—')}</td>
         <td>${escapeHtml(e.tributacao || '—')}</td>
-        <td class="num">${nf}</td>
+        <td class="num" title="${escapeHtml(nAtivosFonte(e))}">${nf}${folhaContagemSeg(e) ? '' : '<span class="ct-nf-cad" aria-label="pelo cadastro">*</span>'}</td>
         <td><select data-ct-resp class="${r ? '' : 'vazio'}" aria-label="Responsável por ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${opts(r)}</select>${mudou ? `<div class="ct-antes">antes: ${escapeHtml(e.responsavel || 'sem responsável')}</div>` : ''}</td>
         <td><select data-ct-reserva aria-label="Reserva de ${escapeHtml(e.nome)}"${ro ? ' disabled' : ''}>${optsRes(e.reserva, r)}</select></td>
         <td>${hoje_}</td>
@@ -9473,7 +10054,7 @@
   // ----- exportar e imprimir -----
   function ctDadosExport(todos) {
     const lista = (todos ? ctBase() : ctLinhas().map(l => l.e)).slice().sort((a, b) => ptCmp(ctResp(a) || '￿', ctResp(b) || '￿') || byNome(a, b));
-    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: e.funcionarios.filter(funcConta).length }; });
+    return lista.map(e => { const c = coberturaDe(e); return { e, resp: ctResp(e) || 'Sem responsável', hoje: c.coberta ? c.efetivo : '', nf: nAtivosEmp(e) }; });
   }
   function ctCsv(todos) {
     const rows = [['Analista','Reserva','Hoje com (cobertura)','Empresa','Código','CNPJ/CPF','Tributação','Situação','Funcionários ativos']];
@@ -9520,7 +10101,7 @@
     const an = t.closest('[data-ct-an]');
     if (an) { state.dpCtSel.clear(); state.dpCtAn = an.dataset.ctAn || ''; renderCartela(); return; }      // Hub 338: filtra só a Cartela
     const ovs = t.closest('[data-ct-ov]');
-    if (ovs) { state.dpOvEmp = ovs.dataset.ctOv; state.dpOvVez = ''; state.dpCtModo = 'onvio'; renderCartela(); return; }
+    if (ovs) { const emp = findDpEmpresa(ovs.dataset.ctOv); if (emp) openDpDetail(emp, { tab: 'onvio' }); return; }      // Hub 342: abre a ficha na aba Onvio
     const ovz = t.closest('[data-ov-vez]');
     if (ovz) { state.dpOvVez = ovz.dataset.ovVez; renderCartela(); return; }
     if (t.closest('[data-ov-limpa-emp]')) { state.dpOvEmp = ''; renderCartela(); return; }
@@ -10262,14 +10843,14 @@
   // Só esta página tem o banco do Hub. A extensão (via um script no claude.ai) entrega aqui um lote por postMessage;
   // a página confere o código de pareamento, valida o formato e grava em ing_lotes/<fonte>~<tipo> (um documento por fonte,
   // sempre o mais recente). Cada módulo lê de lá. O Hub avisa "ola" a cada 5 s para a ponte saber que há quem receba.
-  const ING_FONTES = { onvio: ['solicitacoes'], gestta: [] };       // Hub 315 (Josué, 05/11/2026): o Gestta chega pela extensão, só em conjuntos completos (partes)
+  const ING_FONTES = { onvio: ['solicitacoes'], gestta: [], mediador: [] };       // Hub 347: o Mediador do MTE (convenções), só em partes       // Hub 315 (Josué, 05/11/2026): o Gestta chega pela extensão, só em conjuntos completos (partes)
   const ING_MAX = 150000;
   // Dados completos em partes (protocolo 2, extensão 0.52+): um MANIFESTO em ing_dados/<fonte>~<tipo> (colunas, contagens,
   // categoria, de qual "slot" ler) e as PARTES em ing_partes/<fonte>~<tipo>~<slot><n> (tabela em texto, tab entre colunas,
   // \n entre linhas). Duas posições (a/b) alternam: a nova remessa é escrita na posição livre e só depois o manifesto passa
   // a apontar para ela, então quem lê nunca vê uma remessa pela metade. Categorias: listas (sem dados pessoais), pessoais
   // (CPF, salário, nomes, textos), clientes, escritorio, documentos, noticias.
-  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas'];      // tarefas, cadastros e alertas: do Gestta (Hub 315)
+  const ING_CATS = ['listas', 'pessoais', 'clientes', 'escritorio', 'documentos', 'noticias', 'analise', 'tarefas', 'cadastros', 'alertas', 'convencoes'];      // tarefas, cadastros e alertas: do Gestta (Hub 315); convencoes: do Mediador (Hub 347)
   const ING_PARTES_MAX = 1000;   // Hub 332 (Josué, 10/11/2026: "pode deixar sem limite, bote pra ler tudo que tiver"): era 80; 1.000 partes (~140 MB) só protege de um envio sem fim
   const ing = { cfg: null, criando: false, ciclos: {} };
   const ingStr = (v, n) => String(v == null ? '' : v).slice(0, n);
@@ -10418,6 +10999,7 @@
     window.addEventListener('message', ingReceber);
     window.addEventListener('message', ingEnvioMsg);
     try { db.doc('ing_envio/atual').onSnapshot((s) => { ing.envioDb = s.exists ? s.data() : null; ingEnvioAvisar(); }, () => {}); } catch {}
+    try { db.doc('ing_envio/conferidos').onSnapshot((s) => { ing.conferidos = s.exists ? s.data() : {}; ingEnvioAvisar(); }, () => {}); } catch {}      // Hub 340
   }
   // Hub 336 (extensão 0.92.0, Josué 11/11/2026: acompanhar o envio, Onvio e Gestta juntos, iniciar pelo Hub): a extensão manda o andamento
   // do envio único (só estados, nomes de conjuntos e contagens) e responde aos pedidos (atualizar, cancelar, estado) desta janela. O
@@ -10444,11 +11026,11 @@
     const d = e.data;
     if (!d || d.ctlhub !== 1 || d.de !== 'ext' || !['progresso', 'conectado', 'pedidoAck'].includes(d.tipo)) return;
     if (e.source !== window.top && e.source !== window.parent) return;
-    if (d.tipo === 'conectado') { ing.ext = { versao: ingStr(d.versao, 20), em: Date.now() }; ingEnvioAvisar(); return; }
+    if (d.tipo === 'conectado') { ing.ext = { versao: ingStr(d.versao, 20), em: Date.now() }; ingEnvioAvisar(); medCnpjsAvisar(true); return; }
     if (d.tipo === 'pedidoAck') {
       ing.ext = { ...(ing.ext || {}), em: Date.now(), versao: ingStr((d.envio && d.envio.versao) || (ing.ext && ing.ext.versao), 20) };
       if (d.envio) { const l = ingEnvioLimpo(d.envio); if (l) ing.envio = l; }
-      const p = ingPedidos[d.id]; if (p) { clearTimeout(p.t); delete ingPedidos[d.id]; p.ok({ ok: !!d.ok, motivo: ingStr(d.motivo, 60), jaRodando: !!d.jaRodando, iniciado: !!d.iniciado }); }
+      const p = ingPedidos[d.id]; if (p) { clearTimeout(p.t); delete ingPedidos[d.id]; p.ok({ ok: !!d.ok, motivo: ingStr(d.motivo, 60), jaRodando: !!d.jaRodando, iniciado: !!d.iniciado, resp: p.cru ? d : undefined }); }
       ingEnvioAvisar(); return;
     }
     if (!ing.cfg || !d.token || d.token !== ing.cfg.token) return;
@@ -10456,20 +11038,37 @@
     const fim = ing.envio && ing.envio.estado !== l.estado && !['preparando', 'enviando'].includes(l.estado);
     ing.envio = l; ing.ext = { ...(ing.ext || {}), em: Date.now(), versao: ingStr(l.versao, 20) };
     ingEnvioGravar(fim); ingEnvioAvisar();
+    // Hub 340: no fim, o que veio enviado ou "sem mudança" fica conferido agora (a remessa só sai quando o conteúdo muda)
+    if (fim && !state.readOnly && Array.isArray(l.fontes)) {
+      const conf = { ...(ing.conferidos || {}) }, agora = Date.now(); let n = 0;
+      l.fontes.forEach(f => (f.conjuntos || []).forEach(c => { if (c && c.ok && c.id) { conf[(String(f.id) + '~' + String(c.id)).replace(/[^A-Za-z0-9_-]/g, '_')] = agora; n++; } }));
+      if (n) db.doc('ing_envio/conferidos').set(conf).catch(() => {});
+    }
   }
   // Pedido à extensão deste Chrome (pela ponte, que só aceita a janela que provou o código). Sem resposta em 4 s: não há extensão aqui.
-  function ingPedir(acao) {
+  function ingPedir(acao, alvo) {      // Hub 340: alvo = { onvio: [conjuntos], gestta: [conjuntos] } ("só o que falta")
     return new Promise((ok) => {
       const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       ingPedidos[id] = { ok, t: setTimeout(() => { delete ingPedidos[id]; ok({ ok: false, motivo: 'sem-extensao' }); }, 4000) };
       if (acao === 'atualizar') ing.pedidoPor = { id: state.meId || '', em: Date.now() };
       const msg = { ctlhub: 1, de: 'hub', tipo: 'pedido', id, acao };
+      if (acao === 'atualizar' && alvo && typeof alvo === 'object') msg.alvo = { onvio: (alvo.onvio || []).slice(0, 200).map(String), gestta: (alvo.gestta || []).slice(0, 200).map(String) };
+      try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
+    });
+  }
+  // Hub 347: pedidos do Mediador (buscar, a lista de CNPJs para a busca semanal, o texto e o anexo). Texto e anexo demoram (a extensão
+  // abre o Mediador numa aba em segundo plano), então esperam até 2 minutos; a resposta vem inteira em resp.
+  function ingPedirMed(acao, extra, ms) {
+    return new Promise((ok) => {
+      const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      ingPedidos[id] = { ok, cru: true, t: setTimeout(() => { delete ingPedidos[id]; ok({ ok: false, motivo: ms > 5000 ? 'sem-resposta' : 'sem-extensao' }); }, ms || 4000) };
+      const msg = Object.assign({ ctlhub: 1, de: 'hub', tipo: 'pedido', id, acao }, extra || {});
       try { window.top.postMessage(msg, '*'); if (window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch {}
     });
   }
   window.__hubEnvio = {
-    estado: () => ({ ext: ing.ext || null, envio: ing.envio || null, envioDb: ing.envioDb || null, podeIniciar: !state.readOnly }),
-    pedir: (acao) => ingPedir(['atualizar', 'cancelar', 'estado'].includes(acao) ? acao : 'estado'),
+    estado: () => ({ ext: ing.ext || null, envio: ing.envio || null, envioDb: ing.envioDb || null, conferidos: ing.conferidos || {}, podeIniciar: !state.readOnly }),
+    pedir: (acao, alvo) => ingPedir(['atualizar', 'cancelar', 'estado'].includes(acao) ? acao : 'estado', alvo),
     ouvir: (f) => { ingEnvioOuvintes.add(f); return () => ingEnvioOuvintes.delete(f); }
   };
 
@@ -10495,6 +11094,7 @@
     ingIniciar();
     ovIniciar();
     gtIniciar();
+    medIniciar();
     const caiu = () => toast('A conexão com os dados caiu. Recarregue a página.');
 
     db.collection('tools').onSnapshot((snap) => {
@@ -10523,12 +11123,14 @@
     cctStore = cctDb;
     db.doc('dp_config/ccts').onSnapshot((s) => {
       state.dpCcts = normalizeCcts(s.exists ? s.data().itens : []);
+      state.dpCctsOk = true; setTimeout(() => medAutoCadastrar(), 800);   // Hub 350
       refreshAll();
     }, caiu);
 
     sindStore = sindDb;
     db.doc('dp_config/sindicatos').onSnapshot((s) => {
       state.dpSind = normalizeSinds(s.exists ? s.data().itens : []);
+      setTimeout(() => medAutoCadastrar(), 800);   // Hub 350
       refreshAll();
     }, caiu);
 
