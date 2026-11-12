@@ -8070,11 +8070,12 @@
   // do Gestta gravava um documento por aplicação (com a aplicação automática ligada, milhares numa manhã). Agora cada pessoa
   // escreve num documento por mês (gt_hist/h<AAAA-MM>~<pessoa>~<n>, até GT_HIST_POR_DOC itens), e gtHistCompactar junta os antigos.
   const GT_HIST_POR_DOC = 400, gtHistAtual = { chave: '', n: 0 };
+  const gtHistCache = { em: 0, p: null };   // Hub 349: a leitura do histórico para a aba Automático do Portal (30 s)
   let gtHistFila = Promise.resolve();
   function gtHist(d, auto) { const p = gtHistFila.then(() => gtHistGravar(d, auto)); gtHistFila = p.catch(() => {}); return p; }   // um de cada vez: os registros vão para o mesmo documento
   async function gtHistGravar(d, auto) {
     try {
-      const item = { em: new Date().toISOString(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', mod: d.mod, cnpj: d.k, empresa: String(d.empNome || '').slice(0, 160), campo: d.campo, acao: d.acao, antes: String(d.antes || '').slice(0, 160), depois: String(d.depois || '').slice(0, 160), auto: !!auto };
+      const item = { em: new Date().toISOString(), por: autorId(), porNome: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '', mod: d.mod, cnpj: d.k, empresa: String(d.empNome || '').slice(0, 160), campo: d.campo, acao: d.acao, rot: String(d.rot || '').slice(0, 120), antes: String(d.antes || '').slice(0, 160), depois: String(d.depois || '').slice(0, 160), auto: !!auto };
       const mes = item.em.slice(0, 7), quem = String(autorId() || 'x').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 12) || 'x', chave = mes + '~' + quem;
       if (gtHistAtual.chave !== chave) { gtHistAtual.chave = chave; gtHistAtual.n = 0; }
       for (let tent = 0; tent < 60; tent++) {
@@ -8082,6 +8083,7 @@
         let itens = []; try { const sn = await ref.get(); const v = sn && sn.exists !== false && sn.data ? sn.data() : null; itens = v && Array.isArray(v.itens) ? v.itens : []; } catch (e) {}
         if (itens.length >= GT_HIST_POR_DOC) { gtHistAtual.n++; continue; }
         await ref.set({ mes, por: item.por, itens: [...itens, item] });
+        gtHistCache.em = 0;
         return;
       }
     } catch (e) {}
@@ -8168,6 +8170,7 @@
       if (!ok) return null;
       const novo = { id, nome: dado.nome };
       if (state.gtMods) state.gtMods = { ...state.gtMods, func: [...state.gtMods.func, novo] };
+      gtHist({ mod: 'portal', k: '', empNome: 'Equipe do Portal', campo: 'equipe', acao: 'novo', rot: 'Incluída na equipe do Portal', antes: '', depois: dado.nome + ' · ' + (SETOR_ROT_PORTAL[setor] || setor || 'Pessoal') }, !!gtPortal.rodando);
       return novo;
     })().finally(() => setTimeout(() => gtFuncNovos.delete(k), 60000));
     gtFuncNovos.set(k, p);
@@ -8412,6 +8415,28 @@
     auto: () => ({ ...state.gtCfg.auto, ultima: gtAuto.local || state.gtCfg.auto.ultima, rodando: gtAuto.rodando }), autoPrevisao: gtAutoPrevisao, autoAgora: () => { gtAuto.feitas.clear(); return gtAutoRodar(true); },
     aoMudar: (cb) => { if (typeof cb === 'function') { gtOuvintes.push(cb); return () => { const i = gtOuvintes.indexOf(cb); if (i >= 0) gtOuvintes.splice(i, 1); }; } return () => {}; }
   };
+  // Hub 349 (Josué, 12/11/2026): a aba Automático do Portal lê o histórico do Gestta (gt_hist) e registra o que o próprio Portal
+  // faz sozinho (filiais juntadas à matriz). Só leitura do banco; o registro passa pela mesma fila do gtHist.
+  function gtHistLer(forcar) {
+    if (!db) return Promise.resolve(null);
+    if (!forcar && gtHistCache.p && Date.now() - gtHistCache.em < 30000) return gtHistCache.p;
+    gtHistCache.em = Date.now();
+    gtHistCache.p = (async () => {
+      const docs = await cadLerCol('gt_hist'), out = [];
+      docs.forEach(d => { const v = d.data || {}; if (Array.isArray(v.itens)) v.itens.forEach(x => { if (x && x.em) out.push(x); }); else if (v.acao && v.em) out.push(v); });
+      return out.sort((a, b) => String(b.em).localeCompare(String(a.em)));
+    })().catch(() => { gtHistCache.em = 0; return null; });
+    return gtHistCache.p;
+  }
+  Object.assign(window.__cadastro, {
+    mudancas: (mod, forcar) => gtHistLer(!!forcar).then(l => l ? l.filter(x => !mod || x.mod === mod).map(x => ({ ...x })) : null),
+    registrarMudanca: (d) => {
+      if (!d || d.mod !== 'portal' || !db || state.readOnly || state.semEscrita) return Promise.resolve(false);
+      return gtHist({ mod: 'portal', k: cad14(d.cnpj) || '', empNome: d.empresa || '', campo: String(d.campo || '').slice(0, 40), acao: d.acao || 'corrigir', rot: d.rot || '', antes: d.antes || '', depois: d.depois || '' }, d.auto !== false).then(() => true, () => false);
+    },
+    portalAuto: () => { try { const p = gtApi.portal(); return { ligada: p.ligada, ultima: p.ultima, rodando: p.rodando, travas: p.travas || [], pode: p.pode }; } catch (e) { return null; } },
+    abrirEntrada: () => { try { openModule('fontes'); return true; } catch (e) { return false; } }
+  });
   // ===== Fiscal e Contábil pelo Gestta (Hub 325, Rodada A, Josué 06/11/2026: "marcar sozinho, com origem") =====
   // As tarefas do Gestta (gestta-tarefas, com a Competência desde a extensão 0.86.0) viram o estado das obrigações do Fiscal e das etapas
   // do Contábil: tarefa concluída marca sozinha a obrigação/etapa vazia da competência (['c', data da conclusão, 'gestta']); marcação manual

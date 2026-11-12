@@ -559,6 +559,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       autoFil.feito = chave;
       vincularVarios(gs, function(n){
         autoFil.rodando = false;
+        if(n) gs.forEach(function(g){ g.fs.forEach(function(f){ autoRegistrar({campo:"filial", acao:"corrigir", cnpj:f.cnpj, empresa:g.m.nome, rot:"Filial juntada à matriz", antes:f.nome + (f.cnpj ? " (" + f.cnpj + ")" : ""), depois:g.m.nome}); }); });
         if(n) mostrarToast(n === 1 ? "1 filial foi juntada à matriz (mesma raiz de CNPJ)." : n + " filiais foram juntadas às matrizes (mesma raiz de CNPJ).");
       });
     });
@@ -709,7 +710,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       b.classList.toggle("active", b.getAttribute("data-view")===v);
       if(b.getAttribute("data-view") === v && b.scrollIntoView && window.innerWidth <= 700) b.scrollIntoView({block:"nearest", inline:"nearest"});
     });
-    ["dashboard","progresso","foco","impedimentos","relatorios","cadastro"].forEach(function(name){
+    ["dashboard","progresso","foco","impedimentos","relatorios","cadastro","automatico"].forEach(function(name){
       $("#view-"+name).hidden = name !== v;
     });
     if(viewsSujas[v] !== false || v === "relatorios") renderView(v);
@@ -4025,7 +4026,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   }
 
   // Só a aba visível é redesenhada; as outras ficam marcadas e são redesenhadas ao serem abertas.
-  var VIEWS = ["dashboard","progresso","foco","impedimentos","relatorios","cadastro"];
+  var VIEWS = ["dashboard","progresso","foco","impedimentos","relatorios","cadastro","automatico"];
   var viewsSujas = {};
   /* ---------- gravações: "salvando…" e o que não foi salvo ---------- */
   // Toda escrita no banco passa por aqui; o que falhar (sem conexão, banco cheio…) fica guardado para tentar de novo.
@@ -4258,6 +4259,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     else if(v === "foco"){ renderFoco(); atualizarModoFoco(); }
     else if(v === "impedimentos"){ renderImpedimentos(model()); renderAuditoriaDominio(); }
     else if(v === "relatorios"){ renderRelatorios(); }
+    else if(v === "automatico"){ renderAuto(); autoCarregar(true); }
     else if(v === "cadastro"){
       renderSelectEmpresas(); renderConferir(); renderUltimoBackup();
       var temExemplo = state.empresas.some(function(x){ return x.exemplo; }) || state.setores.some(function(x){ return x.exemplo; }) || state.contatos.some(function(x){ return x.exemplo; }) || state.funcionarios.some(function(x){ return x.exemplo; });
@@ -4369,6 +4371,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   function agendarSincAgenda(){ clearTimeout(sincAgendaT); sincAgendaT = setTimeout(function(){ var antes = JSON.stringify(state.empresas.map(function(e){ return e.focoAutoSig || ""; })); sincronizarAcoesComAgenda(); if(JSON.stringify(state.empresas.map(function(e){ return e.focoAutoSig || ""; })) !== antes) renderAll(); }, 1200); }
   function renderAll(){
     agendarSincAgenda();
+    autoCarregar(false);
     if(loteRender) return;
     if(editandoData()){ renderAdiado = true; return; }
     keepFocus(function(){
@@ -7006,6 +7009,262 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   }
 
   /* ---------- relatórios: tela ---------- */
+  /* ---------- Automático (Hub 349, Josué 12/11/2026: "acompanhar tudo que é alterado sozinho pra eu ter noção e ciência") ----------
+     Lê o histórico do Gestta (gt_hist, pelo Hub) e mostra o que mudou no Portal: resumo por tipo, mudanças por dia, quem aplicou e a
+     linha do tempo (por dia ou por empresa). Nada é gravado aqui, salvo o registro das filiais juntadas sozinhas (pelo Hub). O "visto"
+     fica só neste navegador. */
+  var AUTO_VISTO_KEY = "portal-auto-visto-v1";
+  var AUTO_TIPOS = [
+    {k:"empresa", rot:"Empresas novas", um:"Empresa nova", ic:"M10 3v14M3 10h14"},
+    {k:"dem-on", rot:"Demandas ligadas", um:"Demanda ligada", ic:"M4 10.5l4 4 8-9"},
+    {k:"dem-off", rot:"Demandas desligadas", um:"Demanda desligada", ic:"M5 5l10 10M15 5L5 15"},
+    {k:"analista", rot:"Analistas definidos", um:"Analista", ic:"M10 10a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4ZM3.5 17c.8-3 3.4-4.6 6.5-4.6s5.7 1.6 6.5 4.6"},
+    {k:"email", rot:"E-mails completados", um:"E-mail", ic:"M3 5.5h14v9H3zM3.5 6l6.5 5 6.5-5"},
+    {k:"filial", rot:"Filiais juntadas", um:"Filial juntada", ic:"M4 4h5v5H4zM11 11h5v5h-5zM6.5 9v4.5H11"},
+    {k:"equipe", rot:"Equipe do Portal", um:"Equipe", ic:"M7 9a2.6 2.6 0 1 0 0-5.2A2.6 2.6 0 0 0 7 9Zm6.5 1a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4ZM2 16c.6-2.6 2.6-4 5-4s4.4 1.4 5 4M12.5 12.2c2-.4 4 .6 5 3.3"}
+  ];
+  var AUTO_TIPO = {}; AUTO_TIPOS.forEach(function(t){ AUTO_TIPO[t.k] = t; });
+  var AUTO_PERIODOS = [["1","Hoje"],["7","7 dias"],["30","30 dias"],["90","90 dias"],["tudo","Tudo"]];
+  var auto = {itens:null, erro:"", em:0, lendo:false, t:null, f:{periodo:"7", tipo:"", setor:"", q:"", dia:"", agrupar:"dia", manual:false, limite:120}};
+  function autoC(){ try{ var P = window.parent; return P && P !== window && P.__cadastro && P.__cadastro.mudancas ? P.__cadastro : null; }catch(x){ return null; } }
+  function autoVisto(){ try{ var v = localStorage.getItem(AUTO_VISTO_KEY); if(v) return v; }catch(e){} return new Date(Date.now() - 7 * 864e5).toISOString(); }
+  function autoMarcarVisto(){ try{ localStorage.setItem(AUTO_VISTO_KEY, new Date().toISOString()); }catch(e){} pintarAutoNav(); if(ui.view === "automatico") renderAuto(); }
+  function autoRegistrar(d){ var C = autoC(); if(!C || !C.registrarMudanca) return; d.mod = "portal"; d.auto = true; C.registrarMudanca(d).then(function(){ autoCarregar(true); }); }
+  function autoCarregar(forcar){
+    var C = autoC(); if(!C || auto.lendo) return;
+    if(!forcar && Date.now() - auto.em < 120000) return;
+    auto.lendo = true; auto.em = Date.now();
+    C.mudancas("portal", forcar).then(function(l){
+      auto.lendo = false;
+      if(!l){ auto.erro = "Não consegui ler o histórico agora. Tente de novo em instantes."; }
+      else { auto.erro = ""; auto.itens = l; }
+      pintarAutoNav();
+      if(ui.view === "automatico") renderAuto();
+    }, function(){ auto.lendo = false; auto.erro = "Não consegui ler o histórico agora."; if(ui.view === "automatico") renderAuto(); });
+    clearTimeout(auto.t); auto.t = setTimeout(function(){ autoCarregar(true); }, 300000);
+  }
+  // o que cada registro é, em dados de tela
+  function autoTipo(x){
+    var c = String(x.campo || "");
+    if(c === "empresa") return "empresa";
+    if(/^demanda-/.test(c)) return /com demanda/.test(x.depois || "") ? "dem-on" : "dem-off";
+    if(/^analista-/.test(c)) return "analista";
+    if(/^email-/.test(c)) return "email";
+    if(c === "filial") return "filial";
+    if(c === "equipe") return "equipe";
+    return "";
+  }
+  function autoSetor(x){ var m = /^(?:demanda|analista)-(pessoal|contabil|fiscal)$/.exec(String(x.campo || "")); if(m) return m[1];
+    if(x.campo === "empresa"){ var s = []; ["Pessoal","Contábil","Fiscal"].forEach(function(n, i){ if(new RegExp("\\b" + n + "\\b").test(x.rot || "")) s.push(["pessoal","contabil","fiscal"][i]); }); return s.join(","); }
+    if(x.campo === "equipe"){ var e = /· (Pessoal|Contábil|Fiscal)$/.exec(x.depois || ""); return e ? {Pessoal:"pessoal", "Contábil":"contabil", Fiscal:"fiscal"}[e[1]] : ""; }
+    return ""; }
+  function autoDia(iso){ var d = new Date(iso); if(isNaN(d)) return ""; return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function autoHora(iso){ var d = new Date(iso); return isNaN(d) ? "" : String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  var AUTO_SEMANA = ["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
+  function autoDiaRot(ymd){
+    var hoje = hojeISO(), d = new Date(ymd + "T12:00:00"), ontem = new Date(Date.now() - 864e5);
+    var ont = ontem.getFullYear() + "-" + String(ontem.getMonth() + 1).padStart(2, "0") + "-" + String(ontem.getDate()).padStart(2, "0");
+    var base = AUTO_SEMANA[d.getDay()] + ", " + ymd.slice(8) + "/" + ymd.slice(5, 7);
+    return ymd === hoje ? "Hoje · " + base : ymd === ont ? "Ontem · " + base : base.charAt(0).toUpperCase() + base.slice(1) + (ymd.slice(0, 4) !== hoje.slice(0, 4) ? "/" + ymd.slice(0, 4) : "");
+  }
+  function autoDesde(){ var p = auto.f.periodo; if(p === "tudo") return ""; var n = Number(p) || 7; var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (n - 1)); return d.toISOString(); }
+  function autoEmpresaDe(x){
+    var cn = String(x.cnpj || "").replace(/\D/g, ""), e = null;
+    if(x.campo === "filial"){ var nm = normBusca(x.empresa || ""); e = state.empresas.filter(function(y){ return normBusca(y.nome) === nm && !y.matrizId; })[0] || null; }
+    if(!e && cn.length === 14) e = state.empresas.filter(function(y){ return String(y.cnpj || "").replace(/\D/g, "") === cn; })[0] || null;
+    if(e && e.matrizId){ var m = state.empresas.filter(function(y){ return y.id === e.matrizId; })[0]; if(m) e = m; }
+    return e;
+  }
+  // os registros do período e dos filtros, menos o tipo (os cartões contam por tipo) e o dia (o gráfico mostra todos os dias)
+  function autoBase(){
+    var desde = autoDesde(), q = normBusca(auto.f.q || "");
+    return (auto.itens || []).filter(function(x){
+      if(!autoTipo(x)) return false;
+      if(!auto.f.manual && !x.auto) return false;
+      if(desde && String(x.em) < desde) return false;
+      if(auto.f.setor && autoSetor(x).split(",").indexOf(auto.f.setor) === -1) return false;
+      if(q && normBusca([x.empresa, x.antes, x.depois, x.rot, x.porNome, x.cnpj].join(" ")).indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+  function autoFiltrados(base){ return base.filter(function(x){ return (!auto.f.tipo || autoTipo(x) === auto.f.tipo) && (!auto.f.dia || autoDia(x.em) === auto.f.dia); }); }
+  function pintarAutoNav(){
+    var el = $("#autoNavN"); if(!el) return;
+    var visto = autoVisto(), n = (auto.itens || []).filter(function(x){ return x.auto && autoTipo(x) && String(x.em) > visto; }).length;
+    el.hidden = !n; el.textContent = n > 99 ? "99+" : String(n);
+    var b = $("#navAuto"); if(b) b.title = n ? n + (n === 1 ? " mudança automática nova" : " mudanças automáticas novas") + " desde a última vez que você marcou como visto" : "Tudo o que o Hub mudou sozinho no Portal";
+  }
+  function autoIcone(k){ var t = AUTO_TIPO[k]; return '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="' + (t ? t.ic : "M4 10h12") + '" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'; }
+  function autoSetorTag(s){ return s ? s.split(",").map(function(k){ return '<span class="au-setor au-s-' + k + '">' + esc(SETOR_LABEL[k] || k) + '</span>'; }).join("") : ""; }
+  // a frase de cada mudança
+  function autoFrase(x){
+    var t = autoTipo(x), set = autoSetor(x), sr = SETOR_LABEL[set] || "";
+    var depois = '<b>' + esc(x.depois || "") + '</b>', antes = x.antes ? '<s>' + esc(x.antes) + '</s>' : "";
+    if(t === "empresa") return "Entrou no Portal" + (/\(/.test(x.rot || "") ? " com demanda em " + esc(String(x.rot).replace(/^[^(]*\(/, "").replace(/\).*/, "")) : "") + (/filia/.test(x.rot || "") ? " · " + esc(String(x.rot).replace(/^.*· /, "")) : "");
+    if(t === "dem-on") return "Passou a ter demanda no <b>" + esc(sr) + "</b>";
+    if(t === "dem-off") return "Deixou de ter demanda no <b>" + esc(sr) + "</b> <span class=\"au-nota\">só a marca da demanda: nada foi apagado</span>";
+    if(t === "analista") return (x.antes ? "Analista do " + esc(sr) + ": " + antes + ' <span class="au-seta" aria-label="trocado por">→</span> ' + depois : "Analista do " + esc(sr) + " definido: " + depois);
+    if(t === "email") return esc(String(x.rot || "E-mail").replace(/^E-mail de /, "E-mail de ")) + " completado: " + depois;
+    if(t === "filial") return esc(x.antes || "Filial") + " foi juntada a esta matriz";
+    if(t === "equipe") return esc(x.rot || "Equipe do Portal") + ": " + (antes ? antes + ' <span class="au-seta">→</span> ' : "") + depois;
+    return esc(x.rot || "");
+  }
+  function autoQuem(x){
+    if(x.auto) return '<span class="au-quem-auto" title="Aplicado sozinho pelo Hub' + (x.porNome ? ", no navegador de " + esc(x.porNome) : "") + '"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 2.5 4.5 11H10l-1 6.5L15.5 9H10l1-6.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>sozinho</span>';
+    return '<span class="au-quem-man" title="Aplicado na Entrada de dados">por ' + esc(x.porNome || "alguém") + '</span>';
+  }
+  function autoLinha(x, visto, semEmpresa){
+    var t = autoTipo(x), e = autoEmpresaDe(x), novo = x.auto && String(x.em) > visto;
+    var emp = x.campo === "equipe" ? '<span class="au-emp au-emp-eq">Equipe do Portal</span>'
+      : e ? '<button type="button" class="au-emp" data-action="auto-empresa" data-id="' + esc(e.id) + '" title="Abrir a empresa na Consulta">' + esc(e.nome) + '</button>'
+      : '<span class="au-emp au-emp-fora" title="A empresa não está mais no Portal (ou foi arquivada)">' + esc(x.empresa || "—") + '</span>';
+    return '<li class="au-item au-t-' + t + (novo ? " au-novo" : "") + '">' +
+      '<span class="au-ic" title="' + esc(AUTO_TIPO[t] ? AUTO_TIPO[t].um : "") + '">' + autoIcone(t) + '</span>' +
+      '<div class="au-txt">' + (semEmpresa ? "" : '<div class="au-l1">' + emp + autoSetorTag(autoSetor(x)) + (novo ? '<span class="au-novo-tag">nova</span>' : "") + '</div>') +
+      '<div class="au-l2">' + autoFrase(x) + (semEmpresa ? autoSetorTag(autoSetor(x)) + (novo ? '<span class="au-novo-tag">nova</span>' : "") : "") + '</div></div>' +
+      '<div class="au-meta"><span class="mono au-hora" title="' + esc(new Date(x.em).toLocaleString("pt-BR")) + '">' + (semEmpresa ? esc(dataBR(autoDia(x.em)).slice(0, 5)) + " " : "") + esc(autoHora(x.em)) + '</span>' + autoQuem(x) + '</div></li>';
+  }
+  // barras por dia (até 31 dias) ou por semana; uma série só, sem legenda; clicar num dia filtra
+  function autoGrafico(base){
+    var el = $("#auGrafico"); if(!el) return;
+    var p = auto.f.periodo, porSemana = p === "90" || p === "tudo", baldes = [], idx = {};
+    var fim = new Date(); fim.setHours(12, 0, 0, 0);
+    var ini;
+    if(p === "tudo"){ var mais = base.length ? new Date(base[base.length - 1].em) : fim; ini = new Date(mais); ini.setHours(12, 0, 0, 0); if((fim - ini) / 864e5 < 13) ini = new Date(fim.getTime() - 13 * 864e5); }
+    else ini = new Date(fim.getTime() - ((Number(p) || 7) - 1) * 864e5);
+    if(p === "1") ini = new Date(fim.getTime() - 6 * 864e5);   // "Hoje": mostra a semana para dar contexto
+    if(porSemana){ var w = new Date(ini); w.setDate(w.getDate() - ((w.getDay() + 6) % 7)); ini = w; }
+    for(var d = new Date(ini); d <= fim; d.setDate(d.getDate() + (porSemana ? 7 : 1))){
+      var k = autoDia(d.toISOString()); idx[k] = baldes.length; baldes.push({k:k, n:0});
+      if(baldes.length > 120) break;
+    }
+    base.forEach(function(x){
+      var k = autoDia(x.em);
+      if(porSemana){ var dd = new Date(k + "T12:00:00"); dd.setDate(dd.getDate() - ((dd.getDay() + 6) % 7)); k = autoDia(dd.toISOString()); }
+      if(idx[k] !== undefined) baldes[idx[k]].n++;
+    });
+    var max = Math.max(1, Math.max.apply(null, baldes.map(function(b){ return b.n; }))), W = 640, H = 132, top = 14, bot = 22, n = baldes.length;
+    var gap = 2, bw = Math.max(3, (W - gap * (n - 1)) / n), hoje = hojeISO(), total = base.length;
+    var bars = baldes.map(function(b, i){
+      var h = b.n ? Math.max(3, (H - top - bot) * b.n / max) : 0, x = i * (bw + gap), y = H - bot - h, r = Math.min(4, bw / 2, h);
+      var sel = !porSemana && auto.f.dia === b.k, rot = (porSemana ? "Semana de " : "") + dataBR(b.k) + ": " + b.n + (b.n === 1 ? " mudança" : " mudanças");
+      var path = h ? 'M' + x + ',' + (H - bot) + 'V' + (y + r) + 'Q' + x + ',' + y + ' ' + (x + r) + ',' + y + 'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + y + ' ' + (x + bw) + ',' + (y + r) + 'V' + (H - bot) + 'Z' : "";
+      return '<g class="au-bar' + (sel ? " sel" : "") + (b.k === hoje ? " hoje" : "") + '"' + (porSemana ? "" : ' data-action="auto-dia" data-dia="' + b.k + '"') + ' tabindex="' + (porSemana || !b.n ? -1 : 0) + '" role="' + (porSemana ? "img" : "button") + '" aria-label="' + esc(rot) + '">' +
+        '<title>' + esc(rot) + '</title><rect class="au-hit" x="' + x + '" y="0" width="' + (bw + gap) + '" height="' + H + '"/>' + (path ? '<path d="' + path + '"/>' : '<rect class="au-zero" x="' + x + '" y="' + (H - bot - 1) + '" width="' + bw + '" height="1"/>') + '</g>';
+    }).join("");
+    var marcas = [0, Math.floor((n - 1) / 2), n - 1].filter(function(v, i, a){ return a.indexOf(v) === i; }).map(function(i){
+      var b = baldes[i], x = i * (bw + gap) + bw / 2, anc = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+      return '<text x="' + (i === 0 ? 0 : i === n - 1 ? W : x) + '" y="' + (H - 6) + '" text-anchor="' + anc + '">' + esc(b.k === hoje ? "hoje" : dataBR(b.k).slice(0, 5)) + '</text>';
+    }).join("");
+    el.innerHTML = '<div class="au-cab"><h3>Mudanças por ' + (porSemana ? "semana" : "dia") + '</h3><span class="au-cab-n mono">' + total + '</span></div>' +
+      '<svg class="au-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="group" aria-label="Mudanças por ' + (porSemana ? "semana" : "dia") + '">' +
+      '<line class="au-base" x1="0" x2="' + W + '" y1="' + (H - bot) + '" y2="' + (H - bot) + '"/>' + bars + '<text class="au-max" x="0" y="10">' + max + '</text>' + marcas + '</svg>' +
+      '<p class="au-dica">' + (porSemana ? "Cada barra é uma semana." : "Clique num dia para ver só as mudanças dele.") + '</p>';
+  }
+  // quem aplicou (o navegador da coordenação onde o Hub rodou) e as empresas que mais mudaram
+  function autoQuemPainel(base){
+    var el = $("#auQuem"); if(!el) return;
+    var emps = {};
+    base.forEach(function(x){ if(x.campo === "equipe") return; var e = autoEmpresaDe(x), k = e ? e.id : "x:" + (x.empresa || ""); (emps[k] = emps[k] || {e:e, nome:e ? e.nome : x.empresa, n:0}).n++; });
+    var top = Object.keys(emps).map(function(k){ return emps[k]; }).sort(function(a, b){ return b.n - a.n || COLLATOR(String(a.nome), String(b.nome)); }).slice(0, 6);
+    var max = top.length ? top[0].n : 1;
+    el.innerHTML = '<div class="au-cab"><h3>Empresas que mais mudaram</h3></div>' + (top.length ? '<ol class="au-rank">' + top.map(function(r){
+      return '<li><span class="au-rank-nome">' + (r.e ? '<button type="button" class="au-emp" data-action="auto-empresa" data-id="' + esc(r.e.id) + '">' + esc(r.nome) + '</button>' : esc(r.nome || "—")) + '</span>' +
+        '<span class="au-rank-bar"><i style="width:' + Math.max(6, Math.round(100 * r.n / max)) + '%"></i></span><span class="mono au-rank-n">' + r.n + '</span></li>';
+    }).join("") + '</ol>' : '<p class="au-vazio-p">Nenhuma empresa mudou no período.</p>');
+  }
+  function renderAuto(){
+    var topo = $("#auTopo"); if(!topo) return;
+    var C = autoC(), st = C && C.portalAuto ? C.portalAuto() : null, visto = autoVisto();
+    // situação da aplicação automática
+    var estado = !C ? '<span class="au-pill au-pill-off">Abra o Portal pelo Control Hub para ver o histórico</span>'
+      : !st ? '<span class="au-pill">Situação da aplicação automática indisponível</span>'
+      : st.rodando ? '<span class="au-pill au-pill-on"><i class="au-pulso"></i>Aplicando agora…</span>'
+      : st.ligada ? '<span class="au-pill au-pill-on"><i></i>Aplicação automática ligada</span>' : '<span class="au-pill au-pill-off"><i></i>Aplicação automática desligada: nada muda sozinho</span>';
+    var ult = st && st.ultima && st.ultima.em ? "Última rodada " + esc(new Date(st.ultima.em).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"})) + ": " + (st.ultima.n ? esc(st.ultima.resumo || (st.ultima.n + " mudança(s)")) : "nada a mudar") + (st.ultima.falhas ? " · " + st.ultima.falhas + " não gravada(s)" : "") : "";
+    var travas = st && st.travas && st.travas.length ? '<ul class="au-travas">' + st.travas.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join("") + '</ul>' : "";
+    var novos = (auto.itens || []).filter(function(x){ return x.auto && autoTipo(x) && String(x.em) > visto; }).length;
+    topo.innerHTML = '<div class="au-tit"><h2>O que mudou sozinho no Portal</h2>' +
+      '<p>O Hub aplica no Portal o que o Gestta diz: empresa nova, demanda de cada setor, analista da frente, e-mail que falta num contato e quem entra na equipe; o Portal junta sozinho as filiais à matriz. Tudo fica registrado aqui. Mudança feita à mão vale até o Gestta mudar de novo.</p>' +
+      '<div class="au-estado">' + estado + (ult ? '<span class="au-ult">' + ult + '</span>' : "") + '</div>' + travas + '</div>' +
+      '<div class="au-acoes">' + (novos ? '<button type="button" class="fbtn fbtn-pri" data-action="auto-visto">Marcar ' + novos + (novos === 1 ? " nova" : " novas") + ' como vista' + (novos === 1 ? "" : "s") + '</button>' : '<span class="au-em-dia">Você está em dia</span>') +
+      '<button type="button" class="fbtn" data-action="auto-atualizar"' + (auto.lendo ? " disabled" : "") + '>' + (auto.lendo ? "Lendo…" : "Atualizar") + '</button>' +
+      (C && C.abrirEntrada ? '<button type="button" class="linkish" data-action="auto-entrada">Configurar na Entrada de dados</button>' : "") + '</div>';
+    if(!auto.itens){
+      $("#auTipos").innerHTML = ""; $("#auGrafico").innerHTML = ""; $("#auQuem").innerHTML = ""; $("#auBarra").innerHTML = "";
+      $("#auLista").innerHTML = '<div class="au-vazio">' + esc(auto.erro || (C ? "Lendo o histórico…" : "O histórico vem do Control Hub.")) + '</div>';
+      return;
+    }
+    var base = autoBase(), lista = autoFiltrados(base);
+    // cartões por tipo (contam no período e nos filtros, sem o tipo); clicar filtra
+    var cont = {}; base.forEach(function(x){ if(!auto.f.dia || autoDia(x.em) === auto.f.dia){ var t = autoTipo(x); cont[t] = (cont[t] || 0) + 1; } });
+    $("#auTipos").innerHTML = AUTO_TIPOS.map(function(t){
+      var n = cont[t.k] || 0, on = auto.f.tipo === t.k;
+      return '<button type="button" class="au-tipo au-t-' + t.k + (on ? " on" : "") + (n ? "" : " zero") + '" data-action="auto-tipo" data-tipo="' + t.k + '" aria-pressed="' + on + '">' +
+        '<span class="au-ic">' + autoIcone(t.k) + '</span><b class="mono">' + n + '</b><span>' + esc(t.rot) + '</span></button>';
+    }).join("");
+    autoGrafico(base); autoQuemPainel(base);
+    // barra: período, setor, busca, agrupar, incluir as aplicadas à mão
+    var chips = [];
+    if(auto.f.tipo) chips.push('<button type="button" class="au-chip" data-action="auto-limpa" data-campo="tipo">' + esc(AUTO_TIPO[auto.f.tipo].rot) + ' ×</button>');
+    if(auto.f.dia) chips.push('<button type="button" class="au-chip" data-action="auto-limpa" data-campo="dia">' + esc(autoDiaRot(auto.f.dia)) + ' ×</button>');
+    $("#auBarra").innerHTML = '<div class="au-seg" role="group" aria-label="Período">' + AUTO_PERIODOS.map(function(p){ return '<button type="button" data-action="auto-periodo" data-p="' + p[0] + '" class="' + (auto.f.periodo === p[0] ? "on" : "") + '" aria-pressed="' + (auto.f.periodo === p[0]) + '">' + p[1] + '</button>'; }).join("") + '</div>' +
+      '<div class="au-seg" role="group" aria-label="Setor"><button type="button" data-action="auto-setor" data-s="" class="' + (!auto.f.setor ? "on" : "") + '">Todos</button>' + SETORES.map(function(s){ return '<button type="button" data-action="auto-setor" data-s="' + s.key + '" class="' + (auto.f.setor === s.key ? "on" : "") + '">' + esc(s.label) + '</button>'; }).join("") + '</div>' +
+      '<input type="search" id="auBusca" class="search-mini" placeholder="Buscar empresa, analista, e-mail…" value="' + esc(auto.f.q) + '" aria-label="Buscar nas mudanças">' +
+      '<div class="au-seg" role="group" aria-label="Agrupar"><button type="button" data-action="auto-agrupar" data-g="dia" class="' + (auto.f.agrupar === "dia" ? "on" : "") + '">Por dia</button><button type="button" data-action="auto-agrupar" data-g="empresa" class="' + (auto.f.agrupar === "empresa" ? "on" : "") + '">Por empresa</button></div>' +
+      '<label class="au-check"><input type="checkbox" id="auManual"' + (auto.f.manual ? " checked" : "") + '> Incluir as aplicadas à mão</label>' +
+      (chips.length ? '<div class="au-chips">' + chips.join("") + '</div>' : "") +
+      '<span class="result-count au-conta">' + lista.length + (lista.length === 1 ? " mudança" : " mudanças") + '</span>';
+    // a lista
+    var el = $("#auLista");
+    if(!lista.length){
+      var algum = (auto.itens || []).some(function(x){ return autoTipo(x) && x.auto; });
+      el.innerHTML = '<div class="au-vazio"><b>' + (algum ? "Nada mudou sozinho com estes filtros." : "Ainda não há mudanças automáticas registradas.") + '</b><span>' + (algum ? "Tente um período maior ou tire os filtros." : "Quando o Gestta mudar algo no Portal, aparece aqui.") + '</span></div>';
+      return;
+    }
+    var mostra = lista.slice(0, auto.f.limite), html = "";
+    if(auto.f.agrupar === "empresa"){
+      var grupos = {}, ordem = [];
+      mostra.forEach(function(x){ var e = autoEmpresaDe(x), k = x.campo === "equipe" ? "~equipe" : e ? e.id : "x:" + (x.empresa || ""); if(!grupos[k]){ grupos[k] = {e:e, nome:x.campo === "equipe" ? "Equipe do Portal" : e ? e.nome : (x.empresa || "—"), itens:[]}; ordem.push(k); } grupos[k].itens.push(x); });
+      ordem.sort(function(a, b){ return grupos[b].itens.length - grupos[a].itens.length || COLLATOR(grupos[a].nome, grupos[b].nome); });
+      html = ordem.map(function(k){ var g = grupos[k], novos = g.itens.filter(function(x){ return x.auto && String(x.em) > visto; }).length;
+        return '<section class="au-grupo"><h4>' + (g.e ? '<button type="button" class="au-emp" data-action="auto-empresa" data-id="' + esc(g.e.id) + '">' + esc(g.nome) + '</button>' : esc(g.nome)) +
+          '<span class="au-g-n mono">' + g.itens.length + '</span>' + (novos ? '<span class="au-novo-tag">' + novos + (novos === 1 ? " nova" : " novas") + '</span>' : "") + '</h4><ol class="au-itens">' + g.itens.map(function(x){ return autoLinha(x, visto, true); }).join("") + '</ol></section>'; }).join("");
+    } else {
+      var dias = {}, od = [];
+      mostra.forEach(function(x){ var k = autoDia(x.em); if(!dias[k]){ dias[k] = []; od.push(k); } dias[k].push(x); });
+      html = od.map(function(k){ return '<section class="au-grupo"><h4><span>' + esc(autoDiaRot(k)) + '</span><span class="au-g-n mono">' + dias[k].length + '</span></h4><ol class="au-itens">' + dias[k].map(function(x){ return autoLinha(x, visto, false); }).join("") + '</ol></section>'; }).join("");
+    }
+    if(lista.length > mostra.length) html += '<div class="au-mais"><button type="button" class="fbtn" data-action="auto-mais">Mostrar mais ' + Math.min(120, lista.length - mostra.length) + ' de ' + (lista.length - mostra.length) + '</button></div>';
+    el.innerHTML = html;
+  }
+  document.addEventListener("click", function(ev){
+    var b = ev.target.closest && ev.target.closest("[data-action^='auto-']"); if(!b || !b.closest("#view-automatico")) return;
+    var a = b.getAttribute("data-action"), f = auto.f;
+    if(a === "auto-empresa"){ irParaEmpresa(b.getAttribute("data-id")); return; }
+    if(a === "auto-visto"){ autoMarcarVisto(); return; }
+    if(a === "auto-atualizar"){ autoCarregar(true); renderAuto(); return; }
+    if(a === "auto-entrada"){ var C = autoC(); if(C && C.abrirEntrada) C.abrirEntrada(); return; }
+    if(a === "auto-tipo"){ var t = b.getAttribute("data-tipo"); f.tipo = f.tipo === t ? "" : t; }
+    else if(a === "auto-dia"){ var d = b.getAttribute("data-dia"); f.dia = f.dia === d ? "" : d; }
+    else if(a === "auto-periodo"){ f.periodo = b.getAttribute("data-p"); f.dia = ""; }
+    else if(a === "auto-setor"){ f.setor = b.getAttribute("data-s"); }
+    else if(a === "auto-agrupar"){ f.agrupar = b.getAttribute("data-g"); }
+    else if(a === "auto-limpa"){ f[b.getAttribute("data-campo")] = ""; }
+    else if(a === "auto-mais"){ f.limite += 120; }
+    if(a !== "auto-mais") f.limite = 120;
+    renderAuto();
+  });
+  document.addEventListener("keydown", function(ev){
+    var g = ev.target && ev.target.closest && ev.target.closest("#auGrafico [data-action='auto-dia']");
+    if(g && (ev.key === "Enter" || ev.key === " ")){ ev.preventDefault(); g.dispatchEvent(new MouseEvent("click", {bubbles:true})); }
+  });
+  var autoBuscaT = null;
+  document.addEventListener("input", function(ev){
+    if(ev.target && ev.target.id === "auBusca"){ clearTimeout(autoBuscaT); var v = ev.target.value; autoBuscaT = setTimeout(function(){ auto.f.q = v; auto.f.limite = 120; keepFocus(renderAuto); }, 200); }
+  });
+  document.addEventListener("change", function(ev){ if(ev.target && ev.target.id === "auManual"){ auto.f.manual = ev.target.checked; auto.f.limite = 120; renderAuto(); } });
+
   function renderRelatorios(){
     if(ui.view !== "relatorios") return;
     var r = ui.rel;
@@ -7911,7 +8170,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   /* ---------- ponte com o assistente do Hub ---------- */
   window.__assistente = {
     modulo: "portal", nome: "Portal do Cliente",
-    abas: [["dashboard", "Hoje"], ["progresso", "Consulta"], ["foco", "Foco"], ["impedimentos", "Impedimentos"], ["relatorios", "Relatórios"], ["cadastro", "Cadastro"]],
+    abas: [["dashboard", "Hoje"], ["progresso", "Consulta"], ["foco", "Foco"], ["impedimentos", "Impedimentos"], ["relatorios", "Relatórios"], ["cadastro", "Cadastro"], ["automatico", "Automático"]],
     pronto: function(){ return !carregando(); },
     exemplo: function(){ return false; },
     empresas: function(){ return state.empresas.filter(function(e){ return e.ativo !== false; }).map(function(e){
@@ -7919,7 +8178,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       return {id:e.id, nome:e.nome, cnpj:String(e.cnpj || "").replace(/\D/g, ""), analista:d ? d.analistaNome : ""};
     }); },
     analistas: function(){ var m = {}; state.setores.forEach(function(s){ if(s.analistaNome) m[s.analistaNome] = true; }); return Object.keys(m).sort(); },
-    irPara: function(v){ if(["dashboard","progresso","foco","impedimentos","relatorios","cadastro"].indexOf(v) === -1) return false; setView(v); return true; },
+    irPara: function(v){ if(["dashboard","progresso","foco","impedimentos","relatorios","cadastro","automatico"].indexOf(v) === -1) return false; setView(v); return true; },
     abrirEmpresa: function(){ setView("progresso"); return true; },
     consultar: function(tipo, p){
       p = p || {};

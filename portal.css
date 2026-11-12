@@ -1377,3 +1377,138 @@ button.cad-chip.on{cursor:pointer;} button.cad-chip.on:hover{background:var(--bl
 .gt-copiar:hover{color:var(--ink); border-color:var(--blue-deep)}
 .gt-copiar:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px}
 .gt-fora{display:inline-block; margin-left:6px; font-size:11.5px; font-weight:600; color:var(--ink-2); border:1px solid var(--rule-strong); border-radius:3px; padding:0 6px}
+
+  /* ============ AUTOMÁTICO (Hub 349): o que mudou sozinho no Portal ============ */
+  .navtabs .nav-n{display:inline-block; min-width:18px; margin-left:6px; padding:1px 6px; border-radius:9px; background:var(--brand-red); color:#fff; font:600 11.5px/1.45 "IBM Plex Sans",sans-serif; text-align:center; vertical-align:1px;}
+  #view-automatico{display:flex; flex-direction:column; gap:16px;}
+  #view-automatico[hidden]{display:none!important;}
+  .au-topo{display:flex; justify-content:space-between; align-items:flex-start; gap:14px 24px; flex-wrap:wrap;}
+  .au-tit{flex:1 1 520px; min-width:0;}
+  .au-tit h2{font-size:24px; font-weight:700; line-height:1.2;}
+  .au-tit p{margin:6px 0 0; max-width:78ch; color:var(--ink-2); font-size:13.5px;}
+  .au-estado{display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; margin-top:10px;}
+  .au-pill{display:inline-flex; align-items:center; gap:7px; padding:4px 10px; border-radius:var(--r); border:1px solid var(--rule-strong); background:var(--surface); color:var(--ink-2); font-size:12.5px; font-weight:600;}
+  .au-pill i{width:8px; height:8px; border-radius:50%; background:var(--neutral-mark); display:block;}
+  .au-pill-on{border-color:var(--status-green); color:var(--ink);}
+  .au-pill-on i{background:var(--status-green);}
+  .au-pill-off{border-color:var(--brand-red); color:var(--ink);}
+  .au-pill-off i{background:var(--brand-red);}
+  .au-pulso{animation:au-pulso 1.2s ease-in-out infinite;}
+  @keyframes au-pulso{50%{transform:scale(1.6); opacity:.5;}}
+  @media (prefers-reduced-motion: reduce){ .au-pulso{animation:none;} }
+  .au-ult{font-size:12.5px; color:var(--ink-2);}
+  .au-travas{margin:8px 0 0; padding:8px 12px 8px 28px; border:1px solid var(--rule-strong); border-left:3px solid var(--brand-red); border-radius:var(--r); background:var(--surface); color:var(--ink-2); font-size:12.5px;}
+  .au-travas li + li{margin-top:3px;}
+  .au-acoes{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .au-em-dia{font-size:12.5px; font-weight:600; color:var(--ink-2); padding:6px 2px;}
+
+  .au-tipos{display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:10px;}
+  .au-tipo{display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:10px; align-items:center; text-align:left; padding:11px 12px; border:1px solid var(--rule); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow-1); cursor:pointer; transition:transform .12s, box-shadow .12s, border-color .12s;}
+  .au-tipo:hover{transform:translateY(-1px); box-shadow:var(--shadow-2); border-color:var(--rule-strong);}
+  .au-tipo:focus-visible{outline:2px solid var(--blue-deep); outline-offset:1px;}
+  .au-tipo .au-ic{grid-row:1 / span 2;}
+  .au-tipo b{font-size:22px; font-weight:600; line-height:1.1; color:var(--ink);}
+  .au-tipo > span:last-child{font-size:12px; font-weight:600; color:var(--ink-2); line-height:1.25;}
+  .au-tipo.zero b{color:var(--ink-2);}
+  .au-tipo.on{border-color:var(--blue-deep); box-shadow:0 0 0 1px var(--blue-deep), var(--shadow-1);}
+  .au-ic{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:var(--r); background:var(--surface-3); color:var(--blue-deep); flex:none;}
+  .au-ic svg{width:18px; height:18px;}
+  .au-t-dem-on .au-ic{color:var(--status-green);}
+  .au-t-dem-off .au-ic{color:var(--brand-red);}
+  .au-t-filial .au-ic, .au-t-equipe .au-ic{color:var(--ink-2);}
+
+  .au-grade{display:grid; grid-template-columns:minmax(0, 1.7fr) minmax(0, 1fr); gap:16px;}
+  .au-grafico, .au-quem{padding:14px 16px 12px;}
+  .au-cab{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:8px;}
+  .au-cab h3{font-size:14px; font-weight:700;}
+  .au-cab-n{font-size:13px; color:var(--ink-2);}
+  .au-svg{display:block; width:100%; height:132px; overflow:visible;}
+  .au-svg text{font:500 11.5px "IBM Plex Sans",sans-serif; fill:var(--ink-2);}
+  .au-svg .au-max{fill:var(--ink-2); font-family:"IBM Plex Mono",monospace;}
+  .au-base{stroke:var(--rule-strong); stroke-width:1;}
+  .au-bar path{fill:var(--blue-mid); transition:fill .12s;}
+  .au-bar.hoje path{fill:var(--blue-deep);}
+  .au-bar .au-hit{fill:transparent;}
+  .au-bar .au-zero{fill:var(--rule-strong);}
+  .au-bar[data-action]{cursor:pointer;}
+  .au-bar[data-action]:hover path, .au-bar:focus-visible path{fill:var(--blue-deep);}
+  .au-bar.sel path{fill:var(--brand-red);}
+  .au-bar:focus{outline:none;}
+  .au-bar:focus-visible .au-hit{stroke:var(--blue-deep); stroke-width:1.5;}
+  .au-dica{margin:6px 0 0; font-size:12px; color:var(--ink-2);}
+  .au-rank{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px;}
+  .au-rank li{display:grid; grid-template-columns:minmax(0, 1.4fr) minmax(40px, 1fr) auto; align-items:center; gap:10px;}
+  .au-rank-nome{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;}
+  .au-rank-bar{height:8px; background:var(--track); border-radius:var(--r); overflow:hidden;}
+  .au-rank-bar i{display:block; height:100%; background:var(--blue-mid); border-radius:var(--r);}
+  .au-rank-n{font-size:12.5px; color:var(--ink-2); min-width:2ch; text-align:right;}
+  .au-vazio-p{margin:4px 0 0; font-size:13px; color:var(--ink-2);}
+
+  .au-lista-wrap{padding:0;}
+  .au-barra{display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px; padding:12px 16px; border-bottom:1px solid var(--rule); position:sticky; top:0; z-index:2; background:var(--surface); border-radius:var(--r) var(--r) 0 0;}
+  .au-seg{display:inline-flex; border:1px solid var(--rule-strong); border-radius:var(--r); overflow:hidden; background:var(--surface);}
+  .au-seg button{border:0; border-left:1px solid var(--rule); background:none; padding:6px 10px; font-size:12px; font-weight:600; color:var(--ink-2); cursor:pointer;}
+  .au-seg button:first-child{border-left:0;}
+  .au-seg button:hover{color:var(--ink); background:var(--surface-2);}
+  .au-seg button.on{background:var(--ink); color:var(--surface);}
+  .au-seg button:focus-visible{outline:2px solid var(--blue-deep); outline-offset:-2px;}
+  #auBusca{min-width:200px; flex:1 1 200px; max-width:320px;}
+  .au-check{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2); cursor:pointer;}
+  .au-chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .au-chip{border:1px solid var(--blue-deep); background:var(--blue-pale); color:var(--ink); border-radius:var(--r); padding:3px 8px; font-size:12px; font-weight:600; cursor:pointer;}
+  .au-conta{margin-left:auto; font-size:12.5px; color:var(--ink-2);}
+
+  .au-lista{padding:4px 16px 14px;}
+  .au-grupo + .au-grupo{border-top:1px solid var(--rule);}
+  .au-grupo h4{display:flex; align-items:center; gap:10px; margin:14px 0 6px; font-size:13px; font-weight:700; color:var(--ink);}
+  .au-g-n{font-size:12px; font-weight:500; color:var(--ink-2); padding:1px 7px; border-radius:var(--r); background:var(--surface-3);}
+  .au-itens{list-style:none; margin:0; padding:0;}
+  .au-item{display:grid; grid-template-columns:auto minmax(0, 1fr) auto; gap:12px; align-items:start; padding:9px 8px; border-radius:var(--r); position:relative;}
+  .au-item + .au-item{border-top:1px dashed var(--rule);}
+  .au-item:hover{background:var(--surface-2);}
+  .au-item.au-novo{background:linear-gradient(90deg, var(--blue-pale), transparent 60%);}
+  .au-item.au-novo::before{content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:2px; background:var(--blue-deep);}
+  .au-item .au-ic{width:28px; height:28px;}
+  .au-item .au-ic svg{width:16px; height:16px;}
+  .au-txt{min-width:0;}
+  .au-l1{display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; margin-bottom:2px;}
+  .au-l2{font-size:13px; color:var(--ink-2); line-height:1.45;}
+  .au-l2 b{color:var(--ink);}
+  .au-l2 s{color:var(--ink-2); text-decoration-thickness:1px;}
+  .au-l2 .au-setor{margin-left:6px;}
+  .au-seta{color:var(--ink-2); margin:0 2px;}
+  .au-nota{display:inline-block; margin-left:6px; font-size:12px; color:var(--ink-2);}
+  .au-emp{border:0; background:none; padding:0; font:600 13.5px "IBM Plex Sans",sans-serif; color:var(--ink); cursor:pointer; text-align:left; text-decoration:underline; text-decoration-color:var(--rule-strong); text-underline-offset:3px;}
+  .au-emp:hover{color:var(--blue-deep); text-decoration-color:currentColor;}
+  span.au-emp{cursor:default; text-decoration:none;}
+  .au-emp-fora{color:var(--ink-2);}
+  .au-emp-eq{color:var(--ink-2);}
+  .au-setor{display:inline-block; padding:0 6px; border-radius:2px; border:1px solid currentColor; font-size:11.5px; font-weight:600; line-height:1.5;}
+  .au-s-pessoal{color:var(--sector-pessoal);} .au-s-contabil{color:var(--sector-contabil);} .au-s-fiscal{color:var(--sector-fiscal);}
+  .au-novo-tag{display:inline-block; padding:0 6px; border-radius:2px; background:var(--blue-deep); color:var(--surface); font-size:11.5px; font-weight:600; line-height:1.55;}
+  .au-meta{display:flex; flex-direction:column; align-items:flex-end; gap:3px; white-space:nowrap;}
+  .au-hora{font-size:12.5px; color:var(--ink-2);}
+  .au-quem-auto, .au-quem-man{display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; color:var(--ink-2);}
+  .au-quem-auto svg{width:13px; height:13px; color:var(--blue-deep);}
+  .au-vazio{display:flex; flex-direction:column; gap:4px; align-items:center; text-align:center; padding:36px 16px; color:var(--ink-2); font-size:13px;}
+  .au-vazio b{font-size:14px; color:var(--ink);}
+  .au-mais{display:flex; justify-content:center; padding:12px 0 2px;}
+
+  @media (max-width: 1100px){ .au-tipos{grid-template-columns:repeat(4, minmax(0, 1fr));} }
+  @media (max-width: 860px){ .au-grade{grid-template-columns:1fr;} }
+  @media (max-width: 640px){
+    .au-tipos{grid-template-columns:repeat(2, minmax(0, 1fr));}
+    .au-tit h2{font-size:20px;}
+    .au-item{grid-template-columns:auto minmax(0, 1fr);}
+    .au-meta{grid-column:2; flex-direction:row; align-items:center; gap:10px;}
+    .au-conta{margin-left:0;}
+    #auBusca{max-width:none;}
+  }
+  /* a aba nova não pode empurrar as outras para fora da barra escura: numa linha só, a busca encolhe e, se faltar lugar, as abas rolam */
+  @media (min-width:1080px){
+    .navtabs{flex-wrap:nowrap; min-width:0; overflow-x:auto; scrollbar-width:none;}
+    .navtabs::-webkit-scrollbar{display:none;}
+    .navtabs button{flex:none; white-space:nowrap; margin-right:18px;}
+    .mh-search{flex:none;}
+    .mh-search input{width:clamp(150px, 15vw, 230px);}
+  }

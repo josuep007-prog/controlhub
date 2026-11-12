@@ -36,6 +36,7 @@
         <button data-view="impedimentos">Impedimentos</button>
         <button data-view="relatorios">Relatórios</button>
         <button data-view="cadastro">Cadastro</button>
+        <button data-view="automatico" id="navAuto" title="Tudo o que o Hub mudou sozinho no Portal">Automático<span class="nav-n" id="autoNavN" hidden></span></button>
       </nav>
       <div class="mh-search" id="mhSearch">
         <button type="button" class="theme-btn mh-lupa" id="btnBuscaMobile" aria-label="Buscar" aria-expanded="false"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="m13.5 13.5 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
@@ -457,6 +458,20 @@
     </section>
 
     <!-- ================= CADASTRO ================= -->
+    <!-- ================= AUTOMÁTICO (Hub 349) ================= -->
+    <section class="view" id="view-automatico" hidden>
+      <div class="au-topo" id="auTopo"></div>
+      <div class="au-tipos" id="auTipos" role="group" aria-label="Filtrar por tipo de mudança"></div>
+      <div class="au-grade">
+        <div class="panel au-grafico" id="auGrafico"></div>
+        <div class="panel au-quem" id="auQuem"></div>
+      </div>
+      <div class="panel au-lista-wrap">
+        <div class="au-barra" id="auBarra"></div>
+        <div class="au-lista" id="auLista" aria-live="polite"></div>
+      </div>
+    </section>
+
     <section class="view" id="view-cadastro" hidden>
 
       <div id="secConferir">
