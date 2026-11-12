@@ -345,6 +345,8 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     // (nada é apagado; volta sozinha), e analista fora da equipe ativa do Gestta sai das frentes (só na tela; o que está gravado não muda).
     var C = cadC(), fora = {};
     if(C && C.ativa) emps.forEach(function(e){ try{ if(!C.ativa("portal", e.id, e.cadId || e.cnpj, e.nomeBanco || e.nome)) fora[e.id] = 1; }catch(x){} });
+    // Hub 353: a matriz vale pelo grupo: se alguma filial ligada a ela tem tarefa no Gestta, a matriz fica (com as filiais dentro)
+    Object.keys(filiaisDe).forEach(function(mid){ if(fora[mid] && filiaisDe[mid].some(function(f){ return !fora[f.id]; })) delete fora[mid]; });
     state.empresas = emps.filter(function(e){ return !matrizDe[e.id] && !fora[e.id]; });
     if(bruto.setores) state.setores = bruto.setores.filter(function(s){ return !matrizDe[s.empresaId] && !fora[s.empresaId]; }).map(function(s){ return analistaAtivoPortal(s.analistaNome) ? s : Object.assign({}, s, {analistaId:"", analistaNome:"", analistaForaGestta:s.analistaNome}); });
     if(bruto.contatos) state.contatos = bruto.contatos.filter(function(c){ return !matrizDe[c.empresaId] && !fora[c.empresaId]; });
@@ -534,7 +536,8 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   // Hub 335 (Josué, 10/11/2026: "o módulo do Portal conta filiais e matriz como uma coisa só, com o nome da matriz"): as filiais soltas
   // com a mesma raiz de CNPJ de uma matriz (0001) são juntadas a ela sozinhas, como no "Vincular todos" (contatos, frentes e etapas passam
   // para a matriz). Só a coordenação, um navegador por vez (ing_auto/portalfil), nunca a filial que alguém desvinculou de propósito
-  // (desvinculadaEm) nem um grupo de matriz arquivada. O Hub (Gestta) já não cadastra filial à parte.
+  // (desvinculadaEm). Hub 353 (Josué, 12/11/2026): matriz arquivada também recebe as filiais soltas e o grupo continua arquivado; a demanda
+  // de uma filial vale para o grupo todo (vincularGrupo junta a demanda e o progresso). O Hub (Gestta) já não cadastra filial à parte.
   var autoFil = {feito:"", rodando:false, t:null};
   function agendarFiliais(){ clearTimeout(autoFil.t); autoFil.t = setTimeout(ligarFiliaisSozinho, 3000); }
   function vezFiliais(){
@@ -549,7 +552,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     if(autoFil.rodando || !dbRef || !(chegouDoBanco.empresas && chegouDoBanco.setores && chegouDoBanco.contatos)) return;
     var A = authP(); if(!A || !A.nivel || A.nivel("portal") !== "coord") return;
     var gs = gruposSugeridos().map(function(g){ return {m:g.m, fs:g.fs.filter(function(f){ return !f.desvinculadaEm; })}; })
-      .filter(function(g){ return g.fs.length && !g.m.arquivada; });
+      .filter(function(g){ return g.fs.length; });   // Hub 353: a matriz arquivada também recebe as filiais (o grupo fica arquivado)
     if(!gs.length) return;
     var chave = gs.map(function(g){ return g.m.id + ":" + g.fs.map(function(f){ return f.id; }).join(","); }).join("|");
     if(chave === autoFil.feito) return;
@@ -566,8 +569,9 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   }
   // Grupos que parecem matriz + filiais pela raiz do CNPJ (só sugestão: o vínculo é sempre confirmado).
   function gruposSugeridos(){
-    var porRaiz = {};
-    state.empresas.forEach(function(e){ var r = raizCnpj(e.cnpj); if(r) (porRaiz[r] = porRaiz[r] || []).push(e); });
+    // Hub 353: olha todas as empresas do banco (também a matriz escondida por não ter tarefa própria no Gestta), menos as que já são filial
+    var porRaiz = {}, todas = (bruto.empresas || state.empresas).filter(function(e){ return !grupos.matrizDe[e.id]; });
+    todas.forEach(function(e){ var r = raizCnpj(e.cnpj); if(r) (porRaiz[r] = porRaiz[r] || []).push(e); });
     var out = [];
     Object.keys(porRaiz).forEach(function(r){
       var es = porRaiz[r];

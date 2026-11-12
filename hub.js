@@ -1195,7 +1195,7 @@
       });
     });
     // Sindicatos: fim da vigência da CCT e mês da contribuição assistencial (um evento por sindicato, com as empresas dele).
-    state.dpSind.forEach(s => {
+    if (false) state.dpSind.forEach(s => {   // Hub 352: sindicato não é mais acompanhado (a agenda segue pelas convenções)
       const emps = ativas.filter(e => empresaSinds(e).includes(s));
       if (!emps.length) return;
       const fim = parseYmd(s.vigFim);
@@ -1312,7 +1312,7 @@
     { v:'resp', l:'Sem responsável', test: e => !e.responsavel },
     { v:'trib', l:'Sem tributação', test: e => !e.tributacao },
     { v:'database', l:'Sem data-base', test: e => !basesEmpresa(e).length },
-    { v:'sind', l:'Sem sindicato vinculado', test: e => state.dpSind.length > 0 && !empresaSinds(e).length },
+    { v:'sind', l:'Sem convenção vinculada', test: e => !empresaCcts(e).length },
     { v:'fech', l:'Sem procedimento de fechamento', test: e => !e.fechamento },
   ];
 
@@ -1536,7 +1536,7 @@
       if (view === 'cartela') state.dpCtModo = 'cartela';      // Hub 342: a aba Onvio saiu da Cartela
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
       if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }   // Hub 350: abre o painel em qualquer aba
-      else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
+      else if (view === 'sindicatos' && a) { state.dpConvCad = false; state.dpConvAba = 'acomp'; }   // Hub 352
       openDpModule(view);
       return;
     }
@@ -2050,8 +2050,7 @@
     const v = empresaCcts(e)[0];
     const bases = basesEmpresa(e);
     if (v) return { txt: `${tituloCurto(v.cct)}${v.cct.dataBase || bases[0] ? ' · data-base ' + (v.cct.dataBase || bases[0]).toLowerCase() : ''}`, ok: true };
-    if (ss.length) return { txt: `${rotuloSind(ss[0])} · sem convenção cadastrada`, ok: false };
-    return { txt: bases.length ? `Sem sindicato · data-base ${bases.join(', ').toLowerCase()}` : 'Sem sindicato vinculado', ok: false };
+    return { txt: bases.length ? `Sem convenção · data-base ${bases.join(', ').toLowerCase()}` : 'Sem convenção vinculada', ok: false };
   }
   function empCardHtml(e, k = 0) {
     const falhas = GAPS.filter(g => g.test(e));
@@ -2063,12 +2062,12 @@
     // anel em volta do responsável: quanto do cadastro está preenchido
     const av = `<span class="emp-anel" style="--p:${pct};--c:${pct === 100 ? 'var(--dp-ok)' : pct < 60 ? 'var(--dp-late)' : 'var(--dp-today)'}">${av0}</span>`;
     // No cartão: só o sindicato (sem data-base nem convenção) e a tributação.
-    const ss = empresaSinds(e).filter(x => !ehSemSind(x)), cct = empresaCcts(e)[0];
-    const sind = ss.length ? rotuloSind(ss[0]) + (ss.length > 1 ? ` +${ss.length - 1}` : '') : cct ? tituloCurto(cct.cct) : '';
+    const ss = [], cct = empresaCcts(e)[0];   // Hub 352: o cartão mostra a convenção acompanhada, não o sindicato
+    const sind = cct ? tituloCurto(cct.cct) : '';
     return `<div class="emp-card${ativa(e) ? '' : ' inativa'}" role="button" tabindex="0" style="--k:${k}" data-open-emp="${escapeHtml(e.id)}">
       <div class="emp-top">${av}<div class="emp-name"><div class="dp-cell-main">${nomeEmpHtml(e)}</div><div class="dp-cell-sub">${sub || '&nbsp;'}</div></div>${ativa(e) ? '' : `<span class="pill ${SIT_PILL[e.situacao]}">${escapeHtml(e.situacao)}</span>`}</div>
       ${(() => { const cb = coberturaDe(e); return `<div class="emp-resp${cb.titular ? '' : ' sem'}">${ic('user', 'ic-sm')}<span>${cb.titular ? escapeHtml(cb.titular) + (cb.coberta ? ` <small>· hoje com ${escapeHtml(cb.efetivo)}</small>` : '') : 'Sem responsável'}</span></div>`; })()}
-      <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem sindicato')}</span></div>
+      <div class="emp-conv${sind ? '' : ' sem'}"${ss.length > 1 ? ` title="${escapeHtml(ss.map(rotuloSind).join('\n'))}"` : ''}><span>${escapeHtml(sind || 'Sem convenção')}</span></div>
       ${e.tributacao ? `<div class="emp-tags"><span class="chip-s">${escapeHtml(e.tributacao.toLowerCase())}</span></div>` : ''}
       <div class="emp-acoes" data-ro-keep><button type="button" data-open-emp="${escapeHtml(e.id)}">Abrir</button><button type="button" data-emp-agenda="${escapeHtml(e.id)}">Agenda</button><button type="button" data-open-emp="${escapeHtml(e.id)}" data-tab="funcionarios">Funcionários</button></div>
     </div>`;
@@ -2541,10 +2540,10 @@
         titulo: R.soPendentes ? 'Data-base e CCT no período' : 'Convenções e data-base', aviso: R.soPendentes ? 'Só as empresas com data-base ou fim de CCT entre ' + relPeriodoTxt(R) : '' };
     },
     pendencias(R, emps) {
-      const faltas = (e) => { const f = []; if (!cnpjValido(e.cnpj)) f.push(e.cnpj ? 'CNPJ/CPF inválido' : 'sem CNPJ'); if (!e.codigoDominio) f.push('sem código Domínio'); if (!e.tributacao) f.push('sem tributação'); if (!e.responsavel) f.push('sem responsável'); if (!empresaSinds(e).length && !basesEmpresa(e).length) f.push('sem sindicato/data-base'); const semAdm = e.funcionarios.filter(x => funcConta(x) && funcGrupo(x) === 'func' && !x.admissao).length; if (semAdm) f.push(`${semAdm} funcionário(s) sem admissão`); return f; };
+      const faltas = (e) => { const f = []; if (!cnpjValido(e.cnpj)) f.push(e.cnpj ? 'CNPJ/CPF inválido' : 'sem CNPJ'); if (!e.codigoDominio) f.push('sem código Domínio'); if (!e.tributacao) f.push('sem tributação'); if (!e.responsavel) f.push('sem responsável'); if (!empresaCcts(e).length && !basesEmpresa(e).length) f.push('sem convenção/data-base'); const semAdm = e.funcionarios.filter(x => funcConta(x) && funcGrupo(x) === 'func' && !x.admissao).length; if (semAdm) f.push(`${semAdm} funcionário(s) sem admissão`); return f; };
       const out = emps.map(e => ({ e, f: faltas(e) })).filter(x => x.f.length).sort((x, y) => (y.f.length - x.f.length) || byNome(x.e, y.e));
       const c = (re) => out.filter(x => x.f.some(t => re.test(t))).length, graf = relGrafPend(out, emps, c);
-      return { graf, kpis: [relKpi(out.length, 'empresas com pendência', `de ${emps.length}`, out.length ? 'down' : 'up'), relKpi(c(/CNPJ/), 'CNPJ'), relKpi(c(/código/), 'código Domínio'), relKpi(c(/tributação/), 'tributação'), relKpi(c(/responsável/), 'responsável'), relKpi(c(/sindicato/), 'sindicato/data-base')],
+      return { graf, kpis: [relKpi(out.length, 'empresas com pendência', `de ${emps.length}`, out.length ? 'down' : 'up'), relKpi(c(/CNPJ/), 'CNPJ'), relKpi(c(/código/), 'código Domínio'), relKpi(c(/tributação/), 'tributação'), relKpi(c(/responsável/), 'responsável'), relKpi(c(/convenção/), 'convenção/data-base')],
         cab: ['Empresa', 'CNPJ', 'Responsável', 'Pendências', 'Quantas'], num: [4], linhas: out.map(x => ({ id: x.e.id, c: [nomeCurto(x.e), x.e.cnpj || '', respEf(x.e) || '', x.f.join(' · '), x.f.length] })), titulo: 'Cadastro incompleto' };
     },
   };
@@ -2626,7 +2625,7 @@
   }
   function relGrafPend(out, emps, c) {
     return [
-      gBarra('Empresas por tipo de pendência', 'Pendência', [['CNPJ', c(/CNPJ/)], ['Código Domínio', c(/código/)], ['Tributação', c(/tributação/)], ['Responsável', c(/responsável/)], ['Sindicato / data-base', c(/sindicato/)], ['Funcionário sem admissão', c(/sem admissão/)]].sort((x, y) => y[1] - x[1]), 'Empresas', G_VERM),
+      gBarra('Empresas por tipo de pendência', 'Pendência', [['CNPJ', c(/CNPJ/)], ['Código Domínio', c(/código/)], ['Tributação', c(/tributação/)], ['Responsável', c(/responsável/)], ['Convenção / data-base', c(/convenção/)], ['Funcionário sem admissão', c(/sem admissão/)]].sort((x, y) => y[1] - x[1]), 'Empresas', G_VERM),
       gRosca('Cadastros', 'Situação', [['Completos', emps.length - out.length, G_VERDE], ['Com pendência', out.length, G_VERM]]),
       gBarra('Empresas com pendência por responsável', 'Responsável', grafTop(grafContar(out, x => respEf(x.e) || 'Sem responsável'), 15), 'Empresas', G_AMBAR),
     ];
@@ -4730,8 +4729,8 @@
     if (ad && !ad.reajuste.itens.length && !ad.reajuste.tabela.length && ad.pisos.length) { r.reajusteItens = { val: [{ rotulo: 'Salários referenciais', pct: `tabela de ${ad.vigIni.slice(0, 4)}` }], de: ad }; r.tabela = { val: [], de: ad }; }
     return r;
   }
-  const empresaCcts = (e) => { const out = []; empresaSinds(e).forEach(s => { const v = cctVigente(s); if (v && !out.some(o => o.cct === v.cct)) out.push(v); }); return out; };
-  const empsDaCct = (c, lista = state.dpEmpresas.filter(ativa)) => { const ss = new Set(sindsDaCct(c)); return lista.filter(e => empresaSinds(e).some(s => ss.has(s))); };
+  const empresaCcts = (e) => cvEmpresaCcts(e);       // Hub 351: só o vínculo direto empresa → convenção acompanhada (começando do zero)
+  const empsDaCct = (c, lista = state.dpEmpresas.filter(ativa)) => cvEmpsDaCct(c, lista);
   const resumoReajuste = (ef) => ef.tabela.val.length ? `tabela por admissão (até ${ef.tabela.val[0].pct})` : ef.reajusteItens.val.map(i => ef.reajusteItens.val.length > 1 ? `${i.rotulo}: ${i.pct}` : i.pct).join(' · ');
 
   // Os campos de data-base, vigência, registro, reajuste e piso do sindicato passam a vir da CCT vigente.
@@ -5248,6 +5247,7 @@
     medLinhas('mediador-clausulas').forEach(l => { const s = l['Nº da Solicitação']; if (!s) return; if (!m.has(s)) m.set(s, { clausulas: [], dataBase: '', anexos: [] }); const t = m.get(s);
       t.clausulas.push({ grupo: l['Grupo'] || '', subgrupo: l['Subgrupo'] || '', titulo: l['Título'] || '', texto: String(l['Texto'] || '').replace(/ ¶ /g, '\n') });
       if (l['Data-base']) t.dataBase = l['Data-base']; if (l['Anexos']) t.anexos = l['Anexos'].split(' ').filter(Boolean); });
+    (state.cvTextos || new Map()).forEach((t, sol) => m.set(sol, t));      // Hub 351: o texto da convenção acompanhada (cv_texto)
     return m;
   }
   const medSindDe = (cnpj) => state.dpSind.find(s => cnpjDig(s.cnpj) === cnpj);
@@ -5261,6 +5261,7 @@
   function medCnpjs() { return [...new Set(state.dpSind.map(s => cnpjDig(s.cnpj)).filter(d => d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8))))]; }
   // a lista de CNPJs vai à extensão (para a busca semanal) quando ela se conecta e quando a lista muda
   function medCnpjsAvisar(forca) {
+    return;                       // Hub 351: a extensão não varre mais os sindicatos; busca a convenção acompanhada, pedida pelo Hub
     const l = medCnpjs(), k = l.join(','); if (!l.length || (!forca && k === medCnpjsEnviados)) return;
     medCnpjsEnviados = k; ingPedirMed('mediadorCnpjs', { cnpjs: l }).then(r => { if (!r || !r.ok) medCnpjsEnviados = ''; });
   }
@@ -5382,9 +5383,9 @@
   // ===================== Hub 350 (Josué, 12/11/2026: "baseado na automação criada para o módulo de convenções do DP, toda sua estrutura deveria ser repensada") =====================
   // Decidido: a convenção (e o aditivo) que o Mediador encontrar ENTRA SOZINHA (origem "mediador", registrada nas Novidades); reajuste e piso são SUGERIDOS
   // a partir do texto das cláusulas para a pessoa conferir; o módulo tem cinco abas: Empresas (de fábrica) · Convenções · Novidades · Textos · Sindicatos.
-  state.dpConvAba = 'empresas'; state.cvEmpSit = ''; state.cvEmpQ = ''; state.cvTxtQ = ''; state.cvTxtLim = 60;
-  const CV_ABAS = [['empresas', 'Empresas'], ['convencoes', 'Convenções'], ['novidades', 'Novidades'], ['textos', 'Textos'], ['sindicatos', 'Sindicatos']];
-  const cvAbaAtual = () => state.dpConvCad ? 'sindicatos' : (CV_ABAS.some(a => a[0] === state.dpConvAba) ? state.dpConvAba : 'empresas');
+  state.dpConvAba = 'acomp'; state.cvEmpSit = ''; state.cvEmpQ = ''; state.cvTxtQ = ''; state.cvTxtLim = 60;
+  const CV_ABAS = [['acomp', 'Acompanhar'], ['empresas', 'Empresas'], ['convencoes', 'Convenções'], ['novidades', 'Novidades'], ['textos', 'Textos']];   // Hub 352: sem a aba Sindicatos (só convenções são cadastradas e acompanhadas)
+  const cvAbaAtual = () => (CV_ABAS.some(a => a[0] === state.dpConvAba) ? state.dpConvAba : 'acomp');
   const medAtivo = () => !!(state.medMan && state.medMan['mediador-instrumentos']);
   const sindTemCnpj = (s) => { const d = cnpjDig(s && s.cnpj); return d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8)); };
   // ----- a convenção do Mediador entra sozinha -----
@@ -5417,6 +5418,7 @@
       obs: `Entrou sozinha pelo Mediador do MTE em ${fmtDMY(hoje())}: registro ${i.registro}, solicitação ${i.sol}, processo ${i.processo || '—'}. Reajuste, pisos e contribuições: confira no texto (aba Textos) e nas sugestões do painel.` });
   }
   async function medAutoCadastrar() {
+    return;                       // Hub 351: a convenção entra pela convenção acompanhada (botão ou busca diária), não mais pela varredura dos sindicatos
     if (!db || state.readOnly || state.semEscrita || medAuto.rodando || !state.dpCctsOk || !state.dpSind.length) return;
     const man = state.medMan && state.medMan['mediador-instrumentos'], tab = state.medTab && state.medTab['mediador-instrumentos'];
     if (!man || !tab || tab.ciclo !== man.ciclo) return;
@@ -5441,16 +5443,277 @@
       if (!entrou.length) { medAuto.feito = chave; return; }
       if (await salvarCcts(lista, true)) {
         medAuto.feito = chave;
-        toast(`Convenções: ${entrou.length === 1 ? '1 entrou sozinha' : entrou.length + ' entraram sozinhas'} pelo Mediador (${entrou.map(c => c.registro).join(', ')}). Veja em Novidades.`);
+        // sem aviso na tela (pedido do Josué, 12/11/2026): as convenções que entram sozinhas aparecem em Novidades
         if (state.dpView === 'sindicatos') renderSindTab();
       }
     } finally { medAuto.rodando = false; try { await db.doc('ing_auto/medcct').set({ por: '', ate: 0 }); } catch { /* sem banco */ } }
   }
+  // ===================== Hub 351 (Josué, 12/11/2026): convenções acompanhadas =====================
+  // "O analista entra, cadastra o CNPJ da convenção e vincula quais empresas seguem aquela convenção; clica num botão para o buscador
+  // verificar aquela convenção e trazer os dados mais recentes, e salva no módulo; a partir disso o módulo controla os prazos e busca
+  // sozinho a partir da data-base até achar a nova; se o analista quiser, manda buscar fora de época." "A extensão deve buscar a convenção
+  // específica e não sindicatos isolados." Decidido: os dois CNPJs (laboral e patronal) obrigatórios; busca diária a partir da data-base;
+  // a nova achada sozinha ESPERA o analista salvar; o vínculo empresa → convenção é direto, começando do zero (o código do sindicato do
+  // estabelecimento não liga mais a empresa à convenção). A varredura de todos os sindicatos e o cadastro sozinho do Hub 350 saem.
+  state.cvAcomp = []; state.cvAcompOk = false; state.cvTextos = new Map(); state.cvForm = null; state.cvBusca = {};
+  const cvAcompDb = { async save(itens) { await db.doc('dp_config/cvAcomp').set({ itens }); } };
+  const CVA_INST_MAX = 60;
+  function cvInstLimpo(i) {
+    if (!i || typeof i !== 'object' || !String(i.solicitacao || '').trim()) return null;
+    const t = (v, n) => String(v ?? '').normalize('NFC').trim().slice(0, n);
+    return { solicitacao: t(i.solicitacao, 40), registro: t(i.registro, 60), processo: t(i.processo, 60), tipo: t(i.tipo, 80), aditivo: !!i.aditivo, vigIni: toYmd(i.vigIni), vigFim: toYmd(i.vigFim),
+      cnpjTrab: cnpjDig(i.cnpjTrab).slice(0, 14), trabalhador: t(i.trabalhador, 200), cnpjEmp: cnpjDig(i.cnpjEmp).slice(0, 14), empregador: t(i.empregador, 200) };
+  }
+  function normalizeAcomp(x) {
+    if (!x || typeof x !== 'object') return null;
+    const lab = cnpjDig(x.laboral && x.laboral.cnpj), pat = cnpjDig(x.patronal && x.patronal.cnpj);
+    if (lab.length !== 14 || pat.length !== 14) return null;
+    const t = (v, n) => String(v ?? '').normalize('NFC').trim().slice(0, n);
+    const b = x.busca && typeof x.busca === 'object' ? x.busca : {}, ac = x.achada && typeof x.achada === 'object' ? x.achada : null;
+    return { id: /^[\w-]{1,80}$/.test(String(x.id || '')) ? x.id : 'cva-' + lab + '-' + pat,
+      laboral: { cnpj: fmtCnpj(lab), nome: t(x.laboral.nome, 200) }, patronal: { cnpj: fmtCnpj(pat), nome: t(x.patronal.nome, 200) },
+      empresas: [...new Set((Array.isArray(x.empresas) ? x.empresas : []).map(v => t(v, 80)).filter(Boolean))].slice(0, 3000),
+      criadoEm: Number(x.criadoEm) || 0, criadoPor: t(x.criadoPor, 80),
+      busca: { em: t(b.em, 30), dia: /^\d{4}-\d{2}-\d{2}$/.test(b.dia || '') ? b.dia : '', estado: ['ok', 'nada', 'erro'].includes(b.estado) ? b.estado : '', motivo: t(b.motivo, 240), auto: !!b.auto },
+      inst: (Array.isArray(x.inst) ? x.inst : []).map(cvInstLimpo).filter(Boolean).slice(0, CVA_INST_MAX),
+      achada: ac && Array.isArray(ac.sols) && ac.sols.length ? { sols: ac.sols.map(v => t(v, 40)).filter(Boolean).slice(0, 20), em: t(ac.em, 30) } : null,
+      ignorados: (Array.isArray(x.ignorados) ? x.ignorados : []).map(v => medReg(v)).filter(Boolean).slice(-100) };
+  }
+  const normalizeAcomps = (v) => { const vistos = new Set(); return (Array.isArray(v) ? v : []).map(normalizeAcomp).filter(a => a && !vistos.has(a.id) && vistos.add(a.id)); };
+  // lê de novo no banco, aplica a mudança e grava (dois navegadores não se atropelam)
+  async function cvAcompMudar(fn) {
+    let atual = state.cvAcomp;
+    try { const sn = await db.doc('dp_config/cvAcomp').get(); atual = normalizeAcomps(sn && sn.exists !== false && sn.data ? (sn.data().itens || []) : []); } catch { /* fica o da tela */ }
+    const nova = normalizeAcomps(fn(JSON.parse(JSON.stringify(atual))));
+    const ok = await persist(() => cvAcompDb.save(nova));
+    if (ok) state.cvAcomp = nova;
+    return ok;
+  }
+  // a convenção é o par: uma CCT é deste acompanhamento quando os dois CNPJs estão entre as partes
+  const cvParTem = (c, a) => { const ds = new Set((c.partes || []).map(p => cnpjDig(p.cnpj))); return ds.has(cnpjDig(a.laboral.cnpj)) && ds.has(cnpjDig(a.patronal.cnpj)); };
+  function acompVigente(a, dia = ymd(hoje())) {
+    const todas = state.dpCcts.filter(c => c.tipo === 'cct' && c.status !== 'substituida' && cvParTem(c, a));
+    if (!todas.length) return null;
+    const cobre = todas.filter(c => c.vigIni && c.vigFim && c.vigIni <= dia && dia <= c.vigFim);
+    const ord = (x, y) => (CCT_RANK[y.status] - CCT_RANK[x.status]) || y.vigIni.localeCompare(x.vigIni);
+    const cct = (cobre.length ? cobre.sort(ord) : todas.sort((x, y) => y.vigIni.localeCompare(x.vigIni)))[0];
+    const aditivos = state.dpCcts.filter(x => x.mae === cct.id && x.status !== 'substituida').sort((x, y) => x.vigIni.localeCompare(y.vigIni));
+    return { cct, aditivos };
+  }
+  // a mais recente salva (pode ter vigência futura): é dela que conta a próxima data-base
+  function acompUltima(a) { return state.dpCcts.filter(c => c.tipo === 'cct' && cvParTem(c, a) && c.vigIni).sort((x, y) => y.vigIni.localeCompare(x.vigIni))[0] || null; }
+  // a partir de quando procurar a nova: o 1º dia do mês da data-base seguinte (ou o dia depois do fim da vigência, o que vier antes)
+  function cvInicioJanela(a) {
+    const c = acompUltima(a); if (!c) return null;
+    const ini = parseYmd(c.vigIni); if (!ini) return null;
+    let mi = MESES.indexOf(c.dataBase); if (mi < 0) mi = ini.getMonth();
+    let d = new Date(ini.getFullYear(), mi, 1); if (ymd(d) <= c.vigIni) d = new Date(ini.getFullYear() + 1, mi, 1);
+    const fim = parseYmd(c.vigFim); if (fim) { const f1 = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate() + 1); if (f1 < d) d = f1; }
+    return d;
+  }
+  // situação do acompanhamento: achada (espera salvar), erro, sem (nenhuma salva), procurando (na janela), emdia
+  function cvSituacao(a) {
+    if (a.achada) return 'achada';
+    if (a.busca.estado === 'erro') return 'erro';           // a última busca falhou (pelo botão ou sozinha): sempre à vista
+    if (!acompUltima(a)) return 'sem';
+    const j = cvInicioJanela(a);
+    if (j && ymd(j) <= ymd(hoje())) return 'procurando';
+    return 'emdia';
+  }
+  // a busca diária: sem convenção salva, ou da data-base em diante; uma vez por dia; parada enquanto há uma nova esperando o analista
+  function cvPrecisaBuscar(a, dia = ymd(hoje())) {
+    if (a.achada || a.busca.dia === dia) return false;
+    if (!acompUltima(a)) return true;
+    const j = cvInicioJanela(a); return !!j && ymd(j) <= dia;
+  }
+  // ----- o vínculo direto empresa → convenção (Hub 351: substitui o caminho pelo código do sindicato) -----
+  function cvEmpresaCcts(e) { const out = []; state.cvAcomp.forEach(a => { if (!a.empresas.includes(e.id)) return; const v = acompVigente(a); if (v && !out.some(o => o.cct === v.cct)) out.push(v); }); return out; }
+  function cvEmpsDaCct(c, lista) { const as = state.cvAcomp.filter(a => cvParTem(c, a)); return lista.filter(e => as.some(a => a.empresas.includes(e.id))); }
+  // ----- texto: um documento por instrumento (cv_texto/<solicitação>), com até ~230 KB -----
+  const cvTxtId = (sol) => String(sol || '').replace(/[^\w-]/g, '_').slice(0, 80);
+  async function cvGuardarTexto(t) {
+    if (!t || !t.solicitacao || !Array.isArray(t.clausulas)) return;
+    const cls = t.clausulas.map(c => ({ grupo: String(c.grupo || '').slice(0, 200), subgrupo: String(c.subgrupo || '').slice(0, 200), titulo: String(c.titulo || '').slice(0, 400), texto: String(c.texto || '').slice(0, 20000) }));
+    let doc_ = { sol: String(t.solicitacao).slice(0, 40), registro: String(t.registro || '').slice(0, 60), dataBase: MESES.includes(t.dataBase) ? t.dataBase : '', anexos: (t.anexos || []).map(u => String(u).slice(0, 300)).slice(0, 10), clausulas: cls, em: new Date().toISOString() };
+    for (let lim = 20000; JSON.stringify(doc_).length > 230000 && lim > 500; lim = Math.floor(lim * 0.7)) doc_ = { ...doc_, clausulas: cls.map(c => ({ ...c, texto: c.texto.slice(0, lim) })), cortado: true };
+    if (!(state.cvTextos instanceof Map)) state.cvTextos = new Map();
+    state.cvTextos.set(doc_.sol, { clausulas: doc_.clausulas, dataBase: doc_.dataBase, anexos: doc_.anexos });        // já vale nesta tela (a data-base entra ao salvar)
+    try { await db.doc('cv_texto/' + cvTxtId(t.solicitacao)).set(doc_); } catch { /* o texto abre na hora pela extensão */ }
+  }
+  // instrumento da extensão → o formato que medCctDe (Hub 350) usa para montar a convenção
+  const cvParaMed = (i) => ({ sol: i.solicitacao, registro: i.registro, processo: i.processo, tipo: i.tipo, aditivo: i.aditivo, vigIni: i.vigIni, vigFim: i.vigFim,
+    cnpjTrab: i.cnpjTrab, trab: i.trabalhador, cnpjEmp: i.cnpjEmp, emp: i.empregador, cnpjs: new Set([i.cnpjTrab, i.cnpjEmp].filter(Boolean)) });
+  // salva no módulo: a convenção e os aditivos escolhidos (os que o módulo ainda não tem)
+  async function cvSalvarInst(a, sols) {
+    let atuais = state.dpCcts;
+    try { const sn = await db.doc('dp_config/ccts').get(); atuais = normalizeCcts(sn && sn.exists !== false && sn.data ? (sn.data().itens || []) : []); } catch { return 0; }
+    const regs = new Set(atuais.map(c => medReg(c.registro)).filter(Boolean)), lista = atuais.slice(), entrou = [];
+    const ins = sols.map(s => a.inst.find(i => i.solicitacao === s)).filter(Boolean).filter(i => !regs.has(medReg(i.registro)));
+    for (const i of ins.filter(x => !x.aditivo).concat(ins.filter(x => x.aditivo))) {
+      const c = medCctDe(cvParaMed(i), lista); if (!c || lista.some(x => x.id === c.id)) continue;
+      c.titulo = `${i.aditivo ? 'Aditivo' : 'CCT'} ${(a.laboral.nome || i.trabalhador || 'Sindicato').slice(0, 70)} × ${(a.patronal.nome || i.empregador || '').slice(0, 50)} ${(i.vigIni || '').slice(0, 4)}${i.vigFim ? '/' + i.vigFim.slice(0, 4) : ''}`.replace(/\s+/g, ' ').trim().slice(0, 160);
+      c.obs = `Salva pelo Mediador do MTE em ${fmtDMY(hoje())} (convenção acompanhada): registro ${i.registro}, solicitação ${i.solicitacao}, processo ${i.processo || '—'}. Reajuste, pisos e contribuições: confira no texto e nas sugestões.`;
+      lista.push(c); entrou.push(c);
+    }
+    if (!entrou.length) return 0;
+    return (await salvarCcts(lista, true)) ? entrou.length : 0;
+  }
+  const CVA_MOTIVO = { 'sem-permissao-mediador': 'Falta permitir o Mediador na extensão (Configurações › Avançado › Control Hub › Mediador).', 'sem-aba-mediador': 'A extensão não conseguiu abrir o Mediador.',
+    formato: 'A tela do Mediador mudou: a busca parou para não trazer dado errado.', ocupado: 'A extensão estava ocupada com outra busca. Tente de novo em instantes.', 'sem-extensao': 'O Control Onvio não respondeu: abra o Hub num Chrome com a extensão conectada.',
+    'sem-resposta': 'O Mediador demorou demais para responder.', cnpj: 'Os dois CNPJs são obrigatórios e diferentes.', texto: 'Não consegui ler o texto da convenção no Mediador.' };
+  // a busca de uma convenção (pelo botão ou pela busca diária)
+  async function cvBuscar(id, auto) {
+    const a0 = state.cvAcomp.find(x => x.id === id); if (!a0 || state.cvBusca[id]) return null;
+    state.cvBusca[id] = { txt: 'Procurando no Mediador… (leva um a dois minutos)' }; cvRenderSeAberto();
+    const r = !medExt() ? { ok: false, motivo: 'sem-extensao' } : await ingPedirMed('mediadorConvencao', { laboral: cnpjDig(a0.laboral.cnpj), patronal: cnpjDig(a0.patronal.cnpj) }, 300000), x = r && r.resp;
+    const dia = ymd(hoje()), em = new Date().toISOString();
+    let busca, inst = null, novos = [], salvou = 0;
+    if (!r || !r.ok || !x || !x.ok) {
+      const m = (x && x.motivo) || (r && r.motivo) || 'erro';
+      busca = { em, dia, auto: !!auto, estado: 'erro', motivo: (CVA_MOTIVO[m] || 'A busca falhou') + (x && x.mensagem ? ' (' + String(x.mensagem).slice(0, 120) + ')' : '') };
+    } else {
+      inst = (Array.isArray(x.instrumentos) ? x.instrumentos : []).map(cvInstLimpo).filter(Boolean).slice(0, CVA_INST_MAX);
+      for (const t of (Array.isArray(x.textos) ? x.textos : [])) await cvGuardarTexto(t);
+      if (!x.cct) busca = { em, dia, auto: !!auto, estado: 'nada', motivo: 'O Mediador não tem convenção registrada entre estes dois sindicatos.' };
+      else {
+        const regs = new Set(state.dpCcts.map(c => medReg(c.registro)).filter(Boolean)), ign = new Set(a0.ignorados);
+        novos = [x.cct, ...(x.aditivos || [])].map(s => inst.find(i => i.solicitacao === s)).filter(i => i && !regs.has(medReg(i.registro)) && !ign.has(medReg(i.registro))).map(i => i.solicitacao);
+        busca = { em, dia, auto: !!auto, estado: 'ok', motivo: novos.length ? '' : 'Nada novo: o módulo já tem a convenção mais recente deste par.' };
+      }
+    }
+    const pegaNome = (a, i) => { if (!i) return; if (!a.laboral.nome) a.laboral.nome = String(i.trabalhador || '').slice(0, 200); if (!a.patronal.nome) a.patronal.nome = String(i.empregador || '').slice(0, 200); };
+    await cvAcompMudar(l => l.map(a => { if (a.id !== id) return a; a.busca = busca; if (inst) { a.inst = inst; pegaNome(a, inst[0]); } if (auto && novos.length) a.achada = { sols: novos, em }; return a; }));
+    // pelo botão (o analista pediu): salva já; pela busca diária: espera o analista (decisão do Josué)
+    if (!auto && novos.length) { const a1 = state.cvAcomp.find(z => z.id === id); salvou = a1 ? await cvSalvarInst(a1, novos) : 0; if (salvou) await cvAcompMudar(l => l.map(a => a.id === id ? { ...a, achada: null } : a)); }
+    delete state.cvBusca[id];
+    if (!auto) toast(busca.estado === 'erro' ? busca.motivo : salvou ? `Convenção salva no módulo pelo Mediador (${salvou === 1 ? '1 instrumento' : salvou + ' instrumentos'}).` : busca.motivo || 'Busca feita.');
+    cvRenderSeAberto();
+    return { busca, novos, salvou };
+  }
+  // salvar a nova que a busca diária achou (o analista confere e clica)
+  async function cvSalvarAchada(id) {
+    const a = state.cvAcomp.find(x => x.id === id); if (!a || !a.achada || state.readOnly) return;
+    const n = await cvSalvarInst(a, a.achada.sols);
+    if (await cvAcompMudar(l => l.map(x => x.id === id ? { ...x, achada: null } : x))) toast(n ? `Convenção salva no módulo (${n === 1 ? '1 instrumento' : n + ' instrumentos'}).` : 'O módulo já tinha estes instrumentos.');
+    cvRenderSeAberto();
+  }
+  async function cvIgnorarAchada(id) {
+    const a = state.cvAcomp.find(x => x.id === id); if (!a || !a.achada || state.readOnly) return;
+    const regs = a.achada.sols.map(s => (a.inst.find(i => i.solicitacao === s) || {}).registro).filter(Boolean);
+    await cvAcompMudar(l => l.map(x => x.id === id ? { ...x, achada: null, ignorados: [...x.ignorados, ...regs] } : x));
+    toast('Ignorada: a busca diária não vai trazê-la de novo.'); cvRenderSeAberto();
+  }
+  // ----- a busca diária (um navegador por vez; com a extensão conectada; só quem pode gravar) -----
+  const cvAuto = { rodando: false, t: null };
+  async function cvAutoLiderar() {
+    const eu = state.meId || autorId() || 'x', ref = db.doc('ing_auto/cvacomp');
+    try {
+      const sn = await ref.get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      if (v && v.por && v.por !== eu && Number(v.ate) > Date.now()) return false;
+      await ref.set({ por: eu, ate: Date.now() + 15 * 60e3 });
+      const sn2 = await ref.get(), w = sn2 && sn2.data ? sn2.data() : null;
+      return !!w && w.por === eu;
+    } catch { return false; }
+  }
+  async function cvAutoRodar() {
+    if (!db || state.readOnly || state.semEscrita || cvAuto.rodando || !state.cvAcompOk || !state.dpCctsOk || !medExt()) return;
+    const fila = state.cvAcomp.filter(a => cvPrecisaBuscar(a)); if (!fila.length) return;
+    cvAuto.rodando = true;
+    try {
+      if (!(await cvAutoLiderar())) return;
+      for (const a of fila) { const atual = state.cvAcomp.find(x => x.id === a.id); if (atual && cvPrecisaBuscar(atual)) await cvBuscar(a.id, true); }
+    } finally { cvAuto.rodando = false; try { await db.doc('ing_auto/cvacomp').set({ por: '', ate: 0 }); } catch { /* sem banco */ } }
+  }
+  function cvAutoAgendar() { clearTimeout(cvAuto.t); cvAuto.t = setTimeout(() => cvAutoRodar(), 4000); }
+  setInterval(() => cvAutoRodar(), 30 * 60e3);
+  // ----- a tela: aba Acompanhar -----
+  function cvRenderSeAberto() { try { if (state.dpView === 'sindicatos' && cvAbaAtual() === 'acomp') renderCvAba(); else if (state.dpView === 'sindicatos') $('#cv-abas').innerHTML = cvAbasHtml(cvAbaAtual()); } catch { /* fora do DP */ } }
+  const CVA_SIT = { achada: ['Nova encontrada: salve', 'vencendo', 'alert'], erro: ['Erro na última busca', 'vencida', 'alert'], sem: ['Ainda sem convenção salva', 'sem', 'search'], procurando: ['Procurando a nova', 'pendente', 'search'], emdia: ['Em dia', 'emdia', 'check'] };
+  const cvTituloPar = (a) => `${a.laboral.nome || 'Sindicato laboral ' + a.laboral.cnpj} × ${a.patronal.nome || 'patronal ' + a.patronal.cnpj}`;
+  function cvFormHtml() {
+    const f = state.cvForm; if (!f) return '';
+    return `<form class="cva-form" id="cva-form" autocomplete="off"><h3>${f.id ? 'Editar convenção' : 'Nova convenção'}</h3>
+      <p class="cvs-dica">Uma convenção é sempre entre dois sindicatos: o dos empregados (laboral) e o das empresas (patronal). Com os dois CNPJs o Hub encontra no Mediador exatamente esta convenção.</p>
+      <div class="form-row"><label class="field">CNPJ do sindicato laboral (empregados) *<input name="lab" inputmode="numeric" maxlength="20" placeholder="00.000.000/0000-00" value="${escapeHtml(f.lab || '')}"${f.id ? ' readonly' : ''}></label>
+      <label class="field">CNPJ do sindicato patronal (empresas) *<input name="pat" inputmode="numeric" maxlength="20" placeholder="00.000.000/0000-00" value="${escapeHtml(f.pat || '')}"${f.id ? ' readonly' : ''}></label></div>
+      <div class="field cva-emp-f"><span>Empresas que seguem esta convenção · <b id="cva-n">${f.sel.size}</b> escolhida(s)</span><input type="search" id="cva-emp-q" placeholder="Filtrar empresas pelo nome, código ou CNPJ…" value="${escapeHtml(f.q || '')}"><div class="cva-emps" id="cva-emps">${cvFormEmpsHtml()}</div></div>
+      <p class="cva-erro" id="cva-erro"${f.erro ? '' : ' hidden'}>${escapeHtml(f.erro || '')}</p>
+      <div class="dlg-actions"><span class="spacer"></span><button type="button" class="btn" data-cva-cancelar>Cancelar</button><button type="submit" class="btn btn-primary">${f.id ? 'Salvar' : 'Salvar e buscar no Mediador'}</button></div></form>`;
+  }
+  function cvFormEmpsHtml() {
+    const f = state.cvForm, q = f.q || '';
+    const l = state.dpEmpresas.filter(ativa).filter(e => f.sel.has(e.id) || matchQ([e.nome, e.cod, e.cnpj, cnpjDig(e.cnpj)], q)).sort((x, y) => (f.sel.has(y.id) - f.sel.has(x.id)) || byNome(x, y)).slice(0, 300);
+    return l.length ? l.map(e => `<label class="cva-emp"><input type="checkbox" data-cva-emp="${escapeHtml(e.id)}"${f.sel.has(e.id) ? ' checked' : ''}><span>${escapeHtml(e.nome)}</span><small>${escapeHtml([e.cod, e.cnpj].filter(Boolean).join(' · '))}</small></label>`).join('') : '<p class="cvs-dica">Nenhuma empresa ativa com este filtro.</p>';
+  }
+  function cvCardHtml(a) {
+    const ro = state.readOnly, sit = cvSituacao(a), [rot, cls, icn] = CVA_SIT[sit], c = acompUltima(a), v = acompVigente(a), j = cvInicioJanela(a), b = state.cvBusca[a.id];
+    const emps = a.empresas.map(id => state.dpEmpresas.find(e => e.id === id)).filter(Boolean).sort(byNome);
+    const campo = (k, val) => `<div><dt>${escapeHtml(k)}</dt><dd>${val}</dd></div>`;
+    const vig = v ? `${fmtYmdBR(v.cct.vigIni)} a ${v.cct.vigFim ? fmtYmdBR(v.cct.vigFim) : '?'}` : '—';
+    const prox = a.achada ? 'parada: há uma nova esperando você salvar' : !c ? 'todo dia, até achar a primeira' : j ? (ymd(j) <= ymd(hoje()) ? 'todo dia, até achar a nova' : 'a partir de ' + fmtDMY(j)) : '—';
+    const ult = a.busca.em ? `${fmtDMY(new Date(a.busca.em))}${a.busca.auto ? ' (sozinha)' : ''}${a.busca.estado === 'erro' ? ` · <span class="cva-erro-tx">${escapeHtml(a.busca.motivo)}</span>` : a.busca.motivo ? ` · ${escapeHtml(a.busca.motivo)}` : ''}` : 'nunca';
+    const achada = a.achada ? `<div class="cva-achada"><b>${ic('alert', 'ic-sm')} A busca diária achou no Mediador:</b><ul>${a.achada.sols.map(s => { const i = a.inst.find(x => x.solicitacao === s) || { solicitacao: s };
+        return `<li>${escapeHtml(i.aditivo ? 'Aditivo' : 'Convenção')} <b>${escapeHtml(i.registro || s)}</b> · ${i.vigIni ? fmtYmdBR(i.vigIni) : '?'} a ${i.vigFim ? fmtYmdBR(i.vigFim) : '?'} <button type="button" class="linkish" data-cva-texto="${escapeHtml(s)}">Ver texto</button></li>`; }).join('')}</ul>
+        ${ro ? '' : `<div class="cva-acoes"><button type="button" class="btn btn-sm btn-primary" data-cva-salvar="${escapeHtml(a.id)}">Salvar no módulo</button><button type="button" class="btn btn-sm" data-cva-ignorar="${escapeHtml(a.id)}">Ignorar</button></div>`}</div>` : '';
+    return `<article class="cva-card s-${cls}" data-cva="${escapeHtml(a.id)}"><header class="cva-h"><div class="cva-tit"><b>${escapeHtml(c ? tituloCurto(c) : cvTituloPar(a))}</b>
+        <small>Laboral: ${escapeHtml(a.laboral.nome || '—')} · ${escapeHtml(a.laboral.cnpj)}</small><small>Patronal: ${escapeHtml(a.patronal.nome || '—')} · ${escapeHtml(a.patronal.cnpj)}</small></div>
+        <span class="cv-chip s-${cls}">${ic(icn, 'ic-sm')} ${escapeHtml(rot)}</span></header>
+      ${achada}
+      <dl class="cva-dl">${campo('Vigência', vig)}${campo('Data-base', escapeHtml((c && c.dataBase) || '—'))}${campo('Registro', escapeHtml((v && v.cct.registro) || (c && c.registro) || '—'))}${campo('Próxima busca', escapeHtml(prox))}${campo('Última busca', ult)}</dl>
+      <div class="cva-empl"><span class="cva-empn">${emps.length} empresa(s)</span>${emps.slice(0, 10).map(e => `<button type="button" class="cva-chip" data-open-emp="${escapeHtml(e.id)}">${escapeHtml(e.nome)}</button>`).join('')}${emps.length > 10 ? `<span class="dp-cell-sub">+${emps.length - 10}</span>` : ''}${!emps.length ? '<span class="cvs-conferir">ligue as empresas em Editar</span>' : ''}</div>
+      <div class="cva-acoes">${b ? `<span class="cva-busca">${escapeHtml(b.txt)}</span>` : ro ? '' : `<button type="button" class="btn btn-sm btn-primary" data-cva-buscar="${escapeHtml(a.id)}" title="Busca agora no Mediador, mesmo fora de época">${ic('search', 'ic-sm')} Buscar no Mediador</button>`}
+        ${v ? `<button type="button" class="btn btn-sm" data-cv-abrir="${escapeHtml(v.cct.id)}">Abrir a convenção</button>` : ''}${v && v.cct.medSol ? `<button type="button" class="btn btn-sm" data-cva-texto="${escapeHtml(v.cct.medSol)}">Ver texto</button>` : ''}
+        ${ro ? '' : `<button type="button" class="btn btn-sm" data-cva-editar="${escapeHtml(a.id)}">Editar empresas</button><button type="button" class="btn btn-sm btn-ghost" data-cva-remover="${escapeHtml(a.id)}">Parar de acompanhar</button>`}</div></article>`;
+  }
+  function renderCvAcomp(el) {
+    const ro = state.readOnly, l = state.cvAcomp.slice().sort((x, y) => ['achada', 'erro', 'procurando', 'sem', 'emdia'].indexOf(cvSituacao(x)) - ['achada', 'erro', 'procurando', 'sem', 'emdia'].indexOf(cvSituacao(y)) || cvTituloPar(x).localeCompare(cvTituloPar(y), 'pt-BR'));
+    const semExt = !medExt() ? `<div class="cvs-alerta-box"><p>${ic('alert', 'ic-sm')} A busca no Mediador é feita pelo Control Onvio: abra o Hub num Chrome com a extensão conectada e o Mediador permitido (Configurações › Avançado › Control Hub › Mediador). Sem ela, a busca diária espera.</p></div>` : '';
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Convenções acompanhadas</h2><p>Cadastre a convenção pelo CNPJ dos dois sindicatos, ligue as empresas que seguem ela e busque no Mediador: os dados mais recentes entram no módulo. Da data-base em diante, o Hub procura a nova sozinho uma vez por dia até achar; a nova espera você salvar. "Buscar no Mediador" vale a qualquer hora.</p></div>
+        ${ro || state.cvForm ? '' : `<button type="button" class="btn btn-sm btn-primary" data-cva-nova>${ic('plus', 'ic-sm')} Nova convenção</button>`}</div>
+      ${cvFormHtml()}${semExt}
+      ${l.length ? `<div class="cva-lista">${l.map(cvCardHtml).join('')}</div>` : state.cvForm ? '' : `<div class="cv-zen big">${ic('list')}<span>Nenhuma convenção acompanhada ainda. Clique em Nova convenção, informe o CNPJ dos dois sindicatos e ligue as empresas.</span></div>`}`;
+  }
+  async function cvFormSalvar(form) {
+    const f = state.cvForm, lab = cnpjDig(form.elements.lab.value), pat = cnpjDig(form.elements.pat.value);
+    const erro = (m) => { f.erro = m; f.lab = form.elements.lab.value; f.pat = form.elements.pat.value; renderCvAba(); };
+    if (!f.id) {
+      if (lab.length !== 14 || !cnpjValido(lab)) return erro('O CNPJ do sindicato laboral não é válido.');
+      if (pat.length !== 14 || !cnpjValido(pat)) return erro('O CNPJ do sindicato patronal não é válido.');
+      if (lab === pat) return erro('Os dois CNPJs são iguais: informe o do sindicato dos empregados e o das empresas.');
+      if (state.cvAcomp.some(a => cnpjDig(a.laboral.cnpj) === lab && cnpjDig(a.patronal.cnpj) === pat)) return erro('Esta convenção já está sendo acompanhada.');
+    }
+    const id = f.id || ('cva-' + lab + '-' + pat), sel = [...f.sel];
+    const nome = (d) => { const s = state.dpSind.find(x => cnpjDig(x.cnpj) === d); return s ? rotuloSind(s) : ''; };
+    const ok = await cvAcompMudar(l => f.id ? l.map(a => a.id === id ? { ...a, empresas: sel } : a)
+      : l.concat([{ id, laboral: { cnpj: lab, nome: nome(lab) }, patronal: { cnpj: pat, nome: nome(pat) }, empresas: sel, criadoEm: Date.now(), criadoPor: (AUTH() && AUTH().usuario() && AUTH().usuario().nome) || '' }]));
+    if (!ok) return erro('Não foi possível salvar. Tente de novo.');
+    const nova = !f.id; state.cvForm = null; renderCvAba();
+    if (nova) cvBuscar(id, false);
+  }
+  document.addEventListener('click', async (e) => {
+    const t = e.target; if (!t || !t.closest || !t.closest('#dp-view-sindicatos')) return;
+    if (t.closest('[data-cva-nova]')) { state.cvForm = { id: '', lab: '', pat: '', sel: new Set(), q: '' }; renderCvAba(); const i = $('#cva-form [name="lab"]'); if (i) i.focus(); return; }
+    if (t.closest('[data-cva-cancelar]')) { state.cvForm = null; renderCvAba(); return; }
+    const ed = t.closest('[data-cva-editar]'); if (ed) { const a = state.cvAcomp.find(x => x.id === ed.dataset.cvaEditar); if (a) { state.cvForm = { id: a.id, lab: a.laboral.cnpj, pat: a.patronal.cnpj, sel: new Set(a.empresas), q: '' }; renderCvAba(); } return; }
+    const bu = t.closest('[data-cva-buscar]'); if (bu) { cvBuscar(bu.dataset.cvaBuscar, false); return; }
+    const sv = t.closest('[data-cva-salvar]'); if (sv) { cvSalvarAchada(sv.dataset.cvaSalvar); return; }
+    const ig = t.closest('[data-cva-ignorar]'); if (ig) { cvIgnorarAchada(ig.dataset.cvaIgnorar); return; }
+    const tx = t.closest('[data-cva-texto]'); if (tx) { medAbrirTexto(tx.dataset.cvaTexto); return; }
+    const rm = t.closest('[data-cva-remover]'); if (rm) {
+      const a = state.cvAcomp.find(x => x.id === rm.dataset.cvaRemover); if (!a) return;
+      const r = await ask(`Parar de acompanhar “${cvTituloPar(a)}”? As empresas deixam de estar ligadas a ela e a busca diária para. As convenções já salvas no módulo continuam lá.`, [{ label: 'Cancelar', value: false }, { label: 'Parar de acompanhar', value: true, kind: 'btn-danger' }]);
+      if (r) { await cvAcompMudar(l => l.filter(x => x.id !== a.id)); toast('Convenção não é mais acompanhada.'); renderCvAba(); }
+    }
+  });
+  document.addEventListener('change', (e) => { const c = e.target && e.target.closest && e.target.closest('[data-cva-emp]'); if (!c || !state.cvForm) return; const id = c.dataset.cvaEmp; c.checked ? state.cvForm.sel.add(id) : state.cvForm.sel.delete(id); const n = $('#cva-n'); if (n) n.textContent = state.cvForm.sel.size; });
+  document.addEventListener('input', (e) => { if (!e.target || e.target.id !== 'cva-emp-q' || !state.cvForm) return; state.cvForm.q = e.target.value; const b = $('#cva-emps'); if (b) b.innerHTML = cvFormEmpsHtml(); });
+  document.addEventListener('submit', (e) => { if (!e.target || e.target.id !== 'cva-form') return; e.preventDefault(); cvFormSalvar(e.target); });
   // ----- reajuste e piso sugeridos pelo texto (a pessoa confere) -----
   const SUG_REAJ = /reajust|correcao salarial|aumento salarial|recomposicao salarial|reposicao salarial/;
   const SUG_PISO = /piso|salario normativo|salario de ingresso|salario profissional|salario minimo profissional/;
   const trechoDe = (txt, i, n = 160) => { const a = Math.max(0, i - 70), s = txt.slice(a, a + n).replace(/\s+/g, ' ').trim(); return (a ? '…' : '') + s + (a + n < txt.length ? '…' : ''); };
   function medTextoDaCct(c) {
+    if (c && c.medSol && medTextos().has(c.medSol)) return { t: medTextos().get(c.medSol), sol: c.medSol };     // Hub 351
     if (!c || !c.registro) return null;
     const ins = medInstrumentos().find(i => medReg(i.registro) === medReg(c.registro));
     const t = ins && medTextos().get(ins.sol);
@@ -5509,7 +5772,7 @@
   // ----- abas -----
   function cvAbasHtml(aba) {
     const n = cvContagens();
-    const badge = { empresas: n.empAtencao, novidades: n.novidades, sindicatos: n.semCnpj };
+    const badge = { acomp: (state.cvAcomp || []).filter(a => ['achada', 'erro'].includes(cvSituacao(a))).length, empresas: n.empAtencao, novidades: n.novidades, sindicatos: n.semCnpj };
     return CV_ABAS.map(([k, l]) => `<button type="button" role="tab" data-cv-aba-mod="${k}" class="${aba === k ? 'on' : ''}" aria-selected="${aba === k}">${escapeHtml(l)}${badge[k] ? `<span class="cvs-n">${badge[k]}</span>` : ''}</button>`).join('');
   }
   function cvContagens() {
@@ -5532,7 +5795,7 @@
         const v = vs[0], ef = cctEfetiva(v), acoes = acoesCct(v.cct, [e]), sit = situacaoCct(acoes);
         return { e, ss, v, ef, sit, acao: acoes.find(a => a.sit) || null, sug: !!medSugestoes(v.cct) || v.aditivos.some(a => !!medSugestoes(a)) };
       }
-      const motivo = !ss.length ? 'Sem sindicato no cadastro da empresa' : !ss.some(sindTemCnpj) ? 'Sindicato sem CNPJ: o Mediador não consegue procurar' : medAtivo() ? 'Nenhuma convenção deste sindicato no Mediador' : 'Ainda sem leitura do Mediador';
+      const motivo = 'Não está ligada a nenhuma convenção acompanhada (aba Acompanhar)'; const motivoAntigo = !ss.length ? 'Sem sindicato no cadastro da empresa' : !ss.some(sindTemCnpj) ? 'Sindicato sem CNPJ: o Mediador não consegue procurar' : medAtivo() ? 'Nenhuma convenção deste sindicato no Mediador' : 'Ainda sem leitura do Mediador';
       return { e, ss, v: null, ef: null, sit: 'sem', motivo, acao: null, sug: false };
     }).filter(Boolean);
   }
@@ -5586,11 +5849,10 @@
       return `<li class="cvs-nv${novo ? ' novo' : ''}"><span class="cvs-nv-ic">${ic(c.tipo === 'cct' ? 'list' : 'plus', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button>${novo ? '<span class="cvs-novo">nova</span>' : ''}
         <small>${escapeHtml(CCT_TIPOS[c.tipo])} · registro ${escapeHtml(c.registro || '—')} · ${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · ${es.length} empresa(s)</small></div><span class="cvs-quando">${escapeHtml(new Date(c.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}</span></li>`; };
     const sec = (tit, n, dica, corpo) => `<section class="cvs-sec"><h3>${escapeHtml(tit)} <span class="cvs-n">${n}</span></h3>${dica ? `<p class="cvs-dica">${escapeHtml(dica)}</p>` : ''}${corpo}</section>`;
-    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Novidades das convenções</h2><p>O que o Mediador trouxe, o que falta conferir e o que vence nos próximos 60 dias. O Hub procura no Mediador uma vez por semana (pela extensão) e quando alguém pede.</p></div>
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Novidades das convenções</h2><p>O que falta conferir e o que vence nos próximos 60 dias. As convenções novas chegam pela aba Acompanhar.</p></div>
         ${entrou.some(c => c.criadoEm > visto) ? '<button type="button" class="btn btn-sm" data-cvs-visto>Marcar como vistas</button>' : ''}</div>
       <div id="cvs-med-slot"></div>
       <div class="cvs-grade">
-        ${sec('Entraram sozinhas pelo Mediador', entrou.length, 'Convenções e aditivos registrados no MTE que o Hub cadastrou sozinho nos últimos 120 dias. Excluir uma delas faz o Hub não cadastrá-la de novo.', entrou.length ? `<ul class="cvs-lista">${entrou.map(cctItem).join('')}</ul>` : '<p class="cvs-vazio">Nada novo no Mediador.</p>')}
         ${sec('Reajuste e piso para conferir', conferir.length, 'O Hub achou o número no texto da convenção. Abra, confira o trecho e clique em Usar.', conferir.length ? `<ul class="cvs-lista">${conferir.map(c => { const s = medSugestoes(c); return `<li class="cvs-nv"><span class="cvs-nv-ic">${ic('search', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button><small>${[s.reajuste && 'reajuste ' + s.reajuste.pct, s.pisos && (s.pisos.itens.length > 1 ? s.pisos.itens.length + ' pisos' : 'piso R$ ' + s.pisos.itens[0].valor)].filter(Boolean).map(escapeHtml).join(' · ')}</small></div><button type="button" class="btn btn-sm" data-cv-abrir="${escapeHtml(c.id)}">Conferir</button></li>`; }).join('')}</ul>` : '<p class="cvs-vazio">Nada para conferir.</p>')}
         ${sec('Próximos 60 dias', prox.length, 'Data-base e fim de vigência das convenções das empresas desta carteira.', prox.length ? `<ul class="cvs-lista">${prox.map(ev => `<li class="cvs-nv"><span class="cvs-data"><b>${escapeHtml(fmtDMY(parseYmd(ev.d)).slice(0, 5))}</b><small>${diffDays(parseYmd(ev.d), hoje()) === 0 ? 'hoje' : 'em ' + diffDays(parseYmd(ev.d), hoje()) + ' d'}</small></span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(ev.id)}">${escapeHtml(ev.nome)}</button><small>${escapeHtml(ev.txt)} · ${ev.l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nada nos próximos 60 dias.</p>')}
         ${sec('Vencidas sem a nova', vencidas.length, medAtivo() ? 'A vigência acabou e a nova ainda não apareceu no Mediador. Entra sozinha quando for registrada.' : 'A vigência acabou e não há convenção nova cadastrada.', vencidas.length ? `<ul class="cvs-lista">${vencidas.map(l => `<li class="cvs-nv"><span class="cvs-nv-ic s-vencida">${ic('alert', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(l.c.id)}">${escapeHtml(l.c.titulo)}</button><small>venceu em ${escapeHtml(fmtYmdBR(l.c.vigFim))} · ${l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nenhuma vencida.</p>')}
@@ -5633,20 +5895,21 @@
   function renderCvAba() {
     const aba = cvAbaAtual(), nova = $('#cv-nova');
     $('#cv-abas').innerHTML = cvAbasHtml(aba);
-    $('#cv-main').hidden = aba !== 'convencoes'; $('#cv-cad').hidden = aba !== 'sindicatos'; nova.hidden = !['empresas', 'novidades', 'textos'].includes(aba);
+    $('#cv-main').hidden = aba !== 'convencoes'; $('#cv-cad').hidden = aba !== 'sindicatos'; nova.hidden = !['acomp', 'empresas', 'novidades', 'textos'].includes(aba);
     // o bloco do Mediador mora nas Novidades; fora delas, volta ao lugar de antes (escondido)
     // (guardado no lugar de sempre antes de redesenhar: o innerHTML das abas novas o apagaria)
     const mb = $('#cv-med'); if (mb && mb.parentNode !== $('#cv-main')) $('#cv-main').insertBefore(mb, $('#cv-hero'));
-    if (mb) mb.hidden = aba !== 'novidades';
-    if (aba === 'empresas') renderCvEmpresas(nova);
-    else if (aba === 'novidades') { renderCvNovidades(nova); medRender(); }
+    if (mb) mb.hidden = true;   // Hub 352: a busca por sindicato saiu; a busca é por convenção, em Acompanhar
+    if (aba === 'acomp') renderCvAcomp(nova);
+    else if (aba === 'empresas') renderCvEmpresas(nova);
+    else if (aba === 'novidades') renderCvNovidades(nova);
     else if (aba === 'textos') renderCvTextos(nova);
     return aba;
   }
   document.addEventListener('click', (e) => {
     const t = e.target; if (!t || !t.closest || !t.closest('#dp-view-sindicatos')) return;
     const ab = t.closest('[data-cv-aba-mod]');
-    if (ab) { const k = ab.dataset.cvAbaMod; if (k === 'sindicatos') { state.dpConvCad = true; state.dpSindVisao = state.dpSindVisao || 'uso'; } else { state.dpConvCad = false; state.dpConvAba = k; } if (state.dpConvPainel) fecharPainelCct(); state.dpConvAnim = true; renderSindTab(); return; }
+    if (ab) { const k = ab.dataset.cvAbaMod; { state.dpConvCad = false; state.dpConvAba = k; } if (state.dpConvPainel) fecharPainelCct(); state.dpConvAnim = true; renderSindTab(); return; }
     const st = t.closest('[data-cvs-sit]'); if (st) { state.cvEmpSit = state.cvEmpSit === st.dataset.cvsSit ? '' : st.dataset.cvsSit; renderCvAba(); return; }
     const sd = t.closest('[data-cvs-sind]'); if (sd) { e.stopPropagation(); if (!state.readOnly) abrirSind(sd.dataset.cvsSind); return; }
     const us = t.closest('[data-cvs-usar]'); if (us) { const [id, q] = us.dataset.cvsUsar.split('|'); medSugUsar(id, q); return; }
@@ -11124,8 +11387,20 @@
     db.doc('dp_config/ccts').onSnapshot((s) => {
       state.dpCcts = normalizeCcts(s.exists ? s.data().itens : []);
       state.dpCctsOk = true; setTimeout(() => medAutoCadastrar(), 800);   // Hub 350
-      refreshAll();
+      refreshAll(); cvAutoAgendar();
     }, caiu);
+    // Hub 351: convenções acompanhadas e o texto de cada instrumento salvo por elas
+    db.doc('dp_config/cvAcomp').onSnapshot((s) => {
+      state.cvAcomp = normalizeAcomps(s && s.exists !== false && s.data ? (s.data().itens || []) : []);
+      state.cvAcompOk = true; refreshAll(); cvAutoAgendar();
+    }, caiu);
+    try {
+      db.collection('cv_texto').onSnapshot((snap) => {
+        const m = new Map();
+        (snap.docs || []).forEach(d => { const v = d.data() || {}; if (v.sol && Array.isArray(v.clausulas)) m.set(v.sol, { clausulas: v.clausulas, dataBase: v.dataBase || '', anexos: Array.isArray(v.anexos) ? v.anexos : [] }); });
+        state.cvTextos = m; if (state.dpView === 'sindicatos') renderCvAba();
+      });
+    } catch { /* sem a coleção: o texto abre na hora pela extensão */ }
 
     sindStore = sindDb;
     db.doc('dp_config/sindicatos').onSnapshot((s) => {
@@ -11603,7 +11878,7 @@
         backup: () => $('#dp-btn-export').click(),
         importar: () => $('#dp-import-input').click(),
         abrir: (view) => { if (podeAbrirModulo('dp')) openDpModule(view); },
-        abrirConvencoes: () => { if (!podeAbrirModulo('dp')) return; state.dpConvCad = true; state.dpSindVisao = 'uso'; openDpModule('sindicatos'); },
+        abrirConvencoes: () => { if (!podeAbrirModulo('dp')) return; state.dpConvCad = false; state.dpConvAba = 'acomp'; openDpModule('sindicatos'); },
         abrirImportador: () => { if (!podeAbrirModulo('dp')) return; state.dpFerr = 'importador'; openDpModule('ferramentas'); },
       },
     },
