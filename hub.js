@@ -6444,7 +6444,8 @@
     if (s.fim || s.vez === 'cliente') return SEM_EVENTOS;
     const b = s._ev || (s._ev = ovEventosBrutos(s));
     if (!b.out.length) return SEM_EVENTOS;
-    if (b.skip && s.quem) { const f = ovFuncDe(e, s.quem, s.codEmp); if (f && b.skip(f)) return SEM_EVENTOS; }
+    // Hub 348: só deixa de repetir quando as datas do cadastro estão na Agenda (Datas e lembretes dos funcionários ligado); senão o prazo legal sumia
+    if (b.skip && s.quem && funcDatasOn()) { const f = ovFuncDe(e, s.quem, s.codEmp); if (f && b.skip(f)) return SEM_EVENTOS; }
     return b.out;
   }
   function ovEventos(from, to, ativas) {
@@ -8769,6 +8770,8 @@
       // não ficar Inativa só porque a Entrada de dados ainda não levou as pessoas ao cadastro
       if ((e.funcionarios || []).some(funcConta)) return '';
       try { const ro = ovRoster(); if ((ro.porEmp.get(e.id) || []).some(x => x.ativo) || ((ro.socios || new Map()).get(e.id) || []).some(x => x.ativo)) return ''; } catch (x) { /* Onvio ainda não chegou */ }
+      // Hub 348 (2): quem está na folha mensal recente do portal de documentos também conta (senão a empresa só com pró-labore nunca recebia o cadastro novo)
+      try { const q = folhaContagemSeg(e); if (q && q.n) return ''; } catch (x) { /* folha ainda não chegou */ }
       return 'sem funcionário ativo';
     };
     return lista.map(e => {
