@@ -2227,3 +2227,31 @@ html:has(body.in-module)::before{background:radial-gradient(closest-side,var(--f
   .cvs-row > .cvs-sind, .cvs-row > .cvs-vig{display:none;}
   .cvs-num{text-align:left;}
 }
+
+/* Hub 351: convenções acompanhadas (aba Acompanhar) */
+.cva-form{border:1px solid var(--rule-strong); border-top:3px solid var(--blue-deep); border-radius:var(--r); background:var(--surface); padding:14px 16px; margin:0 0 14px; display:flex; flex-direction:column; gap:10px;}
+.cva-form h3{margin:0; font:700 15px "Archivo",system-ui,sans-serif; color:var(--ink);}
+.cva-form .form-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px;}
+.cva-emp-f > span{font-size:12.5px; font-weight:600; color:var(--ink-2);}
+.cva-emps{max-height:260px; overflow:auto; border:1px solid var(--rule); border-radius:var(--r); padding:4px; display:flex; flex-direction:column;}
+.cva-emp{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; padding:6px 8px; border-radius:3px; font-size:13px; color:var(--ink); cursor:pointer;}
+.cva-emp:hover{background:var(--surface-2);} .cva-emp small{color:var(--ink-2); font-size:12px;}
+.cva-emp span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cva-erro{margin:0; color:var(--brand-red); font-weight:600; font-size:13px;}
+.cva-lista{display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:12px;}
+.cva-card{border:1px solid var(--rule); border-left:3px solid var(--rule-strong); border-radius:var(--r); background:var(--surface); padding:12px 14px; display:flex; flex-direction:column; gap:10px; min-width:0;}
+.cva-card.s-vencendo, .cva-card.s-vencida{border-left-color:var(--brand-red);} .cva-card.s-pendente{border-left-color:var(--blue-deep);}
+.cva-h{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+.cva-tit{display:flex; flex-direction:column; gap:2px; min-width:0;} .cva-tit b{font:700 14px "Archivo",system-ui,sans-serif; color:var(--ink);}
+.cva-tit small{color:var(--ink-2); font-size:12px; overflow-wrap:anywhere;}
+.cva-dl{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px 14px; margin:0;}
+.cva-dl dt{font-size:11.5px; font-weight:600; color:var(--ink-2);} .cva-dl dd{margin:2px 0 0; font-size:13px; color:var(--ink);}
+.cva-erro-tx{color:var(--brand-red); font-weight:600;}
+.cva-empl{display:flex; flex-wrap:wrap; align-items:center; gap:6px;} .cva-empn{font-size:12.5px; font-weight:700; color:var(--ink);}
+.cva-chip{border:1px solid var(--rule); background:var(--surface-2); color:var(--ink); border-radius:3px; padding:2px 7px; font-size:12px; cursor:pointer; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cva-chip:hover{border-color:var(--blue-deep);}
+.cva-acoes{display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+.cva-busca{font-size:13px; font-weight:600; color:var(--blue-deep);}
+.cva-achada{border:1px solid var(--brand-red); border-radius:var(--r); background:var(--brand-red-soft); padding:10px 12px; display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--ink);}
+.cva-achada ul{margin:0; padding-left:18px; display:flex; flex-direction:column; gap:3px;}
+@media (max-width:700px){ .cva-lista{grid-template-columns:minmax(0,1fr);} }
