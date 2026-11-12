@@ -1535,7 +1535,7 @@
       if (view === 'funcionarios') state.dpFuncFiltro = FUNC_FORA.has(a) ? a : '';
       if (view === 'cartela') state.dpCtModo = 'cartela';      // Hub 342: a aba Onvio saiu da Cartela
       if (view === 'empresas') { state.dpGap = a === 'gap' ? b : ''; $('#dp-filtro-gap').value = state.dpGap; }
-      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }
+      if (view === 'sindicatos' && a === 'cct') { state.dpConvCad = false; state.dpConvAbrir = b || ''; }   // Hub 350: abre o painel em qualquer aba
       else if (view === 'sindicatos' && a) { state.dpConvCad = true; state.dpSindVisao = 'uso'; state.dpSindAberto.add(a); state.dpSindFoco = a; }
       openDpModule(view);
       return;
@@ -4684,6 +4684,8 @@
         calc: { tipo: CALC_TIPOS[c.calc?.tipo] !== undefined ? c.calc.tipo : '', valor: txt(c.calc?.valor, 30), valorAssociada: txt(c.calc?.valorAssociada, 30), tabela: txt(c.calc?.tabela, 2000), adicional: txt(c.calc?.adicional, 30), teto: txt(c.calc?.teto, 30) } } : null),
       prazos: lista(x.prazos, p => p && toYmd(p.data) && txt(p.desc, 300) ? { data: toYmd(p.data), desc: txt(p.desc, 300) } : null),
       obs: txt(x.obs, 1500), atualizadoEm: Number(x.atualizadoEm) || 0,
+      origem: x.origem === 'mediador' ? 'mediador' : '', medSol: txt(x.medSol, 40), criadoEm: Number(x.criadoEm) || 0,   // Hub 350
+      sugIgn: lista(x.sugIgn, v => ['reajuste', 'pisos'].includes(v) ? v : null),
     };
   }
   const normalizeCcts = (v) => (Array.isArray(v) ? v : []).map(normalizeCct).filter(Boolean);
@@ -5111,7 +5113,10 @@
     const ok = await ask(`Excluir “${c.titulo}”?\nOs sindicatos continuam com a data-base e a vigência atuais; lembretes e estimativas desta convenção saem da agenda.`, [{ label:'Cancelar', value:false }, { label:'Excluir', kind:'btn-danger', value:true }]);
     if (!ok) return;
     dlgCct.close();
-    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) toast('Convenção excluída.');
+    if (await salvarCcts(state.dpCcts.filter(x => x.id !== c.id && true).map(x => x.mae === c.id ? { ...x, mae: '' } : x))) {
+      toast(c.origem === 'mediador' ? 'Convenção excluída. O Hub não vai cadastrá-la de novo pelo Mediador.' : 'Convenção excluída.');
+      if (c.registro && (c.origem === 'mediador' || medInstrumentos().some(i => medReg(i.registro) === medReg(c.registro)))) { const l = [...new Set([...state.medIgn, medReg(c.registro)])].slice(-500); state.medIgn = l; try { await db.doc('med_config/cfg').set({ ignorar: l }); } catch { /* sem banco */ } }
+    }
   });
   $('#cct-add-contrib').addEventListener('click', () => { $('#cct-contribs').insertAdjacentHTML('beforeend', contribRowHtml()); linMontarTodos($('#cct-contribs .cct-contrib:last-child')); $('#cct-contribs .cct-contrib:last-child [data-k="nome"]').focus(); });
   $('#cct-contribs').addEventListener('click', (e) => { const b = e.target.closest('[data-cct-contrib-del]'); if (b && !state.readOnly) b.closest('.cct-contrib').remove(); });
@@ -5146,8 +5151,8 @@
     if (c.tipo === 'cct' && c.vigFim && !temSucessora(c)) {
       const n = diffDays(parseYmd(c.vigFim), hoje());
       const prox = c.vigFim ? `${+c.vigFim.slice(0, 4)}/${+c.vigFim.slice(0, 4) + 1}` : '';
-      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`Cadastrar a CCT ${prox}: venceu em ${fmtYmdBR(c.vigFim)}` });
-      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`Cadastrar a CCT ${prox}: vence ${quandoTxt(c.vigFim)}` });
+      if (n < 0) out.push({ nivel:'late', sit:'vencida', txt:`${medAtivo() ? `A CCT ${prox} ainda não está no Mediador` : `Cadastrar a CCT ${prox}`}: venceu em ${fmtYmdBR(c.vigFim)}` });
+      else if (n <= 60) out.push({ nivel:'warn', sit:'vencendo', txt:`${medAtivo() ? `A CCT ${prox} ainda não está no Mediador` : `Cadastrar a CCT ${prox}`}: vence ${quandoTxt(c.vigFim)}` });
     }
     aditivos.filter(a => a.status === 'acordada' || a.status === 'rascunho').forEach(a => out.push({ nivel:'warn', sit:'pendente', txt:`Aguardar termo aditivo registrado (${CCT_TIPOS[a.tipo].toLowerCase()} de ${a.vigIni ? fmtYmdBR(a.vigIni) : '—'})` }));
     const ini = parseYmd(c.vigIni), fim = parseYmd(c.vigFim);
@@ -5221,6 +5226,7 @@
       const n = Math.min(Number(man.partes) || 0, ING_PARTES_MAX), textos = [];
       for (let i = 0; i < n; i++) { const sn = await db.doc(`ing_partes/mediador~${tipo}~${man.slot}${i}`).get(), d = sn && sn.exists !== false && sn.data ? sn.data() : null; if (!d || d.ciclo !== man.ciclo) throw new Error('parte'); textos.push(d.tabela); }
       state.medTab[tipo] = { ciclo: man.ciclo, linhas: gtParse(man.colunas, textos.join('\n')) };
+      if (tipo === 'mediador-instrumentos') setTimeout(() => medAutoCadastrar(), 300);   // Hub 350
     } catch { state.medTab[tipo] = null; }
     medRender();
   }
@@ -5371,6 +5377,290 @@
     const ax = t.closest('[data-med-anexo]'); if (ax) { medAbrirAnexo(ax.dataset.medAnexo); return; }
     if (t.closest('[data-med-baixar]')) { const b = $('#med-pdf-box', medDlg); if (b && b.__pdf) offerFile(b.__pdf.nome, b.__pdf.u8, 'application/pdf'); return; }
     if (t.closest('[data-med-fechar]') && medDlg) medDlg.close();
+  });
+
+  // ===================== Hub 350 (Josué, 12/11/2026: "baseado na automação criada para o módulo de convenções do DP, toda sua estrutura deveria ser repensada") =====================
+  // Decidido: a convenção (e o aditivo) que o Mediador encontrar ENTRA SOZINHA (origem "mediador", registrada nas Novidades); reajuste e piso são SUGERIDOS
+  // a partir do texto das cláusulas para a pessoa conferir; o módulo tem cinco abas: Empresas (de fábrica) · Convenções · Novidades · Textos · Sindicatos.
+  state.dpConvAba = 'empresas'; state.cvEmpSit = ''; state.cvEmpQ = ''; state.cvTxtQ = ''; state.cvTxtLim = 60;
+  const CV_ABAS = [['empresas', 'Empresas'], ['convencoes', 'Convenções'], ['novidades', 'Novidades'], ['textos', 'Textos'], ['sindicatos', 'Sindicatos']];
+  const cvAbaAtual = () => state.dpConvCad ? 'sindicatos' : (CV_ABAS.some(a => a[0] === state.dpConvAba) ? state.dpConvAba : 'empresas');
+  const medAtivo = () => !!(state.medMan && state.medMan['mediador-instrumentos']);
+  const sindTemCnpj = (s) => { const d = cnpjDig(s && s.cnpj); return d.length === 14 && cnpjValido(d) && !/^(\d)\1+$/.test(d.slice(0, 8)); };
+  // ----- a convenção do Mediador entra sozinha -----
+  const medAuto = { feito: '', rodando: false };
+  const medIdDe = (reg) => ('med-' + medReg(reg).replace(/[^\w-]/g, '-')).slice(0, 80);
+  async function medAutoLiderar() {
+    const eu = state.meId || autorId() || 'x', ref = db.doc('ing_auto/medcct');
+    try {
+      const sn = await ref.get(), v = sn && sn.exists !== false && sn.data ? sn.data() : null;
+      if (v && v.por && v.por !== eu && Number(v.ate) > Date.now()) return false;
+      await ref.set({ por: eu, ate: Date.now() + 120000 });
+      const sn2 = await ref.get(), w = sn2 && sn2.data ? sn2.data() : null;
+      return !!w && w.por === eu;
+    } catch { return false; }
+  }
+  // o objeto da convenção a partir do instrumento do Mediador (o mesmo que o antigo "Cadastrar" preenchia)
+  function medCctDe(i, lista) {
+    const t = medTextos().get(i.sol), s = [...i.cnpjs].map(medSindDe).find(Boolean), ano = (i.vigIni || '').slice(0, 4);
+    const partes = [[i.cnpjTrab, i.trab, 'laboral'], [i.cnpjEmp, i.emp, 'patronal']].filter(([c]) => cnpjDig(c).length >= 8).map(([c, n, p]) => ({ cnpj: fmtCnpj(c), nome: n || '', papel: p }));
+    let mae = '';
+    if (i.aditivo) {
+      const ds = new Set([...i.cnpjs]);
+      const cands = lista.filter(c => c.tipo === 'cct' && c.vigIni && c.partes.some(p => ds.has(cnpjDig(p.cnpj))) && (!c.vigFim || !i.vigIni || i.vigIni <= c.vigFim) && (!i.vigIni || c.vigIni <= i.vigIni)).sort((a, b) => b.vigIni.localeCompare(a.vigIni));
+      mae = cands[0] ? cands[0].id : '';
+    }
+    const agora = Date.now();
+    return normalizeCct({ id: medIdDe(i.registro), titulo: `${i.aditivo ? 'Aditivo' : 'CCT'} ${s ? rotuloSind(s) : (i.trab || '').slice(0, 80)} ${ano}${i.vigFim ? '/' + i.vigFim.slice(0, 4) : ''}`.trim(),
+      tipo: i.aditivo ? 'aditivo' : 'cct', status: 'registrada', registro: i.registro, vigIni: i.vigIni, vigFim: i.vigFim, dataBase: (t && t.dataBase) || '', partes, mae,
+      origem: 'mediador', medSol: i.sol, criadoEm: agora, atualizadoEm: agora,
+      obs: `Entrou sozinha pelo Mediador do MTE em ${fmtDMY(hoje())}: registro ${i.registro}, solicitação ${i.sol}, processo ${i.processo || '—'}. Reajuste, pisos e contribuições: confira no texto (aba Textos) e nas sugestões do painel.` });
+  }
+  async function medAutoCadastrar() {
+    if (!db || state.readOnly || state.semEscrita || medAuto.rodando || !state.dpCctsOk || !state.dpSind.length) return;
+    const man = state.medMan && state.medMan['mediador-instrumentos'], tab = state.medTab && state.medTab['mediador-instrumentos'];
+    if (!man || !tab || tab.ciclo !== man.ciclo) return;
+    const chave = man.ciclo + '|' + state.dpSind.length + '|' + state.medIgn.length;
+    if (medAuto.feito === chave || !medNovos(medInstrumentos()).length) { medAuto.feito = chave; return; }
+    medAuto.rodando = true;
+    try {
+      if (!(await medAutoLiderar())) return;
+      // relê as convenções no banco antes de gravar (outro navegador pode ter mexido) e decide sobre a lista nova
+      let atuais = state.dpCcts;
+      try { const sn = await db.doc('dp_config/ccts').get(); atuais = normalizeCcts(sn && sn.exists !== false && sn.data ? (sn.data().itens || []) : []); } catch { return; }
+      const regs = new Set(atuais.map(c => medReg(c.registro)).filter(Boolean)), ign = new Set(state.medIgn), dia = ymd(hoje());
+      const corte = ymd(new Date(hoje().getFullYear(), hoje().getMonth() - 18, 1));
+      const novos = medInstrumentos().filter(i => i.registro && !regs.has(medReg(i.registro)) && !ign.has(medReg(i.registro)) && ((i.vigFim && i.vigFim >= dia) || (i.vigIni && i.vigIni >= corte)));
+      if (!novos.length) { medAuto.feito = chave; return; }
+      // primeiro as convenções, depois os aditivos (que se ligam à convenção-mãe)
+      const lista = atuais.slice(), entrou = [];
+      for (const i of novos.filter(x => !x.aditivo).concat(novos.filter(x => x.aditivo))) {
+        const c = medCctDe(i, lista); if (!c || lista.some(x => x.id === c.id)) continue;
+        lista.push(c); entrou.push(c);
+      }
+      if (!entrou.length) { medAuto.feito = chave; return; }
+      if (await salvarCcts(lista, true)) {
+        medAuto.feito = chave;
+        toast(`Convenções: ${entrou.length === 1 ? '1 entrou sozinha' : entrou.length + ' entraram sozinhas'} pelo Mediador (${entrou.map(c => c.registro).join(', ')}). Veja em Novidades.`);
+        if (state.dpView === 'sindicatos') renderSindTab();
+      }
+    } finally { medAuto.rodando = false; try { await db.doc('ing_auto/medcct').set({ por: '', ate: 0 }); } catch { /* sem banco */ } }
+  }
+  // ----- reajuste e piso sugeridos pelo texto (a pessoa confere) -----
+  const SUG_REAJ = /reajust|correcao salarial|aumento salarial|recomposicao salarial|reposicao salarial/;
+  const SUG_PISO = /piso|salario normativo|salario de ingresso|salario profissional|salario minimo profissional/;
+  const trechoDe = (txt, i, n = 160) => { const a = Math.max(0, i - 70), s = txt.slice(a, a + n).replace(/\s+/g, ' ').trim(); return (a ? '…' : '') + s + (a + n < txt.length ? '…' : ''); };
+  function medTextoDaCct(c) {
+    if (!c || !c.registro) return null;
+    const ins = medInstrumentos().find(i => medReg(i.registro) === medReg(c.registro));
+    const t = ins && medTextos().get(ins.sol);
+    return t ? { t, sol: ins.sol } : null;
+  }
+  function medSugestoes(c) {
+    const tx = medTextoDaCct(c); if (!tx) return null;
+    const ign = new Set(c.sugIgn || []), out = {};
+    if (!c.reajuste.itens.length && !c.reajuste.tabela.length && !ign.has('reajuste')) {
+      for (const cl of tx.t.clausulas) {
+        if (!SUG_REAJ.test(norm(cl.titulo + ' ' + cl.subgrupo))) continue;
+        const m = /(\d{1,2}(?:[.,]\d{1,2})?)\s?%/.exec(cl.texto);
+        if (m) { out.reajuste = { pct: m[1].replace('.', ',') + '%', trecho: trechoDe(cl.texto, m.index), titulo: cl.titulo }; break; }
+      }
+    }
+    if (!c.pisos.length && !ign.has('pisos')) {
+      for (const cl of tx.t.clausulas) {
+        if (!SUG_PISO.test(norm(cl.titulo + ' ' + cl.subgrupo))) continue;
+        const re = /R\$\s?(\d{1,3}(?:\.\d{3})*,\d{2})/g, ps = []; let m, prim = -1;
+        while ((m = re.exec(cl.texto)) && ps.length < 8) {
+          if (prim < 0) prim = m.index;
+          let nome = (cl.texto.slice(Math.max(0, m.index - 90), m.index).split(/[.;\n]/).pop() || '').replace(/[:\-–—,(]\s*$/, '').trim();
+          nome = nome.replace(/\s+(de|no valor de|equivalente a|correspondente a|ser[aá] de|fixado em|igual a|e)$/i, '').replace(/^(e|o|a|para|aos?|as?)\s+/i, '').trim().slice(-60);
+          ps.push({ nome: nome && !/^piso( salarial)?$/i.test(nome) ? nome.charAt(0).toUpperCase() + nome.slice(1) : 'Piso', valor: m[1] });
+        }
+        if (ps.length) { out.pisos = { itens: ps, trecho: trechoDe(cl.texto, prim, 220), titulo: cl.titulo }; break; }
+      }
+    }
+    return out.reajuste || out.pisos ? Object.assign(out, { sol: tx.sol }) : null;
+  }
+  async function medSugUsar(id, qual) {
+    const c = cctPorId(id); if (!c || state.readOnly) return;
+    const sg = medSugestoes(c); if (!sg || !sg[qual]) return;
+    const lista = state.dpCcts.map(x => {
+      if (x.id !== id) return x;
+      const y = JSON.parse(JSON.stringify(x));
+      if (qual === 'reajuste') y.reajuste.itens = [{ rotulo: 'Geral', pct: sg.reajuste.pct }];
+      else y.pisos = sg.pisos.itens.map(p => ({ nome: p.nome, valor: p.valor }));
+      y.obs = (y.obs ? y.obs + '\n' : '') + `${qual === 'reajuste' ? 'Reajuste' : 'Pisos'} conferidos a partir do texto do Mediador (${sg[qual].titulo || 'cláusula'}) em ${fmtDMY(hoje())}.`;
+      y.atualizadoEm = Date.now(); return y;
+    });
+    if (await salvarCcts(lista)) toast(qual === 'reajuste' ? 'Reajuste gravado na convenção.' : 'Pisos gravados na convenção.');
+  }
+  async function medSugIgnorar(id, qual) {
+    const c = cctPorId(id); if (!c || state.readOnly) return;
+    const lista = state.dpCcts.map(x => x.id === id ? { ...x, sugIgn: [...new Set([...(x.sugIgn || []), qual])] } : x);
+    if (await salvarCcts(lista)) toast('Sugestão descartada. Preencha à mão em Editar, se precisar.');
+  }
+  function medSugHtml(c) {
+    const sg = medSugestoes(c); if (!sg) return '';
+    const ro = state.readOnly, bloco = (qual, rot, valor, s) => `<div class="cvs-sug"><div class="cvs-sug-h"><span class="cvs-tag">${ic('search', 'ic-sm')} Sugerido pelo texto</span><b>${escapeHtml(rot)}: ${valor}</b></div>
+      <blockquote>${s.titulo ? `<small>${escapeHtml(s.titulo)}</small>` : ''}${escapeHtml(s.trecho)}</blockquote>
+      <div class="cvs-sug-a">${ro ? '' : `<button type="button" class="btn btn-sm btn-primary" data-cvs-usar="${escapeHtml(c.id)}|${qual}">Usar</button><button type="button" class="btn btn-sm" data-cvs-ign="${escapeHtml(c.id)}|${qual}">Não é isso</button>`}<button type="button" class="linkish" data-med-texto="${escapeHtml(sg.sol)}">Ver o texto todo</button></div></div>`;
+    return `<div class="cvs-sugs">${sg.reajuste ? bloco('reajuste', 'Reajuste', escapeHtml(sg.reajuste.pct), sg.reajuste) : ''}${sg.pisos ? bloco('pisos', sg.pisos.itens.length > 1 ? 'Pisos' : 'Piso', sg.pisos.itens.map(p => `${p.nome === 'Piso' ? '' : escapeHtml(p.nome) + ' '}R$ ${escapeHtml(p.valor)}`).join(' · '), sg.pisos) : ''}</div>`;
+  }
+  // ----- abas -----
+  function cvAbasHtml(aba) {
+    const n = cvContagens();
+    const badge = { empresas: n.empAtencao, novidades: n.novidades, sindicatos: n.semCnpj };
+    return CV_ABAS.map(([k, l]) => `<button type="button" role="tab" data-cv-aba-mod="${k}" class="${aba === k ? 'on' : ''}" aria-selected="${aba === k}">${escapeHtml(l)}${badge[k] ? `<span class="cvs-n">${badge[k]}</span>` : ''}</button>`).join('');
+  }
+  function cvContagens() {
+    const emps = cvEmpresasLinhas();
+    const novidades = cvNovidades();
+    const semCnpj = cvSindsSemCnpj().length;
+    return { empAtencao: emps.filter(x => ['vencida', 'vencendo'].includes(x.sit)).length, novidades: novidades.entrou.filter(c => c.criadoEm > Date.now() - 7 * 864e5).length + novidades.conferir.length, semCnpj };
+  }
+  // ----- Empresas: o que vale para cada uma -----
+  function proxDataBase(mes) {
+    const mi = MESES.indexOf(mes); if (mi < 0) return null;
+    const t = hoje(); let d = new Date(t.getFullYear(), mi, 1); if (ymd(d) < ymd(new Date(t.getFullYear(), t.getMonth(), 1))) d = new Date(t.getFullYear() + 1, mi, 1);
+    return d;
+  }
+  function cvEmpresasLinhas() {
+    return empresasCarteira().filter(ativa).map(e => {
+      const todos = empresaSinds(e); if (todos.some(ehSemSind) && !todos.some(s => !ehSemSind(s))) return null;
+      const ss = todos.filter(s => !ehSemSind(s)), vs = empresaCcts(e);
+      if (vs.length) {
+        const v = vs[0], ef = cctEfetiva(v), acoes = acoesCct(v.cct, [e]), sit = situacaoCct(acoes);
+        return { e, ss, v, ef, sit, acao: acoes.find(a => a.sit) || null, sug: !!medSugestoes(v.cct) || v.aditivos.some(a => !!medSugestoes(a)) };
+      }
+      const motivo = !ss.length ? 'Sem sindicato no cadastro da empresa' : !ss.some(sindTemCnpj) ? 'Sindicato sem CNPJ: o Mediador não consegue procurar' : medAtivo() ? 'Nenhuma convenção deste sindicato no Mediador' : 'Ainda sem leitura do Mediador';
+      return { e, ss, v: null, ef: null, sit: 'sem', motivo, acao: null, sug: false };
+    }).filter(Boolean);
+  }
+  const CV_ORD = { vencida: 0, vencendo: 1, pendente: 2, sem: 3, emdia: 4 };
+  function renderCvEmpresas(el) {
+    const todas = cvEmpresasLinhas(), q = state.cvEmpQ, f = state.cvEmpSit;
+    const cont = {}; todas.forEach(x => { cont[x.sit] = (cont[x.sit] || 0) + 1; });
+    const vis = todas.filter(x => (!f || x.sit === f) && matchQ([x.e.nome, x.e.cnpj, x.e.cod, respEf(x.e) || '', ...x.ss.map(s => `${s.cod} ${rotuloSind(s)}`), x.v ? `${x.v.cct.titulo} ${x.v.cct.registro}` : ''], q))
+      .sort((a, b) => (CV_ORD[a.sit] - CV_ORD[b.sit]) || byNome(a.e, b.e));
+    const linha = (x) => {
+      const e = x.e, c = x.v && x.v.cct, sI = CV_SITS.find(s => s.k === x.sit);
+      const sind = x.ss.length ? x.ss.map(s => `<span>${escapeHtml(rotuloSind(s))}${sindTemCnpj(s) ? '' : ' <i class="cvs-alerta" title="Sem CNPJ: o Mediador não procura">sem CNPJ</i>'}</span>`).join('') : '<span class="dp-cell-sub">—</span>';
+      let conv, vig, db_ = '<span class="dp-cell-sub">—</span>', rj = '<span class="dp-cell-sub">—</span>', piso = '<span class="dp-cell-sub">—</span>';
+      if (c) {
+        conv = `<button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(tituloCurto(c))}</button><small>${c.registro ? escapeHtml(c.registro) : 'sem registro'}${c.origem === 'mediador' ? ' · <span class="cvs-med">Mediador</span>' : ''}</small>`;
+        const n = c.vigFim ? diffDays(parseYmd(c.vigFim), hoje()) : null;
+        vig = `${barraVig(c)}<small>${n == null ? 'sem vigência' : n < 0 ? `vencida há ${-n} dia(s)` : `termina em ${n} dia(s)`}</small>`;
+        const pd = proxDataBase(c.dataBase);
+        if (pd) { const nd = diffDays(pd, hoje()); db_ = `<b>${escapeHtml(c.dataBase)}</b><small>${nd <= 0 ? 'este mês' : nd <= 62 ? `em ${nd} dia(s)` : fmtDMY(pd).slice(3)}</small>`; }
+        const r = reajCurto(x.ef); rj = r.v === '—' ? (x.sug ? '<span class="cvs-conferir">conferir</span>' : '<span class="dp-cell-sub">—</span>') : `<b>${escapeHtml(r.v)}</b>`;
+        const p = x.ef.pisos.val[0]; piso = p ? `<b>${escapeHtml(moeda(p.valor))}</b>${x.ef.pisos.val.length > 1 ? `<small>+${x.ef.pisos.val.length - 1}</small>` : ''}` : (x.sug ? '<span class="cvs-conferir">conferir</span>' : '<span class="dp-cell-sub">—</span>');
+      } else {
+        conv = `<span class="cvs-motivo">${escapeHtml(x.motivo)}</span>`;
+        vig = x.ss.length && !x.ss.some(sindTemCnpj) ? `<button type="button" class="linkish" data-cvs-sind="${escapeHtml(x.ss[0].id)}">Completar o sindicato</button>` : !x.ss.length ? `<button type="button" class="linkish" data-open-emp="${escapeHtml(e.id)}">Abrir a empresa</button>` : '<span class="dp-cell-sub">—</span>';
+      }
+      return `<div class="cvs-row s-${x.sit}"${c ? ` data-cv-abrir="${escapeHtml(c.id)}"` : ''}>
+        <div class="cvs-emp"><button type="button" class="q-emp" data-open-emp="${escapeHtml(e.id)}">${nomeEmpHtml(e)}</button><small>${escapeHtml(respEf(e) || 'sem responsável')}</small></div>
+        <div class="cvs-sind">${sind}</div><div class="cvs-c">${conv}</div><div class="cvs-vig">${vig}</div><div class="cvs-db">${db_}</div><div class="cvs-num">${rj}</div><div class="cvs-num">${piso}</div>
+        <div class="cvs-sit"><span class="cv-chip s-${x.sit}">${ic(sI.ic, 'ic-sm')} ${escapeHtml(sI.l1)}</span>${x.acao ? `<small>${escapeHtml(x.acao.txt)}</small>` : ''}</div></div>`;
+    };
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>O que vale para cada empresa</h2><p>A convenção em vigor de cada empresa ativa${state.dpCarteira ? ' da carteira' : ''}, pelo sindicato do cadastro. As convenções do Mediador entram sozinhas; reajuste e piso vêm do cadastro da convenção ou, quando faltam, aparecem como "conferir".</p></div></div>
+      <div class="cvs-bar"><div class="dp-chips" role="group" aria-label="Situação"><button type="button" class="dp-chip${!f ? ' on' : ''}" data-cvs-sit="">Todas <b>${todas.length}</b></button>${CV_SITS.map(s => `<button type="button" class="dp-chip s-${s.k}${f === s.k ? ' on' : ''}" data-cvs-sit="${s.k}"${cont[s.k] ? '' : ' disabled'}>${escapeHtml(s.l)} <b>${cont[s.k] || 0}</b></button>`).join('')}</div>
+        <input type="search" id="cvs-emp-q" placeholder="Buscar empresa, sindicato, convenção…" value="${escapeHtml(q)}" autocomplete="off"><span class="dp-count">${vis.length} empresa(s)</span></div>
+      ${vis.length ? `<div class="cvs-tab" role="table"><div class="cvs-row cvs-head" role="row"><div>Empresa</div><div>Sindicato</div><div>Convenção</div><div>Vigência</div><div>Data-base</div><div>Reajuste</div><div>Piso</div><div>Situação</div></div>${vis.map(linha).join('')}</div>`
+        : `<div class="cv-zen big">${ic('list')}<span>${todas.length ? 'Nenhuma empresa com estes filtros.' : 'Nenhuma empresa ativa nesta carteira.'}</span></div>`}`;
+  }
+  // ----- Novidades -----
+  function cvNovidades() {
+    const t = Date.now();
+    const entrou = state.dpCcts.filter(c => c.origem === 'mediador' && c.criadoEm && t - c.criadoEm < 120 * 864e5).sort((a, b) => b.criadoEm - a.criadoEm);
+    const usadas = new Set(empresasCarteira().filter(ativa).flatMap(e => empresaCcts(e)).flatMap(v => [v.cct, ...v.aditivos]));
+    const conferir = state.dpCcts.filter(c => c.status !== 'substituida' && (usadas.has(c) || (c.origem === 'mediador' && t - c.criadoEm < 120 * 864e5)) && medSugestoes(c));
+    return { entrou, conferir };
+  }
+  function renderCvNovidades(el) {
+    const { entrou, conferir } = cvNovidades(), { linhas } = convencoesDaCarteira();
+    const vencidas = linhas.filter(l => l.sit === 'vencida');
+    const prox = linhas.flatMap(l => eventosConv(l, 60).filter(ev => ev.tipo === 'base' || ev.tipo === 'fim').map(ev => ({ ...ev, l }))).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 40);
+    const visto = Number(state.prefs.cvVisto) || 0;
+    const cctItem = (c) => { const es = empsDaCct(c, empresasCarteira().filter(ativa)), novo = c.criadoEm > visto;
+      return `<li class="cvs-nv${novo ? ' novo' : ''}"><span class="cvs-nv-ic">${ic(c.tipo === 'cct' ? 'list' : 'plus', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button>${novo ? '<span class="cvs-novo">nova</span>' : ''}
+        <small>${escapeHtml(CCT_TIPOS[c.tipo])} · registro ${escapeHtml(c.registro || '—')} · ${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · ${es.length} empresa(s)</small></div><span class="cvs-quando">${escapeHtml(new Date(c.criadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }))}</span></li>`; };
+    const sec = (tit, n, dica, corpo) => `<section class="cvs-sec"><h3>${escapeHtml(tit)} <span class="cvs-n">${n}</span></h3>${dica ? `<p class="cvs-dica">${escapeHtml(dica)}</p>` : ''}${corpo}</section>`;
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Novidades das convenções</h2><p>O que o Mediador trouxe, o que falta conferir e o que vence nos próximos 60 dias. O Hub procura no Mediador uma vez por semana (pela extensão) e quando alguém pede.</p></div>
+        ${entrou.some(c => c.criadoEm > visto) ? '<button type="button" class="btn btn-sm" data-cvs-visto>Marcar como vistas</button>' : ''}</div>
+      <div id="cvs-med-slot"></div>
+      <div class="cvs-grade">
+        ${sec('Entraram sozinhas pelo Mediador', entrou.length, 'Convenções e aditivos registrados no MTE que o Hub cadastrou sozinho nos últimos 120 dias. Excluir uma delas faz o Hub não cadastrá-la de novo.', entrou.length ? `<ul class="cvs-lista">${entrou.map(cctItem).join('')}</ul>` : '<p class="cvs-vazio">Nada novo no Mediador.</p>')}
+        ${sec('Reajuste e piso para conferir', conferir.length, 'O Hub achou o número no texto da convenção. Abra, confira o trecho e clique em Usar.', conferir.length ? `<ul class="cvs-lista">${conferir.map(c => { const s = medSugestoes(c); return `<li class="cvs-nv"><span class="cvs-nv-ic">${ic('search', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(c.id)}">${escapeHtml(c.titulo)}</button><small>${[s.reajuste && 'reajuste ' + s.reajuste.pct, s.pisos && (s.pisos.itens.length > 1 ? s.pisos.itens.length + ' pisos' : 'piso R$ ' + s.pisos.itens[0].valor)].filter(Boolean).map(escapeHtml).join(' · ')}</small></div><button type="button" class="btn btn-sm" data-cv-abrir="${escapeHtml(c.id)}">Conferir</button></li>`; }).join('')}</ul>` : '<p class="cvs-vazio">Nada para conferir.</p>')}
+        ${sec('Próximos 60 dias', prox.length, 'Data-base e fim de vigência das convenções das empresas desta carteira.', prox.length ? `<ul class="cvs-lista">${prox.map(ev => `<li class="cvs-nv"><span class="cvs-data"><b>${escapeHtml(fmtDMY(parseYmd(ev.d)).slice(0, 5))}</b><small>${diffDays(parseYmd(ev.d), hoje()) === 0 ? 'hoje' : 'em ' + diffDays(parseYmd(ev.d), hoje()) + ' d'}</small></span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(ev.id)}">${escapeHtml(ev.nome)}</button><small>${escapeHtml(ev.txt)} · ${ev.l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nada nos próximos 60 dias.</p>')}
+        ${sec('Vencidas sem a nova', vencidas.length, medAtivo() ? 'A vigência acabou e a nova ainda não apareceu no Mediador. Entra sozinha quando for registrada.' : 'A vigência acabou e não há convenção nova cadastrada.', vencidas.length ? `<ul class="cvs-lista">${vencidas.map(l => `<li class="cvs-nv"><span class="cvs-nv-ic s-vencida">${ic('alert', 'ic-sm')}</span><div><button type="button" class="cvs-conv" data-cv-abrir="${escapeHtml(l.c.id)}">${escapeHtml(l.c.titulo)}</button><small>venceu em ${escapeHtml(fmtYmdBR(l.c.vigFim))} · ${l.emps.length} empresa(s)</small></div></li>`).join('')}</ul>` : '<p class="cvs-vazio">Nenhuma vencida.</p>')}
+      </div>`;
+    const slot = $('#cvs-med-slot', el), mb = $('#cv-med'); if (slot && mb) slot.appendChild(mb);
+  }
+  // ----- Textos: busca em todas as cláusulas -----
+  function renderCvTextos(el) {
+    const q = state.cvTxtQ, qn = norm(q), ins = medInstrumentos(), txts = medTextos();
+    const nomeDe = (sol) => { const i = ins.find(x => x.sol === sol), c = i && state.dpCcts.find(x => medReg(x.registro) === medReg(i.registro)); return { i, c, nome: c ? c.titulo : i ? `${i.aditivo ? 'Aditivo' : 'Convenção'} ${i.trab || ''}`.trim() : sol }; };
+    const docs = [...txts.entries()].map(([sol, t]) => ({ sol, t, ...nomeDe(sol) })).sort((a, b) => String(b.i && b.i.vigIni || '').localeCompare(String(a.i && a.i.vigIni || '')));
+    let corpo;
+    if (!docs.length) corpo = `<div class="cv-zen big">${ic('search')}<span>${medAtivo() ? 'O Mediador ainda não trouxe o texto de nenhuma convenção.' : 'Os textos chegam com a leitura do Mediador (aba Novidades › Buscar no Mediador).'}</span></div>`;
+    else if (qn.length < 3) corpo = `<p class="cvs-dica">${docs.length} convenção(ões) com o texto no Hub (a vigente e os aditivos de cada sindicato). Escreva ao menos 3 letras para procurar em todas, ou abra uma.</p><ul class="cvs-docs">${docs.map(d => `<li><button type="button" class="cvs-doc" data-med-texto="${escapeHtml(d.sol)}"><b>${escapeHtml(d.nome)}</b><small>${d.i ? escapeHtml(medVig(d.i)) + ' · ' : ''}${d.t.clausulas.length} cláusula(s)${d.c && d.c.origem === 'mediador' ? ' · entrou pelo Mediador' : ''}</small></button></li>`).join('')}</ul>`;
+    else {
+      const ws = qn.split(/\s+/).filter(Boolean), res = [];
+      docs.forEach(d => d.t.clausulas.forEach(cl => { const hay = norm(`${cl.grupo} ${cl.subgrupo} ${cl.titulo} ${cl.texto}`); if (ws.every(w => hay.includes(w))) res.push({ d, cl }); }));
+      const mostra = res.slice(0, state.cvTxtLim);
+      const marca = (s) => { let h = escapeHtml(s); ws.forEach(w => { if (w.length < 3) return; const re = new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('').map(ch => { const b = { a: '[aáàâã]', e: '[eéê]', i: '[ií]', o: '[oóôõ]', u: '[uú]', c: '[cç]' }[ch]; return b || ch; }).join('') + ')', 'gi'); h = h.replace(re, '<mark>$1</mark>'); }); return h; };
+      const snippet = (cl) => { const tn = norm(cl.texto), p = Math.max(0, tn.indexOf(ws[0])); return trechoDe(cl.texto, p, 260); };
+      corpo = `<p class="cvs-dica">${res.length} cláusula(s) em ${new Set(res.map(r => r.d.sol)).size} convenção(ões).</p>` + (mostra.length ? `<ul class="cvs-res">${mostra.map(r => `<li><div class="cvs-res-h"><button type="button" class="cvs-conv" data-cvs-txt="${escapeHtml(r.d.sol)}">${escapeHtml(r.d.nome)}</button><small>${escapeHtml([r.cl.grupo, r.cl.subgrupo].filter(Boolean).join(' › '))}</small></div>${r.cl.titulo ? `<h4>${marca(r.cl.titulo)}</h4>` : ''}<p>${marca(snippet(r.cl))}</p></li>`).join('')}</ul>` : '')
+        + (res.length > mostra.length ? `<div class="cvs-mais"><button type="button" class="btn btn-sm" data-cvs-txt-mais>Mostrar mais ${Math.min(60, res.length - mostra.length)} de ${res.length - mostra.length}</button></div>` : '');
+    }
+    el.innerHTML = `<div class="cvs-topo"><div class="cvs-tit"><h2>Textos das convenções</h2><p>Procure em todas as cláusulas de uma vez: piso, adicional noturno, horas extras, contribuição, estabilidade… O texto vem do Mediador do MTE.</p></div></div>
+      <div class="cvs-bar"><input type="search" id="cvs-txt-q" class="cvs-txt-q" placeholder="Procurar nas cláusulas (ex.: adicional noturno)" value="${escapeHtml(q)}" autocomplete="off"></div>${corpo}`;
+  }
+  // ----- Sindicatos: os que o Mediador não consegue procurar -----
+  function cvSindsSemCnpj() {
+    const usados = new Map();
+    state.dpEmpresas.filter(ativa).forEach(e => empresaSinds(e).forEach(s => { if (!ehSemSind(s) && !sindTemCnpj(s)) usados.set(s, (usados.get(s) || 0) + 1); }));
+    return [...usados.entries()].map(([s, n]) => ({ s, n })).sort((a, b) => b.n - a.n);
+  }
+  function renderCvSemCnpj() {
+    const el = $('#cvs-semcnpj'); if (!el) return;
+    const l = cvSindsSemCnpj();
+    el.hidden = !l.length;
+    el.innerHTML = l.length ? `<div class="cvs-alerta-box"><h3>${ic('alert', 'ic-sm')} ${l.length} sindicato(s) em uso sem CNPJ <span class="cvs-dica">O Mediador só procura pelo CNPJ: sem ele, a convenção destas empresas não entra sozinha. Complete no Domínio e importe de novo, ou edite aqui.</span></h3>
+      <ul>${l.slice(0, 30).map(x => `<li><b>${escapeHtml(x.s.cod || '—')}</b> ${escapeHtml(rotuloSind(x.s))} <small>${x.n} empresa(s)</small>${state.readOnly ? '' : `<button type="button" class="btn btn-sm" data-cvs-sind="${escapeHtml(x.s.id)}">Editar</button>`}</li>`).join('')}</ul>${l.length > 30 ? `<p class="cvs-dica">e mais ${l.length - 30}.</p>` : ''}</div>` : '';
+  }
+  function renderCvAba() {
+    const aba = cvAbaAtual(), nova = $('#cv-nova');
+    $('#cv-abas').innerHTML = cvAbasHtml(aba);
+    $('#cv-main').hidden = aba !== 'convencoes'; $('#cv-cad').hidden = aba !== 'sindicatos'; nova.hidden = !['empresas', 'novidades', 'textos'].includes(aba);
+    // o bloco do Mediador mora nas Novidades; fora delas, volta ao lugar de antes (escondido)
+    // (guardado no lugar de sempre antes de redesenhar: o innerHTML das abas novas o apagaria)
+    const mb = $('#cv-med'); if (mb && mb.parentNode !== $('#cv-main')) $('#cv-main').insertBefore(mb, $('#cv-hero'));
+    if (mb) mb.hidden = aba !== 'novidades';
+    if (aba === 'empresas') renderCvEmpresas(nova);
+    else if (aba === 'novidades') { renderCvNovidades(nova); medRender(); }
+    else if (aba === 'textos') renderCvTextos(nova);
+    return aba;
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target; if (!t || !t.closest || !t.closest('#dp-view-sindicatos')) return;
+    const ab = t.closest('[data-cv-aba-mod]');
+    if (ab) { const k = ab.dataset.cvAbaMod; if (k === 'sindicatos') { state.dpConvCad = true; state.dpSindVisao = state.dpSindVisao || 'uso'; } else { state.dpConvCad = false; state.dpConvAba = k; } if (state.dpConvPainel) fecharPainelCct(); state.dpConvAnim = true; renderSindTab(); return; }
+    const st = t.closest('[data-cvs-sit]'); if (st) { state.cvEmpSit = state.cvEmpSit === st.dataset.cvsSit ? '' : st.dataset.cvsSit; renderCvAba(); return; }
+    const sd = t.closest('[data-cvs-sind]'); if (sd) { e.stopPropagation(); if (!state.readOnly) abrirSind(sd.dataset.cvsSind); return; }
+    const us = t.closest('[data-cvs-usar]'); if (us) { const [id, q] = us.dataset.cvsUsar.split('|'); medSugUsar(id, q); return; }
+    const ig = t.closest('[data-cvs-ign]'); if (ig) { const [id, q] = ig.dataset.cvsIgn.split('|'); medSugIgnorar(id, q); return; }
+    const tx = t.closest('[data-cvs-txt]'); if (tx) { medAbrirTexto(tx.dataset.cvsTxt).then(() => { const i = $('#med-dlg-q'); if (i && state.cvTxtQ) { i.value = state.cvTxtQ; medFiltrar(); } }); return; }
+    if (t.closest('[data-cvs-txt-mais]')) { state.cvTxtLim += 60; renderCvAba(); return; }
+    if (t.closest('[data-cvs-visto]')) { state.prefs.cvVisto = Date.now(); savePrefs(); renderCvAba(); return; }
+  });
+  let cvsBuscaT = 0;
+  document.addEventListener('input', (e) => {
+    const id = e.target && e.target.id; if (id !== 'cvs-emp-q' && id !== 'cvs-txt-q') return;
+    clearTimeout(cvsBuscaT); const v = e.target.value;
+    cvsBuscaT = setTimeout(() => { if (id === 'cvs-emp-q') state.cvEmpQ = v.trim(); else { state.cvTxtQ = v.trim(); state.cvTxtLim = 60; }
+      const pos = e.target.selectionStart; renderCvAba(); const n = $('#' + id); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch { /* campo de busca */ } } }, 220);
   });
 
   function renderConvencoes() {
@@ -5638,7 +5928,7 @@
     let corpo = '';
     if (aba === 'resumo') {
       const partes = c.partes.map(p => { const s = sindsDaCct(c).find(x => cnpjDig(x.cnpj) === cnpjDig(p.cnpj)); return `<li><span class="cct-papel ${p.papel}">${p.papel === 'patronal' ? 'P' : p.papel === 'federacao' ? 'F' : 'L'}</span>${s ? `<b class="dp-mono">${escapeHtml(s.cod)}</b> ${escapeHtml(rotuloSind(s))}` : `${escapeHtml(p.nome)} <span class="dp-cell-sub">fora do Domínio</span>`}</li>`; }).join('');
-      corpo = `${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
+      corpo = `${medSugHtml(c)}${acoes.length ? `<ul class="cv-acoes">${acoes.map(a => `<li class="cv-acao ${a.nivel}">${escapeHtml(a.txt)}</li>`).join('')}</ul>` : '<p class="cv-acao ok">Tudo em dia.</p>'}
         <h4>Ciclo de vida</h4>${cicloHtml(c, v.aditivos)}
         <div class="cv-kv"><span>Vigência</span><div>${barraVig(c)}<div class="dp-cell-sub">${c.vigIni ? fmtYmdBR(c.vigIni) : '?'} a ${c.vigFim ? fmtYmdBR(c.vigFim) : '?'} · data-base ${escapeHtml((c.dataBase || '—').toLowerCase())}</div></div>
           <span>Situação</span><div><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status])}</span>${c.registro ? ` <span class="dp-mono">${escapeHtml(c.registro)}</span>` : ''}</div>
@@ -5673,7 +5963,7 @@
     const pr = partesRot(c), rj = reajCurto(ef), nDias = c.vigFim ? diffDays(parseYmd(c.vigFim), hoje()) : null;
     const sitI = CV_SITS.find(x => x.k === sit);
     pn.innerHTML = `<div class="cv-pn-hero s-${sit}">
-        <div class="cv-pn-top"><span class="cv-chip s-${sit}">${ic(sitI.ic, 'ic-sm')} ${sitI.l1}</span><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span><span class="spacer"></span>
+        <div class="cv-pn-top"><span class="cv-chip s-${sit}">${ic(sitI.ic, 'ic-sm')} ${sitI.l1}</span><span class="pill ${CCT_STATUS_PILL[c.status]}">${escapeHtml(CCT_STATUS[c.status].split(' (')[0])}</span>${c.origem === 'mediador' ? '<span class="pill cvs-pill-med" title="Cadastrada sozinha pelo Mediador do MTE">Mediador</span>' : ''}<span class="spacer"></span>
           ${ro ? '' : `<button type="button" class="btn btn-sm" data-cv-editar="${escapeHtml(c.id)}">${ic('edit', 'ic-sm')} Editar</button>`}<button type="button" class="icon-btn" data-cv-fechar aria-label="Fechar">${ic('x')}</button></div>
         <div class="cv-pn-id">${cvAnel(pctVig(c), diasCentro(c), 's-' + sit, 78)}<div style="min-width:0"><h3>${escapeHtml(c.titulo)}</h3>
           <div class="cv-duo">${pr.lab.slice(0, 2).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}${pr.lab.length > 2 ? `<span class="dp-cell-sub">+${pr.lab.length - 2}</span>` : ''}${pr.pat.length ? `<em>×</em>${pr.pat.slice(0, 1).map(n => `<span>${cvAv(n, 'xs')}${escapeHtml(n)}</span>`).join('')}` : ''}</div></div></div>
@@ -5691,10 +5981,11 @@
     offerFile(`dp-convencoes-${hojeArq()}.csv`, toCsv(rows), 'text/csv');
   }
   function renderSindTab() {
-    const cad = !!state.dpConvCad;
-    $('#cv-main').hidden = cad; $('#cv-cad').hidden = !cad;
-    if (cad) { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); }
-    else renderConvencoes();
+    const aba = renderCvAba();   // Hub 350: Empresas · Convenções · Novidades · Textos · Sindicatos
+    if (aba === 'sindicatos') { if (state.dpConvPainel) fecharPainelCct(); renderSindicatos(); renderCvSemCnpj(); }
+    else if (aba === 'convencoes') renderConvencoes();
+    else if (state.dpConvAbrir && cctPorId(state.dpConvAbrir)) { const a = state.dpConvAbrir; state.dpConvAbrir = ''; abrirPainelCct(a); }
+    else if (state.dpConvPainel) renderPainelCct();
   }
   function sindTabBadge() {
     const { linhas, sem } = convencoesDaCarteira();
@@ -10832,12 +11123,14 @@
     cctStore = cctDb;
     db.doc('dp_config/ccts').onSnapshot((s) => {
       state.dpCcts = normalizeCcts(s.exists ? s.data().itens : []);
+      state.dpCctsOk = true; setTimeout(() => medAutoCadastrar(), 800);   // Hub 350
       refreshAll();
     }, caiu);
 
     sindStore = sindDb;
     db.doc('dp_config/sindicatos').onSnapshot((s) => {
       state.dpSind = normalizeSinds(s.exists ? s.data().itens : []);
+      setTimeout(() => medAutoCadastrar(), 800);   // Hub 350
       refreshAll();
     }, caiu);
 
