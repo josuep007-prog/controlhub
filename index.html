@@ -209,12 +209,13 @@
       </div>
 
       <div class="dp-view" id="dp-view-sindicatos" hidden>
+        <div class="cvs-abas" id="cv-abas" role="tablist" aria-label="Convenções"></div>
+        <div id="cv-nova" hidden></div>
         <div id="cv-main">
           <div class="dp-toolbar">
             <input type="search" id="cv-search" placeholder="Buscar empresa, sindicato, código ou CNPJ…" autocomplete="off">
             <div class="seg" id="cv-modo" role="group" aria-label="Como mostrar"><button type="button" data-cv-modo="cards"><svg class="ic ic-sm"><use href="#i-grid"/></svg> Cartões</button><button type="button" data-cv-consultar><svg class="ic ic-sm"><use href="#i-search"/></svg> Consultar convenções</button><button type="button" data-cv-modo="tempo"><svg class="ic ic-sm"><use href="#i-gantt"/></svg> Linha do tempo</button></div>
             <span class="dp-count" id="cv-count"></span>
-            <button type="button" class="btn btn-sm" data-cv-cad="uso" title="Sindicatos, convenções, importação do Domínio, revisão e exportações">Cadastrar Sindicato</button>
           </div>
           <div id="cv-vazio"></div>
           <div id="cv-med" class="med-box" aria-live="polite"></div>
@@ -222,10 +223,11 @@
           <div id="cv-sits"></div>
           <div id="cv-cards"></div>
           <div id="cv-tempo" hidden></div>
-          <aside class="cv-painel" id="cv-painel" tabindex="-1" aria-label="Detalhe da convenção" hidden></aside>
         </div>
+        <aside class="cv-painel" id="cv-painel" tabindex="-1" aria-label="Detalhe da convenção" hidden></aside>
         <div id="cv-cad" hidden>
-        <div class="cv-cad-head"><button type="button" class="btn btn-sm" id="cv-cad-voltar">‹ Convenções</button><h2>Cadastro de sindicatos e convenções</h2></div>
+        <div class="cv-cad-head"><button type="button" class="btn btn-sm" id="cv-cad-voltar" hidden>‹ Convenções</button><h2>Cadastro de sindicatos e convenções</h2></div>
+        <div id="cvs-semcnpj" hidden></div>
         <div class="dp-toolbar">
           <input type="search" id="sd-search" placeholder="Buscar sindicato, código ou empresa…" autocomplete="off">
           <select id="sd-ordem" aria-label="Ordenar sindicatos"><option value="data">Próxima data-base</option><option value="nome">Nome</option><option value="cod">Código</option><option value="emps">Mais empresas</option><option value="vig">Fim da vigência</option></select>
