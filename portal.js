@@ -289,7 +289,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
 
   var faltaCarregar = {empresas:1, empresaSetores:1, contatos:1}, semBanco = false;
   function carregando(){ return !semBanco && Object.keys(faltaCarregar).length > 0; }
-  var state = { empresas:[], setores:[], funcionarios:[], contatos:[], alinhamentoSetor:[], auditoriaDominio:[], historico:[] };
+  var state = { empresas:[], setores:[], funcionarios:[], contatos:[], alinhamentoSetor:[], auditoriaDominio:[], historico:[], portalConfig:[] };
 
   /* ---------- matrizes e filiais ---------- */
   // A filial (empresas.matrizId) não tem frentes, contatos nem etapas próprias: tudo fica na matriz e o
@@ -601,6 +601,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
   }
   var ui = {
     view:"dashboard",
+    ei:null,
     agendaDia:null, agendar:{aberto:false, sel:[], data:"", hora:"", mes:"", opcoes:[], ativo:0}, expanded:new Set(), editEmpresa:new Set(), expandedFunc:new Set(), expandedGroups:new Set(["secao:empresas", "secao:contatos"]), collapsedOverride:new Set(), expandedEtapas:new Set(), focoAbertas:new Set(), focoAcaoAberta:new Set(), focoRecemAdicionada:null,
     selecionadas:new Set(), ultimaLista:[],
     selFunc:new Set(), ultimaListaFunc:[], selPessoas:new Set(), ultimaListaPessoas:[],
@@ -2528,6 +2529,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
 
   function renderFoco(){
     var cont = $("#focoList");
+    try{ renderBlocosAuto(); }catch(x){ console.error(x); }
     var porEmpresa = {};
     state.setores.forEach(function(s){ (porEmpresa[s.empresaId] = porEmpresa[s.empresaId] || []).push(s); });
     var todasFoco = listaFoco();
@@ -4327,6 +4329,225 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     var a0 = atrasados[0], ga = atrasados.filter(function(x){ return x.data === a0.data; });
     return {sig:"a|" + a0.data + "|" + ga.length, focoProxAcao:"Treinamento atrasado (era para " + dataBR(a0.data).slice(0, 5) + "): confirmar ou remarcar com " + nomesDe(ga), focoPrazo:a0.data, focoAguardando:"cliente", focoAguardandoOutro:""};
   }
+  /* ---------- Hub 354 (Josué, 13/11/2026): avisos e e-mail inicial do Portal ----------
+     1) Empresa em foco 100% implementada: avisa o analista no sino (uma vez, carimbo no banco) e fica no bloco "Prontas" da aba Foco.
+     2) Empresa que entra no foco: o e-mail inicial (apresenta o Portal, confirma os contatos de cada setor, treinamento por ligação ou manual,
+        vantagens da centralização) sai como RASCUNHO no Zimbra: o analista confere e envia. O Hub nunca envia sozinho e só guarda
+        {em, por, setores, n} do envio (nunca o texto nem os e-mails). */
+  var EI_CORTE = "2026-11-13";      // empresas que entram no foco daqui em diante pedem o e-mail inicial (as de antes não viram centenas de pendências)
+  var EI_ZIMBRA = "https://mail.controltax.com.br/";
+  var EI_URL_MAX = 7000;            // acima disso o Zimbra abre só com assunto e destinatários e o texto vai para a área de transferência
+  var EI_ASSUNTO = "{empresa}: conheça o Portal do Cliente da ControlTax e nos confirme seus contatos";
+  var EI_CORPO = [
+    "Olá!",
+    "",
+    "Somos a equipe da ControlTax e a {empresa} acaba de entrar no nosso Portal do Cliente, o canal onde passamos a concentrar as solicitações, os envios e o acompanhamento dos serviços de {setores}. {analista} acompanha a implantação com vocês.",
+    "",
+    "Para liberar o acesso, precisamos confirmar quem da {empresa} vai usar o portal em cada setor. Hoje temos estes contatos:",
+    "",
+    "{tabelaContatos}",
+    "",
+    "Pode nos responder (1) se estão corretos e (2) o nome completo e o e-mail de quem mais deve ter acesso, indicando o setor de cada pessoa?",
+    "",
+    "Como vamos apoiar vocês: podemos fazer um treinamento por ligação, no horário que for melhor, ou enviar {manual}. Se preferir o manual, é só avisar. As duas opções estão à disposição.",
+    "",
+    "Por que centralizar no portal?",
+    "- Mais segurança para os dois lados: as informações ficam num único lugar, com acesso por usuário, histórico de cada pedido e menos documentos e dados pessoais circulando soltos por e-mail ou WhatsApp.",
+    "- Tudo rastreável: cada solicitação tem protocolo, responsável e prazo, e vocês acompanham o andamento sem precisar nos perguntar.",
+    "- Menos retrabalho: quando as informações chegam completas e no mesmo lugar, evitamos idas e vindas e erros de digitação.",
+    "- Processos cada vez melhores: com tudo centralizado, conseguimos enxergar onde há gargalos e otimizar ainda mais os processos, o que se traduz em respostas mais rápidas e entregas mais previsíveis.",
+    "",
+    "Ficamos à disposição para qualquer dúvida.",
+    "",
+    "Atenciosamente,",
+    "{analista}",
+    "ControlTax"
+  ].join("\n");
+  function hubApiP(){ try{ var P = window.parent; return (P && P !== window && P.__hubApi) || null; }catch(x){ return null; } }
+  function operadorDe(e){
+    var A = authP(); if(!A) return false;
+    var n = A.nivel("portal"); if(n === "coord") return true;
+    if(n !== "analista") return false;
+    var eu = normBusca(A.analista("portal")); if(!eu) return false;
+    return state.setores.some(function(s){ return s.empresaId === e.id && normBusca(s.analistaNome) === eu; });
+  }
+  function setoresDaEmpresa(e){ return SETORES.filter(function(s){ return e.setoresDemanda && e.setoresDemanda[s.key]; }); }
+  function listaJunta(l){ return l.length <= 1 ? (l[0] || "") : l.slice(0, -1).join(", ") + " e " + l[l.length - 1]; }
+  function setoresTxt(e){ return listaJunta(setoresDaEmpresa(e).map(function(s){ return SETOR_LABEL[s.key] || s.key; })); }
+  function analistasTxt(e){
+    var ns = [], vistos = {};
+    frentesDaEmpresa(e, docsDaEmpresa(e.id)).forEach(function(f){ var n = String(f.analistaNome || "").trim(); if(n && !vistos[normBusca(n)]){ vistos[normBusca(n)] = 1; ns.push(n); } });
+    return ns;
+  }
+  // "100%": a mesma conta do cartão do Foco (habilitação + todas as etapas de todos os setores com demanda).
+  // Só vale se houve movimento depois da publicação, para não avisar das que já estavam prontas há tempos.
+  function implementadaPronta(e){
+    if(!e || !e.emFoco || e.ativo === false || e.implementadaOkEm) return false;
+    if(String(ultimoMovimento(e) || "").slice(0, 10) < EI_CORTE) return false;
+    return resumoEmpresaFoco(e, docsDaEmpresa(e.id)).completa;
+  }
+  function emailInicialPendente(e){
+    return !!(e && e.emFoco && e.ativo !== false && !e.emailInicial && String(e.emFocoEm || "").slice(0, 10) >= EI_CORTE && setoresDaEmpresa(e).length);
+  }
+  function avisarImplementada(){
+    var H = hubApiP(); if(!H || !H.notificar) return;
+    state.empresas.forEach(function(e){
+      if(!implementadaPronta(e) || e.implementadaAvisoEm || !operadorDe(e)) return;
+      var agora = new Date().toISOString(); e.implementadaEm = agora; e.implementadaAvisoEm = agora;
+      try{ dbRef.collection("empresas").doc(e.id).update({implementadaEm:agora, implementadaAvisoEm:agora}); }catch(x){}
+      H.notificar({t:"Implementação completa: " + e.nome + " (" + setoresTxt(e) + "). Falta avisar o cliente.", s:"Portal do Cliente", tipo:"tax", ir:"portal"});
+    });
+  }
+  function avisarEmailInicial(){
+    var H = hubApiP(); if(!H || !H.notificar) return;
+    state.empresas.forEach(function(e){
+      if(!emailInicialPendente(e) || e.emailInicialAvisoEm || !operadorDe(e)) return;
+      var agora = new Date().toISOString(); e.emailInicialAvisoEm = agora;
+      try{ dbRef.collection("empresas").doc(e.id).update({emailInicialAvisoEm:agora}); }catch(x){}
+      H.notificar({t:e.nome + " entrou em foco: falta enviar o e-mail inicial do Portal.", s:"Portal do Cliente", tipo:"tax", ir:"portal"});
+    });
+  }
+  // Contatos por setor para o e-mail: os do Portal e, onde faltam, os que o Gestta diz que recebem (sem repetir a mesma pessoa).
+  function eiContatos(e){
+    return setoresDaEmpresa(e).map(function(s){
+      var lista = contatosDoSetor(e.id, s.key).map(function(c){ return {nome:c.nome || "", email:String(c.email || "").trim(), fonte:"Portal"}; });
+      var gl = gesttaDoSetor(e, s.key) || [];
+      gl.forEach(function(g){
+        if(contatosDoSetor(e.id, s.key).some(function(c){ return mesmoContatoGt(c, g); })) return;
+        lista.push({nome:g.nome || g.email || "", email:String(g.email || "").trim(), fonte:"Gestta"});
+      });
+      return {setor:s.key, label:SETOR_LABEL[s.key] || s.key, itens:lista};
+    });
+  }
+  function eiModelo(){
+    var c = (state.portalConfig || []).filter(function(x){ return x.id === "emailInicial"; })[0] || {};
+    return {assunto:c.assunto || EI_ASSUNTO, corpo:c.corpo || EI_CORPO, manualUrl:String(c.manualUrl || "").trim(), personalizado:!!(c.assunto || c.corpo)};
+  }
+  function eiTabela(grupos){
+    return grupos.map(function(g){
+      var linhas = g.itens.length ? g.itens.map(function(i){ return "  - " + (i.nome || "(sem nome)") + (i.email ? " <" + i.email + ">" : " (sem e-mail)"); }) : ["  - (ainda não temos contato com acesso: nos informe nome e e-mail)"];
+      return g.label + ":\n" + linhas.join("\n");
+    }).join("\n\n");
+  }
+  function eiTexto(modelo, e, grupos, manualUrl){
+    var analistas = analistasTxt(e), eu = analistas.length ? listaJunta(analistas) : "nossa equipe";
+    var v = {empresa:e.nome, setores:setoresTxt(e), analista:eu, tabelaContatos:eiTabela(grupos), manual:manualUrl ? "o manual (" + manualUrl + ")" : "o manual"};
+    return modelo.replace(/\{(\w+)\}/g, function(m, k){ return k in v ? v[k] : m; });
+  }
+  function eiUrl(para, assunto, corpo){
+    var base = EI_ZIMBRA + "?view=compose" + (para.length ? "&to=" + encodeURIComponent(para.join(",")) : "") + "&subject=" + encodeURIComponent(assunto);
+    var inteira = base + "&body=" + encodeURIComponent(corpo);
+    return inteira.length <= EI_URL_MAX ? {url:inteira, corpoNaUrl:true} : {url:base, corpoNaUrl:false};
+  }
+  function eiPara(){
+    var ei = ui.ei, vistos = {}, l = [];
+    ei.grupos.forEach(function(g){ g.itens.forEach(function(i){ var k = i.email.toLowerCase(); if(k && ei.marcados[k] && !vistos[k]){ vistos[k] = 1; l.push(i.email); } }); });
+    return l;
+  }
+  function eiAbrir(id){
+    var e = state.empresas.filter(function(x){ return x.id === id; })[0];
+    if(!e || !operadorDe(e)) return;
+    var grupos = eiContatos(e), m = eiModelo(), marcados = {};
+    grupos.forEach(function(g){ g.itens.forEach(function(i){ if(i.email) marcados[i.email.toLowerCase()] = true; }); });
+    ui.ei = {empresaId:id, grupos:grupos, marcados:marcados, modelo:m, assunto:eiTexto(m.assunto, e, grupos, m.manualUrl), corpo:eiTexto(m.corpo, e, grupos, m.manualUrl), aberto:false};
+    renderEmailInicial();
+  }
+  function eiFechar(){ ui.ei = null; var bg = document.getElementById("eiBg"); if(bg) bg.remove(); }
+  function eiAtualizarRodape(){
+    var ei = ui.ei; if(!ei) return;
+    var para = eiPara(), u = eiUrl(para, ei.assunto, ei.corpo), a = document.getElementById("eiZimbra");
+    if(a){ a.setAttribute("href", u.url); a.setAttribute("data-corpo-na-url", u.corpoNaUrl ? "1" : "0"); }
+    var n = document.getElementById("eiN"); if(n) n.textContent = para.length ? para.length + (para.length === 1 ? " destinatário marcado" : " destinatários marcados") : "Nenhum destinatário marcado";
+    var b = document.getElementById("eiEnviado"); if(b) b.disabled = !ei.aberto;
+    var av = document.getElementById("eiAviso"); if(av) av.hidden = u.corpoNaUrl;
+  }
+  function renderEmailInicial(){
+    var ei = ui.ei; if(!ei) return;
+    var e = state.empresas.filter(function(x){ return x.id === ei.empresaId; })[0]; if(!e){ eiFechar(); return; }
+    var antigo = document.getElementById("eiBg"); if(antigo) antigo.remove();
+    var coord = (authP() && authP().nivel("portal") === "coord");
+    var dest = ei.grupos.map(function(g){
+      return '<div class="ei-setor"><h4>' + esc(g.label) + '</h4>' + (g.itens.length ? g.itens.map(function(i, n){
+        var k = i.email.toLowerCase();
+        return '<label class="ei-pessoa' + (i.email ? '' : ' sem') + '">' + (i.email ? '<input type="checkbox" data-action="ei-marcar" data-k="' + esc(k) + '"' + (ei.marcados[k] ? ' checked' : '') + '>' : '<span class="ei-semcx" title="Sem e-mail: não entra no Para">—</span>') +
+          '<span><b>' + esc(i.nome || "(sem nome)") + '</b> <small>' + (i.email ? esc(i.email) : 'sem e-mail') + ' · ' + esc(i.fonte) + '</small></span></label>';
+      }).join("") : '<p class="ei-vazio">Nenhum contato com acesso neste setor ainda: o e-mail pede os nomes e e-mails.</p>') + '</div>';
+    }).join("");
+    var m = ei.modelo;
+    var html = '<div class="cfm-bg ei-bg" id="eiBg"><div class="ei" role="dialog" aria-modal="true" aria-label="E-mail inicial do Portal">' +
+      '<header class="ei-cab"><div><h2>E-mail inicial · ' + esc(e.nome) + '</h2><p>Apresenta o Portal e confirma os contatos de cada setor. O rascunho abre no Zimbra: confira os destinatários e o texto e envie por lá.</p></div><button type="button" class="ei-x" data-action="ei-fechar" aria-label="Fechar">×</button></header>' +
+      '<div class="ei-corpo"><section class="ei-dest"><h3>Para quem</h3>' + dest + '</section>' +
+      '<section class="ei-txt"><label>Assunto<input type="text" id="eiAssunto" value="' + esc(ei.assunto) + '"></label>' +
+      '<label>Texto<textarea id="eiCorpo" rows="18">' + esc(ei.corpo) + '</textarea></label>' +
+      (coord ? '<details class="ei-modelo"><summary>Editar o modelo (vale para todas as empresas)</summary>' +
+        '<label>Assunto do modelo<input type="text" id="eiMAssunto" value="' + esc(m.assunto) + '"></label>' +
+        '<label>Texto do modelo<textarea id="eiMCorpo" rows="12">' + esc(m.corpo) + '</textarea></label>' +
+        '<label>Link do manual (opcional)<input type="text" id="eiMManual" value="' + esc(m.manualUrl) + '" placeholder="https://…"></label>' +
+        '<p class="ei-dica">Variáveis: {empresa}, {setores}, {analista}, {tabelaContatos}, {manual}. Nenhum modelo pede documento assinado.</p>' +
+        '<div class="ei-btns"><button type="button" data-action="ei-modelo-salvar">Salvar o modelo</button><button type="button" data-action="ei-modelo-padrao">Restaurar o padrão</button></div></details>' : '') +
+      '</section></div>' +
+      '<footer class="ei-pe"><span class="ei-n" id="eiN"></span><p class="ei-aviso" id="eiAviso" hidden>O texto é longo para o endereço do Zimbra: ele abre só com o assunto e os destinatários, e o texto vai para a área de transferência. Cole no corpo (Ctrl+V).</p>' +
+      '<div class="ei-btns"><button type="button" data-action="ei-copiar-dest">Copiar destinatários</button><button type="button" data-action="ei-copiar-txt">Copiar texto</button>' +
+      '<a class="ei-zimbra" id="eiZimbra" data-action="ei-zimbra" target="_blank" rel="noopener" href="' + esc(EI_ZIMBRA) + '">Abrir no Zimbra</a>' +
+      '<button type="button" class="ei-ok" id="eiEnviado" data-action="ei-enviado" disabled title="Abra o Zimbra ou copie o texto primeiro">Marcar como enviado</button></div></footer></div></div>';
+    document.body.insertAdjacentHTML("beforeend", html);
+    eiAtualizarRodape();
+  }
+  function eiCopiar(txt, msg){
+    var feito = function(){ mostrarToast(msg); };
+    try{ navigator.clipboard.writeText(txt).then(feito, function(){ mostrarToast("Não consegui copiar: selecione o texto e use Ctrl+C."); }); }catch(x){ mostrarToast("Não consegui copiar: selecione o texto e use Ctrl+C."); }
+  }
+  function eiEnviado(){
+    var ei = ui.ei; if(!ei || !ei.aberto) return;
+    var e = state.empresas.filter(function(x){ return x.id === ei.empresaId; })[0]; if(!e) return;
+    var reg = {em:new Date().toISOString(), por:nomeEu || meuId || "", setores:setoresDaEmpresa(e).map(function(s){ return s.key; }), n:eiPara().length};
+    e.emailInicial = reg;
+    try{ dbRef.collection("empresas").doc(e.id).update({emailInicial:reg}); }catch(x){}
+    eiFechar(); mostrarToast("E-mail inicial de " + e.nome + " marcado como enviado.", "Desfazer", function(){
+      e.emailInicial = null; try{ dbRef.collection("empresas").doc(e.id).update({emailInicial:null}); }catch(x){} renderBlocosAuto();
+    });
+    renderBlocosAuto();
+  }
+  function implOk(id){
+    var e = state.empresas.filter(function(x){ return x.id === id; })[0]; if(!e || !operadorDe(e)) return;
+    var agora = new Date().toISOString(); e.implementadaOkEm = agora; e.implementadaOkPor = nomeEu || meuId || "";
+    try{ dbRef.collection("empresas").doc(e.id).update({implementadaOkEm:agora, implementadaOkPor:e.implementadaOkPor}); }catch(x){}
+    mostrarToast("“" + e.nome + "” marcada como avisada ao cliente.", "Desfazer", function(){
+      e.implementadaOkEm = ""; try{ dbRef.collection("empresas").doc(e.id).update({implementadaOkEm:"", implementadaOkPor:""}); }catch(x){} renderBlocosAuto();
+    });
+    renderBlocosAuto();
+  }
+  function renderBlocosAuto(){
+    var box = document.getElementById("focoAutoBlocos"), nav = document.querySelector('button[data-view="foco"]');
+    var prontas = [], pend = [], outras = [];
+    if(!carregando()) state.empresas.forEach(function(e){
+      if(!e || !e.emFoco || e.ativo === false || !operadorDe(e)) return;
+      if(implementadaPronta(e)) prontas.push(e);
+      if(emailInicialPendente(e)) pend.push(e); else if(setoresDaEmpresa(e).length) outras.push(e);
+    });
+    if(nav){ var n = prontas.length + pend.length; if(n) nav.setAttribute("data-n", String(n)); else nav.removeAttribute("data-n"); }
+    if(!box) return;
+    if(!prontas.length && !pend.length && !outras.length){ if(box.innerHTML){ box.innerHTML = ""; box.removeAttribute("data-h"); } return; }
+    var dataBRiso = function(iso){ return iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : ""; };
+    var linha = function(e, acoes, sub){ return '<div class="auto-lin" data-id="' + esc(e.id) + '"><div class="auto-quem"><b>' + esc(e.nome) + '</b><small>' + esc(sub) + '</small></div><div class="auto-btns">' + acoes + '</div></div>'; };
+    var h = "";
+    if(prontas.length) h += '<div class="panel auto-bloco auto-pronta"><div class="auto-tit"><b>Implementação completa</b><span class="cnt">' + prontas.length + '</span><small>Todas as etapas concluídas. Falta avisar o cliente.</small></div>' +
+      prontas.map(function(e){ var a = analistasTxt(e); return linha(e, '<button type="button" class="linkish" data-action="abrir-foco-empresa" data-id="' + esc(e.id) + '">Abrir</button><button type="button" data-action="impl-ok" data-id="' + esc(e.id) + '">Marcar como avisada</button>', setoresTxt(e) + (a.length ? " · " + listaJunta(a) : "") + " · completa desde " + dataBRiso(ultimoMovimento(e))); }).join("") + '</div>';
+    if(pend.length || outras.length) h += '<div class="panel auto-bloco auto-email"><div class="auto-tit"><b>Boas-vindas ao Portal</b>' + (pend.length ? '<span class="cnt">' + pend.length + '</span>' : '') + '<small>' + (pend.length ? 'Empresas que entraram no foco e ainda não receberam o e-mail inicial.' : 'Nenhuma pendente.') + '</small></div>' +
+      pend.map(function(e){ var a = analistasTxt(e), d = diasEmFoco(e); return linha(e, '<button type="button" class="linkish" data-action="abrir-foco-empresa" data-id="' + esc(e.id) + '">Abrir</button><button type="button" data-action="ei-abrir" data-id="' + esc(e.id) + '">Montar e-mail</button>', setoresTxt(e) + (a.length ? " · " + listaJunta(a) : "") + (d === null ? "" : " · " + textoDiasFoco(d))); }).join("") +
+      (outras.length ? '<div class="auto-outra"><select id="eiOutra" aria-label="Montar o e-mail de outra empresa em foco"><option value="">Montar o e-mail de outra empresa em foco…</option>' + outras.map(function(e){ return '<option value="' + esc(e.id) + '">' + esc(e.nome) + (e.emailInicial ? " (já enviado)" : "") + '</option>'; }).join("") + '</select></div>' : '') + '</div>';
+    if(box.getAttribute("data-h") !== h){ box.setAttribute("data-h", h); box.innerHTML = h; }      // só redesenha se mudou (o clique não perde o alvo)
+  }
+  document.addEventListener("input", function(ev){
+    var t = ev.target; if(!ui.ei || !t || !t.id) return;
+    if(t.id === "eiAssunto"){ ui.ei.assunto = t.value; eiAtualizarRodape(); }
+    else if(t.id === "eiCorpo"){ ui.ei.corpo = t.value; eiAtualizarRodape(); }
+  });
+  document.addEventListener("change", function(ev){
+    var t = ev.target; if(t && t.id === "eiOutra" && t.value){ var id = t.value; t.value = ""; eiAbrir(id); }
+  });
+  document.addEventListener("keydown", function(ev){ if(ev.key === "Escape" && ui.ei) eiFechar(); });
+
   // Avisa no sino (Hub) quando uma empresa em foco fica 3 dias ou mais com analista sem treinamento.
   // Enquanto a situação não mudar, avisa de novo a cada 2 dias. A data do último aviso fica guardada neste navegador.
   var AVISO_TREINO_KEY = "portal-avisos-treino-v1", AVISO_INTERVALO = 2 * 864e5;
@@ -4368,7 +4589,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
         Object.keys(patch).forEach(function(k){ e[k] = patch[k]; });
         try{ dbRef.collection("empresas").doc(e.id).update(patch); }catch(err){}
       });
-      avisarTreinoAtrasado();
+      avisarTreinoAtrasado(); avisarImplementada(); avisarEmailInicial();
     }catch(err){}
     sincAgendaBusy = false;
   }
@@ -4655,6 +4876,29 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
       dbRef.collection("empresas").doc(addId).update({setoresDemanda:novoDem}).then(function(){
         ensureSetorDoc(addEmp, addSetorKey);
       }).catch(function(){ mostrarToast("Não foi possível adicionar o setor."); });
+      return;
+    }
+    if(a === "ei-abrir"){ eiAbrir(el.getAttribute("data-id")); return; }
+    if(a === "impl-ok"){ implOk(el.getAttribute("data-id")); return; }
+    if(a === "ei-fechar"){ eiFechar(); return; }
+    if(a === "ei-marcar"){ if(ui.ei){ ui.ei.marcados[el.getAttribute("data-k")] = !!el.checked; eiAtualizarRodape(); } return; }
+    if(a === "ei-copiar-dest"){ if(ui.ei){ ui.ei.aberto = true; eiCopiar(eiPara().join(", "), "Destinatários copiados."); eiAtualizarRodape(); } return; }
+    if(a === "ei-copiar-txt"){ if(ui.ei){ ui.ei.aberto = true; eiCopiar(ui.ei.assunto + "\n\n" + ui.ei.corpo, "Assunto e texto copiados."); eiAtualizarRodape(); } return; }
+    if(a === "ei-zimbra"){
+      if(!ui.ei) return;
+      var uz = eiUrl(eiPara(), ui.ei.assunto, ui.ei.corpo); el.setAttribute("href", uz.url);
+      if(!uz.corpoNaUrl) eiCopiar(ui.ei.corpo, "Texto copiado: cole no corpo do e-mail (Ctrl+V).");
+      ui.ei.aberto = true; setTimeout(eiAtualizarRodape, 0); return;
+    }
+    if(a === "ei-enviado"){ eiEnviado(); return; }
+    if(a === "ei-modelo-salvar" || a === "ei-modelo-padrao"){
+      var pad = a === "ei-modelo-padrao", doc = {assunto:pad ? "" : $("#eiMAssunto").value, corpo:pad ? "" : $("#eiMCorpo").value, manualUrl:pad ? "" : $("#eiMManual").value.trim()};
+      if(!pad && !/\{empresa\}|\{tabelaContatos\}/.test(doc.corpo + doc.assunto)){ mostrarToast("O modelo precisa ter pelo menos {empresa} ou {tabelaContatos}."); return; }
+      var cfg = (state.portalConfig || []).filter(function(x){ return x.id === "emailInicial"; })[0];
+      if(cfg) Object.assign(cfg, doc); else state.portalConfig.push(Object.assign({id:"emailInicial"}, doc));
+      try{ dbRef.collection("portal_config").doc("emailInicial").set(Object.assign({atualizadoEm:new Date().toISOString(), por:nomeEu || meuId || ""}, doc)); }catch(x){}
+      mostrarToast(pad ? "Modelo padrão restaurado." : "Modelo salvo.");
+      if(ui.ei){ var e0 = ui.ei.empresaId; eiAbrir(e0); }
       return;
     }
     if(a === "copiar-email"){
@@ -8329,6 +8573,7 @@ function cadMestre(cnpj, nome, id){ try{ var P = window.parent, C = P && P !== w
     sub("setorAlinhamento","alinhamentoSetor", ensureAlinhamentoDocs);
     sub("auditoriaDominio","auditoriaDominio");
     sub("historico","historico");
+    sub("portal_config","portalConfig");
   });
   usarCap("user").then(function(u){
     userRef = u;
