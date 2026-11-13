@@ -6620,7 +6620,9 @@
     ovM[nome] = { ver: ovVer, emps: state.dpEmpresas, cfg: state.dpOvCfg, v };
     return v;
   }
-  const ovPodeVerPessoais = () => !AUTH() || nivelMod('dp') === 'coord' || nivelMod('dp') === 'analista';
+  // Hub 355 (Josué, 06/11/2026, confirmado em 13/11/2026: "todos os analistas veem tudo"): os dados pessoais valem para quem é analista
+  // ou coordenação em qualquer módulo (DP, Contábil, Fiscal ou Portal), não só no DP; quem é só consulta continua sem eles
+  const ovPodeVerPessoais = () => !AUTH() || ['dp', 'contabil', 'fiscal', 'portal'].some(m => nivelMod(m) === 'coord' || nivelMod(m) === 'analista');
   const ovTemListas = () => OV_LISTAS.some(t => state.ovMan[t]);
   const ovTemEmpregados = () => !!state.ovMan[OV_EMPREGADOS];
 
@@ -11210,7 +11212,7 @@
   }
   // Só a extensão mais recente entrega dados (Josué, 04/11/2026): o Hub exige pelo menos ING_VERSAO_MIN e, acima disso, a maior versão que já
   // recebeu (ing_config/cfg.versaoExtMax). Quem atualiza primeiro sobe a régua para todos; versão antiga recebe 'versao-antiga' e nada é gravado.
-  const ING_VERSAO_MIN = '0.88.0';         // Hub 326: os contatos do cliente por setor chegam a partir da 0.88.0 (antes: 0.86.0, Hub 325; 0.79.0, Hub 315)
+  const ING_VERSAO_MIN = '0.113.0';        // Hub 355: os dados pessoais vêm ligados de fábrica a partir da 0.113.0 (antes: 0.88.0, Hub 326: os contatos do cliente por setor chegam a partir da 0.88.0 (antes: 0.86.0, Hub 325; 0.79.0, Hub 315)
   const verNum = (v) => String(v || '').split('.').map(x => parseInt(x, 10) || 0);
   const verCmp = (a, b) => { const x = verNum(a), y = verNum(b); for (let i = 0; i < Math.max(x.length, y.length, 3); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; };
   const ingVersaoExigida = () => { const m = ing.cfg && ing.cfg.versaoExtMax; return m && /^\d+(\.\d+){0,3}$/.test(m) && verCmp(m, ING_VERSAO_MIN) > 0 ? m : ING_VERSAO_MIN; };
